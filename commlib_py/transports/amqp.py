@@ -19,12 +19,14 @@ import signal
 import json
 import uuid
 import pika
+from collections import deque
+from threading import Semaphore
 #  import ssl
 
 from commlib_py.logger import create_logger, LoggingLevel
 from commlib_py.serializer import JSONSerializer, ContentType
 from commlib_py.rpc import AbstractRPCServer
-from commlib_py.pubsub import AbstractPublisher
+from commlib_py.pubsub import AbstractPublisher, AbstractSubscriber
 
 
 class MessageProperties(pika.BasicProperties):
@@ -563,7 +565,7 @@ class RPCServer(AbstractRPCServer):
         if content_encoding is None:
             content_encoding = 'utf8'
         if content_type == ContentType.json:
-            _data = JSONSerializer.deserialize(data)
+            _data = self._serializer.deserialize(data)
         elif content_type == ContentType.text:
             _data = data.decode(content_encoding)
         elif content_type == ContentType.raw_bytes:
@@ -573,7 +575,7 @@ class RPCServer(AbstractRPCServer):
                     'Content-Type was not set in headers or is invalid!' + \
                             ' Deserializing using default JSON serializer')
             ## TODO: Not the proper way!!!!
-            _data = JSONSerializer.deserialize(data)
+            _data = self._serializer.deserialize(data)
         return _data
 
     def close(self):
@@ -613,7 +615,6 @@ class RPCClient(object):
     def __init__(self, rpc_name, conn_params=None, debug=False,
                  logger=None, use_corr_id=False, serializer=None):
         """Constructor."""
-        self._name = rpc_name
         self._rpc_name = rpc_name
         self._use_corr_id = use_corr_id
         self._debug = debug
@@ -633,11 +634,9 @@ class RPCClient(object):
         if serializer is not None:
             self._serializer = serializer
         else:
-            self._serializer = JSONSerializer()
+            self._serializer = JSONSerializer
 
         self._transport = AMQPTransport(conn_params, self._debug, self._logger)
-
-        self._serializer = JSONSerializer()
 
         self._transport.connect()
 
@@ -767,7 +766,7 @@ class RPCClient(object):
         if content_encoding is None:
             content_encoding = 'utf8'
         if content_type == ContentType.json:
-            _data = JSONSerializer.deserialize(data)
+            _data = self._serializer.deserialize(data)
         elif content_type == ContentType.text:
             _data = data.decode(content_encoding)
         elif content_type == ContentType.raw_bytes:
@@ -880,7 +879,7 @@ class Publisher(AbstractPublisher):
         self.logger.debug('Sent message to topic <{}>'.format(self._topic))
 
 
-class Subscriber(object):
+class Subscriber(AbstractSubscriber):
     """Subscriber class.
     Implements the Subscriber endpoint of the PubSub communication pattern.
 
@@ -899,36 +898,37 @@ class Subscriber(object):
 
     FREQ_CALC_SAMPLES_MAX = 100
 
-    def __init__(self, topic, on_message=None, exchange='amq.topic',
-                 queue_size=10, message_ttl=60000, overflow='drop-head',
-                 *args, **kwargs):
+    def __init__(self, conn_params=None, exchange='amq.topic', queue_size=10,
+                 message_ttl=60000, overflow='drop-head', *args, **kwargs):
         """Constructor."""
-        self._name = topic
-        AMQPTransportSync.__init__(self, *args, **kwargs)
-        self._topic = topic
         self._topic_exchange = exchange
         self._queue_name = None
         self._queue_size = queue_size
         self._message_ttl = message_ttl
         self._overflow = overflow
-        self.connect()
 
-        if on_message is not None:
-            self.onmessage = on_message
+        super(Subscriber, self).__init__(*args, **kwargs)
 
-        _exch_ex = self.exchange_exists(self._topic_exchange)
+        conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
+
+        self._transport = AMQPTransport(conn_params, self.debug, self.logger)
+        self._transport.connect()
+
+        _exch_ex = self._transport.exchange_exists(self._topic_exchange)
         if _exch_ex.method.NAME != 'Exchange.DeclareOk':
-            self.create_exchange(self._topic_exchange, ExchangeTypes.Topic)
+            self._transport.create_exchange(self._topic_exchange,
+                                            ExchangeTypes.Topic)
 
         # Create a queue. Set default idle expiration time to 5 mins
-        self._queue_name = self.create_queue(
+        self._queue_name = self._transport.create_queue(
             queue_size=self._queue_size,
             message_ttl=self._message_ttl,
             overflow_behaviour=self._overflow,
             expires=300000)
 
         # Bind queue to the Topic exchange
-        self.bind_queue(self._topic_exchange, self._queue_name, self._topic)
+        self._transport.bind_queue(self._topic_exchange, self._queue_name, self._topic)
         self._last_msg_ts = None
         self._msg_freq_fifo = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
         self._hz = 0
@@ -939,37 +939,31 @@ class Subscriber(object):
         """Incoming message frequency."""
         return self._hz
 
-    def run(self):
+    def run_forever(self):
         """Start Subscriber. Blocking method."""
         self._consume()
 
-    def run_threaded(self):
-        """Execute subscriber in a separate thread."""
-        self.loop_thread = Thread(target=self.run)
-        self.loop_thread.daemon = True
-        self.loop_thread.start()
-
     def close(self):
-        if self._channel.is_closed:
+        if self._transport._channel.is_closed:
             self.logger.info('Invoked close() on an already closed channel')
             return False
-        self.delete_queue(self._queue_name)
-        super(SubscriberSync, self).close()
+        self._transport.delete_queue(self._queue_name)
+        super(Subscriber, self).stop()
 
     def _consume(self, reliable=False):
         """Start AMQP consumer."""
-        self._channel.basic_consume(
+        self._transport._channel.basic_consume(
             self._queue_name,
             self._on_msg_callback_wrapper,
             exclusive=False,
             auto_ack=(not reliable))
         try:
-            self._channel.start_consuming()
+            self._transport._channel.start_consuming()
         except KeyboardInterrupt as exc:
             # Log error with traceback
-            self.logger.error(exc, exc_info=True)
+            self.logger.error(exc, exc_info=False)
         except Exception as exc:
-            self.logger.error(exc, exc_info=True)
+            self.logger.error(exc, exc_info=False)
             raise exc
 
     def _on_msg_callback_wrapper(self, ch, method, properties, body):
@@ -988,7 +982,7 @@ class Subscriber(object):
             # _ts_broker = properties.timestamp
         except Exception:
             self.logger.error("Could not calculate latency",
-                              exc_info=True)
+                              exc_info=False)
 
         try:
             msg = self._deserialize_data(body, _ctype, _cencoding)
@@ -1046,7 +1040,7 @@ class Subscriber(object):
         if content_encoding is None:
             content_encoding = 'utf8'
         if content_type == ContentType.json:
-            _data = JSONSerializer.deserialize(data)
+            _data = self._serializer.deserialize(data)
         elif content_type == ContentType.text:
             _data = data.decode(content_encoding)
         elif content_type == ContentType.raw_bytes:

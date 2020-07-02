@@ -24,7 +24,7 @@ class AbstractRPCServer(object):
         if serializer is not None:
             self._serializer = serializer
         else:
-            self._serializer = JSONSerializer()
+            self._serializer = JSONSerializer
 
         self._logger = create_logger(self.__class__.__name__) if \
             logger is None else logger
