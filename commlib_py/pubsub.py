@@ -49,8 +49,7 @@ class AbstractSubscriber(object):
         self._debug = debug
         self._topic = topic
 
-        if on_message is not None:
-            self.onmessage = on_message
+        self._onmessage = on_message
 
         if serializer is not None:
             self._serializer = serializer

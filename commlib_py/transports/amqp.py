@@ -1000,7 +1000,7 @@ class Subscriber(AbstractSubscriber):
             self.logger.error("Could not calculate message rate",
                               exc_info=True)
 
-        if self.onmessage is not None:
+        if self._onmessage is not None:
             meta = {
                 'channel': ch,
                 'method': method,
@@ -1012,7 +1012,7 @@ class Subscriber(AbstractSubscriber):
                     'delivery_mode': _dmode
                 }
             }
-            self.onmessage(msg, meta)
+            self._onmessage(msg, meta)
 
     def _calc_msg_frequency(self):
         ts = time.time()
