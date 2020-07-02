@@ -24,6 +24,7 @@ import pika
 from commlib_py.logger import create_logger, LoggingLevel
 from commlib_py.serializer import JSONSerializer, ContentType
 from commlib_py.rpc import AbstractRPCServer
+from commlib_py.pubsub import AbstractPublisher
 
 
 class MessageProperties(pika.BasicProperties):
@@ -479,7 +480,7 @@ class RPCServer(AbstractRPCServer):
             # _ts_broker = properties.timestamp
         except Exception:
             self.logger.error("Could not calculate latency",
-                              exc_info=True)
+                              exc_info=False)
 
         try:
             _msg = self._deserialize_data(body, _ctype, _cencoding)
@@ -503,8 +504,6 @@ class RPCServer(AbstractRPCServer):
                     'correlation_id': _corr_id
                 }
             }
-            self.logger.debug(_msg)
-            self.logger.debug(_meta)
             resp = self.on_request(_msg, _meta)
         else:
             resp = {
@@ -812,3 +811,244 @@ class RPCClient(object):
             properties=_rpc_props,
             body=_payload)
 
+
+class Publisher(AbstractPublisher):
+    """Publisher class.
+
+    Args:
+        topic (str): The topic uri to publish data.
+        exchange (str): The exchange to publish data.
+        **kwargs: The keyword arguments to pass to the base class
+            (AMQPTransportSync).
+    """
+
+    def __init__(self, conn_params=None, exchange='amq.topic', *args, **kwargs):
+        """Constructor."""
+        self._topic_exchange = exchange
+
+        super(Publisher, self).__init__(*args, **kwargs)
+
+        conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
+
+        self._transport = AMQPTransport(conn_params, self.debug, self.logger)
+        self._transport.connect()
+        self._transport.create_exchange(self._topic_exchange,
+                                        ExchangeTypes.Topic)
+
+    def publish(self, payload):
+        """ Publish message once.
+
+        Args:
+            msg (dict|Message|str|bytes): Message/Data to publish.
+        """
+        ## Thread Safe solution
+        self._transport.connection.add_callback_threadsafe(
+            functools.partial(self._send_data, payload))
+        # self._send_data(payload)
+        self._transport.process_amqp_events()
+
+    def _send_data(self, data):
+        _payload = None
+        _encoding = None
+        _type = None
+
+        if isinstance(data, dict):
+            _payload = self._serializer.serialize(data).encode('utf-8')
+            _encoding = self._serializer.CONTENT_ENCODING
+            _type = self._serializer.CONTENT_TYPE
+        elif isinstance(data, str):
+            _type = 'text/plain'
+            _encoding = 'utf8'
+            _payload = data
+        elif isinstance(data, bytes):
+            _type = 'application/octet-stream'
+            _encoding = 'utf8'
+            _payload = data
+
+        msg_props = MessageProperties(
+            content_type=_type,
+            content_encoding=_encoding,
+            message_id=0,
+        )
+
+        self._transport._channel.basic_publish(
+            exchange=self._topic_exchange,
+            routing_key=self._topic,
+            properties=msg_props,
+            body=_payload)
+        self.logger.debug('Sent message to topic <{}>'.format(self._topic))
+
+
+class Subscriber(object):
+    """Subscriber class.
+    Implements the Subscriber endpoint of the PubSub communication pattern.
+
+    Args:
+        topic (str): The topic uri.
+        on_message (function): The callback function. This function
+            is fired when messages arrive at the registered topic.
+        exchange (str): The name of the exchange. Defaults to `amq.topic`
+        queue_size (int): The maximum queue size of the topic.
+        message_ttl (int): Message Time-to-Live as specified by AMQP.
+        overflow (str): queue overflow behavior. Specified by AMQP Protocol.
+            Defaults to `drop-head`.
+        **kwargs: The keyword arguments to pass to the base class
+            (AMQPTransportSync).
+    """
+
+    FREQ_CALC_SAMPLES_MAX = 100
+
+    def __init__(self, topic, on_message=None, exchange='amq.topic',
+                 queue_size=10, message_ttl=60000, overflow='drop-head',
+                 *args, **kwargs):
+        """Constructor."""
+        self._name = topic
+        AMQPTransportSync.__init__(self, *args, **kwargs)
+        self._topic = topic
+        self._topic_exchange = exchange
+        self._queue_name = None
+        self._queue_size = queue_size
+        self._message_ttl = message_ttl
+        self._overflow = overflow
+        self.connect()
+
+        if on_message is not None:
+            self.onmessage = on_message
+
+        _exch_ex = self.exchange_exists(self._topic_exchange)
+        if _exch_ex.method.NAME != 'Exchange.DeclareOk':
+            self.create_exchange(self._topic_exchange, ExchangeTypes.Topic)
+
+        # Create a queue. Set default idle expiration time to 5 mins
+        self._queue_name = self.create_queue(
+            queue_size=self._queue_size,
+            message_ttl=self._message_ttl,
+            overflow_behaviour=self._overflow,
+            expires=300000)
+
+        # Bind queue to the Topic exchange
+        self.bind_queue(self._topic_exchange, self._queue_name, self._topic)
+        self._last_msg_ts = None
+        self._msg_freq_fifo = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
+        self._hz = 0
+        self._sem = Semaphore()
+
+    @property
+    def hz(self):
+        """Incoming message frequency."""
+        return self._hz
+
+    def run(self):
+        """Start Subscriber. Blocking method."""
+        self._consume()
+
+    def run_threaded(self):
+        """Execute subscriber in a separate thread."""
+        self.loop_thread = Thread(target=self.run)
+        self.loop_thread.daemon = True
+        self.loop_thread.start()
+
+    def close(self):
+        if self._channel.is_closed:
+            self.logger.info('Invoked close() on an already closed channel')
+            return False
+        self.delete_queue(self._queue_name)
+        super(SubscriberSync, self).close()
+
+    def _consume(self, reliable=False):
+        """Start AMQP consumer."""
+        self._channel.basic_consume(
+            self._queue_name,
+            self._on_msg_callback_wrapper,
+            exclusive=False,
+            auto_ack=(not reliable))
+        try:
+            self._channel.start_consuming()
+        except KeyboardInterrupt as exc:
+            # Log error with traceback
+            self.logger.error(exc, exc_info=True)
+        except Exception as exc:
+            self.logger.error(exc, exc_info=True)
+            raise exc
+
+    def _on_msg_callback_wrapper(self, ch, method, properties, body):
+        msg = {}
+        _ctype = None
+        _cencoding = None
+        _ts_send = None
+        _ts_broker = None
+        _dmode = None
+        try:
+            _ctype = properties.content_type
+            _cencoding = properties.content_encoding
+            _dmode = properties.delivery_mode
+            _ts_broker = properties.headers['timestamp_in_ms']
+            _ts_send = properties.timestamp
+            # _ts_broker = properties.timestamp
+        except Exception:
+            self.logger.error("Could not calculate latency",
+                              exc_info=True)
+
+        try:
+            msg = self._deserialize_data(body, _ctype, _cencoding)
+        except Exception:
+            self.logger.error("Could not deserialize data",
+                              exc_info=True)
+            # Return data as is. Let callback handle with encoding...
+            msg = body
+
+        try:
+            self._sem.acquire()
+            self._calc_msg_frequency()
+            self._sem.release()
+        except Exception:
+            self.logger.error("Could not calculate message rate",
+                              exc_info=True)
+
+        if self.onmessage is not None:
+            meta = {
+                'channel': ch,
+                'method': method,
+                'properties': {
+                    'content_type': _ctype,
+                    'content_encoding': _cencoding,
+                    'timestamp_broker': _ts_broker,
+                    'timestamp_producer': _ts_send,
+                    'delivery_mode': _dmode
+                }
+            }
+            self.onmessage(msg, meta)
+
+    def _calc_msg_frequency(self):
+        ts = time.time()
+        if self._last_msg_ts is not None:
+            diff = ts - self._last_msg_ts
+            if diff < 10e-3:
+                self._last_msg_ts = ts
+                return
+            else:
+                hz = 1.0 / float(diff)
+                self._msg_freq_fifo.appendleft(hz)
+                hz_list = [s for s in self._msg_freq_fifo if s != 0]
+                _sum = sum(hz_list)
+                self._hz = _sum / len(hz_list)
+        self._last_msg_ts = ts
+
+    def _deserialize_data(self, data, content_type, content_encoding):
+        """
+        Deserialize wire data.
+
+        @param data: Data to deserialize.
+        @type data: dict|int|bool
+        """
+        _data = None
+        if content_encoding is None:
+            content_encoding = 'utf8'
+        if content_type == ContentType.json:
+            _data = JSONSerializer.deserialize(data)
+        elif content_type == ContentType.text:
+            _data = data.decode(content_encoding)
+        elif content_type == ContentType.raw_bytes:
+            _data = data
+        return _data

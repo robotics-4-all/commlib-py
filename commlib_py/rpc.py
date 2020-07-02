@@ -7,10 +7,7 @@ from __future__ import (
 
 from concurrent.futures import ThreadPoolExecutor
 import threading
-import time
 import uuid
-import json
-import hashlib
 
 from .serializer import JSONSerializer
 from .logger import create_logger
