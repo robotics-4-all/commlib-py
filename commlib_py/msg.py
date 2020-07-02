@@ -27,9 +27,13 @@ class AbstractMessage(object):
                 setattr(self, key, kwargs[key])
             else:
                 raise AttributeError(
-                    '{}{}{}'.join(
+                    '{}{}{}'.format(
                         self.__class__.__name__,
-                        ' object does not have a property named ', str(key)))
+                        ' object does not have a property named ',
+                        str(key)
+                    )
+                )
+
     def _to_dict(self):
         """Serialize message object to a dict."""
         _d = {}
