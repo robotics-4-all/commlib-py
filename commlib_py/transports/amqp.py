@@ -23,6 +23,7 @@ import pika
 
 from commlib_py.logger import create_logger, LoggingLevel
 from commlib_py.serializer import JSONSerializer, ContentType
+from commlib_py.rpc import AbstractRPCServer
 
 
 class MessageProperties(pika.BasicProperties):
@@ -404,7 +405,7 @@ class AMQPTransport(object):
         self._graceful_shutdown()
 
 
-class RPCServer(object):
+class RPCServer(AbstractRPCServer):
     """AMQP RPC Server class.
     Implements an AMQP RPC Server.
 
@@ -414,34 +415,14 @@ class RPCServer(object):
             Defaults to (AMQT default).
         on_request (function): The on-request callback function to register.
     """
-    def __init__(self, rpc_name,conn_params=None, exchange='',
-                 on_request=None, serializer=None,
-                 debug=True, logger=None):
+    def __init__(self, conn_params=None, exchange='', *args, **kwargs):
         """Constructor. """
-        self._name = rpc_name
-        self._rpc_name = rpc_name
-        self._debug = debug
-
-        self._logger = create_logger(self.__class__.__name__) if \
-            logger is None else logger
-
+        self._exchange = exchange
+        super(RPCServer, self).__init__(*args, **kwargs)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        if serializer is not None:
-            self._serializer = serializer
-        else:
-            self._serializer = JSONSerializer()
-
-        self._transport = AMQPTransport(conn_params, self._debug, self._logger)
-
-        self._exchange = exchange
-        # Bind on_request callback
-        self.on_request = on_request
-
-    @property
-    def logger(self):
-        return self._logger
+        self._transport = AMQPTransport(conn_params, self.debug, self.logger)
 
     @property
     def connection(self):
@@ -476,12 +457,6 @@ class RPCServer(object):
         except Exception as exc:
             self.logger.error(exc, exc_info=True)
             raise exc
-
-    def run(self, raise_if_exists=True):
-        """Run RPC Server in a separate thread."""
-        self.loop_thread = threading.Thread(target=self.run)
-        self.loop_thread.daemon = True
-        self.loop_thread.start()
 
     def _rpc_exists(self):
         return self._transport.queue_exists(self._rpc_name)
@@ -612,7 +587,6 @@ class RPCServer(object):
             self.logger.warning('Channel was already closed!')
             return False
         self._transport.stop_consuming()
-        # super(RpcServer, self).close()
         self._transport.delete_queue(self._rpc_queue)
         return True
 
@@ -642,13 +616,14 @@ class RPCClient(object):
         """Constructor."""
         self._name = rpc_name
         self._rpc_name = rpc_name
+        self._use_corr_id = use_corr_id
+        self._debug = debug
         self._corr_id = None
         self._response = None
         self._exchange = ExchangeTypes.Default
         self._mean_delay = 0
         self._delay = 0
         self.onresponse = None
-        self._use_corr_id = use_corr_id
 
         self._logger = create_logger(self.__class__.__name__) if \
             logger is None else logger

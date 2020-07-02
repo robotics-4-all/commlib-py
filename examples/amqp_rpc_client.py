@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import RPCServer, ConnectionParameters
-
-
-def callback(msg, meta):
-    return msg
+from commlib_py.transports.amqp import RPCClient, ConnectionParameters
 
 
 if __name__ == '__main__':
@@ -14,5 +10,7 @@ if __name__ == '__main__':
     conn_params.credentials.password = 'testuser'
     conn_params.host = 'r4a-platform.ddns.net'
     conn_params.port = 5782
-    rpcs = RPCServer(conn_params, on_request=callback, rpc_name=rpc_name)
-    rpcs.run_forever()
+    rpcc = RPCClient(rpc_name, conn_params)
+    data = {'a': 1, 'b': 'aa'}
+    resp = rpcc.call(data)
+    print(resp)
