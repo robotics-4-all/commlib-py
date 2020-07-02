@@ -11,3 +11,5 @@ __author__ = """Konstantinos Panayiotou"""
 __email__ = 'klpanagi@gmail.com'
 __version__ = '0.1.0'
 
+from .amqp_transport import ConnectionParameters as AMQPConnectionParams
+from .amqp_rpc import AMQPRPCServer as AMQPRPCServer
