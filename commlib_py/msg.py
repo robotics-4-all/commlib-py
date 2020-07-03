@@ -68,7 +68,7 @@ class AbstractMessage(object):
         return json.dumps(self.to_dict(), sort_keys=True)
 
 
-class MessageData(AbstractMessage):
+class Message(AbstractMessage):
     __slots__ = []
 
     def __init__(self, *args, **kwargs):

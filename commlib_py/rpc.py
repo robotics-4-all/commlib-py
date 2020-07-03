@@ -56,4 +56,35 @@ class AbstractRPCServer(object):
         self._main_thread.start()
 
     def stop(self):
-        self._t_stop_event.set()
+        if self._t_stop_event is not None:
+            self._t_stop_event.set()
+
+
+class AbstractRPCClient(object):
+    def __init__(self, rpc_name, msg_type=None, logger=None,
+                 debug=True, serializer=None):
+        self._rpc_name = rpc_name
+        self._debug = debug
+
+        if serializer is not None:
+            self._serializer = serializer
+        else:
+            self._serializer = JSONSerializer
+
+        self._logger = create_logger(self.__class__.__name__) if \
+            logger is None else logger
+
+    @property
+    def debug(self):
+        return self._debug
+
+    @property
+    def logger(self):
+        return self._logger
+
+    def _gen_random_id(self):
+        """Generate correlationID."""
+        return str(uuid.uuid4()).replace('-', '')
+
+    def call(self, data, timeout):
+        raise NotImplementedError()

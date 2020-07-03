@@ -1,11 +1,9 @@
-
 from __future__ import (
     absolute_import,
     division,
     print_function,
     unicode_literals
 )
-
 
 import functools
 import sys
@@ -25,7 +23,7 @@ from threading import Semaphore
 
 from commlib_py.logger import create_logger, LoggingLevel
 from commlib_py.serializer import JSONSerializer, ContentType
-from commlib_py.rpc import AbstractRPCServer
+from commlib_py.rpc import AbstractRPCServer, AbstractRPCClient
 from commlib_py.pubsub import AbstractPublisher, AbstractSubscriber
 
 
@@ -604,7 +602,7 @@ class RPCServer(AbstractRPCServer):
         self.close()
 
 
-class RPCClient(object):
+class RPCClient(AbstractRPCClient):
     """AMQP RPC Client class.
 
     Args:
@@ -612,12 +610,9 @@ class RPCClient(object):
         **kwargs: The Keyword arguments to pass to  the base class
             (AMQPTransportSync).
     """
-    def __init__(self, rpc_name, conn_params=None, debug=False,
-                 logger=None, use_corr_id=False, serializer=None):
+    def __init__(self, conn_params=None, use_corr_id=False, *args, **kwargs):
         """Constructor."""
-        self._rpc_name = rpc_name
         self._use_corr_id = use_corr_id
-        self._debug = debug
         self._corr_id = None
         self._response = None
         self._exchange = ExchangeTypes.Default
@@ -625,16 +620,10 @@ class RPCClient(object):
         self._delay = 0
         self.onresponse = None
 
-        self._logger = create_logger(self.__class__.__name__) if \
-            logger is None else logger
+        super(RPCClient, self).__init__(*args, *kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
-
-        if serializer is not None:
-            self._serializer = serializer
-        else:
-            self._serializer = JSONSerializer
 
         self._transport = AMQPTransport(conn_params, self._debug, self._logger)
 
