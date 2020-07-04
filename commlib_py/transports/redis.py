@@ -64,7 +64,9 @@ class RedisTransport(object):
     def wait_for_msg(self, queue_name, timeout=10):
         try:
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
+            payload = payload.decode()
         except Exception as exc:
+            self.logger.error(exc)
             msgq = ''
             payload = {}
         return msgq, payload
@@ -110,7 +112,8 @@ class RPCServer(AbstractRPCServer):
         self._transport.delete_queue(self._rpc_name)
         self.logger.info('RPC Server listening on: <{}>'.format(self._rpc_name))
         while True:
-            msgq, payload = self._transport.wait_for_msg(self._rpc_name)
+            msgq, payload = self._transport.wait_for_msg(self._rpc_name,
+                                                         timeout=0)
 
             self.__detach_request_handler(payload)
             if self._t_stop_event is not None:
@@ -124,7 +127,6 @@ class RPCServer(AbstractRPCServer):
         self._t_stop_event.set()
 
     def __detach_request_handler(self, payload):
-        payload = payload.decode()
         payload = self._serializer.deserialize(payload)
         data = payload['data']
         header = payload['header']
@@ -166,7 +168,6 @@ class RPCClient(AbstractRPCClient):
         self._transport.push_msg_to_queue(self._rpc_name, _msg)
         msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
         self._transport.delete_queue(_reply_to)
-        _msg = _msg.decode()
         _msg = self._serializer.deserialize(_msg)
         return _msg
 
