@@ -23,7 +23,7 @@ import datetime
 import redis
 
 from commlib_py.serializer import JSONSerializer
-from commlib_py.logger import create_logger
+from commlib_py.logger import Logger
 from commlib_py.rpc import AbstractRPCServer, AbstractRPCClient
 from commlib_py.pubsub import AbstractPublisher, AbstractSubscriber
 
@@ -51,8 +51,9 @@ class RedisTransport(object):
                                      port=conn_params.port,
                                      db=conn_params.db)
         self._conn_params = conn_params
-        self.logger = create_logger(self.__class__.__name__) if \
+        self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
+        assert isinstance(self.logger, Logger)
 
     def delete_queue(self, queue_name):
         self.logger.debug('Removing message queue: <{}>'.format(queue_name))

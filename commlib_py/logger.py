@@ -66,6 +66,23 @@ logging.addLevelName(
 
 
 def create_logger(namespace):
-    """Tiny wrapper around python's logging module"""
     return logging.getLogger(namespace)
 
+
+class Logger(object):
+    """Tiny wrapper around python's logging module"""
+    def __init__(self, namespace):
+        self.namespace = namespace
+        self.std_logger = create_logger(namespace)
+
+    def debug(self, msg):
+        self.std_logger.debug(msg)
+
+    def info(self, msg):
+        self.std_logger.info(msg)
+
+    def warn(self, msg):
+        self.std_logger.warning(msg)
+
+    def error(self, msg):
+        self.std_logger.error(msg)

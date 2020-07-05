@@ -10,7 +10,7 @@ import threading
 import uuid
 
 from .serializer import JSONSerializer
-from .logger import create_logger
+from .logger import Logger
 
 
 class AbstractPublisher(object):
@@ -24,8 +24,10 @@ class AbstractPublisher(object):
         else:
             self._serializer = JSONSerializer()
 
-        self._logger = create_logger(self.__class__.__name__) if \
+        self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
+
+        assert isinstance(self._logger, Logger)
 
     @property
     def debug(self):
@@ -56,8 +58,10 @@ class AbstractSubscriber(object):
         else:
             self._serializer = JSONSerializer
 
-        self._logger = create_logger(self.__class__.__name__) if \
+        self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
+
+        assert isinstance(self._logger, Logger)
 
         self._executor = ThreadPoolExecutor(max_workers=2)
 

@@ -10,7 +10,7 @@ import threading
 import uuid
 
 from .serializer import JSONSerializer
-from .logger import create_logger
+from .logger import Logger
 
 
 class AbstractRPCServer(object):
@@ -26,7 +26,7 @@ class AbstractRPCServer(object):
         else:
             self._serializer = JSONSerializer
 
-        self._logger = create_logger(self.__class__.__name__) if \
+        self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
         self._executor = ThreadPoolExecutor(max_workers=2)
@@ -71,7 +71,7 @@ class AbstractRPCClient(object):
         else:
             self._serializer = JSONSerializer
 
-        self._logger = create_logger(self.__class__.__name__) if \
+        self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
     @property

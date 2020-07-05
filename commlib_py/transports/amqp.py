@@ -21,10 +21,11 @@ from collections import deque
 from threading import Semaphore
 #  import ssl
 
-from commlib_py.logger import create_logger, LoggingLevel
+from commlib_py.logger import Logger, LoggingLevel
 from commlib_py.serializer import JSONSerializer, ContentType
 from commlib_py.rpc import AbstractRPCServer, AbstractRPCClient
 from commlib_py.pubsub import AbstractPublisher, AbstractSubscriber
+from commlib_py.logger import Logger
 
 
 class MessageProperties(pika.BasicProperties):
@@ -182,7 +183,7 @@ class AMQPTransport(object):
         self._connection_params = ConnectionParameters() if \
             connection_params is None else connection_params
 
-        self._logger = create_logger(self.__class__.__name__) if \
+        self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
         assert isinstance(self._debug, bool)
@@ -1035,3 +1036,74 @@ class Subscriber(AbstractSubscriber):
         elif content_type == ContentType.raw_bytes:
             _data = data
         return _data
+
+
+class RemoteLogger(Logger):
+    """Remote Logger Class."""
+    def __init__(self, namespace, conn_params):
+        super(RemoteLogger, self).__init__(namespace)
+        self.conn_params = conn_params
+        self.remote_topic = '{}.logs'.format(namespace)
+        self.log_pub = Publisher(conn_params=conn_params,
+                                 topic=self.remote_topic)
+        self._remote_state = 1
+        self._std_state = 1
+
+        self._formatting = '[{timestamp}][{namespace}][{level}]'
+
+    @property
+    def remote(self):
+        return self._remote_state
+
+    @remote.setter
+    def remote(self, val):
+        assert isinstance(val, bool)
+        if val:
+            self._remote_state = 1
+        else:
+            self._remote_state = 0
+
+    @property
+    def std(self):
+        return self._std_state
+
+    @std.setter
+    def std(self, val):
+        assert isinstance(val, bool)
+        if val:
+            self._std_state = 1
+        else:
+            self._std_state = 0
+
+    def format_msg(self, msg, level):
+        fmsg = self._formatting.format(timestamp=-1,
+                                       namespace=self.namespace,
+                                       level=level)
+        return {'msg': fmsg}
+
+    def debug(self, msg):
+        if self._std_state:
+            self.std_logger.debug(msg)
+        if self._remote_state:
+            self.log_pub.publish(self.format_msg(msg, 'DEBUG'))
+
+    def info(self, msg):
+        if self._std_state:
+            self.std_logger.info(msg)
+        if self._remote_state:
+            self.log_pub.publish(self.format_msg(msg, 'INFO'))
+
+    def warn(self, msg):
+        if self._std_state:
+            self.std_logger.warning(msg)
+        if self._remote_state:
+            self.log_pub.publish(self.format_msg(msg, 'WARNING'))
+
+    def warning(self, msg):
+        self.warn(msg)
+
+    def error(self, msg):
+        if self._std_state:
+            self.std_logger.error(msg)
+        if self._remote_state:
+            self.log_pub.publish(self.format_msg(msg, 'ERROR'))
