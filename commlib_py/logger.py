@@ -32,7 +32,7 @@ __LOGGING = dict(
     version=1,
     formatters={
         'f': {'format':
-              '[%(asctime)s] - [%(name)s] - [%(levelname)s]: %(message)s',
+              '[%(asctime)s][%(name)s][%(levelname)s]: %(message)s',
               'datefmt': '%s'
               }
     },
@@ -66,6 +66,26 @@ logging.addLevelName(
 
 
 def create_logger(namespace):
-    """Tiny wrapper around python's logging module"""
     return logging.getLogger(namespace)
 
+
+class Logger(object):
+    """Tiny wrapper around python's logging module"""
+    def __init__(self, namespace):
+        self.namespace = namespace
+        self.std_logger = create_logger(namespace)
+
+    def debug(self, msg, exc_info=False):
+        self.std_logger.debug(msg, exc_info=exc_info)
+
+    def info(self, msg, exc_info=False):
+        self.std_logger.info(msg, exc_info=exc_info)
+
+    def warn(self, msg, exc_info=False):
+        self.std_logger.warning(msg, exc_info=exc_info)
+
+    def warning(self, msg, exc_info=False):
+        self.warn(msg, exc_info)
+
+    def error(self, msg, exc_info=False):
+        self.std_logger.error(msg, exc_info=exc_info)

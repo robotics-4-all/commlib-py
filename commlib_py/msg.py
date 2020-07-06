@@ -17,8 +17,11 @@ from .serializer import JSONSerializer
 from .logger import create_logger
 
 
-class AbstractMessage(object):
+class BaseMessage(object):
     __slots__ = []
+
+    def __init__(self, *args, **kwargs):
+        self._set_props(*args, **kwargs)
 
     def _set_props(self, *args, **kwargs):
         """Constructor."""
@@ -27,9 +30,13 @@ class AbstractMessage(object):
                 setattr(self, key, kwargs[key])
             else:
                 raise AttributeError(
-                    '{}{}{}'.join(
+                    '{}{}{}'.format(
                         self.__class__.__name__,
-                        ' object does not have a property named ', str(key)))
+                        ' object does not have a property named ',
+                        str(key)
+                    )
+                )
+
     def _to_dict(self):
         """Serialize message object to a dict."""
         _d = {}
@@ -37,7 +44,7 @@ class AbstractMessage(object):
             # Recursive object seriazilation to dictionary
             if not k.startswith('_'):
                 _prop = getattr(self, k)
-                if isinstance(_prop, AbstractMessage):
+                if isinstance(_prop, BaseMessage):
                     _d[k] = _prop._to_dict()
                 else:
                     _d[k] = _prop
@@ -63,23 +70,18 @@ class AbstractMessage(object):
     def __str__(self):
         return json.dumps(self.to_dict(), sort_keys=True)
 
-
-class MessageData(AbstractMessage):
-    __slots__ = []
-
-    def __init__(self, *args, **kwargs):
-        self._set_props(*args, **kwargs)
+    def __call__(self, *args, **kwargs):
+        return BaseMessage(*args, **kwargs)
 
 
-class CommMessageProperties(AbstractMessage):
+class CommMessageProperties(BaseMessage):
     __slots__ = ['content_type', 'content_encoding']
 
-    def __init__(self, content_encoding='utf8', content_type='json'):
-        self.content_encoding = content_encoding
-        self.content_type = content_type
+    def __init__(self, *args, **kwargs):
+        super(CommMessageProperties, self).__init__(*args, **kwargs)
 
 
-class CommHeaderMessagePubSub(AbstractMessage):
+class CommHeaderMessagePubSub(BaseMessage):
     __slots__ = ['timestamp', 'properties', 'seq', 'node_id', 'type']
 
     def __init__(self, *args, **kwargs):
@@ -88,10 +90,10 @@ class CommHeaderMessagePubSub(AbstractMessage):
         self.seq = 0
         self.node_id = "-1"
         self.properties = CommMessageProperties()
-        self._set_props(*args, **kwargs)
+        super(CommHeaderMessagePubSub, self).__init__(*args, **kwargs)
 
 
-class CommHeaderMessageRPC(AbstractMessage):
+class CommHeaderMessageRPC(BaseMessage):
     __slots__ = ['timestamp', 'properties', 'seq',
                  'node_id', 'type', 'reply_to']
 
@@ -103,45 +105,42 @@ class CommHeaderMessageRPC(AbstractMessage):
         self.node_id = "-1"
         self.reply_to = ''
         self.properties = CommMessageProperties()
-        self._set_props(*args, **kwargs)
+        super(CommHeaderMessageRPC, self).__init__(*args, **kwargs)
 
 
-class PubSubMessage(AbstractMessage):
+class PubSubMessage(BaseMessage):
     __slots__ = ['header', 'data']
 
     def __init__(self, header=None, data=None):
         header = CommHeaderMessagePubSub() if header is None else header
-        data = MessageData() if data is None else data
+        data = BaseMessage() if data is None else data
         assert isinstance(header, CommHeaderMessagePubSub)
-        assert isinstance(data, MessageData)
-        self.header = header
-        self.data = data
+        assert isinstance(data, BaseMessage)
+        super(PubSubMessage, self).__init__(header=header, data=data)
 
 
-class RPCRequestMessage(AbstractMessage):
+class RPCRequestMessage(BaseMessage):
     __slots__ = ['header', 'data']
 
     def __init__(self, header=None, data=None):
         header = CommHeaderMessagePubSub() if header is None else header
-        data = MessageData() if data is None else data
+        data = BaseMessage() if data is None else data
         assert isinstance(header, CommHeaderMessageRPC)
-        assert isinstance(data, MessageData)
-        self.header = header
-        self.data = data
+        assert isinstance(data, BaseMessage)
+        super(RPCRequestMessage, self).__init__(header=header, data=data)
 
 
-class RPCResponseMessage(AbstractMessage):
+class RPCResponseMessage(BaseMessage):
     __slots__ = ['header', 'data']
 
     def __init__(self, header=None, data=None):
         header = CommHeaderMessageRPC() if header is None else header
         assert isinstance(header, CommHeaderMessageRPC)
-        assert isinstance(data, MessageData)
-        self.header = header
-        self.data = data
+        assert isinstance(data, BaseMessage)
+        super(RPCResponseMessage, self).__init__(header=header, data=data)
 
 
-class RPCMessage(AbstractMessage):
+class RPCMessage(BaseMessage):
     __slots__ = ['request', 'response']
 
     def __init__(self, request=None, response=None):
@@ -149,3 +148,5 @@ class RPCMessage(AbstractMessage):
         response = RPCResponseMessage() if response is None else response
         assert isinstance(request, RPCRequestMessage)
         assert isinstance(response, RPCResponseMessage)
+        super(RPCMessage, self).__init__(request=request,
+                                         response=response)
