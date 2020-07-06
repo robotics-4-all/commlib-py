@@ -201,7 +201,7 @@ class AMQPTransport(object):
         assert isinstance(self._conn_params, ConnectionParameters)
 
         self.connect()
-        self._detach_hb_thread()
+        # self._detach_hb_thread()
 
     @property
     def logger(self):
@@ -253,18 +253,6 @@ class AMQPTransport(object):
         """Force process amqp events, such as heartbeat packages."""
         self.connection.process_data_events()
 
-    def _detach_hb_thread(self):
-        self._hb_thread = Thread(target=self._ensure_events_processed)
-        self._hb_thread.daemon = True
-        self._t_stop_event = Event()
-        self._hb_thread.start()
-
-    def _ensure_events_processed(self):
-        while True:
-            self.process_amqp_events()
-            time.sleep(self._conn_params.heartbeat_timeout)
-            if self._t_stop_event.is_set():
-                break
 
     def _signal_handler(self, signum, frame):
         """TODO"""
@@ -657,6 +645,7 @@ class RPCClient(BaseRPCClient):
             exclusive=False,
             consumer_tag=None,
             auto_ack=True)
+        self._detach_hb_thread()
 
     @property
     def logger(self):
@@ -682,6 +671,18 @@ class RPCClient(BaseRPCClient):
         """
         return self._delay
 
+    def _detach_hb_thread(self):
+        self._hb_thread = Thread(target=self._ensure_events_processed)
+        self._hb_thread.daemon = True
+        self._t_stop_event = Event()
+        self._hb_thread.start()
+
+    def _ensure_events_processed(self):
+        while True:
+            self._transport.process_amqp_events()
+            time.sleep(self._transport._conn_params.heartbeat_timeout / 2)
+            if self._t_stop_event.is_set():
+                break
     def _on_response(self, ch, method, properties, body):
         _ctype = None
         _cencoding = None
@@ -850,6 +851,7 @@ class Publisher(BasePublisher):
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
+        self._detach_hb_thread()
 
     def publish(self, payload):
         """ Publish message once.
@@ -862,6 +864,19 @@ class Publisher(BasePublisher):
             functools.partial(self._send_data, payload))
         # self._send_data(payload)
         # self._transport.process_amqp_events()
+
+    def _detach_hb_thread(self):
+        self._hb_thread = Thread(target=self._ensure_events_processed)
+        self._hb_thread.daemon = True
+        self._t_stop_event = Event()
+        self._hb_thread.start()
+
+    def _ensure_events_processed(self):
+        while True:
+            self._transport.process_amqp_events()
+            time.sleep(self._transport._conn_params.heartbeat_timeout / 2)
+            if self._t_stop_event.is_set():
+                break
 
     def _send_data(self, data):
         _payload = None
@@ -892,7 +907,7 @@ class Publisher(BasePublisher):
             routing_key=self._topic,
             properties=msg_props,
             body=_payload)
-        # self.logger.debug('Sent message to topic <{}>'.format(self._topic))
+        self.logger.debug('Sent message to topic <{}>'.format(self._topic))
 
 
 class Subscriber(BaseSubscriber):
@@ -943,7 +958,8 @@ class Subscriber(BaseSubscriber):
             expires=300000)
 
         # Bind queue to the Topic exchange
-        self._transport.bind_queue(self._topic_exchange, self._queue_name, self._topic)
+        self._transport.bind_queue(self._topic_exchange, self._queue_name,
+                                   self._topic)
         self._last_msg_ts = None
         self._msg_freq_fifo = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
         self._hz = 0
@@ -973,7 +989,7 @@ class Subscriber(BaseSubscriber):
             exclusive=False,
             auto_ack=(not reliable))
         try:
-            self._transport._channel.start_consuming()
+            self._transport.start_consuming()
         except KeyboardInterrupt as exc:
             # Log error with traceback
             self.logger.error(exc, exc_info=False)
