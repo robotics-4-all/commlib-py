@@ -182,6 +182,9 @@ class AMQPTransport(object):
 
     def __init__(self, conn_params, debug=False, logger=None):
         """Constructor."""
+        # So that connections do not go zombie
+        atexit.register(self._graceful_shutdown)
+
         self._closing = False
         self._connection = None
         self._channel = None
@@ -197,8 +200,8 @@ class AMQPTransport(object):
         assert isinstance(self._debug, bool)
         assert isinstance(self._conn_params, ConnectionParameters)
 
-        # So that connections do not go zombie
-        atexit.register(self._graceful_shutdown)
+        self.connect()
+        self._detach_hb_thread()
 
     @property
     def logger(self):
@@ -249,6 +252,19 @@ class AMQPTransport(object):
     def process_amqp_events(self):
         """Force process amqp events, such as heartbeat packages."""
         self.connection.process_data_events()
+
+    def _detach_hb_thread(self):
+        self._hb_thread = Thread(target=self._ensure_events_processed)
+        self._hb_thread.daemon = True
+        self._t_stop_event = Event()
+        self._hb_thread.start()
+
+    def _ensure_events_processed(self):
+        while True:
+            self.process_amqp_events()
+            time.sleep(self._conn_params.heartbeat_timeout)
+            if self._t_stop_event.is_set():
+                break
 
     def _signal_handler(self, signum, frame):
         """TODO"""
@@ -453,7 +469,6 @@ class RPCServer(BaseRPCServer):
 
     def run_forever(self, raise_if_exists=True):
         """Run RPC Server in normal mode. Blocking function."""
-        self._transport.connect()
         if self._rpc_exists() and raise_if_exists:
             raise ValueError(
                 'RPC <{}> allready registered on broker.'.format(
@@ -628,7 +643,6 @@ class RPCClient(BaseRPCClient):
         self._mean_delay = 0
         self._delay = 0
         self.onresponse = None
-        self._t_stop_event = Event()
 
         super(RPCClient, self).__init__(*args, **kwargs)
 
@@ -637,16 +651,12 @@ class RPCClient(BaseRPCClient):
 
         self._transport = AMQPTransport(conn_params, self._debug, self._logger)
 
-        self._transport.connect()
-
         self._consumer_tag = self.channel.basic_consume(
             'amq.rabbitmq.reply-to',
             self._on_response,
             exclusive=False,
             consumer_tag=None,
             auto_ack=True)
-
-        self._detach_hb_thread()
 
     @property
     def logger(self):
@@ -672,19 +682,6 @@ class RPCClient(BaseRPCClient):
         """
         return self._delay
 
-    def _detach_hb_thread(self):
-        self._transport.connection.add_callback_threadsafe(
-            functools.partial(self._ensure_events_processed))
-
-    def _ensure_events_processed(self):
-        while True:
-            try:
-                self._transport.process_amqp_events()
-                time.sleep(0.001)
-                if self._t_stop_event.is_set():
-                    break
-            except Exception as exc:
-                break
     def _on_response(self, ch, method, properties, body):
         _ctype = None
         _cencoding = None
@@ -751,22 +748,27 @@ class RPCClient(BaseRPCClient):
         self._response = None
         if self._use_corr_id:
             self._corr_id = self.gen_corr_id()
-        self._send_data(payload)
         start_t = time.time()
-        self._wait_for_response(timeout)
+
+        self._transport.connection.add_callback_threadsafe(
+            functools.partial(self._send_data, payload))
+
         ## TODO: Validate correlation_id
         elapsed_t = time.time() - start_t
         self._delay = elapsed_t
 
-        if self._response is None:
-            resp = {'error': 'RPC Response timeout'}
-        else:
-            resp = self._response
+        while self._response is None:
+            elapsed_t = time.time() - start_t
+            if elapsed_t >= timeout:
+                resp = {'error': 'RPC Response timeout'}
+                return resp
+            time.sleep(0.001)
+        resp = self._response
         return resp
 
     def _wait_for_response(self, timeout):
-        self.logger.debug(
-            'Waiting for response from [{}]...'.format(self._rpc_name))
+        # self.logger.debug(
+        #     'Waiting for response from [{}]...'.format(self._rpc_name))
         self.connection.process_data_events(time_limit=timeout)
 
     def _deserialize_data(self, data, content_type, content_encoding):
@@ -839,7 +841,6 @@ class Publisher(BasePublisher):
     def __init__(self, conn_params=None, exchange='amq.topic', *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
-        self._t_stop_event = Event()
 
         super(Publisher, self).__init__(*args, **kwargs)
 
@@ -847,10 +848,8 @@ class Publisher(BasePublisher):
             conn_params is None else conn_params
 
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-        self._transport.connect()
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
-        self._detach_hb_thread()
 
     def publish(self, payload):
         """ Publish message once.
@@ -863,19 +862,6 @@ class Publisher(BasePublisher):
             functools.partial(self._send_data, payload))
         # self._send_data(payload)
         # self._transport.process_amqp_events()
-
-    def _detach_hb_thread(self):
-        self._hb_thread = Thread(target=self._ensure_events_processed)
-        self._hb_thread.daemon = True
-        self._t_stop_event = Event()
-        self._hb_thread.start()
-
-    def _ensure_events_processed(self):
-        while True:
-            self._transport.process_amqp_events()
-            time.sleep(self._transport._conn_params.heartbeat_timeout)
-            if self._t_stop_event.is_set():
-                break
 
     def _send_data(self, data):
         _payload = None
@@ -943,7 +929,6 @@ class Subscriber(BaseSubscriber):
             conn_params is None else conn_params
 
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-        self._transport.connect()
 
         _exch_ex = self._transport.exchange_exists(self._topic_exchange)
         if _exch_ex.method.NAME != 'Exchange.DeclareOk':
