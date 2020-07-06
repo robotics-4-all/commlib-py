@@ -14,7 +14,7 @@ from .logger import Logger
 
 
 class BaseRPCServer(object):
-    def __init__(self, rpc_name, msg_type=None, logger=None, debug=True,
+    def __init__(self, rpc_name=None, msg_type=None, logger=None, debug=True,
                  on_request=None, workers=2, serializer=None):
         if rpc_name is None:
             raise ValueError()
@@ -35,6 +35,7 @@ class BaseRPCServer(object):
 
         self._main_thread = None
         self._t_stop_event = None
+        self.logger.info('Created RPC Server: <{}>'.format(self._rpc_name))
 
     @property
     def debug(self):
@@ -63,13 +64,12 @@ class BaseRPCServer(object):
 
 
 class BaseRPCClient(object):
-    def __init__(self, rpc_name, msg_type=None, logger=None,
+    def __init__(self, rpc_name=None, msg_type=None, logger=None,
                  debug=True, serializer=None):
         if rpc_name is None:
             raise ValueError()
         self._rpc_name = rpc_name
         self._debug = debug
-        print(self._rpc_name)
 
         if serializer is not None:
             self._serializer = serializer
@@ -78,6 +78,8 @@ class BaseRPCClient(object):
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
+
+        self.logger.info('Created RPC Client: <{}>'.format(self._rpc_name))
 
     @property
     def debug(self):
