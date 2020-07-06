@@ -49,10 +49,16 @@ class BaseActionServer(object):
 
         self._status_topic = '{}.status'.format(self._action_name)
         self._feedback_topic = '{}.feedback'.format(self._action_name)
+        self._goal_rpc_uri = '{}.send_goal'.format(self._action_name)
+        self._cancel_rpc_uri = '{}.cancel_goal'.format(self._action_name)
+        self._result_rpc_uri = '{}.get_result'.format(self._action_name)
 
         ## To be instantiated by the child classes
         self._feedback_pub = None
         self._status_pub = None
+        self._goal_rpc = None
+        self._cancel_rpc = None
+        self._result_rpc = None
 
         self._status_current = 0
 
@@ -65,7 +71,6 @@ class BaseActionServer(object):
             logger is None else logger
 
         assert isinstance(self._logger, Logger)
-        assert isinstance(self._serializer, Serializer)
 
     @property
     def debug(self):

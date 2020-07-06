@@ -10,11 +10,16 @@ def callback(msg, meta):
 
 
 if __name__ == '__main__':
-    rpc_name = 'test_rpc'
+    action_name = 'testaction'
     conn_params = ConnectionParameters()
     conn_params.credentials.username = 'testuser'
     conn_params.credentials.password = 'testuser'
     conn_params.host = 'r4a-platform.ddns.net'
     conn_params.port = 5782
-    logger = RemoteLogger(rpc_name, conn_params)
-    actions = ActionServer(conn_params, action_name=action_name, logger=logger)
+    logger = RemoteLogger(action_name, conn_params)
+    action = ActionServer(conn_params=conn_params, action_name=action_name,
+                          logger=logger)
+
+    action.run()
+    while True:
+        time.sleep(120)
