@@ -28,6 +28,7 @@ class BasePublisher(object):
             logger is None else logger
 
         assert isinstance(self._logger, Logger)
+        self.logger.info('Created Publisher: <{}>'.format(self._topic))
 
     @property
     def debug(self):
@@ -67,6 +68,7 @@ class BaseSubscriber(object):
 
         self._main_thread = None
         self._t_stop_event = None
+        self.logger.info('Created Subscriber: <{}>'.format(self._topic))
 
     @property
     def debug(self):
