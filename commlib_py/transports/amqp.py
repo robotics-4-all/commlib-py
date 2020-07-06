@@ -237,7 +237,7 @@ class AMQPTransport(object):
             self._connection = AMQPConnection(self._conn_params)
             # Create a new communication channel
             self._channel = self._connection.channel()
-            self.logger.info(
+            self.logger.debug(
                     'Connected to AMQP broker @ [{}:{}, vhost={}]'.format(
                         self._conn_params.host,
                         self._conn_params.port,
@@ -350,9 +350,6 @@ class AMQPTransport(object):
 
     def delete_queue(self, queue_name):
         self._channel.queue_delete(queue=queue_name)
-
-    def _queue_exists_clb(self, arg):
-        print(arg)
 
     def queue_exists(self, queue_name):
         """Check if a queue exists, given its name.
@@ -491,17 +488,14 @@ class RPCServer(BaseRPCServer):
             _ts_send = properties.timestamp
             # _ts_broker = properties.timestamp
         except Exception:
-            self.logger.error("Could not calculate latency",
-                              exc_info=False)
+            self.logger.error("Could not calculate latency", exc_info=False)
 
         try:
             _msg = self._deserialize_data(body, _ctype, _cencoding)
         except Exception:
-            self.logger.error("Could not deserialize data",
-                              exc_info=True)
+            self.logger.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
             _msg = body
-
 
         if self.on_request is not None:
             _meta = {
@@ -907,7 +901,7 @@ class Publisher(BasePublisher):
             routing_key=self._topic,
             properties=msg_props,
             body=_payload)
-        self.logger.debug('Sent message to topic <{}>'.format(self._topic))
+        # self.logger.debug('Sent message to topic <{}>'.format(self._topic))
 
 
 class Subscriber(BaseSubscriber):
@@ -1154,29 +1148,43 @@ class ActionServer(BaseActionServer):
         super(ActionServer, self).__init__(*args, **kwargs)
         self._goal_rpc = RPCServer(rpc_name=self._goal_rpc_uri,
                                    conn_params=conn_params,
+                                   on_request=self._handle_send_goal,
                                    logger=self._logger,
                                    serializer=self._serializer,
                                    debug=self.debug)
         self._cancel_rpc = RPCServer(rpc_name=self._cancel_rpc_uri,
                                      conn_params=conn_params,
+                                     on_request=self._handle_cancel_goal,
                                      logger=self._logger,
                                      serializer=self._serializer,
                                      debug=self.debug)
         self._result_rpc = RPCServer(rpc_name=self._result_rpc_uri,
                                      conn_params=conn_params,
+                                     on_request=self._handle_get_result,
                                      logger=self._logger,
                                      serializer=self._serializer,
                                      debug=self.debug)
-
-    def run_forever(self):
+        self._feedback_pub = Publisher(topic=self._feedback_topic,
+                                       conn_params=conn_params,
+                                       logger=self._logger,
+                                       serializer=self._serializer,
+                                       debug=self.debug)
+        self._status_pub = Publisher(topic=self._status_topic,
+                                     conn_params=conn_params,
+                                     logger=self._logger,
+                                     serializer=self._serializer,
+                                     debug=self.debug)
         self._goal_rpc.run()
         self._cancel_rpc.run()
+        self._result_rpc.run()
+
+    def run_forever(self):
         while True:
             try:
                 time.sleep(0.001)
             except Exception as exc:
+                self.logger.error(exc, exc_info=True)
                 break
         self._goal_rpc.stop()
         self._cancel_rpc.stop()
         self._result_rpc.stop()
-

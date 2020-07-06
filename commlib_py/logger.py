@@ -71,9 +71,20 @@ def create_logger(namespace):
 
 class Logger(object):
     """Tiny wrapper around python's logging module"""
-    def __init__(self, namespace):
+    def __init__(self, namespace, debug=False):
         self.namespace = namespace
         self.std_logger = create_logger(namespace)
+        self._debug_mode = debug
+        self.set_debug(self._debug_mode)
+
+    def set_debug(self, status):
+        if not isinstance(status, bool):
+            raise TypeError('Value should be boolean')
+        if status:
+            self.std_logger.setLevel(logging.DEBUG)
+        else:
+            self.std_logger.setLevel(logging.INFO)
+        self._debug_mode = status
 
     def debug(self, msg, exc_info=False):
         self.std_logger.debug(msg, exc_info=exc_info)

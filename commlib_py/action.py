@@ -8,13 +8,14 @@ from __future__ import (
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import uuid
-from enum import Enum
+from enum import IntEnum
 
 from .serializer import JSONSerializer, Serializer
+from .msg import BaseMessage
 from .logger import Logger
 
 
-class Status(Enum):
+class GoalStatus(IntEnum):
     ACCEPTED = 1
     EXECUTING = 2
     CANCELING = 3
@@ -23,23 +24,51 @@ class Status(Enum):
     CANCELED = 6
 
 
-class Goal(object):
-    def __init__(self):
-        self._status = 1
-        self._id = self._gen_random_id()
+class GoalHandler(object):
+    def __init__(self, status_publisher, feedback_publisher):
+        self.status = 1
+        self.id = self._gen_random_id()
+        self.data = {}
+        self._pub_status = status_publisher
+        self._pub_feedback = feedback_publisher
+        self.result = {}
 
     def set_status(self, status):
-        self._status = status
+        if status not in GoalStatus:
+            raise ValueError()
+        status = int(status)
+        self.status = status
+        pmsg = {
+            'goal_id': self.id,
+            'status': status
+        }
+        self._pub_status.publish(pmsg)
+
+    def send_feedback(self, feedback_msg):
+        assert isinstance(feedback_msg, dict)
+        self._pub_feedback.publish(feedback_msg)
+
+    def set_result(self, result):
+        assert isinstance(result, dict)
+        self.result = result
 
     def _gen_random_id(self):
         """Generate correlationID."""
         return str(uuid.uuid4()).replace('-', '')
 
+    def to_dict(self):
+        return {
+            'status': self.status,
+            'goal_id': self.id,
+            'data': self.data,
+            'result': self.result
+        }
+
 
 class BaseActionServer(object):
     def __init__(self, action_name, logger=None, debug=True,
-                 serializer=None, workers=2,
-                 on_goal=None, on_cancel=None, on_getresult=None):
+                 serializer=None, workers=2, on_goal=None,
+                 on_cancel=None, on_getresult=None):
         self._debug = debug
         self._num_workers = workers
         self._action_name = action_name
@@ -60,7 +89,7 @@ class BaseActionServer(object):
         self._cancel_rpc = None
         self._result_rpc = None
 
-        self._status_current = 0
+        self._current_goal = None
 
         if serializer is not None:
             self._serializer = serializer
@@ -71,6 +100,7 @@ class BaseActionServer(object):
             logger is None else logger
 
         assert isinstance(self._logger, Logger)
+        self._executor = ThreadPoolExecutor(max_workers=2)
 
     @property
     def debug(self):
@@ -84,8 +114,30 @@ class BaseActionServer(object):
         """Generate correlationID."""
         return str(uuid.uuid4()).replace('-', '')
 
-    def _handle_goal_request(self, goal_msg):
-        raise NotImplementedError()
+    def _handle_send_goal(self, msg, meta):
+        if self._current_goal is None:
+            self._current_goal = GoalHandler(self._status_pub,
+                                             self._feedback_pub)
+        if self._current_goal.status in (GoalStatus.SUCCEDED,
+                                         GoalStatus.CANCELED,
+                                         GoalStatus.ABORTED):
+            # Final States
+            self._current_goal = GoalHandler(self._status_pub,
+                                             self._feedback_pub)
+            self._current_goal.data = msg
+        if self._on_goal is not None:
+            _goal_task = self._executor.submit(
+                self._on_goal(self._current_goal))
+            resp = {
+                'status': self._current_goal.status,
+                'goal_id': self._current_goal.id
+            }
+        else:
+            resp = {
+                'status': GoalStatus.ABORTED,
+                'goal_id': self._current_goal.id
+            }
+        return resp
 
     def _handle_cancel_goal(self, cgoal_msg):
         raise NotImplementedError()

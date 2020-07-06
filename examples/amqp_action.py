@@ -2,11 +2,14 @@
 
 from commlib_py.transports.amqp import (ActionServer, ConnectionParameters,
                                         RemoteLogger)
+from commlib_py.action import GoalStatus
 import time
 
 
-def callback(msg, meta):
-    return msg
+def on_goal(goal):
+    print(goal.to_dict())
+    goal.set_result({'result_data': 1})
+    goal.set_status(GoalStatus.SUCCEDED)
 
 
 if __name__ == '__main__':
@@ -18,7 +21,7 @@ if __name__ == '__main__':
     conn_params.port = 5782
     logger = RemoteLogger(action_name, conn_params)
     action = ActionServer(conn_params=conn_params, action_name=action_name,
-                          logger=logger)
+                          logger=logger, on_goal=on_goal)
 
     action.run()
     while True:
