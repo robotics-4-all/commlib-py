@@ -57,7 +57,7 @@ class MessageProperties(pika.BasicProperties):
         )
 
 
-class ConnectionParameters(pika.ConnectionParameters):
+class ConnectionParameters():
     """AMQP Connection parameters.
 
     Args:
@@ -87,7 +87,8 @@ class ConnectionParameters(pika.ConnectionParameters):
 
     __slots__ = [
         'host', 'port', 'secure', 'vhost', 'reconnect_attempts', 'retry_delay',
-        'timeout', 'heartbeat_timeout', 'blocked_connection_timeout', 'creds'
+        'timeout', 'heartbeat_timeout', 'blocked_connection_timeout', 'creds',
+        'channel_max'
     ]
 
     def __init__(self, host='127.0.0.1', port='5672', creds=None,
@@ -108,18 +109,24 @@ class ConnectionParameters(pika.ConnectionParameters):
 
         if creds is None:
             creds = Credentials()
+        self.creds = creds
 
-        super(ConnectionParameters, self).__init__(
-            host=host,
-            port=str(port),
-            credentials=creds,
-            connection_attempts=reconnect_attempts,
-            retry_delay=retry_delay,
-            blocked_connection_timeout=blocked_connection_timeout,
-            socket_timeout=timeout,
-            virtual_host=vhost,
-            heartbeat=heartbeat_timeout,
-            channel_max=channel_max)
+    @property
+    def credentials(self):
+        return self.creds
+
+    def make_pika(self):
+        return pika.ConnectionParameters(
+            host=self.host,
+            port=str(self.port),
+            credentials=self.creds,
+            connection_attempts=self.reconnect_attempts,
+            retry_delay=self.retry_delay,
+            blocked_connection_timeout=self.blocked_connection_timeout,
+            socket_timeout=self.timeout,
+            virtual_host=self.vhost,
+            heartbeat=self.heartbeat_timeout,
+            channel_max=self.channel_max)
 
     def __str__(self):
         _properties = {
@@ -143,7 +150,7 @@ class AMQPConnection(pika.BlockingConnection):
         self._connection_params = conn_params
         self._pika_connection = None
         super(AMQPConnection, self).__init__(
-            parameters=self._connection_params)
+            parameters=self._connection_params.make_pika())
 
 
 class ExchangeTypes(object):
@@ -173,7 +180,7 @@ class AMQPTransport(object):
     """AMQPT Transport implementation.
     """
 
-    def __init__(self, connection_params, debug=False, logger=None):
+    def __init__(self, conn_params, debug=False, logger=None):
         """Constructor."""
         self._closing = False
         self._connection = None
@@ -181,14 +188,14 @@ class AMQPTransport(object):
 
         self._debug = debug
 
-        self._connection_params = ConnectionParameters() if \
-            connection_params is None else connection_params
+        self._conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
         assert isinstance(self._debug, bool)
-        assert isinstance(self._connection_params, ConnectionParameters)
+        assert isinstance(self._conn_params, ConnectionParameters)
 
         # So that connections do not go zombie
         atexit.register(self._graceful_shutdown)
@@ -224,14 +231,14 @@ class AMQPTransport(object):
         """Connect to the AMQP broker. Creates a new channel."""
         try:
             # Create a new connection
-            self._connection = AMQPConnection(self._connection_params)
+            self._connection = AMQPConnection(self._conn_params)
             # Create a new communication channel
             self._channel = self._connection.channel()
             self.logger.info(
                     'Connected to AMQP broker @ [{}:{}, vhost={}]'.format(
-                        self._connection_params.host,
-                        self._connection_params.port,
-                        self._connection_params.vhost))
+                        self._conn_params.host,
+                        self._conn_params.port,
+                        self._conn_params.vhost))
         except pika.exceptions.ConnectionClosed:
             self.logger.debug('Connection timed out. Reconnecting...')
             self.connect()
@@ -1106,6 +1113,7 @@ class RemoteLogger(Logger):
             self.std_logger.error(msg, exc_info=exc_info)
         if self._remote_state:
             self.log_pub.publish(self.format_msg(msg, 'ERROR'))
+
 
 class ActionServer(BaseActionServer):
     def __init__(self, conn_params=None, *args, **kwargs):

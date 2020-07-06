@@ -26,9 +26,14 @@ class Status(Enum):
 class Goal(object):
     def __init__(self):
         self._status = 1
+        self._id = self._gen_random_id()
 
     def set_status(self, status):
         self._status = status
+
+    def _gen_random_id(self):
+        """Generate correlationID."""
+        return str(uuid.uuid4()).replace('-', '')
 
 
 class BaseActionServer(object):
@@ -70,13 +75,11 @@ class BaseActionServer(object):
     def logger(self):
         return self._logger
 
-    def change_status(self, new_status):
-        pass
+    def _gen_random_id(self):
+        """Generate correlationID."""
+        return str(uuid.uuid4()).replace('-', '')
 
-    def create_status_msg(self, status):
-        pass
-
-    def _handle_send_goal(self, goal_msg):
+    def _handle_goal_request(self, goal_msg):
         raise NotImplementedError()
 
     def _handle_cancel_goal(self, cgoal_msg):
@@ -84,3 +87,16 @@ class BaseActionServer(object):
 
     def _handle_get_result(self, cresult_msg):
         raise NotImplementedError()
+
+    def run_forever(self):
+        raise NotImplementedError()
+
+    def run(self):
+        self._main_thread = threading.Thread(target=self.run_forever)
+        self._main_thread.daemon = True
+        self._t_stop_event = threading.Event()
+        self._main_thread.start()
+
+    def stop(self):
+        if self._t_stop_event is not None:
+            self._t_stop_event.set()
