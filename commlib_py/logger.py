@@ -75,14 +75,17 @@ class Logger(object):
         self.namespace = namespace
         self.std_logger = create_logger(namespace)
 
-    def debug(self, msg):
-        self.std_logger.debug(msg)
+    def debug(self, msg, exc_info=False):
+        self.std_logger.debug(msg, exc_info=exc_info)
 
-    def info(self, msg):
-        self.std_logger.info(msg)
+    def info(self, msg, exc_info=False):
+        self.std_logger.info(msg, exc_info=exc_info)
 
-    def warn(self, msg):
-        self.std_logger.warning(msg)
+    def warn(self, msg, exc_info=False):
+        self.std_logger.warning(msg, exc_info=exc_info)
 
-    def error(self, msg):
-        self.std_logger.error(msg)
+    def warning(self, msg, exc_info=False):
+        self.warn(msg, exc_info)
+
+    def error(self, msg, exc_info=False):
+        self.std_logger.error(msg, exc_info=exc_info)

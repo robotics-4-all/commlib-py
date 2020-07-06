@@ -22,10 +22,11 @@ from threading import Semaphore
 #  import ssl
 
 from commlib_py.logger import Logger, LoggingLevel
-from commlib_py.serializer import JSONSerializer, ContentType
-from commlib_py.rpc import AbstractRPCServer, AbstractRPCClient
-from commlib_py.pubsub import AbstractPublisher, AbstractSubscriber
+from commlib_py.serializer import ContentType
+from commlib_py.rpc import BaseRPCServer, BaseRPCClient
+from commlib_py.pubsub import BasePublisher, BaseSubscriber
 from commlib_py.logger import Logger
+from commlib_py.action import BaseActionServer
 
 
 class MessageProperties(pika.BasicProperties):
@@ -407,7 +408,7 @@ class AMQPTransport(object):
         self._graceful_shutdown()
 
 
-class RPCServer(AbstractRPCServer):
+class RPCServer(BaseRPCServer):
     """AMQP RPC Server class.
     Implements an AMQP RPC Server.
 
@@ -603,7 +604,7 @@ class RPCServer(AbstractRPCServer):
         self.close()
 
 
-class RPCClient(AbstractRPCClient):
+class RPCClient(BaseRPCClient):
     """AMQP RPC Client class.
 
     Args:
@@ -621,7 +622,7 @@ class RPCClient(AbstractRPCClient):
         self._delay = 0
         self.onresponse = None
 
-        super(RPCClient, self).__init__(*args, *kwargs)
+        super(RPCClient, self).__init__(*args, **kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -741,7 +742,8 @@ class RPCClient(AbstractRPCClient):
         return resp
 
     def _wait_for_response(self, timeout):
-        self.logger.debug('Waiting for response from [%s]...', self._rpc_name)
+        self.logger.debug(
+            'Waiting for response from [{}]...'.format(self._rpc_name))
         self.connection.process_data_events(time_limit=timeout)
 
     def _deserialize_data(self, data, content_type, content_encoding):
@@ -801,7 +803,7 @@ class RPCClient(AbstractRPCClient):
             body=_payload)
 
 
-class Publisher(AbstractPublisher):
+class Publisher(BasePublisher):
     """Publisher class.
 
     Args:
@@ -869,7 +871,7 @@ class Publisher(AbstractPublisher):
         self.logger.debug('Sent message to topic <{}>'.format(self._topic))
 
 
-class Subscriber(AbstractSubscriber):
+class Subscriber(BaseSubscriber):
     """Subscriber class.
     Implements the Subscriber endpoint of the PubSub communication pattern.
 
@@ -1081,29 +1083,32 @@ class RemoteLogger(Logger):
                                        level=level)
         return {'msg': fmsg}
 
-    def debug(self, msg):
+    def debug(self, msg, exc_info=False):
         if self._std_state:
-            self.std_logger.debug(msg)
+            self.std_logger.debug(msg, exc_info=exc_info)
         if self._remote_state:
             self.log_pub.publish(self.format_msg(msg, 'DEBUG'))
 
-    def info(self, msg):
+    def info(self, msg, exc_info=False):
         if self._std_state:
-            self.std_logger.info(msg)
+            self.std_logger.info(msg, exc_info=exc_info)
         if self._remote_state:
             self.log_pub.publish(self.format_msg(msg, 'INFO'))
 
-    def warn(self, msg):
+    def warn(self, msg, exc_info=False):
         if self._std_state:
-            self.std_logger.warning(msg)
+            self.std_logger.warning(msg, exc_info=exc_info)
         if self._remote_state:
             self.log_pub.publish(self.format_msg(msg, 'WARNING'))
 
-    def warning(self, msg):
-        self.warn(msg)
-
-    def error(self, msg):
+    def error(self, msg, exc_info=False):
         if self._std_state:
-            self.std_logger.error(msg)
+            self.std_logger.error(msg, exc_info=exc_info)
         if self._remote_state:
             self.log_pub.publish(self.format_msg(msg, 'ERROR'))
+
+class ActionServer(BaseActionServer):
+    def __init__(self, conn_params=None, *args, **kwargs):
+        conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
+        super(ActionServer, self).__init__(*args, **kwargs)

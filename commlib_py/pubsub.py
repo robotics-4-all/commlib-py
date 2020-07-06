@@ -13,7 +13,7 @@ from .serializer import JSONSerializer
 from .logger import Logger
 
 
-class AbstractPublisher(object):
+class BasePublisher(object):
     def __init__(self, topic=None, msg_type=None, logger=None,
                  debug=True, serializer=None):
         self._debug = debug
@@ -22,7 +22,7 @@ class AbstractPublisher(object):
         if serializer is not None:
             self._serializer = serializer
         else:
-            self._serializer = JSONSerializer()
+            self._serializer = JSONSerializer
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -45,7 +45,7 @@ class AbstractPublisher(object):
         raise NotImplementedError()
 
 
-class AbstractSubscriber(object):
+class BaseSubscriber(object):
     def __init__(self, topic=None, msg_type=None, on_message=None,
                  logger=None, debug=True, serializer=None):
         self._debug = debug

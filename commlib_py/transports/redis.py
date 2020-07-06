@@ -22,10 +22,9 @@ import datetime
 
 import redis
 
-from commlib_py.serializer import JSONSerializer
 from commlib_py.logger import Logger
-from commlib_py.rpc import AbstractRPCServer, AbstractRPCClient
-from commlib_py.pubsub import AbstractPublisher, AbstractSubscriber
+from commlib_py.rpc import BaseRPCServer, BaseRPCClient
+from commlib_py.pubsub import BasePublisher, BaseSubscriber
 
 
 class ConnectionParameters(object):
@@ -73,7 +72,7 @@ class RedisTransport(object):
         return msgq, payload
 
 
-class RPCServer(AbstractRPCServer):
+class RPCServer(BaseRPCServer):
     def __init__(self, conn_params=None, *args, **kwargs):
         super(RPCServer, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
@@ -136,7 +135,7 @@ class RPCServer(AbstractRPCServer):
         return _future
 
 
-class RPCClient(AbstractRPCClient):
+class RPCClient(BaseRPCClient):
     def __init__(self, conn_params=None, *args, **kwargs):
         super(RPCClient, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
@@ -173,7 +172,7 @@ class RPCClient(AbstractRPCClient):
         return _msg
 
 
-class Publisher(AbstractPublisher):
+class Publisher(BasePublisher):
     def __init__(self, conn_params=None, queue_size=10, *args, **kwargs):
         self._queue_size = queue_size
         self._msg_seq = 0
@@ -218,7 +217,7 @@ class Publisher(AbstractPublisher):
         return _msg
 
 
-class Subscriber(AbstractSubscriber):
+class Subscriber(BaseSubscriber):
     def __init__(self, conn_params=None, queue_size=1, *args, **kwargs):
         self._queue_size = queue_size
 

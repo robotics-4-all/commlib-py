@@ -13,9 +13,11 @@ from .serializer import JSONSerializer
 from .logger import Logger
 
 
-class AbstractRPCServer(object):
+class BaseRPCServer(object):
     def __init__(self, rpc_name, msg_type=None, logger=None, debug=True,
                  on_request=None, workers=2, serializer=None):
+        if rpc_name is None:
+            raise ValueError()
         self._rpc_name = rpc_name
         self._num_workers = workers
         self._debug = debug
@@ -60,11 +62,14 @@ class AbstractRPCServer(object):
             self._t_stop_event.set()
 
 
-class AbstractRPCClient(object):
+class BaseRPCClient(object):
     def __init__(self, rpc_name, msg_type=None, logger=None,
                  debug=True, serializer=None):
+        if rpc_name is None:
+            raise ValueError()
         self._rpc_name = rpc_name
         self._debug = debug
+        print(self._rpc_name)
 
         if serializer is not None:
             self._serializer = serializer
