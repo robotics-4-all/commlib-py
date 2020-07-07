@@ -26,7 +26,7 @@ from commlib_py.serializer import ContentType
 from commlib_py.rpc import BaseRPCServer, BaseRPCClient
 from commlib_py.pubsub import BasePublisher, BaseSubscriber
 from commlib_py.logger import Logger
-from commlib_py.action import BaseActionServer
+from commlib_py.action import BaseActionServer, BaseActionClient
 
 
 class MessageProperties(pika.BasicProperties):
@@ -252,7 +252,6 @@ class AMQPTransport(object):
     def process_amqp_events(self):
         """Force process amqp events, such as heartbeat packages."""
         self.connection.process_data_events()
-
 
     def _signal_handler(self, signum, frame):
         """TODO"""
@@ -639,7 +638,7 @@ class RPCClient(BaseRPCClient):
             exclusive=False,
             consumer_tag=None,
             auto_ack=True)
-        self._detach_hb_thread()
+        self._detach_amqp_events_thread()
 
     @property
     def logger(self):
@@ -665,7 +664,7 @@ class RPCClient(BaseRPCClient):
         """
         return self._delay
 
-    def _detach_hb_thread(self):
+    def _detach_amqp_events_thread(self):
         self._hb_thread = Thread(target=self._ensure_events_processed)
         self._hb_thread.daemon = True
         self._t_stop_event = Event()
@@ -674,7 +673,7 @@ class RPCClient(BaseRPCClient):
     def _ensure_events_processed(self):
         while True:
             self._transport.process_amqp_events()
-            time.sleep(self._transport._conn_params.heartbeat_timeout / 2)
+            time.sleep(0.001)
             if self._t_stop_event.is_set():
                 break
     def _on_response(self, ch, method, properties, body):
@@ -732,7 +731,7 @@ class RPCClient(BaseRPCClient):
         """Generate correlationID."""
         return str(uuid.uuid4())
 
-    def call(self, payload, timeout=5.0):
+    def call(self, payload, timeout=10):
         """Call RPC.
 
         Args:
@@ -743,28 +742,31 @@ class RPCClient(BaseRPCClient):
         self._response = None
         if self._use_corr_id:
             self._corr_id = self.gen_corr_id()
-        start_t = time.time()
 
+        start_t = time.time()
         self._transport.connection.add_callback_threadsafe(
             functools.partial(self._send_data, payload))
-
-        ## TODO: Validate correlation_id
+        # self._transport.process_amqp_events()
+        resp = self._wait_for_response(timeout=timeout)
         elapsed_t = time.time() - start_t
         self._delay = elapsed_t
+        if resp is None:
+            resp = {'error': 'RPC Response timeout'}
 
+        return resp
+
+    def _wait_for_response(self, timeout=10):
+        # self.logger.debug(
+        #     'Waiting for response from [{}]...'.format(self._rpc_name))
+        # self._transport.process_amqp_events()
+        start_t = time.time()
         while self._response is None:
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:
-                resp = {'error': 'RPC Response timeout'}
-                return resp
+                return None
             time.sleep(0.001)
-        resp = self._response
-        return resp
+        return self._response
 
-    def _wait_for_response(self, timeout):
-        # self.logger.debug(
-        #     'Waiting for response from [{}]...'.format(self._rpc_name))
-        self.connection.process_data_events(time_limit=timeout)
 
     def _deserialize_data(self, data, content_type, content_encoding):
         """Deserialize wire data.
@@ -821,6 +823,7 @@ class RPCClient(BaseRPCClient):
             mandatory=False,
             properties=_rpc_props,
             body=_payload)
+        # self._transport.process_amqp_events()
 
 
 class Publisher(BasePublisher):
@@ -845,7 +848,7 @@ class Publisher(BasePublisher):
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
-        self._detach_hb_thread()
+        self._detach_amqp_events_thread()
 
     def publish(self, payload):
         """ Publish message once.
@@ -859,7 +862,7 @@ class Publisher(BasePublisher):
         # self._send_data(payload)
         # self._transport.process_amqp_events()
 
-    def _detach_hb_thread(self):
+    def _detach_amqp_events_thread(self):
         self._hb_thread = Thread(target=self._ensure_events_processed)
         self._hb_thread.daemon = True
         self._t_stop_event = Event()
@@ -868,7 +871,7 @@ class Publisher(BasePublisher):
     def _ensure_events_processed(self):
         while True:
             self._transport.process_amqp_events()
-            time.sleep(self._transport._conn_params.heartbeat_timeout / 2)
+            time.sleep(0.001)
             if self._t_stop_event.is_set():
                 break
 
@@ -1150,41 +1153,41 @@ class ActionServer(BaseActionServer):
                                    conn_params=conn_params,
                                    on_request=self._handle_send_goal,
                                    logger=self._logger,
-                                   serializer=self._serializer,
                                    debug=self.debug)
         self._cancel_rpc = RPCServer(rpc_name=self._cancel_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_cancel_goal,
                                      logger=self._logger,
-                                     serializer=self._serializer,
                                      debug=self.debug)
         self._result_rpc = RPCServer(rpc_name=self._result_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_get_result,
                                      logger=self._logger,
-                                     serializer=self._serializer,
                                      debug=self.debug)
         self._feedback_pub = Publisher(topic=self._feedback_topic,
                                        conn_params=conn_params,
                                        logger=self._logger,
-                                       serializer=self._serializer,
                                        debug=self.debug)
         self._status_pub = Publisher(topic=self._status_topic,
                                      conn_params=conn_params,
                                      logger=self._logger,
-                                     serializer=self._serializer,
                                      debug=self.debug)
-        self._goal_rpc.run()
-        self._cancel_rpc.run()
-        self._result_rpc.run()
 
-    def run_forever(self):
-        while True:
-            try:
-                time.sleep(0.001)
-            except Exception as exc:
-                self.logger.error(exc, exc_info=True)
-                break
-        self._goal_rpc.stop()
-        self._cancel_rpc.stop()
-        self._result_rpc.stop()
+
+class ActionClient(BaseActionClient):
+    def __init__(self, conn_params=None, *args, **kwargs):
+        conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
+        super(ActionClient, self).__init__(*args, **kwargs)
+        self._goal_client = RPCClient(rpc_name=self._goal_rpc_uri,
+                                      conn_params=conn_params,
+                                      logger=self._logger,
+                                      debug=self.debug)
+        self._cancel_client = RPCClient(rpc_name=self._cancel_rpc_uri,
+                                        conn_params=conn_params,
+                                        logger=self._logger,
+                                        debug=self.debug)
+        self._result_client = RPCClient(rpc_name=self._result_rpc_uri,
+                                        conn_params=conn_params,
+                                        logger=self._logger,
+                                        debug=self.debug)

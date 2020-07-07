@@ -1,43 +1,38 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import (Publisher, Subscriber,
+from commlib_py.transports.amqp import (ActionServer, ActionClient, RPCClient,
                                         ConnectionParameters)
 import time
-from threading import Thread
 
 
-HB_TIMEOUT = 3
-
-
-def thread_runner(p):
-    data = {'state': 0}
-    while True:
-        p.publish(data)
-        time.sleep(HB_TIMEOUT * 3)
-
-
-def sub_callback(msg, meta):
-    print(msg)
+def on_goal(goal):
+    print(goal.to_dict())
+    time.sleep(30)
+    return {'result': 1}
 
 
 if __name__ == '__main__':
-    topic_name = 'testtopic'
+    action_name = 'testaction'
     conn_params = ConnectionParameters()
     conn_params.credentials.username = 'testuser'
     conn_params.credentials.password = 'testuser'
-    conn_params.host = 'r4a-platform.ddns.net'
-    conn_params.port = 5782
-    conn_params.heartbeat_timeout = HB_TIMEOUT  ## Seconds
-    s = Subscriber(conn_params=conn_params,
-                   topic=topic_name,
-                   on_message=sub_callback)
-    s.run()
-    p = Publisher(conn_params=conn_params,
-                  topic=topic_name)
-    t = Thread(target=thread_runner, args=(p,))
-    t.daemon = True
-    t.start()
-    data = {'state': 0}
+    conn_params.host = 'localhost'
+    conn_params.port = 8076
+    action = ActionServer(conn_params=conn_params, action_name=action_name,
+                          on_goal=on_goal)
+    time.sleep(1)
+    # rpcc = RPCClient(conn_params=conn_params,
+    #                  rpc_name='{}.send_goal'.format(action_name))
+
+    action.run()
+    ac = ActionClient(conn_params=conn_params, action_name=action_name)
+    goal_data = {'a': 1, 'b': 'test'}
+
+    resp = ac.send_goal(goal_data)
+    print('Send-Goal Response: {}'.format(resp))
+    time.sleep(1)
+    resp = ac.get_result(resp['goal_id'])
+    print('Cancel-Goal Response: {}'.format(resp))
     while True:
-        p.publish(data)
-        time.sleep(HB_TIMEOUT * 3)
+        time.sleep(0.001)
+
