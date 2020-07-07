@@ -44,11 +44,13 @@ class RedisTransport(object):
             conn_params is None else conn_params
         if conn_params.host is None:
             self._redis = redis.Redis(unix_socket_path=conn_params.unix_socket,
-                                     db=conn_params.db)
+                                      db=conn_params.db,
+                                      decode_responses=True)
         else:
             self._redis = redis.Redis(host=conn_params.host,
-                                     port=conn_params.port,
-                                     db=conn_params.db)
+                                      port=conn_params.port,
+                                      db=conn_params.db,
+                                      decode_responses=True)
         self._conn_params = conn_params
         self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -64,7 +66,6 @@ class RedisTransport(object):
     def wait_for_msg(self, queue_name, timeout=10):
         try:
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
-            payload = payload.decode()
         except Exception as exc:
             self.logger.error(exc)
             msgq = ''
@@ -228,11 +229,13 @@ class Subscriber(BaseSubscriber):
 
         if conn_params.host is None:
             self.redis = redis.Redis(unix_socket_path=conn_params.unix_socket,
-                                     db=conn_params.db)
+                                     db=conn_params.db,
+                                     decode_responses=True)
         else:
             self.redis = redis.Redis(host=conn_params.host,
                                      port=conn_params.port,
-                                     db=conn_params.db)
+                                     db=conn_params.db,
+                                     decode_responses=True)
         self._rsub = self.redis.pubsub()
         self._event_loop_thread = None
 
@@ -262,11 +265,9 @@ class Subscriber(BaseSubscriber):
             raise exc
 
     def _on_message(self, payload):
-        payload = payload['data'].decode()
-        payload = self._serializer.deserialize(payload)
-        self.logger.debug(
+        self.logger.info(
             'Received Message: <{}>:{}'.format(self._topic, payload))
-        # payload = self._serializer.deserialize(payload)
+        payload = self._serializer.deserialize(payload['data'])
         data = payload['data']
         header = payload['header']
         if self._onmessage is not None:
