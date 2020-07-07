@@ -676,6 +676,7 @@ class RPCClient(BaseRPCClient):
             time.sleep(0.001)
             if self._t_stop_event.is_set():
                 break
+
     def _on_response(self, ch, method, properties, body):
         _ctype = None
         _cencoding = None

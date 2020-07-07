@@ -6,6 +6,7 @@ from __future__ import (
 )
 
 from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures.thread
 import threading
 import time
 import uuid
@@ -27,7 +28,8 @@ class GoalStatus(IntEnum):
 
 
 class GoalHandler(object):
-    def __init__(self, status_publisher, feedback_publisher):
+    def __init__(self, status_publisher, feedback_publisher, on_goal=None,
+                 on_cancel=None):
         self.status = 1
         self.id = self._gen_random_id()
         self.data = {}
@@ -35,24 +37,25 @@ class GoalHandler(object):
         self._pub_feedback = feedback_publisher
         self.result = None
         self._task = None
+        self._on_goal = on_goal
+        self._on_cancel = on_cancel
+        self._cancel_event = threading.Event()
+
+        self._executor = ThreadPoolExecutor(max_workers=2)
 
     @property
-    def task(self):
-        return self._task
-
-    @task.setter
-    def task(self, val):
-        ## TODO Typechecking
-        self._task = val
-        self._task.add_done_callback(self._done_callback)
+    def cancel_event(self):
+        return self._cancel_event
 
     def _done_callback(self, future):
-        if future.cancelled():
+        if future.cancelled() or self._cancel_event.is_set():
             print('Goal Cancelled')
             self.set_status(GoalStatus.CANCELED)
         elif future.done():
             print('Goal Completed')
             self.set_status(GoalStatus.SUCCEDED)
+        else:
+            print('Whaaaaaat?..')
         self.result = future.result()
 
     def is_finished(self):
@@ -62,6 +65,19 @@ class GoalHandler(object):
             return True
         else:
             return False
+
+    def start(self):
+        self._goal_task = self._executor.submit(self._on_goal, self)
+        # self._cancel_task = self._executor.submit(self._on_cancel, self)
+        self._goal_task.add_done_callback(self._done_callback)
+
+    def cancel(self):
+        self.set_status(GoalStatus.CANCELING)
+        self._goal_task.cancel()
+        self.cancel_event.set()
+        # self._executor.shutdown(wait=False)
+        self._executor._threads.clear()
+        concurrent.futures.thread._threads_queues.clear()
 
     def set_status(self, status):
         if status not in GoalStatus:
@@ -124,7 +140,6 @@ class BaseActionServer(object):
             logger is None else logger
 
         assert isinstance(self._logger, Logger)
-        self._executor = ThreadPoolExecutor(max_workers=2)
 
     @property
     def debug(self):
@@ -142,32 +157,62 @@ class BaseActionServer(object):
         self.logger.info('Goal Received!')
         if self._current_goal is None:
             self._current_goal = GoalHandler(self._status_pub,
-                                             self._feedback_pub)
-        if self._current_goal.status in (GoalStatus.SUCCEDED,
-                                         GoalStatus.CANCELED,
-                                         GoalStatus.ABORTED):
+                                             self._feedback_pub,
+                                             self._on_goal,
+                                             self._on_cancel)
+            self._current_goal.data = msg
+        elif self._current_goal.status in (GoalStatus.SUCCEDED,
+                                           GoalStatus.CANCELED,
+                                           GoalStatus.ABORTED):
             # Final States - Completed Goal Task
             self._current_goal = GoalHandler(self._status_pub,
-                                             self._feedback_pub)
+                                             self._feedback_pub,
+                                             self._on_goal,
+                                             self._on_cancel)
             self._current_goal.data = msg
-        if self._on_goal is not None:
-            resp = {
-                'status': self._current_goal.status,
-                'goal_id': self._current_goal.id
-            }
-            self._current_goal.task = _goal_task
-            _goal_task = self._executor.submit(
-                self._on_goal, self._current_goal)
-            self._current_goal.set_status(GoalStatus.EXECUTING)
+        elif self._current_goal.status == GoalStatus.ACCEPTED:
+            pass
         else:
             resp = {
-                'status': GoalStatus.ABORTED,
+                'status': 0,
+                'goal_id': ''
+            }
+            return resp
+        if self._on_goal is not None:
+            resp = {
+                'status': 1,
+                'goal_id': self._current_goal.id
+            }
+            self._current_goal.start()
+        else:
+            resp = {
+                'status': 0,
                 'goal_id': self._current_goal.id
             }
         return resp
 
     def _handle_cancel_goal(self, msg, meta):
-        raise NotImplementedError()
+        resp = {
+            'status': 0,
+            'result': {}
+        }
+        if 'goal_id' not in msg:
+            resp['result'] = {'error': 'Missing goal_id parameter'}
+            return resp
+        _goal_id = msg['goal_id']
+        if self._current_goal is None:
+            resp['result'] = {
+                'error': 'Goal <{}> does not exist'.format(_goal_id)
+            }
+            return resp
+        if self._current_goal.id != _goal_id:
+            resp['result'] = {
+                'error': 'Goal <{}> does not exist'.format(_goal_id)
+            }
+            return resp
+        self._current_goal.cancel()
+        resp['status'] = 1
+        return resp
 
     def _handle_get_result(self, msg, meta):
         resp = {
@@ -179,6 +224,11 @@ class BaseActionServer(object):
             return resp
         _goal_id = msg['goal_id']
         if self._current_goal is None:
+            resp['result'] = {
+                'error': 'Goal <{}> does not exist'.format(_goal_id)
+            }
+            return resp
+        if self._current_goal.id != _goal_id:
             resp['result'] = {
                 'error': 'Goal <{}> does not exist'.format(_goal_id)
             }
@@ -256,4 +306,4 @@ class BaseActionClient(object):
         req = {
             'goal_id': goal_id
         }
-        return self._goal_client.call(req, timeout=timeout)
+        return self._result_client.call(req, timeout=timeout)
