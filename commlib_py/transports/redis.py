@@ -169,7 +169,7 @@ class RPCClient(BaseRPCClient):
         msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
         self._transport.delete_queue(_reply_to)
         _msg = self._serializer.deserialize(_msg)
-        return _msg
+        return _msg['data']
 
 
 class Publisher(BasePublisher):
