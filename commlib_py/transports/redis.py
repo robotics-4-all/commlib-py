@@ -25,6 +25,7 @@ import redis
 from commlib_py.logger import Logger
 from commlib_py.rpc import BaseRPCServer, BaseRPCClient
 from commlib_py.pubsub import BasePublisher, BaseSubscriber
+from commlib_py.action import BaseActionServer, BaseActionClient
 
 
 class ConnectionParameters(object):
@@ -69,7 +70,7 @@ class RedisTransport(object):
         except Exception as exc:
             self.logger.error(exc)
             msgq = ''
-            payload = {}
+            payload = None
         return msgq, payload
 
 
@@ -169,6 +170,8 @@ class RPCClient(BaseRPCClient):
         self._transport.push_msg_to_queue(self._rpc_name, _msg)
         msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
         self._transport.delete_queue(_reply_to)
+        if _msg is None:
+            return None
         _msg = self._serializer.deserialize(_msg)
         return _msg['data']
 
@@ -272,3 +275,58 @@ class Subscriber(BaseSubscriber):
         header = payload['header']
         if self._onmessage is not None:
             self._onmessage(data, header)
+
+
+class ActionServer(BaseActionServer):
+    def __init__(self, conn_params=None, *args, **kwargs):
+        assert isinstance(conn_params, ConnectionParameters)
+        conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
+
+        super(ActionServer, self).__init__(*args, **kwargs)
+
+        self._goal_rpc = RPCServer(rpc_name=self._goal_rpc_uri,
+                                   conn_params=conn_params,
+                                   on_request=self._handle_send_goal,
+                                   logger=self._logger,
+                                   debug=self.debug)
+        self._cancel_rpc = RPCServer(rpc_name=self._cancel_rpc_uri,
+                                     conn_params=conn_params,
+                                     on_request=self._handle_cancel_goal,
+                                     logger=self._logger,
+                                     debug=self.debug)
+        self._result_rpc = RPCServer(rpc_name=self._result_rpc_uri,
+                                     conn_params=conn_params,
+                                     on_request=self._handle_get_result,
+                                     logger=self._logger,
+                                     debug=self.debug)
+        self._feedback_pub = Publisher(topic=self._feedback_topic,
+                                       conn_params=conn_params,
+                                       logger=self._logger,
+                                       debug=self.debug)
+        self._status_pub = Publisher(topic=self._status_topic,
+                                     conn_params=conn_params,
+                                     logger=self._logger,
+                                     debug=self.debug)
+
+
+class ActionClient(BaseActionClient):
+    def __init__(self, conn_params=None, *args, **kwargs):
+        assert isinstance(conn_params, ConnectionParameters)
+        conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
+
+        super(ActionClient, self).__init__(*args, **kwargs)
+
+        self._goal_client = RPCClient(rpc_name=self._goal_rpc_uri,
+                                      conn_params=conn_params,
+                                      logger=self._logger,
+                                      debug=self.debug)
+        self._cancel_client = RPCClient(rpc_name=self._cancel_rpc_uri,
+                                        conn_params=conn_params,
+                                        logger=self._logger,
+                                        debug=self.debug)
+        self._result_client = RPCClient(rpc_name=self._result_rpc_uri,
+                                        conn_params=conn_params,
+                                        logger=self._logger,
+                                        debug=self.debug)

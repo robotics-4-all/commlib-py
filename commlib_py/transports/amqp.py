@@ -672,8 +672,7 @@ class RPCClient(BaseRPCClient):
 
     def _ensure_events_processed(self):
         while True:
-            self._transport.process_amqp_events()
-            time.sleep(0.001)
+            self._transport._connection.sleep(0.001)
             if self._t_stop_event.is_set():
                 break
 
@@ -751,9 +750,6 @@ class RPCClient(BaseRPCClient):
         resp = self._wait_for_response(timeout=timeout)
         elapsed_t = time.time() - start_t
         self._delay = elapsed_t
-        if resp is None:
-            resp = {'error': 'RPC Response timeout'}
-
         return resp
 
     def _wait_for_response(self, timeout=10):
@@ -871,8 +867,7 @@ class Publisher(BasePublisher):
 
     def _ensure_events_processed(self):
         while True:
-            self._transport.process_amqp_events()
-            time.sleep(0.001)
+            self._transport._connection.sleep(0.001)
             if self._t_stop_event.is_set():
                 break
 
@@ -1177,9 +1172,12 @@ class ActionServer(BaseActionServer):
 
 class ActionClient(BaseActionClient):
     def __init__(self, conn_params=None, *args, **kwargs):
+        assert isinstance(conn_params, ConnectionParameters)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
+
         super(ActionClient, self).__init__(*args, **kwargs)
+
         self._goal_client = RPCClient(rpc_name=self._goal_rpc_uri,
                                       conn_params=conn_params,
                                       logger=self._logger,
