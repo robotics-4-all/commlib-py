@@ -14,12 +14,19 @@ def thread_runner(c):
 
 def on_request(msg, meta):
     print(msg)
+    time.sleep(0.5)
     return msg
+
+
+def create_rpc_client(n, conn_params, rpc_name):
+    l = [RPCClient(conn_params=conn_params, rpc_name=rpc_name) for i in range(n)]
+    return l
 
 
 if __name__ == '__main__':
     rpc1_name = 'testrpc1'
     rpc2_name = 'testrpc2'
+    num_clients = 50
     conn_params = ConnectionParameters()
     conn_params.credentials.username = 'testuser'
     conn_params.credentials.password = 'testuser'
@@ -35,13 +42,13 @@ if __name__ == '__main__':
     s2.run()
     time.sleep(1)
     c1 = RPCClient(conn_params=conn_params,
-                  rpc_name=rpc1_name)
-    c2 = RPCClient(conn_params=conn_params,
-                  rpc_name=rpc2_name)
-    t = Thread(target=thread_runner, args=(c1,))
-    t.daemon = True
-    t.start()
+                   rpc_name=rpc1_name)
+    # t = Thread(target=thread_runner, args=(c1,))
+    # t.daemon = True
+    # t.start()
+    c_list = create_rpc_client(num_clients, conn_params, rpc1_name)
     data = {'state': 0}
     while True:
-        c2.call(data)
+        for c in c_list:
+            c.call(data)
         time.sleep(1)
