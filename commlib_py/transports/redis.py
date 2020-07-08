@@ -25,6 +25,7 @@ import redis
 from commlib_py.logger import Logger
 from commlib_py.rpc import BaseRPCServer, BaseRPCClient
 from commlib_py.pubsub import BasePublisher, BaseSubscriber
+from commlib_py.action import BaseActionServer, BaseActionClient
 
 
 class ConnectionParameters(object):
@@ -44,11 +45,13 @@ class RedisTransport(object):
             conn_params is None else conn_params
         if conn_params.host is None:
             self._redis = redis.Redis(unix_socket_path=conn_params.unix_socket,
-                                     db=conn_params.db)
+                                      db=conn_params.db,
+                                      decode_responses=True)
         else:
             self._redis = redis.Redis(host=conn_params.host,
-                                     port=conn_params.port,
-                                     db=conn_params.db)
+                                      port=conn_params.port,
+                                      db=conn_params.db,
+                                      decode_responses=True)
         self._conn_params = conn_params
         self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -64,11 +67,10 @@ class RedisTransport(object):
     def wait_for_msg(self, queue_name, timeout=10):
         try:
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
-            payload = payload.decode()
         except Exception as exc:
             self.logger.error(exc)
             msgq = ''
-            payload = {}
+            payload = None
         return msgq, payload
 
 
@@ -168,8 +170,10 @@ class RPCClient(BaseRPCClient):
         self._transport.push_msg_to_queue(self._rpc_name, _msg)
         msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
         self._transport.delete_queue(_reply_to)
+        if _msg is None:
+            return None
         _msg = self._serializer.deserialize(_msg)
-        return _msg
+        return _msg['data']
 
 
 class Publisher(BasePublisher):
@@ -228,11 +232,13 @@ class Subscriber(BaseSubscriber):
 
         if conn_params.host is None:
             self.redis = redis.Redis(unix_socket_path=conn_params.unix_socket,
-                                     db=conn_params.db)
+                                     db=conn_params.db,
+                                     decode_responses=True)
         else:
             self.redis = redis.Redis(host=conn_params.host,
                                      port=conn_params.port,
-                                     db=conn_params.db)
+                                     db=conn_params.db,
+                                     decode_responses=True)
         self._rsub = self.redis.pubsub()
         self._event_loop_thread = None
 
@@ -262,12 +268,65 @@ class Subscriber(BaseSubscriber):
             raise exc
 
     def _on_message(self, payload):
-        payload = payload['data'].decode()
-        payload = self._serializer.deserialize(payload)
-        self.logger.debug(
+        self.logger.info(
             'Received Message: <{}>:{}'.format(self._topic, payload))
-        # payload = self._serializer.deserialize(payload)
+        payload = self._serializer.deserialize(payload['data'])
         data = payload['data']
         header = payload['header']
         if self._onmessage is not None:
             self._onmessage(data, header)
+
+
+class ActionServer(BaseActionServer):
+    def __init__(self, conn_params=None, *args, **kwargs):
+        assert isinstance(conn_params, ConnectionParameters)
+        conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
+
+        super(ActionServer, self).__init__(*args, **kwargs)
+
+        self._goal_rpc = RPCServer(rpc_name=self._goal_rpc_uri,
+                                   conn_params=conn_params,
+                                   on_request=self._handle_send_goal,
+                                   logger=self._logger,
+                                   debug=self.debug)
+        self._cancel_rpc = RPCServer(rpc_name=self._cancel_rpc_uri,
+                                     conn_params=conn_params,
+                                     on_request=self._handle_cancel_goal,
+                                     logger=self._logger,
+                                     debug=self.debug)
+        self._result_rpc = RPCServer(rpc_name=self._result_rpc_uri,
+                                     conn_params=conn_params,
+                                     on_request=self._handle_get_result,
+                                     logger=self._logger,
+                                     debug=self.debug)
+        self._feedback_pub = Publisher(topic=self._feedback_topic,
+                                       conn_params=conn_params,
+                                       logger=self._logger,
+                                       debug=self.debug)
+        self._status_pub = Publisher(topic=self._status_topic,
+                                     conn_params=conn_params,
+                                     logger=self._logger,
+                                     debug=self.debug)
+
+
+class ActionClient(BaseActionClient):
+    def __init__(self, conn_params=None, *args, **kwargs):
+        assert isinstance(conn_params, ConnectionParameters)
+        conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
+
+        super(ActionClient, self).__init__(*args, **kwargs)
+
+        self._goal_client = RPCClient(rpc_name=self._goal_rpc_uri,
+                                      conn_params=conn_params,
+                                      logger=self._logger,
+                                      debug=self.debug)
+        self._cancel_client = RPCClient(rpc_name=self._cancel_rpc_uri,
+                                        conn_params=conn_params,
+                                        logger=self._logger,
+                                        debug=self.debug)
+        self._result_client = RPCClient(rpc_name=self._result_rpc_uri,
+                                        conn_params=conn_params,
+                                        logger=self._logger,
+                                        debug=self.debug)

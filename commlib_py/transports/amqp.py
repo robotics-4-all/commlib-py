@@ -18,7 +18,7 @@ import json
 import uuid
 import pika
 from collections import deque
-from threading import Semaphore
+from threading import Semaphore, Thread, Event
 #  import ssl
 
 from commlib_py.logger import Logger, LoggingLevel
@@ -26,7 +26,7 @@ from commlib_py.serializer import ContentType
 from commlib_py.rpc import BaseRPCServer, BaseRPCClient
 from commlib_py.pubsub import BasePublisher, BaseSubscriber
 from commlib_py.logger import Logger
-from commlib_py.action import BaseActionServer
+from commlib_py.action import BaseActionServer, BaseActionClient
 
 
 class MessageProperties(pika.BasicProperties):
@@ -57,7 +57,7 @@ class MessageProperties(pika.BasicProperties):
         )
 
 
-class ConnectionParameters(pika.ConnectionParameters):
+class ConnectionParameters():
     """AMQP Connection parameters.
 
     Args:
@@ -87,7 +87,8 @@ class ConnectionParameters(pika.ConnectionParameters):
 
     __slots__ = [
         'host', 'port', 'secure', 'vhost', 'reconnect_attempts', 'retry_delay',
-        'timeout', 'heartbeat_timeout', 'blocked_connection_timeout', 'creds'
+        'timeout', 'heartbeat_timeout', 'blocked_connection_timeout', 'creds',
+        'channel_max'
     ]
 
     def __init__(self, host='127.0.0.1', port='5672', creds=None,
@@ -108,18 +109,24 @@ class ConnectionParameters(pika.ConnectionParameters):
 
         if creds is None:
             creds = Credentials()
+        self.creds = creds
 
-        super(ConnectionParameters, self).__init__(
-            host=host,
-            port=str(port),
-            credentials=creds,
-            connection_attempts=reconnect_attempts,
-            retry_delay=retry_delay,
-            blocked_connection_timeout=blocked_connection_timeout,
-            socket_timeout=timeout,
-            virtual_host=vhost,
-            heartbeat=heartbeat_timeout,
-            channel_max=channel_max)
+    @property
+    def credentials(self):
+        return self.creds
+
+    def make_pika(self):
+        return pika.ConnectionParameters(
+            host=self.host,
+            port=str(self.port),
+            credentials=self.creds,
+            connection_attempts=self.reconnect_attempts,
+            retry_delay=self.retry_delay,
+            blocked_connection_timeout=self.blocked_connection_timeout,
+            socket_timeout=self.timeout,
+            virtual_host=self.vhost,
+            heartbeat=self.heartbeat_timeout,
+            channel_max=self.channel_max)
 
     def __str__(self):
         _properties = {
@@ -143,7 +150,7 @@ class AMQPConnection(pika.BlockingConnection):
         self._connection_params = conn_params
         self._pika_connection = None
         super(AMQPConnection, self).__init__(
-            parameters=self._connection_params)
+            parameters=self._connection_params.make_pika())
 
 
 class ExchangeTypes(object):
@@ -173,25 +180,28 @@ class AMQPTransport(object):
     """AMQPT Transport implementation.
     """
 
-    def __init__(self, connection_params, debug=False, logger=None):
+    def __init__(self, conn_params, debug=False, logger=None):
         """Constructor."""
+        # So that connections do not go zombie
+        atexit.register(self._graceful_shutdown)
+
         self._closing = False
         self._connection = None
         self._channel = None
 
         self._debug = debug
 
-        self._connection_params = ConnectionParameters() if \
-            connection_params is None else connection_params
+        self._conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
         assert isinstance(self._debug, bool)
-        assert isinstance(self._connection_params, ConnectionParameters)
+        assert isinstance(self._conn_params, ConnectionParameters)
 
-        # So that connections do not go zombie
-        atexit.register(self._graceful_shutdown)
+        self.connect()
+        # self._detach_hb_thread()
 
     @property
     def logger(self):
@@ -224,14 +234,14 @@ class AMQPTransport(object):
         """Connect to the AMQP broker. Creates a new channel."""
         try:
             # Create a new connection
-            self._connection = AMQPConnection(self._connection_params)
+            self._connection = AMQPConnection(self._conn_params)
             # Create a new communication channel
             self._channel = self._connection.channel()
-            self.logger.info(
+            self.logger.debug(
                     'Connected to AMQP broker @ [{}:{}, vhost={}]'.format(
-                        self._connection_params.host,
-                        self._connection_params.port,
-                        self._connection_params.vhost))
+                        self._conn_params.host,
+                        self._conn_params.port,
+                        self._conn_params.vhost))
         except pika.exceptions.ConnectionClosed:
             self.logger.debug('Connection timed out. Reconnecting...')
             self.connect()
@@ -340,9 +350,6 @@ class AMQPTransport(object):
     def delete_queue(self, queue_name):
         self._channel.queue_delete(queue=queue_name)
 
-    def _queue_exists_clb(self, arg):
-        print(arg)
-
     def queue_exists(self, queue_name):
         """Check if a queue exists, given its name.
 
@@ -446,7 +453,6 @@ class RPCServer(BaseRPCServer):
 
     def run_forever(self, raise_if_exists=True):
         """Run RPC Server in normal mode. Blocking function."""
-        self._transport.connect()
         if self._rpc_exists() and raise_if_exists:
             raise ValueError(
                 'RPC <{}> allready registered on broker.'.format(
@@ -481,17 +487,14 @@ class RPCServer(BaseRPCServer):
             _ts_send = properties.timestamp
             # _ts_broker = properties.timestamp
         except Exception:
-            self.logger.error("Could not calculate latency",
-                              exc_info=False)
+            self.logger.error("Could not calculate latency", exc_info=False)
 
         try:
             _msg = self._deserialize_data(body, _ctype, _cencoding)
         except Exception:
-            self.logger.error("Could not deserialize data",
-                              exc_info=True)
+            self.logger.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
             _msg = body
-
 
         if self.on_request is not None:
             _meta = {
@@ -629,14 +632,13 @@ class RPCClient(BaseRPCClient):
 
         self._transport = AMQPTransport(conn_params, self._debug, self._logger)
 
-        self._transport.connect()
-
         self._consumer_tag = self.channel.basic_consume(
             'amq.rabbitmq.reply-to',
             self._on_response,
             exclusive=False,
             consumer_tag=None,
             auto_ack=True)
+        self._detach_amqp_events_thread()
 
     @property
     def logger(self):
@@ -661,6 +663,18 @@ class RPCClient(BaseRPCClient):
             Internally calculated.
         """
         return self._delay
+
+    def _detach_amqp_events_thread(self):
+        self._hb_thread = Thread(target=self._ensure_events_processed)
+        self._hb_thread.daemon = True
+        self._t_stop_event = Event()
+        self._hb_thread.start()
+
+    def _ensure_events_processed(self):
+        while True:
+            self._transport._connection.sleep(0.001)
+            if self._t_stop_event.is_set():
+                break
 
     def _on_response(self, ch, method, properties, body):
         _ctype = None
@@ -717,7 +731,7 @@ class RPCClient(BaseRPCClient):
         """Generate correlationID."""
         return str(uuid.uuid4())
 
-    def call(self, payload, timeout=5.0):
+    def call(self, payload, timeout=10):
         """Call RPC.
 
         Args:
@@ -728,23 +742,28 @@ class RPCClient(BaseRPCClient):
         self._response = None
         if self._use_corr_id:
             self._corr_id = self.gen_corr_id()
-        self._send_data(payload)
+
         start_t = time.time()
-        self._wait_for_response(timeout)
-        ## TODO: Validate correlation_id
+        self._transport.connection.add_callback_threadsafe(
+            functools.partial(self._send_data, payload))
+        # self._transport.process_amqp_events()
+        resp = self._wait_for_response(timeout=timeout)
         elapsed_t = time.time() - start_t
         self._delay = elapsed_t
-
-        if self._response is None:
-            resp = {'error': 'RPC Response timeout'}
-        else:
-            resp = self._response
         return resp
 
-    def _wait_for_response(self, timeout):
-        self.logger.debug(
-            'Waiting for response from [{}]...'.format(self._rpc_name))
-        self.connection.process_data_events(time_limit=timeout)
+    def _wait_for_response(self, timeout=10):
+        # self.logger.debug(
+        #     'Waiting for response from [{}]...'.format(self._rpc_name))
+        # self._transport.process_amqp_events()
+        start_t = time.time()
+        while self._response is None:
+            elapsed_t = time.time() - start_t
+            if elapsed_t >= timeout:
+                return None
+            time.sleep(0.001)
+        return self._response
+
 
     def _deserialize_data(self, data, content_type, content_encoding):
         """Deserialize wire data.
@@ -801,6 +820,7 @@ class RPCClient(BaseRPCClient):
             mandatory=False,
             properties=_rpc_props,
             body=_payload)
+        # self._transport.process_amqp_events()
 
 
 class Publisher(BasePublisher):
@@ -823,9 +843,9 @@ class Publisher(BasePublisher):
             conn_params is None else conn_params
 
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-        self._transport.connect()
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
+        self._detach_amqp_events_thread()
 
     def publish(self, payload):
         """ Publish message once.
@@ -837,7 +857,19 @@ class Publisher(BasePublisher):
         self._transport.connection.add_callback_threadsafe(
             functools.partial(self._send_data, payload))
         # self._send_data(payload)
-        self._transport.process_amqp_events()
+        # self._transport.process_amqp_events()
+
+    def _detach_amqp_events_thread(self):
+        self._hb_thread = Thread(target=self._ensure_events_processed)
+        self._hb_thread.daemon = True
+        self._t_stop_event = Event()
+        self._hb_thread.start()
+
+    def _ensure_events_processed(self):
+        while True:
+            self._transport._connection.sleep(0.001)
+            if self._t_stop_event.is_set():
+                break
 
     def _send_data(self, data):
         _payload = None
@@ -868,7 +900,7 @@ class Publisher(BasePublisher):
             routing_key=self._topic,
             properties=msg_props,
             body=_payload)
-        self.logger.debug('Sent message to topic <{}>'.format(self._topic))
+        # self.logger.debug('Sent message to topic <{}>'.format(self._topic))
 
 
 class Subscriber(BaseSubscriber):
@@ -905,7 +937,6 @@ class Subscriber(BaseSubscriber):
             conn_params is None else conn_params
 
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-        self._transport.connect()
 
         _exch_ex = self._transport.exchange_exists(self._topic_exchange)
         if _exch_ex.method.NAME != 'Exchange.DeclareOk':
@@ -920,7 +951,8 @@ class Subscriber(BaseSubscriber):
             expires=300000)
 
         # Bind queue to the Topic exchange
-        self._transport.bind_queue(self._topic_exchange, self._queue_name, self._topic)
+        self._transport.bind_queue(self._topic_exchange, self._queue_name,
+                                   self._topic)
         self._last_msg_ts = None
         self._msg_freq_fifo = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
         self._hz = 0
@@ -950,7 +982,7 @@ class Subscriber(BaseSubscriber):
             exclusive=False,
             auto_ack=(not reliable))
         try:
-            self._transport._channel.start_consuming()
+            self._transport.start_consuming()
         except KeyboardInterrupt as exc:
             # Log error with traceback
             self.logger.error(exc, exc_info=False)
@@ -1107,8 +1139,54 @@ class RemoteLogger(Logger):
         if self._remote_state:
             self.log_pub.publish(self.format_msg(msg, 'ERROR'))
 
+
 class ActionServer(BaseActionServer):
     def __init__(self, conn_params=None, *args, **kwargs):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
         super(ActionServer, self).__init__(*args, **kwargs)
+        self._goal_rpc = RPCServer(rpc_name=self._goal_rpc_uri,
+                                   conn_params=conn_params,
+                                   on_request=self._handle_send_goal,
+                                   logger=self._logger,
+                                   debug=self.debug)
+        self._cancel_rpc = RPCServer(rpc_name=self._cancel_rpc_uri,
+                                     conn_params=conn_params,
+                                     on_request=self._handle_cancel_goal,
+                                     logger=self._logger,
+                                     debug=self.debug)
+        self._result_rpc = RPCServer(rpc_name=self._result_rpc_uri,
+                                     conn_params=conn_params,
+                                     on_request=self._handle_get_result,
+                                     logger=self._logger,
+                                     debug=self.debug)
+        self._feedback_pub = Publisher(topic=self._feedback_topic,
+                                       conn_params=conn_params,
+                                       logger=self._logger,
+                                       debug=self.debug)
+        self._status_pub = Publisher(topic=self._status_topic,
+                                     conn_params=conn_params,
+                                     logger=self._logger,
+                                     debug=self.debug)
+
+
+class ActionClient(BaseActionClient):
+    def __init__(self, conn_params=None, *args, **kwargs):
+        assert isinstance(conn_params, ConnectionParameters)
+        conn_params = ConnectionParameters() if \
+            conn_params is None else conn_params
+
+        super(ActionClient, self).__init__(*args, **kwargs)
+
+        self._goal_client = RPCClient(rpc_name=self._goal_rpc_uri,
+                                      conn_params=conn_params,
+                                      logger=self._logger,
+                                      debug=self.debug)
+        self._cancel_client = RPCClient(rpc_name=self._cancel_rpc_uri,
+                                        conn_params=conn_params,
+                                        logger=self._logger,
+                                        debug=self.debug)
+        self._result_client = RPCClient(rpc_name=self._result_rpc_uri,
+                                        conn_params=conn_params,
+                                        logger=self._logger,
+                                        debug=self.debug)

@@ -20,5 +20,6 @@ if __name__ == '__main__':
     s = Subscriber(conn_params=conn_params,
                    topic=topic_name,
                    on_message=callback)
-    s.run_forever()
-
+    s.run()
+    while True:
+        time.sleep(0.001)
