@@ -28,15 +28,31 @@ from commlib_py.pubsub import BasePublisher, BaseSubscriber
 from commlib_py.action import BaseActionServer, BaseActionClient
 
 
+class Credentials(object):
+    def __init__(self, username='', password=''):
+        self.username = username
+        self.password = password
+
+
 class ConnectionParameters(object):
-    __slots__ = ['host', 'port', 'unix_socket', 'db']
+    __slots__ = ['host', 'port', 'unix_socket', 'db', 'creds']
 
     def __init__(self, host=None, port=6379,
-                 unix_socket='/tmp/redis.sock', db=0):
+                 unix_socket='/tmp/redis.sock', db=0,
+                 creds=None):
         self.host = host
         self.port = port
         self.unix_socket = unix_socket
         self.db = db
+
+        if creds is None:
+            creds = Credentials()
+        self.creds = creds
+
+
+class RedisConnection(redis.Redis):
+    def __init__(self, *args, **kwargs):
+        super(RedisConnection, self).__init__(*args, **kwargs)
 
 
 class RedisTransport(object):
@@ -44,18 +60,20 @@ class RedisTransport(object):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
         if conn_params.host is None:
-            self._redis = redis.Redis(unix_socket_path=conn_params.unix_socket,
-                                      db=conn_params.db,
-                                      decode_responses=True)
+            self._redis = RedisConnection(
+                unix_socket_path=conn_params.unix_socket,
+                db=conn_params.db, decode_responses=True)
         else:
-            self._redis = redis.Redis(host=conn_params.host,
+            self._redis = RedisConnection(host=conn_params.host,
                                       port=conn_params.port,
                                       db=conn_params.db,
                                       decode_responses=True)
+
         self._conn_params = conn_params
         self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
         assert isinstance(self.logger, Logger)
+        self._rsub = self._redis.pubsub()
 
     def delete_queue(self, queue_name):
         self.logger.debug('Removing message queue: <{}>'.format(queue_name))
@@ -63,6 +81,15 @@ class RedisTransport(object):
 
     def push_msg_to_queue(self, queue_name, payload):
         self._redis.rpush(queue_name, payload)
+
+    def publish(self, queue_name, payload):
+        self._redis.publish(queue_name, payload)
+
+    def subscribe(self, topic, callback):
+        self._sub = self._rsub.subscribe(
+            **{topic: callback})
+        self._rsub.get_message()
+        return self._rsub.run_in_thread(0.001)
 
     def wait_for_msg(self, queue_name, timeout=10):
         try:
@@ -82,8 +109,8 @@ class RPCServer(BaseRPCServer):
 
     def _send_response(self, data, reply_to):
         header = {
-            'timestamp': datetime.datetime.now(
-                datetime.timezone.utc).timestamp(),
+            'timestamp': int(datetime.datetime.now(
+                datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
                 'content_type': self._serializer.CONTENT_TYPE,
                 'content_encoding': self._serializer.CONTENT_ENCODING
@@ -149,8 +176,8 @@ class RPCClient(BaseRPCClient):
     def __prepare_request(self, data):
         _reply_to = self.__gen_queue_name()
         header = {
-            'timestamp': datetime.datetime.now(
-                datetime.timezone.utc).timestamp(),
+            'timestamp': int(datetime.datetime.now(
+                datetime.timezone.utc).timestamp() * 1000000),
             'reply_to': _reply_to,
             'properties': {
                 'content_type': self._serializer.CONTENT_TYPE,
@@ -185,20 +212,16 @@ class Publisher(BasePublisher):
             conn_params is None else conn_params
 
         super(Publisher, self).__init__(*args, **kwargs)
-        if conn_params.host is None:
-            self.redis = redis.Redis(unix_socket_path=conn_params.unix_socket,
-                                     db=conn_params.db)
-        else:
-            self.redis = redis.Redis(host=conn_params.host,
-                                     port=conn_params.port,
-                                     db=conn_params.db)
+
+        self._transport = RedisTransport(conn_params=conn_params,
+                                         logger=self._logger)
 
     def publish(self, payload):
         _msg = self.__prepare_msg(payload)
         _msg = self._serializer.serialize(_msg)
-        self.logger.debug('Publishing Message: <{}>:{}'.format(self._topic,
-                                                            payload))
-        self.redis.publish(self._topic, _msg)
+        self.logger.debug(
+            'Publishing Message: <{}>:{}'.format(self._topic, payload))
+        self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
     def _gen_random_id(self):
@@ -207,8 +230,8 @@ class Publisher(BasePublisher):
 
     def __prepare_msg(self, data):
         header = {
-            'timestamp': datetime.datetime.now(
-                datetime.timezone.utc).timestamp(),
+            'timestamp': int(datetime.datetime.now(
+                datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
                 'content_type': self._serializer.CONTENT_TYPE,
                 'content_encoding': self._serializer.CONTENT_ENCODING
@@ -230,16 +253,8 @@ class Subscriber(BaseSubscriber):
 
         super(Subscriber, self).__init__(*args, **kwargs)
 
-        if conn_params.host is None:
-            self.redis = redis.Redis(unix_socket_path=conn_params.unix_socket,
-                                     db=conn_params.db,
-                                     decode_responses=True)
-        else:
-            self.redis = redis.Redis(host=conn_params.host,
-                                     port=conn_params.port,
-                                     db=conn_params.db,
-                                     decode_responses=True)
-        self._rsub = self.redis.pubsub()
+        self._transport = RedisTransport(conn_params=conn_params,
+                                         logger=self._logger)
         self._event_loop_thread = None
 
     @property
@@ -252,13 +267,11 @@ class Subscriber(BaseSubscriber):
         return str(uuid.uuid4()).replace('-', '')
 
     def run(self):
-        self._sub = self._rsub.subscribe(
-            **{self._topic: self._on_message})
-        self._rsub.get_message()
-        self._event_loop_thread = self._rsub.run_in_thread(0.001)
+        self._subscriber_thread = self._transport.subscribe(self._topic,
+                                                            self._on_message)
 
     def stop(self):
-        self._event_loop_thread.stop()
+        self._subscriber_thread.stop()
 
     def run_forever(self):
         try:
