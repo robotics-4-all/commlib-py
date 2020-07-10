@@ -34,6 +34,7 @@ if __name__ == '__main__':
     time.sleep(1)
     c = RPCClient(conn_params=conn_params,
                   rpc_name=rpc_name)
+    c.run()
     t = Thread(target=thread_runner, args=(c,))
     t.daemon = True
     t.start()

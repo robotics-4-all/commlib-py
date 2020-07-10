@@ -52,6 +52,6 @@ if __name__ == '__main__':
     c_list = create_rpc_client(num_clients, conn_params, rpc1_name)
     data = {'msg': 'Send from main Thread'}
     while True:
-        # for c in c_list:
-        #     c.call(data)
+        for c in c_list:
+            c.call(data)
         time.sleep(1)

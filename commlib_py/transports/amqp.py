@@ -690,8 +690,6 @@ class RPCClient(BaseRPCClient):
             auto_ack=True
         )
 
-        # self._transport.detach_amqp_events_thread()
-
     @property
     def mean_delay(self):
         """The mean delay of the communication. Internally calculated."""
@@ -880,7 +878,7 @@ class Publisher(BasePublisher):
         # self._transport.create_channel()
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
-        # self._transport.detach_amqp_events_thread()
+        self._transport.detach_amqp_events_thread()
 
     def publish(self, payload):
         """ Publish message once.
