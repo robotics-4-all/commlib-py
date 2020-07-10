@@ -157,8 +157,9 @@ class AMQPConnection(pika.BlockingConnection):
             parameters=self._connection_params.make_pika())
 
     def stop_amqp_events_thread(self):
-        self._t_stop_event.set()
-        self._events_thread = None
+        if self._t_stop_event is not None:
+            self._t_stop_event.set()
+            self._events_thread = None
 
     def detach_amqp_events_thread(self):
         if self._events_thread is not None:
@@ -229,6 +230,7 @@ class AMQPTransport(object):
 
         assert isinstance(debug, bool)
         assert isinstance(conn_params, ConnectionParameters)
+        # assert isinstance(connection, AMQPConnection)
 
         self._connection = connection
         self._conn_params = conn_params
@@ -318,8 +320,9 @@ class AMQPTransport(object):
             # self.logger.warning('Channel is allready closed')
             return
         self.logger.debug('Invoking a graceful shutdown...')
-        self._channel.stop_consuming()
-        self._channel.close()
+        self.connection.stop_amqp_events_thread()
+        self.stop_consuming()
+        self.channel.close()
         self.logger.debug('Channel closed!')
 
     def exchange_exists(self, exchange_name):
@@ -679,7 +682,7 @@ class RPCClient(BaseRPCClient):
 
         self._transport = AMQPTransport(conn_params, self._debug,
                                         self._logger, connection)
-        self._transport.create_channel()
+        # self._transport.create_channel()
 
         self._transport.add_threadsafe_callback(
             self._transport.channel.basic_consume,
@@ -865,7 +868,8 @@ class Publisher(BasePublisher):
             (AMQPTransportSync).
     """
 
-    def __init__(self, conn_params=None, exchange='amq.topic', *args, **kwargs):
+    def __init__(self, conn_params=None, connection=None,
+                 exchange='amq.topic', *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
 
@@ -874,10 +878,12 @@ class Publisher(BasePublisher):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-        # self._transport.create_channel()
+        self._transport = AMQPTransport(conn_params, self._debug,
+                                        self._logger, connection)
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
+
+    def run(self):
         self._transport.detach_amqp_events_thread()
 
     def publish(self, payload):
