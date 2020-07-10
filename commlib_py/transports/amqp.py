@@ -109,6 +109,7 @@ class ConnectionParameters():
 
         if creds is None:
             creds = Credentials()
+        assert isinstance(creds, Credentials)
         self.creds = creds
 
     @property
@@ -119,7 +120,7 @@ class ConnectionParameters():
         return pika.ConnectionParameters(
             host=self.host,
             port=str(self.port),
-            credentials=self.creds,
+            credentials=self.creds.make_pika(),
             connection_attempts=self.reconnect_attempts,
             retry_delay=self.retry_delay,
             blocked_connection_timeout=self.blocked_connection_timeout,
@@ -161,7 +162,7 @@ class ExchangeTypes(object):
     Default = ''
 
 
-class Credentials(pika.PlainCredentials):
+class Credentials(object):
     """Connection credentials for authn/authz.
 
     Args:
@@ -173,26 +174,33 @@ class Credentials(pika.PlainCredentials):
 
     def __init__(self, username='guest', password='guest'):
         """Constructor."""
-        super(Credentials, self).__init__(username=username, password=password)
+        self.username = username
+        self.password = password
+
+    def make_pika(self):
+        return pika.PlainCredentials(username=self.username,
+                                     password=self.password)
 
 
 class AMQPTransport(object):
     """AMQPT Transport implementation.
     """
 
-    def __init__(self, conn_params, debug=False, logger=None):
+    def __init__(self, conn_params, debug=False, logger=None, connection=None):
         """Constructor."""
         # So that connections do not go zombie
         atexit.register(self._graceful_shutdown)
 
-        self._closing = False
-        self._connection = None
-        self._channel = None
-
-        self._debug = debug
-
-        self._conn_params = ConnectionParameters() if \
+        conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
+
+        if connection is None:
+            connection = AMQPConnection(conn_params)
+        self._connection = connection
+        self._conn_params = conn_params
+        self._debug = debug
+        self._channel = None
+        self._closing = False
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -248,6 +256,11 @@ class AMQPTransport(object):
         except pika.exceptions.AMQPConnectionError:
             self.logger.debug('Connection error. Reconnecting...')
             self.connect()
+
+    def add_threadsafe_callback(self, cb, *args, **kwargs):
+        self.connection.add_callback_threadsafe(
+            functools.partial(cb, *args, **kwargs)
+        )
 
     def process_amqp_events(self):
         """Force process amqp events, such as heartbeat packages."""
@@ -434,14 +447,6 @@ class RPCServer(BaseRPCServer):
 
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
 
-    @property
-    def connection(self):
-        return self._transport.connection
-
-    @property
-    def channel(self):
-        return self._transport.channel
-
     def is_alive(self):
         """Returns True if connection is alive and False otherwise."""
         if self.connection is None:
@@ -585,9 +590,9 @@ class RPCServer(BaseRPCServer):
         """Stop RPC Server.
         Safely close channel and connection to the broker.
         """
-        if not self.channel:
+        if not self._transport.channel:
             return
-        if self.channel.is_closed:
+        if self._transport.channel.is_closed:
             self.logger.warning('Channel was already closed!')
             return False
         self._transport.stop_consuming()
@@ -632,25 +637,19 @@ class RPCClient(BaseRPCClient):
 
         self._transport = AMQPTransport(conn_params, self._debug, self._logger)
 
-        self._consumer_tag = self.channel.basic_consume(
+        self._transport.add_threadsafe_callback(
+            self._transport.channel.basic_consume,
             'amq.rabbitmq.reply-to',
             self._on_response,
-            exclusive=False,
+            exclusive=True,
             consumer_tag=None,
-            auto_ack=True)
+            auto_ack=True
+        )
         self._detach_amqp_events_thread()
 
     @property
     def logger(self):
         return self._logger
-
-    @property
-    def connection(self):
-        return self._transport.connection
-
-    @property
-    def channel(self):
-        return self._transport.channel
 
     @property
     def mean_delay(self):
@@ -764,7 +763,6 @@ class RPCClient(BaseRPCClient):
             time.sleep(0.001)
         return self._response
 
-
     def _deserialize_data(self, data, content_type, content_encoding):
         """Deserialize wire data.
 
@@ -814,12 +812,14 @@ class RPCClient(BaseRPCClient):
             reply_to='amq.rabbitmq.reply-to'
         )
 
-        self.channel.basic_publish(
+        self._transport.add_threadsafe_callback(
+            self._transport.channel.basic_publish,
             exchange=self._exchange,
             routing_key=self._rpc_name,
             mandatory=False,
             properties=_rpc_props,
-            body=_payload)
+            body=_payload
+        )
         # self._transport.process_amqp_events()
 
 

@@ -35,19 +35,27 @@ class Credentials(object):
 
 
 class ConnectionParameters(object):
-    __slots__ = ['host', 'port', 'unix_socket', 'db', 'creds']
+    __slots__ = ['db', 'creds']
 
-    def __init__(self, host=None, port=6379,
-                 unix_socket='/tmp/redis.sock', db=0,
-                 creds=None):
-        self.host = host
-        self.port = port
-        self.unix_socket = unix_socket
+    def __init__(self, db=0, creds=None):
         self.db = db
 
         if creds is None:
             creds = Credentials()
         self.creds = creds
+
+
+class TCPConnectionParameters(ConnectionParameters):
+    def __init__(self, host='localhost', port=6379, *args, **kwargs):
+        super(TCPConnectionParameters, self).__init__(*args, **kwargs)
+        self.host = host
+        self.port = port
+
+
+class UnixSocketConnectionParameters(ConnectionParameters):
+    def __init__(self, unix_socket='/tmp/redis.sock', *args, **kwargs):
+        super(UnixSocketConnectionParameters, self).__init__(*args, **kwargs)
+        self.unix_socket = unix_socket
 
 
 class RedisConnection(redis.Redis):
