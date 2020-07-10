@@ -8,18 +8,21 @@ from threading import Thread
 def thread_runner(c):
     data = {'state': 0}
     while True:
-        c.call(data)
-        time.sleep(2)
+        resp = c.call(data)
+        print('Send from Thread : {}'.format(resp))
+        time.sleep(0.5)
 
 
 def on_request(msg, meta):
-    print(msg)
+    print('RPC Request received!')
     time.sleep(0.5)
     return msg
 
 
 def create_rpc_client(n, conn_params, rpc_name):
     l = [RPCClient(conn_params=conn_params, rpc_name=rpc_name) for i in range(n)]
+    for i in l:
+        i.run()
     return l
 
 
@@ -43,9 +46,10 @@ if __name__ == '__main__':
     time.sleep(1)
     c1 = RPCClient(conn_params=conn_params,
                    rpc_name=rpc1_name)
-    # t = Thread(target=thread_runner, args=(c1,))
-    # t.daemon = True
-    # t.start()
+    c1.run()
+    t = Thread(target=thread_runner, args=(c1,))
+    t.daemon = True
+    t.start()
     c_list = create_rpc_client(num_clients, conn_params, rpc1_name)
     data = {'state': 0}
     while True:
