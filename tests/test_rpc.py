@@ -6,15 +6,14 @@ from threading import Thread
 
 
 def thread_runner(c):
-    data = {'state': 0}
+    data = {'msg': 'Send from Thread!'}
     while True:
         resp = c.call(data)
-        print('Send from Thread : {}'.format(resp))
         time.sleep(0.5)
 
 
 def on_request(msg, meta):
-    print('RPC Request received!')
+    print(msg)
     time.sleep(0.5)
     return msg
 
@@ -51,8 +50,8 @@ if __name__ == '__main__':
     t.daemon = True
     t.start()
     c_list = create_rpc_client(num_clients, conn_params, rpc1_name)
-    data = {'state': 0}
+    data = {'msg': 'Send from main Thread'}
     while True:
-        for c in c_list:
-            c.call(data)
+        # for c in c_list:
+        #     c.call(data)
         time.sleep(1)

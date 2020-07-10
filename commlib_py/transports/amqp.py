@@ -146,7 +146,7 @@ class ConnectionParameters():
 
 
 class AMQPConnection(pika.BlockingConnection):
-    """Connection. Thin wrapper around pika.BlockingConnection"""
+    """Connection. qThin wrapper around pika.BlockingConnection"""
     def __init__(self, conn_params):
         self._connection_params = conn_params
         self._pika_connection = None
@@ -158,6 +158,7 @@ class AMQPConnection(pika.BlockingConnection):
 
     def stop_amqp_events_thread(self):
         self._t_stop_event.set()
+        self._events_thread = None
 
     def detach_amqp_events_thread(self):
         if self._events_thread is not None:
@@ -234,8 +235,6 @@ class AMQPTransport(object):
         self._debug = debug
         self._channel = None
         self._closing = False
-        self._events_thread = None
-        self._t_stop_event = None
 
         self._logger = Logger(self.__class__.__name__, debug=self._debug) if \
             logger is None else logger
@@ -243,7 +242,7 @@ class AMQPTransport(object):
         # Create a new connection
         if self._connection is None:
             self._connection = AMQPConnection(self._conn_params)
-        self._connection._transport = self
+        self.create_channel()
 
     @property
     def logger(self):
@@ -276,7 +275,7 @@ class AMQPTransport(object):
         ch = self._connection.channel()
         self._channel = ch
 
-    def connect(self):
+    def create_channel(self):
         """Connect to the AMQP broker. Creates a new channel."""
         try:
             # Create a new communication channel
@@ -289,44 +288,23 @@ class AMQPTransport(object):
                         self._conn_params.vhost))
         except pika.exceptions.ConnectionClosed:
             self.logger.debug('Connection timed out. Reconnecting...')
-            self.connect()
+            self.create_channel()
         except pika.exceptions.AMQPConnectionError:
             self.logger.debug('Connection error. Reconnecting...')
-            self.connect()
+            self.create_channel()
 
     def add_threadsafe_callback(self, cb, *args, **kwargs):
         self.connection.add_callback_threadsafe(
             functools.partial(cb, *args, **kwargs)
         )
 
-    def process_amqp_events(self):
+    def process_amqp_events(self, timeout=0):
         """Force process amqp events, such as heartbeat packages."""
-        self.connection.process_data_events()
+        self.connection.process_data_events(timeout)
         # self.add_threadsafe_callback(self.connection.process_data_events)
 
-    def stop_amqp_events_thread(self):
-        self._t_stop_event.set()
-
     def detach_amqp_events_thread(self):
-        if self._events_thread is not None:
-            if self._events_thread.is_alive():
-                return
-        self._events_thread = Thread(target=self._ensure_events_processed)
-        self._events_thread.daemon = True
-        self._t_stop_event = Event()
-        self._events_thread.start()
-
-    def _ensure_events_processed(self):
-        try:
-            while True:
-                self._connection.sleep(0.001)
-                if self._t_stop_event.is_set():
-                    break
-        except Exception as exc:
-            self._logger.debug(
-                'Exception thrown while processing amqp events - {}'.format(
-                    str(exc)
-                ))
+        self.connection.detach_amqp_events_thread()
 
     def _signal_handler(self, signum, frame):
         """TODO"""
@@ -340,9 +318,6 @@ class AMQPTransport(object):
             # self.logger.warning('Channel is allready closed')
             return
         self.logger.debug('Invoking a graceful shutdown...')
-        if self._t_stop_event is not None:
-            if not self._t_stop_event.is_set():
-                self._t_stop_event.set()
         self._channel.stop_consuming()
         self._channel.close()
         self.logger.debug('Channel closed!')
@@ -442,7 +417,7 @@ class AMQPTransport(object):
         try:
             _ = self._channel.queue_declare(queue_name, passive=True)
         except pika.exceptions.ChannelClosedByBroker as exc:
-            self.connect()
+            self.create_channel()
             if exc.reply_code == 404:  # Not Found
                 return False
             else:
@@ -511,7 +486,7 @@ class RPCServer(BaseRPCServer):
             conn_params is None else conn_params
 
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-        self._transport.connect()
+        # self._transport.create_channel()
 
     def is_alive(self):
         """Returns True if connection is alive and False otherwise."""
@@ -704,7 +679,7 @@ class RPCClient(BaseRPCClient):
 
         self._transport = AMQPTransport(conn_params, self._debug,
                                         self._logger, connection)
-        self._transport.connect()
+        self._transport.create_channel()
 
         self._transport.add_threadsafe_callback(
             self._transport.channel.basic_consume,
@@ -902,10 +877,10 @@ class Publisher(BasePublisher):
             conn_params is None else conn_params
 
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-        self._transport.connect()
+        # self._transport.create_channel()
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
-        self._transport.detach_amqp_events_thread()
+        # self._transport.detach_amqp_events_thread()
 
     def publish(self, payload):
         """ Publish message once.

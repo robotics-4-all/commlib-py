@@ -16,9 +16,9 @@ if __name__ == '__main__':
     conn_params.host = 'localhost'
     conn_params.port = 8076
     conn_params.vhost = '/'
-    logger = RemoteLogger(rpc_name, conn_params)
+    # logger = RemoteLogger(rpc_name, conn_params)
     rpcs = RPCServer(conn_params=conn_params, on_request=callback,
-                     rpc_name=rpc_name, logger=logger)
+                     rpc_name=rpc_name)
     rpcs.run()
     while True:
         try:
