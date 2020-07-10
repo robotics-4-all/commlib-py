@@ -65,17 +65,17 @@ class RedisConnection(redis.Redis):
 
 class RedisTransport(object):
     def __init__(self, conn_params=None, logger=None):
-        conn_params = ConnectionParameters() if \
+        conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
-        if conn_params.host is None:
+        if isinstance(conn_params, UnixSocketConnectionParameters):
             self._redis = RedisConnection(
                 unix_socket_path=conn_params.unix_socket,
                 db=conn_params.db, decode_responses=True)
-        else:
+        elif isinstance(conn_params, TCPConnectionParameters):
             self._redis = RedisConnection(host=conn_params.host,
-                                      port=conn_params.port,
-                                      db=conn_params.db,
-                                      decode_responses=True)
+                                          port=conn_params.port,
+                                          db=conn_params.db,
+                                          decode_responses=True)
 
         self._conn_params = conn_params
         self.logger = Logger(self.__class__.__name__) if \
