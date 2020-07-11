@@ -63,7 +63,7 @@ def run_redis():
     print('Running REDIS ACtion Test...')
     print('-----------------------------------------------------------------')
     action_name = 'testaction'
-    conn_params = rcomm.ConnectionParameters()
+    conn_params = rcomm.UnixSocketConnectionParameters()
 
     action = rcomm.ActionServer(conn_params=conn_params,
                                 action_name=action_name,

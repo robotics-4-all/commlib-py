@@ -301,7 +301,7 @@ class Subscriber(BaseSubscriber):
 class ActionServer(BaseActionServer):
     def __init__(self, conn_params=None, *args, **kwargs):
         assert isinstance(conn_params, ConnectionParameters)
-        conn_params = ConnectionParameters() if \
+        conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
         super(ActionServer, self).__init__(*args, **kwargs)
@@ -334,7 +334,7 @@ class ActionServer(BaseActionServer):
 class ActionClient(BaseActionClient):
     def __init__(self, conn_params=None, *args, **kwargs):
         assert isinstance(conn_params, ConnectionParameters)
-        conn_params = ConnectionParameters() if \
+        conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
         super(ActionClient, self).__init__(*args, **kwargs)

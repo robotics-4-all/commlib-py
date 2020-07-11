@@ -1170,6 +1170,9 @@ class ActionServer(BaseActionServer):
     def __init__(self, conn_params=None, *args, **kwargs):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
+
+        self._conn = AMQPConnection(conn_params)
+
         super(ActionServer, self).__init__(*args, **kwargs)
         self._goal_rpc = RPCServer(rpc_name=self._goal_rpc_uri,
                                    conn_params=conn_params,
@@ -1187,13 +1190,14 @@ class ActionServer(BaseActionServer):
                                      logger=self._logger,
                                      debug=self.debug)
         self._feedback_pub = Publisher(topic=self._feedback_topic,
-                                       conn_params=conn_params,
+                                       connection=self._conn,
                                        logger=self._logger,
                                        debug=self.debug)
         self._status_pub = Publisher(topic=self._status_topic,
-                                     conn_params=conn_params,
+                                     connection=self._conn,
                                      logger=self._logger,
                                      debug=self.debug)
+        self._conn.detach_amqp_events_thread()
 
 
 class ActionClient(BaseActionClient):
@@ -1202,17 +1206,20 @@ class ActionClient(BaseActionClient):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
+        self._conn = AMQPConnection(conn_params)
+
         super(ActionClient, self).__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(rpc_name=self._goal_rpc_uri,
-                                      conn_params=conn_params,
+                                      connection=self._conn,
                                       logger=self._logger,
                                       debug=self.debug)
         self._cancel_client = RPCClient(rpc_name=self._cancel_rpc_uri,
-                                        conn_params=conn_params,
+                                        connection=self._conn,
                                         logger=self._logger,
                                         debug=self.debug)
         self._result_client = RPCClient(rpc_name=self._result_rpc_uri,
-                                        conn_params=conn_params,
+                                        connection=self._conn,
                                         logger=self._logger,
                                         debug=self.debug)
+        self._conn.detach_amqp_events_thread()
