@@ -316,6 +316,8 @@ class AMQPTransport(object):
     def _graceful_shutdown(self):
         if not self._connection:
             return
+        if not self._channel:
+            return
         if self._channel.is_closed:
             # self.logger.warning('Channel is allready closed')
             return
@@ -684,6 +686,7 @@ class RPCClient(BaseRPCClient):
                                         self._logger, connection)
         # self._transport.create_channel()
 
+
         self._transport.add_threadsafe_callback(
             self._transport.channel.basic_consume,
             'amq.rabbitmq.reply-to',
@@ -692,6 +695,9 @@ class RPCClient(BaseRPCClient):
             consumer_tag=None,
             auto_ack=True
         )
+
+        if connection is None:
+            self.run()
 
     @property
     def mean_delay(self):
@@ -882,6 +888,8 @@ class Publisher(BasePublisher):
                                         self._logger, connection)
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
+        if connection is None:
+            self.run()
 
     def run(self):
         self._transport.detach_amqp_events_thread()

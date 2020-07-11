@@ -57,13 +57,12 @@ def test_multiple_clients():
     conn = AMQPConnection(conn_params)
     c1 = RPCClient(connection=conn,
                    rpc_name=rpc1_name)
+    c_list = create_rpc_client(num_clients, rpc1_name, conn)
+    conn.detach_amqp_events_thread()
+
     t = Thread(target=thread_runner, args=(c1,))
     t.daemon = True
     t.start()
-
-    c_list = create_rpc_client(num_clients, rpc1_name, conn)
-
-    conn.detach_amqp_events_thread()
 
     data = {'msg': 'Send from main Thread'}
     counter = 0
@@ -90,7 +89,7 @@ def test_simple_clients():
     time.sleep(1)
     c = RPCClient(conn_params=conn_params,
                   rpc_name=RPC_NAME)
-    c.run()
+    # c.run()
     t = Thread(target=thread_runner, args=(c,))
     t.daemon = True
     t.start()
@@ -120,18 +119,20 @@ def test_shared_connection_clients():
     conn = AMQPConnection(conn_params)
     c = RPCClient(connection=conn,
                   rpc_name=RPC_NAME)
-    c.run()
+    # c.run()
+    c2 = RPCClient(connection=conn,
+                  rpc_name=RPC_NAME)
     t = Thread(target=thread_runner, args=(c,))
     t.daemon = True
     t.start()
+    conn.detach_amqp_events_thread()
     data = {'msg': 'Sent from Main Thread.'}
     counter = 0
     while counter < ITERATIONS:
-        c.call(data)
+        c2.call(data)
         time.sleep(HB_TIMEOUT * SLEEP_MULTIPLIER)
         counter += 1
     s.stop()
-    conn.stop_amqp_events_thread()
     print('[*] - Finished Heartbeat Timeout Test!')
     print('=================================================================')
 

@@ -57,9 +57,6 @@ def test_multiple_publishers():
 
     p_list = [Publisher(conn_params=conn_params, topic=TOPIC_NAME) \
               for i in range(num_clients)]
-    for p in p_list:
-        p.run()
-
     data = {'msg': 'Send from main Thread'}
     counter = 0
     while counter < ITERATIONS:
@@ -117,7 +114,6 @@ def test_simple_publishers():
     time.sleep(1)
     p = Publisher(conn_params=conn_params,
                   topic=TOPIC_NAME)
-    p.run()
     t = Thread(target=thread_runner, args=(p,))
     t.daemon = True
     t.start()
@@ -147,7 +143,6 @@ def test_shared_connection_publishers():
     conn = AMQPConnection(conn_params)
     p = Publisher(connection=conn,
                   topic=TOPIC_NAME)
-    p.run()
     t = Thread(target=thread_runner, args=(p,))
     t.daemon = True
     t.start()
@@ -158,7 +153,6 @@ def test_shared_connection_publishers():
         time.sleep(HB_TIMEOUT * SLEEP_MULTIPLIER)
         counter += 1
     s.stop()
-    conn.stop_amqp_events_thread()
     print('[*] - Finished Heartbeat Timeout Test!')
     print('=================================================================')
 
