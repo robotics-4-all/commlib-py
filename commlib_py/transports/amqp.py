@@ -223,7 +223,7 @@ class AMQPTransport(object):
     def __init__(self, conn_params, debug=False, logger=None, connection=None):
         """Constructor."""
         # So that connections do not go zombie
-        atexit.register(self._graceful_shutdown)
+        # atexit.register(self._graceful_shutdown)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -322,9 +322,8 @@ class AMQPTransport(object):
             # self.logger.warning('Channel is allready closed')
             return
         self.logger.debug('Invoking a graceful shutdown...')
-        self.connection.stop_amqp_events_thread()
-        self.stop_consuming()
-        self.channel.close()
+        if self.channel.is_open:
+            self.add_threadsafe_callback(self.channel.close)
         self.logger.debug('Channel closed!')
 
     def exchange_exists(self, exchange_name):
@@ -486,6 +485,7 @@ class RPCServer(BaseRPCServer):
     def __init__(self, conn_params=None, exchange='', *args, **kwargs):
         """Constructor. """
         self._exchange = exchange
+        self._closing = False
         super(RPCServer, self).__init__(*args, **kwargs)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -636,13 +636,20 @@ class RPCServer(BaseRPCServer):
         """Stop RPC Server.
         Safely close channel and connection to the broker.
         """
+        if self._closing:
+            return False
+        self._closing = True
         if not self._transport.channel:
-            return
+            return False
         if self._transport.channel.is_closed:
             self.logger.warning('Channel was already closed!')
             return False
-        self._transport.stop_consuming()
-        self._transport.delete_queue(self._rpc_queue)
+        self._transport.add_threadsafe_callback(
+            self._transport.delete_queue, self._rpc_queue)
+        self._transport.add_threadsafe_callback(
+            self._transport.stop_consuming)
+        self._transport.add_threadsafe_callback(
+            self._transport.close)
         return True
 
     def stop(self):

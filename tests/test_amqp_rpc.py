@@ -8,7 +8,7 @@ from threading import Thread
 
 HB_TIMEOUT = 2
 SLEEP_MULTIPLIER = 5
-ITERATIONS = 2
+ITERATIONS = 5
 RPC_NAME = 'testrpc'
 rpc1_name = 'testrpc1'
 rpc2_name = 'testrpc2'
@@ -137,7 +137,27 @@ def test_shared_connection_clients():
     print('=================================================================')
 
 
+def test_stop_server():
+    print('[*] - Running <Heartbeat Timeout> test with Shared Connection client')
+    print('[*] - Configuration:')
+    print(f'[*] - Heartbeat Timeout: {HB_TIMEOUT}')
+    print(f'[*] - Sleep Multiplier: {SLEEP_MULTIPLIER}')
+    print(f'[*] - Iterations: {ITERATIONS}')
+    print('=================================================================')
+    counter = 0
+    while counter < ITERATIONS:
+        s = RPCServer(conn_params=conn_params,
+                      rpc_name=RPC_NAME,
+                      on_request=on_request)
+        s.run()
+        time.sleep(1)
+        s.stop()
+        time.sleep(1)
+        counter += 1
+
+
 if __name__ == '__main__':
+    test_stop_server()
     test_multiple_clients()
     test_shared_connection_clients()
     test_simple_clients()
