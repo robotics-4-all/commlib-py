@@ -157,7 +157,27 @@ def test_shared_connection_publishers():
     print('=================================================================')
 
 
+def test_stop_subscriber():
+    print('[*] - Running <Heartbeat Timeout> test with Shared Connection client')
+    print('[*] - Configuration:')
+    print(f'[*] - Heartbeat Timeout: {HB_TIMEOUT}')
+    print(f'[*] - Sleep Multiplier: {SLEEP_MULTIPLIER}')
+    print(f'[*] - Iterations: {ITERATIONS}')
+    print('=================================================================')
+    counter = 0
+    while counter < ITERATIONS:
+        s = Subscriber(conn_params=conn_params,
+                      topic=TOPIC_NAME,
+                      on_message=sub_callback)
+        s.run()
+        time.sleep(1)
+        s.stop()
+        time.sleep(1)
+        counter += 1
+
+
 if __name__ == '__main__':
+    test_stop_subscriber()
     test_multiple_publishers()
     test_multiple_publishers_shared_connection()
     test_simple_publishers()

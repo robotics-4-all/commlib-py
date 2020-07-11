@@ -971,6 +971,7 @@ class Subscriber(BaseSubscriber):
         self._queue_size = queue_size
         self._message_ttl = message_ttl
         self._overflow = overflow
+        self._closing = False
 
         super(Subscriber, self).__init__(*args, **kwargs)
 
@@ -1009,11 +1010,18 @@ class Subscriber(BaseSubscriber):
         self._consume()
 
     def close(self):
+        if self._closing:
+            return False
+        self._closing = True
         if self._transport._channel.is_closed:
             self.logger.info('Invoked close() on an already closed channel')
             return False
-        self._transport.delete_queue(self._queue_name)
-        super(Subscriber, self).stop()
+        self._transport.add_threadsafe_callback(
+            self._transport.delete_queue, self._queue_name)
+        self._transport.add_threadsafe_callback(
+            self._transport.stop_consuming)
+        self._transport.add_threadsafe_callback(
+            self._transport.close)
 
     def _consume(self, reliable=False):
         """Start AMQP consumer."""
