@@ -13,6 +13,7 @@ if __name__ == '__main__':
     conn_params.port = 5782
     p = Publisher(conn_params=conn_params,
                   topic=topic_name)
+    p.run()
     data = {'state': 0}
     while True:
         try:

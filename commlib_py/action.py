@@ -113,7 +113,8 @@ class GoalHandler(object):
 
 class BaseActionServer(object):
     def __init__(self, action_name, logger=None, debug=True,
-                 workers=4, on_goal=None, on_cancel=None, on_getresult=None):
+                 workers=4, on_goal=None, on_cancel=None,
+                 on_getresult=None):
         self._debug = debug
         self._num_workers = workers
         self._action_name = action_name

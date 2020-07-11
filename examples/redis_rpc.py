@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.redis import RPCServer, ConnectionParameters
+from commlib_py.transports.redis import (
+    RPCServer, UnixSocketConnectionParameters)
 
 
 def callback(msg, meta):
@@ -9,6 +10,6 @@ def callback(msg, meta):
 
 if __name__ == '__main__':
     rpc_name = 'test_rpc'
-    conn_params = ConnectionParameters()
+    conn_params = UnixSocketConnectionParameters()
     rpcs = RPCServer(conn_params, on_request=callback, rpc_name=rpc_name)
     rpcs.run_forever()

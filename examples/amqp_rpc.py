@@ -11,11 +11,11 @@ def callback(msg, meta):
 if __name__ == '__main__':
     rpc_name = 'test_rpc'
     conn_params = ConnectionParameters()
-    conn_params.credentials.username = 'etsardou'
-    conn_params.credentials.password = 'etsardou'
-    conn_params.host = 'r4a-platform.ddns.net'
+    conn_params.credentials.username = 'testuser'
+    conn_params.credentials.password = 'testuser'
+    conn_params.host = 'localhost'
     conn_params.port = 8076
-    conn_params.vhost = 'etsardou'
+    conn_params.vhost = '/'
     logger = RemoteLogger(rpc_name, conn_params)
     rpcs = RPCServer(conn_params=conn_params, on_request=callback,
                      rpc_name=rpc_name, logger=logger)

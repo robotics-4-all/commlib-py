@@ -109,6 +109,7 @@ class ConnectionParameters():
 
         if creds is None:
             creds = Credentials()
+        assert isinstance(creds, Credentials)
         self.creds = creds
 
     @property
@@ -119,7 +120,7 @@ class ConnectionParameters():
         return pika.ConnectionParameters(
             host=self.host,
             port=str(self.port),
-            credentials=self.creds,
+            credentials=self.creds.make_pika(),
             connection_attempts=self.reconnect_attempts,
             retry_delay=self.retry_delay,
             blocked_connection_timeout=self.blocked_connection_timeout,
@@ -145,12 +146,46 @@ class ConnectionParameters():
 
 
 class AMQPConnection(pika.BlockingConnection):
-    """Connection. Thin wrapper around pika.BlockingConnection"""
+    """Connection. qThin wrapper around pika.BlockingConnection"""
     def __init__(self, conn_params):
         self._connection_params = conn_params
         self._pika_connection = None
+        self._transport = None
+        self._events_thread = None
+        self._t_stop_event = None
         super(AMQPConnection, self).__init__(
             parameters=self._connection_params.make_pika())
+
+    def stop_amqp_events_thread(self):
+        if self._t_stop_event is not None:
+            self._t_stop_event.set()
+            self._events_thread = None
+
+    def detach_amqp_events_thread(self):
+        if self._events_thread is not None:
+            if self._events_thread.is_alive():
+                return
+        self._events_thread = Thread(target=self._ensure_events_processed)
+        self._events_thread.daemon = True
+        self._t_stop_event = Event()
+        self._events_thread.start()
+
+    def _ensure_events_processed(self):
+        try:
+            while True:
+                self.sleep(0.001)
+                if self._t_stop_event.is_set():
+                    break
+        except Exception as exc:
+            pass
+            # self._logger.debug(
+            #     'Exception thrown while processing amqp events - {}'.format(
+            #         str(exc)
+            #     ))
+
+
+    def set_transport_ref(self, transport):
+        self._transport = transport
 
 
 class ExchangeTypes(object):
@@ -161,7 +196,7 @@ class ExchangeTypes(object):
     Default = ''
 
 
-class Credentials(pika.PlainCredentials):
+class Credentials(object):
     """Connection credentials for authn/authz.
 
     Args:
@@ -173,35 +208,43 @@ class Credentials(pika.PlainCredentials):
 
     def __init__(self, username='guest', password='guest'):
         """Constructor."""
-        super(Credentials, self).__init__(username=username, password=password)
+        self.username = username
+        self.password = password
+
+    def make_pika(self):
+        return pika.PlainCredentials(username=self.username,
+                                     password=self.password)
 
 
 class AMQPTransport(object):
     """AMQPT Transport implementation.
     """
 
-    def __init__(self, conn_params, debug=False, logger=None):
+    def __init__(self, conn_params, debug=False, logger=None, connection=None):
         """Constructor."""
         # So that connections do not go zombie
-        atexit.register(self._graceful_shutdown)
+        # atexit.register(self._graceful_shutdown)
 
-        self._closing = False
-        self._connection = None
-        self._channel = None
-
-        self._debug = debug
-
-        self._conn_params = ConnectionParameters() if \
+        conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        self._logger = Logger(self.__class__.__name__) if \
+        assert isinstance(debug, bool)
+        assert isinstance(conn_params, ConnectionParameters)
+        # assert isinstance(connection, AMQPConnection)
+
+        self._connection = connection
+        self._conn_params = conn_params
+        self._debug = debug
+        self._channel = None
+        self._closing = False
+
+        self._logger = Logger(self.__class__.__name__, debug=self._debug) if \
             logger is None else logger
 
-        assert isinstance(self._debug, bool)
-        assert isinstance(self._conn_params, ConnectionParameters)
-
-        self.connect()
-        # self._detach_hb_thread()
+        # Create a new connection
+        if self._connection is None:
+            self._connection = AMQPConnection(self._conn_params)
+        self.create_channel()
 
     @property
     def logger(self):
@@ -230,13 +273,16 @@ class AMQPTransport(object):
         else:
             self.logger.setLevel(LoggingLevel.INFO)
 
-    def connect(self):
+    def _on_connect(self):
+        ch = self._connection.channel()
+        self._channel = ch
+
+    def create_channel(self):
         """Connect to the AMQP broker. Creates a new channel."""
         try:
-            # Create a new connection
-            self._connection = AMQPConnection(self._conn_params)
             # Create a new communication channel
             self._channel = self._connection.channel()
+            # self.add_threadsafe_callback(self._on_connect)
             self.logger.debug(
                     'Connected to AMQP broker @ [{}:{}, vhost={}]'.format(
                         self._conn_params.host,
@@ -244,14 +290,23 @@ class AMQPTransport(object):
                         self._conn_params.vhost))
         except pika.exceptions.ConnectionClosed:
             self.logger.debug('Connection timed out. Reconnecting...')
-            self.connect()
+            self.create_channel()
         except pika.exceptions.AMQPConnectionError:
             self.logger.debug('Connection error. Reconnecting...')
-            self.connect()
+            self.create_channel()
 
-    def process_amqp_events(self):
+    def add_threadsafe_callback(self, cb, *args, **kwargs):
+        self.connection.add_callback_threadsafe(
+            functools.partial(cb, *args, **kwargs)
+        )
+
+    def process_amqp_events(self, timeout=0):
         """Force process amqp events, such as heartbeat packages."""
-        self.connection.process_data_events()
+        self.connection.process_data_events(timeout)
+        # self.add_threadsafe_callback(self.connection.process_data_events)
+
+    def detach_amqp_events_thread(self):
+        self.connection.detach_amqp_events_thread()
 
     def _signal_handler(self, signum, frame):
         """TODO"""
@@ -261,12 +316,14 @@ class AMQPTransport(object):
     def _graceful_shutdown(self):
         if not self._connection:
             return
+        if not self._channel:
+            return
         if self._channel.is_closed:
             # self.logger.warning('Channel is allready closed')
             return
         self.logger.debug('Invoking a graceful shutdown...')
-        self._channel.stop_consuming()
-        self._channel.close()
+        if self.channel.is_open:
+            self.add_threadsafe_callback(self.channel.close)
         self.logger.debug('Channel closed!')
 
     def exchange_exists(self, exchange_name):
@@ -364,7 +421,7 @@ class AMQPTransport(object):
         try:
             _ = self._channel.queue_declare(queue_name, passive=True)
         except pika.exceptions.ChannelClosedByBroker as exc:
-            self.connect()
+            self.create_channel()
             if exc.reply_code == 404:  # Not Found
                 return False
             else:
@@ -428,25 +485,19 @@ class RPCServer(BaseRPCServer):
     def __init__(self, conn_params=None, exchange='', *args, **kwargs):
         """Constructor. """
         self._exchange = exchange
+        self._closing = False
         super(RPCServer, self).__init__(*args, **kwargs)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-
-    @property
-    def connection(self):
-        return self._transport.connection
-
-    @property
-    def channel(self):
-        return self._transport.channel
+        # self._transport.create_channel()
 
     def is_alive(self):
         """Returns True if connection is alive and False otherwise."""
-        if self.connection is None:
+        if self._transport.connection is None:
             return False
-        elif self.connection.is_open:
+        elif self._transport.connection.is_open:
             return True
         else:
             return False
@@ -487,7 +538,7 @@ class RPCServer(BaseRPCServer):
             _ts_send = properties.timestamp
             # _ts_broker = properties.timestamp
         except Exception:
-            self.logger.error("Could not calculate latency", exc_info=False)
+            self.logger.warn("Could not calculate latency", exc_info=False)
 
         try:
             _msg = self._deserialize_data(body, _ctype, _cencoding)
@@ -585,13 +636,20 @@ class RPCServer(BaseRPCServer):
         """Stop RPC Server.
         Safely close channel and connection to the broker.
         """
-        if not self.channel:
-            return
-        if self.channel.is_closed:
+        if self._closing:
+            return False
+        self._closing = True
+        if not self._transport.channel:
+            return False
+        if self._transport.channel.is_closed:
             self.logger.warning('Channel was already closed!')
             return False
-        self._transport.stop_consuming()
-        self._transport.delete_queue(self._rpc_queue)
+        self._transport.add_threadsafe_callback(
+            self._transport.delete_queue, self._rpc_queue)
+        self._transport.add_threadsafe_callback(
+            self._transport.stop_consuming)
+        self._transport.add_threadsafe_callback(
+            self._transport.close)
         return True
 
     def stop(self):
@@ -615,7 +673,8 @@ class RPCClient(BaseRPCClient):
         **kwargs: The Keyword arguments to pass to  the base class
             (AMQPTransportSync).
     """
-    def __init__(self, conn_params=None, use_corr_id=False, *args, **kwargs):
+    def __init__(self, conn_params=None, connection=None, use_corr_id=False,
+                 *args, **kwargs):
         """Constructor."""
         self._use_corr_id = use_corr_id
         self._corr_id = None
@@ -630,27 +689,22 @@ class RPCClient(BaseRPCClient):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        self._transport = AMQPTransport(conn_params, self._debug, self._logger)
+        self._transport = AMQPTransport(conn_params, self._debug,
+                                        self._logger, connection)
+        # self._transport.create_channel()
 
-        self._consumer_tag = self.channel.basic_consume(
+
+        self._transport.add_threadsafe_callback(
+            self._transport.channel.basic_consume,
             'amq.rabbitmq.reply-to',
             self._on_response,
-            exclusive=False,
+            exclusive=True,
             consumer_tag=None,
-            auto_ack=True)
-        self._detach_amqp_events_thread()
+            auto_ack=True
+        )
 
-    @property
-    def logger(self):
-        return self._logger
-
-    @property
-    def connection(self):
-        return self._transport.connection
-
-    @property
-    def channel(self):
-        return self._transport.channel
+        if connection is None:
+            self.run()
 
     @property
     def mean_delay(self):
@@ -664,17 +718,6 @@ class RPCClient(BaseRPCClient):
         """
         return self._delay
 
-    def _detach_amqp_events_thread(self):
-        self._hb_thread = Thread(target=self._ensure_events_processed)
-        self._hb_thread.daemon = True
-        self._t_stop_event = Event()
-        self._hb_thread.start()
-
-    def _ensure_events_processed(self):
-        while True:
-            self._transport._connection.sleep(0.001)
-            if self._t_stop_event.is_set():
-                break
 
     def _on_response(self, ch, method, properties, body):
         _ctype = None
@@ -727,6 +770,9 @@ class RPCClient(BaseRPCClient):
         if self.onresponse is not None and callable(self.onresponse):
             self.onresponse(_msg, _meta)
 
+    def run(self):
+        self._transport.detach_amqp_events_thread()
+
     def gen_corr_id(self):
         """Generate correlationID."""
         return str(uuid.uuid4())
@@ -761,9 +807,9 @@ class RPCClient(BaseRPCClient):
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:
                 return None
+            # self._transport.connection.sleep(0.001)
             time.sleep(0.001)
         return self._response
-
 
     def _deserialize_data(self, data, content_type, content_encoding):
         """Deserialize wire data.
@@ -814,12 +860,14 @@ class RPCClient(BaseRPCClient):
             reply_to='amq.rabbitmq.reply-to'
         )
 
-        self.channel.basic_publish(
+        self._transport.add_threadsafe_callback(
+            self._transport.channel.basic_publish,
             exchange=self._exchange,
             routing_key=self._rpc_name,
             mandatory=False,
             properties=_rpc_props,
-            body=_payload)
+            body=_payload
+        )
         # self._transport.process_amqp_events()
 
 
@@ -833,7 +881,8 @@ class Publisher(BasePublisher):
             (AMQPTransportSync).
     """
 
-    def __init__(self, conn_params=None, exchange='amq.topic', *args, **kwargs):
+    def __init__(self, conn_params=None, connection=None,
+                 exchange='amq.topic', *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
 
@@ -842,10 +891,15 @@ class Publisher(BasePublisher):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        self._transport = AMQPTransport(conn_params, self.debug, self.logger)
+        self._transport = AMQPTransport(conn_params, self._debug,
+                                        self._logger, connection)
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
-        self._detach_amqp_events_thread()
+        if connection is None:
+            self.run()
+
+    def run(self):
+        self._transport.detach_amqp_events_thread()
 
     def publish(self, payload):
         """ Publish message once.
@@ -854,22 +908,9 @@ class Publisher(BasePublisher):
             msg (dict|Message|str|bytes): Message/Data to publish.
         """
         ## Thread Safe solution
-        self._transport.connection.add_callback_threadsafe(
-            functools.partial(self._send_data, payload))
+        self._transport.add_threadsafe_callback(self._send_data, payload)
         # self._send_data(payload)
         # self._transport.process_amqp_events()
-
-    def _detach_amqp_events_thread(self):
-        self._hb_thread = Thread(target=self._ensure_events_processed)
-        self._hb_thread.daemon = True
-        self._t_stop_event = Event()
-        self._hb_thread.start()
-
-    def _ensure_events_processed(self):
-        while True:
-            self._transport._connection.sleep(0.001)
-            if self._t_stop_event.is_set():
-                break
 
     def _send_data(self, data):
         _payload = None
@@ -930,6 +971,7 @@ class Subscriber(BaseSubscriber):
         self._queue_size = queue_size
         self._message_ttl = message_ttl
         self._overflow = overflow
+        self._closing = False
 
         super(Subscriber, self).__init__(*args, **kwargs)
 
@@ -968,11 +1010,18 @@ class Subscriber(BaseSubscriber):
         self._consume()
 
     def close(self):
+        if self._closing:
+            return False
+        self._closing = True
         if self._transport._channel.is_closed:
             self.logger.info('Invoked close() on an already closed channel')
             return False
-        self._transport.delete_queue(self._queue_name)
-        super(Subscriber, self).stop()
+        self._transport.add_threadsafe_callback(
+            self._transport.delete_queue, self._queue_name)
+        self._transport.add_threadsafe_callback(
+            self._transport.stop_consuming)
+        self._transport.add_threadsafe_callback(
+            self._transport.close)
 
     def _consume(self, reliable=False):
         """Start AMQP consumer."""
@@ -1005,7 +1054,7 @@ class Subscriber(BaseSubscriber):
             _ts_send = properties.timestamp
             # _ts_broker = properties.timestamp
         except Exception:
-            self.logger.error("Could not calculate latency",
+            self.logger.warn("Could not calculate latency",
                               exc_info=False)
 
         try:
@@ -1021,7 +1070,7 @@ class Subscriber(BaseSubscriber):
             self._calc_msg_frequency()
             self._sem.release()
         except Exception:
-            self.logger.error("Could not calculate message rate",
+            self.logger.warn("Could not calculate message rate",
                               exc_info=True)
 
         if self._onmessage is not None:
@@ -1144,6 +1193,9 @@ class ActionServer(BaseActionServer):
     def __init__(self, conn_params=None, *args, **kwargs):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
+
+        self._conn = AMQPConnection(conn_params)
+
         super(ActionServer, self).__init__(*args, **kwargs)
         self._goal_rpc = RPCServer(rpc_name=self._goal_rpc_uri,
                                    conn_params=conn_params,
@@ -1161,13 +1213,14 @@ class ActionServer(BaseActionServer):
                                      logger=self._logger,
                                      debug=self.debug)
         self._feedback_pub = Publisher(topic=self._feedback_topic,
-                                       conn_params=conn_params,
+                                       connection=self._conn,
                                        logger=self._logger,
                                        debug=self.debug)
         self._status_pub = Publisher(topic=self._status_topic,
-                                     conn_params=conn_params,
+                                     connection=self._conn,
                                      logger=self._logger,
                                      debug=self.debug)
+        self._conn.detach_amqp_events_thread()
 
 
 class ActionClient(BaseActionClient):
@@ -1176,17 +1229,20 @@ class ActionClient(BaseActionClient):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
+        self._conn = AMQPConnection(conn_params)
+
         super(ActionClient, self).__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(rpc_name=self._goal_rpc_uri,
-                                      conn_params=conn_params,
+                                      connection=self._conn,
                                       logger=self._logger,
                                       debug=self.debug)
         self._cancel_client = RPCClient(rpc_name=self._cancel_rpc_uri,
-                                        conn_params=conn_params,
+                                        connection=self._conn,
                                         logger=self._logger,
                                         debug=self.debug)
         self._result_client = RPCClient(rpc_name=self._result_rpc_uri,
-                                        conn_params=conn_params,
+                                        connection=self._conn,
                                         logger=self._logger,
                                         debug=self.debug)
+        self._conn.detach_amqp_events_thread()
