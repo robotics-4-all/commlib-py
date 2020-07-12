@@ -248,16 +248,6 @@ class BaseActionServer(object):
             resp['result'] = self._current_goal.result
         return resp
 
-    # def run(self):
-    #     self._main_thread = threading.Thread(target=self.run_forever)
-    #     self._main_thread.daemon = True
-    #     self._t_stop_event = threading.Event()
-    #     self._main_thread.start()
-
-    # def stop(self):
-    #     if self._t_stop_event is not None:
-    #         self._t_stop_event.set()
-
     def run(self):
         self._goal_rpc.run()
         self._cancel_rpc.run()

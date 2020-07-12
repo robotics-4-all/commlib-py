@@ -1235,6 +1235,14 @@ class ActionServer(BaseActionServer):
                                      debug=self.debug)
         self._conn.detach_amqp_events_thread()
 
+    def stop(self):
+        self._goal_rpc.stop()
+        self._cancel_rpc.stop()
+        self._result_rpc.stop()
+
+    def __del__(self):
+        self.stop()
+
 
 class ActionClient(BaseActionClient):
     def __init__(self, conn_params=None, *args, **kwargs):
@@ -1267,3 +1275,10 @@ class ActionClient(BaseActionClient):
                                         on_message=self._on_feedback)
         self._status_sub.run()
         self._feedback_sub.run()
+
+    def stop(self):
+        self._status_sub.stop()
+        self._feedback_sub.stop()
+
+    def __del__(self):
+        self.stop()
