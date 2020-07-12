@@ -289,8 +289,8 @@ class Subscriber(BaseSubscriber):
             raise exc
 
     def _on_message(self, payload):
-        self.logger.info(
-            'Received Message: <{}>:{}'.format(self._topic, payload))
+        # self.logger.info(
+        #     'Received Message: <{}>:{}'.format(self._topic, payload))
         payload = self._serializer.deserialize(payload['data'])
         data = payload['data']
         header = payload['header']
@@ -351,3 +351,11 @@ class ActionClient(BaseActionClient):
                                         conn_params=conn_params,
                                         logger=self._logger,
                                         debug=self.debug)
+        self._status_sub = Subscriber(conn_params=conn_params,
+                                      topic=self._status_topic,
+                                      on_message=self._on_status)
+        self._feedback_sub = Subscriber(conn_params=conn_params,
+                                        topic=self._feedback_topic,
+                                        on_message=self._on_feedback)
+        self._status_sub.run()
+        self._feedback_sub.run()

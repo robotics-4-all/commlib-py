@@ -93,5 +93,5 @@ class BaseSubscriber(object):
         self._main_thread.start()
 
     def stop(self):
-        self._t_stop_event.set()
-
+        if self._t_stop_event is not None:
+            self._t_stop_event.set()

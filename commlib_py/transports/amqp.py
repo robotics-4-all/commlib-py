@@ -468,8 +468,8 @@ class AMQPTransport(object):
     def disconnect(self):
         self._graceful_shutdown()
 
-    def __del__(self):
-        self._graceful_shutdown()
+    # def __del__(self):
+    #     self._graceful_shutdown()
 
 
 class RPCServer(BaseRPCServer):
@@ -650,6 +650,7 @@ class RPCServer(BaseRPCServer):
             self._transport.stop_consuming)
         self._transport.add_threadsafe_callback(
             self._transport.close)
+        super(RPCServer, self).stop()
         return True
 
     def stop(self):
@@ -1013,9 +1014,12 @@ class Subscriber(BaseSubscriber):
         if self._closing:
             return False
         self._closing = True
-        if self._transport._channel.is_closed:
-            self.logger.info('Invoked close() on an already closed channel')
+        if not self._transport.channel:
             return False
+        if self._transport.channel.is_closed:
+            self.logger.warning('Channel was already closed!')
+            return False
+        super(Subscriber, self).stop()
         self._transport.add_threadsafe_callback(
             self._transport.delete_queue, self._queue_name)
         self._transport.add_threadsafe_callback(
@@ -1119,6 +1123,15 @@ class Subscriber(BaseSubscriber):
         elif content_type == ContentType.raw_bytes:
             _data = data
         return _data
+
+    def stop(self):
+        self.close()
+
+    def __del__(self):
+        self.close()
+
+    def __exit__(self, exc_type, value, traceback):
+        self.close()
 
 
 class RemoteLogger(Logger):
@@ -1246,3 +1259,11 @@ class ActionClient(BaseActionClient):
                                         logger=self._logger,
                                         debug=self.debug)
         self._conn.detach_amqp_events_thread()
+        self._status_sub = Subscriber(conn_params=conn_params,
+                                      topic=self._status_topic,
+                                      on_message=self._on_status)
+        self._feedback_sub = Subscriber(conn_params=conn_params,
+                                        topic=self._feedback_topic,
+                                        on_message=self._on_feedback)
+        self._status_sub.run()
+        self._feedback_sub.run()
