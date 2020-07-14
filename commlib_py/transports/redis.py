@@ -216,9 +216,6 @@ class Publisher(BasePublisher):
         self._queue_size = queue_size
         self._msg_seq = 0
 
-        conn_params = ConnectionParameters() if \
-            conn_params is None else conn_params
-
         super(Publisher, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
@@ -255,9 +252,6 @@ class Publisher(BasePublisher):
 class Subscriber(BaseSubscriber):
     def __init__(self, conn_params=None, queue_size=1, *args, **kwargs):
         self._queue_size = queue_size
-
-        conn_params = ConnectionParameters() if \
-            conn_params is None else conn_params
 
         super(Subscriber, self).__init__(*args, **kwargs)
 

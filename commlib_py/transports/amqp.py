@@ -489,9 +489,7 @@ class RPCServer(BaseRPCServer):
         super(RPCServer, self).__init__(*args, **kwargs)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
-
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-        # self._transport.create_channel()
 
     def is_alive(self):
         """Returns True if connection is alive and False otherwise."""
