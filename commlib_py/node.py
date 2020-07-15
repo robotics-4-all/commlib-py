@@ -4,6 +4,7 @@ import concurrent.futures.thread
 
 from commlib_py.endpoints import TransportType
 from commlib_py.utils import gen_random_id
+from commlib_py.logger import RemoteLogger
 
 
 class NodePort(object):
@@ -32,9 +33,10 @@ class NodeExecutorType(IntEnum):
 
 
 class Node(object):
-    def __init__(self, node_name=None,
+    def __init__(self, node_name=None, namespace: str = '',
                  executor: NodeExecutorType = NodeExecutorType.ThreadExecutor,
                  transport_type: TransportType = TransportType.REDIS,
+                 transport_connection_params=None,
                  max_workers: int = 4):
         if executor == NodeExecutorType.ThreadExecutor:
             self._executor = ThreadPoolExecutor(max_workers=max_workers)
@@ -54,18 +56,50 @@ class Node(object):
             import commlib_py.transports.amqp as comm
         self._commlib = comm
 
-        self._conn_params = comm.UnixSocketConnectionParameters()
+        if transport_connection_params is None:
+            if transport_type == TransportType.REDIS:
+                from commlib_py.transports.redis import \
+                    UnixSocketConnectionParameters as conn_params
+            elif transport_type == TransportType.AMQP:
+                from commlib_py.transports.amqp import \
+                    ConnectionParameters as conn_params
+            transport_connection_params = conn_params()
+        self._conn_params = transport_connection_params
+
+        self._logger = RemoteLogger(self._node_name, transport_type,
+                                    self._conn_params)
 
     @property
     def ports(self):
         return self._input_ports + self._output_ports
 
-    def create_publisher(self, transport_type=None, *args, **kwargs):
+    def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
-
-        Args:
-            transport_type (TransportType): The type of the transport to use.
-            If None it uses the Node's default transport.
         """
         return self._commlib.Publisher(*args, **kwargs)
+
+    def create_subscriber(self, *args, **kwargs):
+        """Creates a new Publisher Endpoint.
+        """
+        return self._commlib.Subscriber(*args, **kwargs)
+
+    def create_rpc(self, *args, **kwargs):
+        """Creates a new Publisher Endpoint.
+        """
+        return self._commlib.RPCServer(*args, **kwargs)
+
+    def create_rpc_client(self, *args, **kwargs):
+        """Creates a new Publisher Endpoint.
+        """
+        return self._commlib.RPCClient(*args, **kwargs)
+
+    def create_action(self, *args, **kwargs):
+        """Creates a new ActionServer Endpoint.
+        """
+        return self._commlib.ActionServer(*args, **kwargs)
+
+    def create_action_client(self, *args, **kwargs):
+        """Creates a new ActionClient Endpoint.
+        """
+        return self._commlib.ActionClient(*args, **kwargs)
 

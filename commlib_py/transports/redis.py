@@ -34,7 +34,7 @@ class Credentials(object):
         self.password = password
 
 
-class ConnectionParameters(object):
+class AbstractConnectionParameters(object):
     __slots__ = ['db', 'creds']
 
     def __init__(self, db=0, creds=None):
@@ -45,14 +45,14 @@ class ConnectionParameters(object):
         self.creds = creds
 
 
-class TCPConnectionParameters(ConnectionParameters):
+class TCPConnectionParameters(AbstractConnectionParameters):
     def __init__(self, host='localhost', port=6379, *args, **kwargs):
         super(TCPConnectionParameters, self).__init__(*args, **kwargs)
         self.host = host
         self.port = port
 
 
-class UnixSocketConnectionParameters(ConnectionParameters):
+class UnixSocketConnectionParameters(AbstractConnectionParameters):
     def __init__(self, unix_socket='/tmp/redis.sock', *args, **kwargs):
         super(UnixSocketConnectionParameters, self).__init__(*args, **kwargs)
         self.unix_socket = unix_socket
