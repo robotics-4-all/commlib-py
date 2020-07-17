@@ -71,35 +71,50 @@ class Node(object):
 
     @property
     def ports(self):
-        return self._input_ports + self._output_ports
+        return {
+            'input': self._input_ports,
+            'output': self._output_ports
+        }
 
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        return self._commlib.Publisher(*args, **kwargs)
+        return self._commlib.Publisher(conn_params=self._conn_params,
+                                       logger = self._logger,
+                                       *args, **kwargs)
 
     def create_subscriber(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        return self._commlib.Subscriber(*args, **kwargs)
+        return self._commlib.Subscriber(conn_params=self._conn_params,
+                                        logger = self._logger,
+                                        *args, **kwargs)
 
     def create_rpc(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        return self._commlib.RPCServer(*args, **kwargs)
+        return self._commlib.RPCServer(conn_params=self._conn_params,
+                                       logger = self._logger,
+                                       *args, **kwargs)
 
     def create_rpc_client(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        return self._commlib.RPCClient(*args, **kwargs)
+        return self._commlib.RPCClient(conn_params=self._conn_params,
+                                       logger = self._logger,
+                                       *args, **kwargs)
 
     def create_action(self, *args, **kwargs):
         """Creates a new ActionServer Endpoint.
         """
-        return self._commlib.ActionServer(*args, **kwargs)
+        return self._commlib.ActionServer(conn_params=self._conn_params,
+                                          logger = self._logger,
+                                          *args, **kwargs)
 
     def create_action_client(self, *args, **kwargs):
         """Creates a new ActionClient Endpoint.
         """
-        return self._commlib.ActionClient(*args, **kwargs)
+        return self._commlib.ActionClient(conn_params=self._conn_params,
+                                          logger = self._logger,
+                                          *args, **kwargs)
 
