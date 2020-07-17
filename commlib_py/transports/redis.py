@@ -58,6 +58,11 @@ class UnixSocketConnectionParameters(AbstractConnectionParameters):
         self.unix_socket = unix_socket
 
 
+class ConnectionParameters(TCPConnectionParameters):
+    def __init__(self, *args, **kwargs):
+        super(ConnectionParameters, self).__init__(*args, **kwargs)
+
+
 class RedisConnection(redis.Redis):
     def __init__(self, *args, **kwargs):
         super(RedisConnection, self).__init__(*args, **kwargs)
