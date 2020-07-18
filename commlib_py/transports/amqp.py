@@ -502,10 +502,10 @@ class RPCServer(BaseRPCServer):
 
     def run_forever(self, raise_if_exists=True):
         """Run RPC Server in normal mode. Blocking function."""
-        if self._rpc_exists() and raise_if_exists:
-            raise ValueError(
-                'RPC <{}> allready registered on broker.'.format(
-                    self._rpc_name))
+        # if self._rpc_exists() and raise_if_exists:
+        #     raise ValueError(
+        #         'RPC <{}> allready registered on broker.'.format(
+        #             self._rpc_name))
         self._rpc_queue = self._transport.create_queue(self._rpc_name)
         self._transport.set_channel_qos()
         self._transport.consume_fromm_queue(self._rpc_queue,
