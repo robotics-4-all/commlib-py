@@ -22,7 +22,7 @@ class TransportType(Enum):
     REDIS = 2
 
 
-def endpoint_factory(self, etype, etransport):
+def endpoint_factory(etype, etransport):
     if etransport == TransportType.AMQP:
         import commlib_py.transports.amqp as comm
     elif etransport == TransportType.REDIS:
