@@ -14,9 +14,11 @@ from .logger import Logger
 
 
 class BaseRPCServer(object):
-    def __init__(self, conn_params, rpc_name, on_request,
+    def __init__(self, rpc_name=None, on_request=None,
                  logger=None, debug=True, workers=2,
                  serializer=None):
+        if rpc_name is None:
+            raise ValueError()
         self._rpc_name = rpc_name
         self._num_workers = workers
         self._debug = debug
