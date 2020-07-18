@@ -74,3 +74,5 @@ class RPCBridge(Bridge):
         resp = self._client.call(msg)
         return resp
 
+    def stop(self):
+        self._server.stop()
