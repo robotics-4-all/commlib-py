@@ -146,6 +146,7 @@ def test_shared_connection_publishers():
     t = Thread(target=thread_runner, args=(p,))
     t.daemon = True
     t.start()
+    conn.detach_amqp_events_thread()
     data = {'msg': 'Sent from Main Thread.'}
     counter = 0
     while counter < ITERATIONS:
