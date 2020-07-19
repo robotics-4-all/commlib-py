@@ -23,7 +23,7 @@ from threading import Semaphore, Thread, Event
 
 from commlib.logger import Logger, LoggingLevel
 from commlib.serializer import ContentType
-from commlib.rpc import BaseRPCServer, BaseRPCClient
+from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.logger import Logger
 from commlib.action import BaseActionServer, BaseActionClient
@@ -472,9 +472,9 @@ class AMQPTransport(object):
     #     self._graceful_shutdown()
 
 
-class RPCServer(BaseRPCServer):
-    """AMQP RPC Server class.
-    Implements an AMQP RPC Server.
+class RPCService(BaseRPCService):
+    """AMQP RPC Service class.
+    Implements an AMQP RPC Service.
 
     Args:
         rpc_name (str): The name of the RPC.
@@ -486,7 +486,7 @@ class RPCServer(BaseRPCServer):
         """Constructor. """
         self._exchange = exchange
         self._closing = False
-        super(RPCServer, self).__init__(*args, **kwargs)
+        super(RPCService, self).__init__(*args, **kwargs)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
@@ -501,7 +501,7 @@ class RPCServer(BaseRPCServer):
             return False
 
     def run_forever(self, raise_if_exists=True):
-        """Run RPC Server in normal mode. Blocking function."""
+        """Run RPC Service in normal mode. Blocking function."""
         # if self._rpc_exists() and raise_if_exists:
         #     raise ValueError(
         #         'RPC <{}> allready registered on broker.'.format(
@@ -631,7 +631,7 @@ class RPCServer(BaseRPCServer):
         return _data
 
     def close(self):
-        """Stop RPC Server.
+        """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
         if self._closing:
@@ -648,11 +648,11 @@ class RPCServer(BaseRPCServer):
             self._transport.stop_consuming)
         self._transport.add_threadsafe_callback(
             self._transport.close)
-        super(RPCServer, self).stop()
+        super(RPCService, self).stop()
         return True
 
     def stop(self):
-        """Stop RPC Server.
+        """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
         return self.close()
@@ -1140,17 +1140,17 @@ class ActionServer(BaseActionServer):
         self._conn = AMQPConnection(conn_params)
 
         super(ActionServer, self).__init__(*args, **kwargs)
-        self._goal_rpc = RPCServer(rpc_name=self._goal_rpc_uri,
+        self._goal_rpc = RPCService(rpc_name=self._goal_rpc_uri,
                                    conn_params=conn_params,
                                    on_request=self._handle_send_goal,
                                    logger=self._logger,
                                    debug=self.debug)
-        self._cancel_rpc = RPCServer(rpc_name=self._cancel_rpc_uri,
+        self._cancel_rpc = RPCService(rpc_name=self._cancel_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_cancel_goal,
                                      logger=self._logger,
                                      debug=self.debug)
-        self._result_rpc = RPCServer(rpc_name=self._result_rpc_uri,
+        self._result_rpc = RPCService(rpc_name=self._result_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_get_result,
                                      logger=self._logger,
@@ -1212,3 +1212,9 @@ class ActionClient(BaseActionClient):
 
     def __del__(self):
         self.stop()
+
+
+class RPCServer(RPCService):
+    """For backward compatibility."""
+    def __init__(self, *args, **kwargs):
+        super(RPCServer, self).__init__(*args, **kwargs)

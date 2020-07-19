@@ -23,7 +23,7 @@ import datetime
 import redis
 
 from commlib.logger import Logger
-from commlib.rpc import BaseRPCServer, BaseRPCClient
+from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.action import BaseActionServer, BaseActionClient
 
@@ -114,9 +114,9 @@ class RedisTransport(object):
         return msgq, payload
 
 
-class RPCServer(BaseRPCServer):
+class RPCService(BaseRPCService):
     def __init__(self, conn_params=None, *args, **kwargs):
-        super(RPCServer, self).__init__(*args, **kwargs)
+        super(RPCService, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
@@ -152,7 +152,7 @@ class RPCServer(BaseRPCServer):
 
     def run_forever(self):
         self._transport.delete_queue(self._rpc_name)
-        self.logger.info('RPC Server listening on: <{}>'.format(self._rpc_name))
+        self.logger.info('RPC Service listening on: <{}>'.format(self._rpc_name))
         while True:
             msgq, payload = self._transport.wait_for_msg(self._rpc_name,
                                                          timeout=0)
@@ -305,17 +305,17 @@ class ActionServer(BaseActionServer):
 
         super(ActionServer, self).__init__(*args, **kwargs)
 
-        self._goal_rpc = RPCServer(rpc_name=self._goal_rpc_uri,
+        self._goal_rpc = RPCService(rpc_name=self._goal_rpc_uri,
                                    conn_params=conn_params,
                                    on_request=self._handle_send_goal,
                                    logger=self._logger,
                                    debug=self.debug)
-        self._cancel_rpc = RPCServer(rpc_name=self._cancel_rpc_uri,
+        self._cancel_rpc = RPCService(rpc_name=self._cancel_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_cancel_goal,
                                      logger=self._logger,
                                      debug=self.debug)
-        self._result_rpc = RPCServer(rpc_name=self._result_rpc_uri,
+        self._result_rpc = RPCService(rpc_name=self._result_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_get_result,
                                      logger=self._logger,
@@ -358,3 +358,9 @@ class ActionClient(BaseActionClient):
                                         on_message=self._on_feedback)
         self._status_sub.run()
         self._feedback_sub.run()
+
+
+class RPCServer(RPCService):
+    """For backward compatibility."""
+    def __init__(self, *args, **kwargs):
+        super(RPCServer, self).__init__(*args, **kwargs)

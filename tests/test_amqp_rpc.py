@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from commlib.transports.amqp import (
-    RPCServer, RPCClient, ConnectionParameters, AMQPConnection)
+    RPCService, RPCClient, ConnectionParameters, AMQPConnection)
 import time
 from threading import Thread
 
@@ -45,10 +45,10 @@ def test_multiple_clients():
     print('[*] - Configuration:')
     print(f'[*] - Number of Clients: {num_clients}')
     print('=================================================================')
-    s1 = RPCServer(conn_params=conn_params,
+    s1 = RPCService(conn_params=conn_params,
                    rpc_name=rpc1_name,
                    on_request=on_request)
-    s2 = RPCServer(conn_params=conn_params,
+    s2 = RPCService(conn_params=conn_params,
                    rpc_name=rpc2_name,
                    on_request=on_request)
     s1.run()
@@ -82,7 +82,7 @@ def test_simple_clients():
     print(f'[*] - Sleep Multiplier: {SLEEP_MULTIPLIER}')
     print(f'[*] - Iterations: {ITERATIONS}')
     print('=================================================================')
-    s = RPCServer(conn_params=conn_params,
+    s = RPCService(conn_params=conn_params,
                   rpc_name=RPC_NAME,
                   on_request=on_request)
     s.run()
@@ -111,7 +111,7 @@ def test_shared_connection_clients():
     print(f'[*] - Sleep Multiplier: {SLEEP_MULTIPLIER}')
     print(f'[*] - Iterations: {ITERATIONS}')
     print('=================================================================')
-    s = RPCServer(conn_params=conn_params,
+    s = RPCService(conn_params=conn_params,
                   rpc_name=RPC_NAME,
                   on_request=on_request)
     s.run()
@@ -146,7 +146,7 @@ def test_stop_server():
     print('=================================================================')
     counter = 0
     while counter < ITERATIONS:
-        s = RPCServer(conn_params=conn_params,
+        s = RPCService(conn_params=conn_params,
                       rpc_name=RPC_NAME,
                       on_request=on_request)
         s.run()

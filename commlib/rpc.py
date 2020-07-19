@@ -13,7 +13,7 @@ from .serializer import JSONSerializer
 from .logger import Logger
 
 
-class BaseRPCServer(object):
+class BaseRPCService(object):
     def __init__(self, rpc_name=None, on_request=None,
                  logger=None, debug=True, workers=2,
                  serializer=None):
@@ -36,7 +36,7 @@ class BaseRPCServer(object):
 
         self._main_thread = None
         self._t_stop_event = None
-        self.logger.info('Created RPC Server: <{}>'.format(self._rpc_name))
+        self.logger.info('Created RPC Service: <{}>'.format(self._rpc_name))
 
     @property
     def debug(self):

@@ -9,7 +9,7 @@ from enum import Enum
 
 
 class EndpointType(Enum):
-    RPCServer = 1
+    RPCService = 1
     RPCClient = 2
     Publisher = 3
     Subscriber = 4
@@ -29,8 +29,8 @@ def endpoint_factory(etype, etransport):
         import commlib.transports.redis as comm
     else:
         raise ValueError()
-    if etype == EndpointType.RPCServer:
-        return comm.RPCServer
+    if etype == EndpointType.RPCService:
+        return comm.RPCService
     elif etype == EndpointType.RPCClient:
         return comm.RPCClient
     elif etype == EndpointType.Publisher:

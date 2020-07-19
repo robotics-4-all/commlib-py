@@ -7,7 +7,7 @@ import time
 
 
 def on_request(msg, meta):
-    print('RPC Server Request')
+    print('RPC Service Request')
     return msg
 
 
@@ -26,7 +26,7 @@ def run_amqp_to_redis_rpc():
     client = acomm.RPCClient(conn_params=server_params,
                              rpc_name=rpc_name)
 
-    server = rcomm.RPCServer(
+    server = rcomm.RPCService(
         conn_params=client_params,
         rpc_name=rpc_name,
         on_request=on_request
@@ -36,7 +36,7 @@ def run_amqp_to_redis_rpc():
     count = 0
     while count < 5:
         resp = client.call({'a': 1})
-        print(f'Response from REDIS RPC Server: {resp}')
+        print(f'Response from REDIS RPC Service: {resp}')
         time.sleep(1)
         count += 1
 
@@ -56,7 +56,7 @@ def run_redis_to_amqp_rpc():
     client = rcomm.RPCClient(conn_params=server_params,
                              rpc_name=rpc_name)
 
-    server = acomm.RPCServer(
+    server = acomm.RPCService(
         conn_params=client_params,
         rpc_name=rpc_name,
         on_request=on_request
@@ -66,7 +66,7 @@ def run_redis_to_amqp_rpc():
     count = 0
     while count < 5:
         resp = client.call({'a': 1})
-        print(f'Response from AMQP RPC Server: {resp}')
+        print(f'Response from AMQP RPC Service: {resp}')
         time.sleep(1)
         count += 1
     server.stop()

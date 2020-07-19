@@ -93,7 +93,7 @@ class Node(object):
     def create_rpc(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        return self._commlib.RPCServer(conn_params=self._conn_params,
+        return self._commlib.RPCService(conn_params=self._conn_params,
                                        logger = self._logger,
                                        *args, **kwargs)
 

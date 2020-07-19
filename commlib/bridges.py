@@ -45,7 +45,7 @@ class RPCBridge(Bridge):
         self._rpc_name = rpc_name
         if self._btype == RPCBridgeType.REDIS_TO_AMQP:
             self._server = endpoint_factory(
-                EndpointType.RPCServer, TransportType.REDIS)(
+                EndpointType.RPCService, TransportType.REDIS)(
                     conn_params=self._server_conn_params,
                     rpc_name=self._rpc_name,
                     on_request=self.on_request
@@ -57,7 +57,7 @@ class RPCBridge(Bridge):
                 )
         elif self._btype == RPCBridgeType.AMQP_TO_REDIS:
             self._server = endpoint_factory(
-                EndpointType.RPCServer, TransportType.AMQP)(
+                EndpointType.RPCService, TransportType.AMQP)(
                     conn_params=self._server_conn_params,
                     rpc_name=self._rpc_name,
                     on_request=self.on_request
