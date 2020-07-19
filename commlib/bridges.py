@@ -13,13 +13,16 @@ from commlib.endpoints import endpoint_factory, EndpointType, TransportType
 class BridgeType(IntEnum):
     REDIS_TO_AMQP_RPC = 1
     AMQP_TO_REDIS_RPC = 2
-    REDIS_TO_AMQP_PUB = 3
-    AMQP_TO_REDIS_PUB = 4
-    REDIS_TO_AMQP_PUBSUB = 5
-    AMQP_TO_REDIS_PUBSUB = 6  # Same with 5
+    REDIS_TO_AMQP_TOPIC = 3
+    AMQP_TO_REDIS_TOPIC = 4
 
 
 class RPCBridgeType(IntEnum):
+    REDIS_TO_AMQP = 1
+    AMQP_TO_REDIS = 2
+
+
+class TopicBridgeType(IntEnum):
     REDIS_TO_AMQP = 1
     AMQP_TO_REDIS = 2
 
@@ -67,7 +70,6 @@ class RPCBridge(Bridge):
                     rpc_name=self._rpc_name,
                     conn_params=self._client_conn_params,
                 )
-        self._server.run()
 
     def on_request(self, msg, meta):
         # print(msg, meta)
@@ -76,3 +78,52 @@ class RPCBridge(Bridge):
 
     def stop(self):
         self._server.stop()
+
+    def run(self):
+        self._server.run()
+
+
+class TopicBridge(Bridge):
+    def __init__(self, btype, sub_conn_params, pub_conn_params,
+                 topic_name):
+        super(TopicBridge, self).__init__(btype)
+        self._sub_conn_params = sub_conn_params
+        self._pub_conn_params = pub_conn_params
+        self._topic_name = topic_name
+        if self._btype == TopicBridgeType.REDIS_TO_AMQP:
+            self._sub = endpoint_factory(
+                EndpointType.Subscriber, TransportType.REDIS
+            )(
+                topic=self._topic_name,
+                conn_params=self._sub_conn_params,
+                on_message=self.on_message
+            )
+            self._pub = endpoint_factory(
+                EndpointType.Publisher, TransportType.AMQP
+            )(
+                topic=self._topic_name,
+                conn_params=self._pub_conn_params,
+            )
+        elif self._btype == TopicBridgeType.AMQP_TO_REDIS:
+            self._sub = endpoint_factory(
+                EndpointType.Subscriber, TransportType.AMQP
+            )(
+                topic=self._topic_name,
+                conn_params=self._sub_conn_params,
+                on_message=self.on_message
+            )
+            self._pub = endpoint_factory(
+                EndpointType.Publisher, TransportType.REDIS
+            )(
+                topic=self._topic_name,
+                conn_params=self._pub_conn_params,
+            )
+
+    def on_message(self, msg, meta):
+        self._pub.publish(msg)
+
+    def stop(self):
+        self._sub.stop()
+
+    def run(self):
+        self._sub.run()
