@@ -539,7 +539,7 @@ class RPCService(BaseRPCService):
             self.logger.warn("Could not calculate latency", exc_info=False)
 
         try:
-            _msg = self._deserialize_data(body, _ctype, _cencoding)
+            _msg = self._deserialize_req_payload(body, _ctype, _cencoding)
         except Exception:
             self.logger.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
@@ -605,7 +605,7 @@ class RPCService(BaseRPCService):
         # Acknowledge receiving the message.
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
-    def _deserialize_data(self, data, content_type, content_encoding):
+    def _deserialize_req_payload(self, data, content_type, content_encoding):
         """Deserialize wire data.
 
         Args:
@@ -756,7 +756,7 @@ class RPCClient(BaseRPCClient):
                               exc_info=True)
 
         try:
-            _msg = self._deserialize_data(body, _ctype, _cencoding)
+            _msg = self._deserialize_req_payload(body, _ctype, _cencoding)
         except Exception:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
@@ -810,7 +810,7 @@ class RPCClient(BaseRPCClient):
             time.sleep(0.001)
         return self._response
 
-    def _deserialize_data(self, data, content_type, content_encoding):
+    def _deserialize_req_payload(self, data, content_type, content_encoding):
         """Deserialize wire data.
 
         Args:
@@ -1060,7 +1060,7 @@ class Subscriber(BaseSubscriber):
                               exc_info=False)
 
         try:
-            msg = self._deserialize_data(body, _ctype, _cencoding)
+            msg = self._deserialize_req_payload(body, _ctype, _cencoding)
         except Exception:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
@@ -1104,7 +1104,7 @@ class Subscriber(BaseSubscriber):
                 self._hz = _sum / len(hz_list)
         self._last_msg_ts = ts
 
-    def _deserialize_data(self, data, content_type, content_encoding):
+    def _deserialize_req_payload(self, data, content_type, content_encoding):
         """
         Deserialize wire data.
 
