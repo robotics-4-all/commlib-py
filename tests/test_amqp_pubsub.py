@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import (
+from commlib.transports.amqp import (
     Publisher, Subscriber, ConnectionParameters, AMQPConnection)
 import time
 from threading import Thread

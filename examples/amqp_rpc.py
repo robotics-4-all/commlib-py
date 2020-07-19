@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import RPCServer, ConnectionParameters, RemoteLogger
+from commlib.transports.amqp import RPCServer, ConnectionParameters, RemoteLogger
 import time
 
 

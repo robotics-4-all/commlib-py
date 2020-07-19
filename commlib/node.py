@@ -2,9 +2,9 @@ from enum import IntEnum
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import concurrent.futures.thread
 
-from commlib_py.endpoints import TransportType
-from commlib_py.utils import gen_random_id
-from commlib_py.logger import RemoteLogger
+from commlib.endpoints import TransportType
+from commlib.utils import gen_random_id
+from commlib.logger import RemoteLogger
 
 
 class NodePort(object):
@@ -51,17 +51,17 @@ class Node(object):
         self._output_ports = []
         self._global_tranport_type = transport_type
         if transport_type == TransportType.REDIS:
-            import commlib_py.transports.redis as comm
+            import commlib.transports.redis as comm
         elif transport_type == TransportType.AMQP:
-            import commlib_py.transports.amqp as comm
+            import commlib.transports.amqp as comm
         self._commlib = comm
 
         if transport_connection_params is None:
             if transport_type == TransportType.REDIS:
-                from commlib_py.transports.redis import \
+                from commlib.transports.redis import \
                     UnixSocketConnectionParameters as conn_params
             elif transport_type == TransportType.AMQP:
-                from commlib_py.transports.amqp import \
+                from commlib.transports.amqp import \
                     ConnectionParameters as conn_params
             transport_connection_params = conn_params()
         self._conn_params = transport_connection_params

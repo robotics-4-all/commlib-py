@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import Publisher, ConnectionParameters
+from commlib.transports.amqp import Publisher, ConnectionParameters
 import time
 
 

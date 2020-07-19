@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import commlib_py.transports.amqp as acomm
-import commlib_py.transports.redis as rcomm
+import commlib.transports.amqp as acomm
+import commlib.transports.redis as rcomm
 import time
 
 

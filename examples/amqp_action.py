@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import (ActionServer, ConnectionParameters,
+from commlib.transports.amqp import (ActionServer, ConnectionParameters,
                                         RemoteLogger)
-from commlib_py.action import GoalStatus
+from commlib.action import GoalStatus
 import time
 
 

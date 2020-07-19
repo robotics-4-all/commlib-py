@@ -2,7 +2,7 @@
 
 import time
 
-from commlib_py.node import Node
+from commlib.node import Node
 
 
 def on_msg(msg, meta):

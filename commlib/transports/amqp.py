@@ -21,12 +21,12 @@ from collections import deque
 from threading import Semaphore, Thread, Event
 #  import ssl
 
-from commlib_py.logger import Logger, LoggingLevel
-from commlib_py.serializer import ContentType
-from commlib_py.rpc import BaseRPCServer, BaseRPCClient
-from commlib_py.pubsub import BasePublisher, BaseSubscriber
-from commlib_py.logger import Logger
-from commlib_py.action import BaseActionServer, BaseActionClient
+from commlib.logger import Logger, LoggingLevel
+from commlib.serializer import ContentType
+from commlib.rpc import BaseRPCServer, BaseRPCClient
+from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.logger import Logger
+from commlib.action import BaseActionServer, BaseActionClient
 
 
 class MessageProperties(pika.BasicProperties):

@@ -22,10 +22,10 @@ import datetime
 
 import redis
 
-from commlib_py.logger import Logger
-from commlib_py.rpc import BaseRPCServer, BaseRPCClient
-from commlib_py.pubsub import BasePublisher, BaseSubscriber
-from commlib_py.action import BaseActionServer, BaseActionClient
+from commlib.logger import Logger
+from commlib.rpc import BaseRPCServer, BaseRPCClient
+from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.action import BaseActionServer, BaseActionClient
 
 
 class Credentials(object):

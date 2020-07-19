@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.redis import Subscriber, TCPConnectionParameters
+from commlib.transports.redis import Subscriber, TCPConnectionParameters
 import time
 
 

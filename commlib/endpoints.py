@@ -24,9 +24,9 @@ class TransportType(Enum):
 
 def endpoint_factory(etype, etransport):
     if etransport == TransportType.AMQP:
-        import commlib_py.transports.amqp as comm
+        import commlib.transports.amqp as comm
     elif etransport == TransportType.REDIS:
-        import commlib_py.transports.redis as comm
+        import commlib.transports.redis as comm
     else:
         raise ValueError()
     if etype == EndpointType.RPCServer:

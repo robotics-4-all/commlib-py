@@ -7,7 +7,7 @@ from __future__ import (
 
 import time
 from enum import IntEnum
-from commlib_py.endpoints import endpoint_factory, EndpointType, TransportType
+from commlib.endpoints import endpoint_factory, EndpointType, TransportType
 
 
 class BridgeType(IntEnum):

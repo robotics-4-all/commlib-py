@@ -1,13 +1,13 @@
-"""Console script for commlib_py."""
+"""Console script for commlib."""
 import sys
 import click
 
 
 @click.command()
 def main(args=None):
-    """Console script for commlib_py."""
+    """Console script for commlib."""
     click.echo("Replace this message by putting your code into "
-               "commlib_py.cli.main")
+               "commlib.cli.main")
     click.echo("See click documentation at https://click.palletsprojects.com/")
     return 0
 

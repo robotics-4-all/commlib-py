@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-import commlib_py.transports.amqp as acomm
-import commlib_py.transports.redis as rcomm
-from commlib_py.bridges import RPCBridge, BridgeType
+import commlib.transports.amqp as acomm
+import commlib.transports.redis as rcomm
+from commlib.bridges import RPCBridge, BridgeType
 import time
 
 
