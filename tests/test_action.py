@@ -76,6 +76,8 @@ def run_redis():
 
     resp = ac.send_goal(goal_data)
     _goal_id = resp['goal_id']
+    if _goal_id is None:
+        pass
     print('Send-Goal Response: {}'.format(resp))
     time.sleep(1)
     resp = ac.get_result(_goal_id)

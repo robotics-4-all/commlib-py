@@ -26,6 +26,7 @@ from commlib.logger import Logger
 from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.action import BaseActionServer, BaseActionClient
+from commlib.events import BaseEventEmitter, Event
 
 
 class Credentials(object):
@@ -234,10 +235,6 @@ class Publisher(BasePublisher):
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
-    def _gen_random_id(self):
-        """Generate correlationID."""
-        return str(uuid.uuid4()).replace('-', '')
-
     def __prepare_msg(self, data):
         header = {
             'timestamp': int(datetime.datetime.now(
@@ -364,3 +361,34 @@ class RPCServer(RPCService):
     """For backward compatibility."""
     def __init__(self, *args, **kwargs):
         super(RPCServer, self).__init__(*args, **kwargs)
+
+
+class EventEmitter(BaseEventEmitter):
+    def __init__(self, conn_params=None, *args, **kwargs):
+        super(EventEmitter, self).__init__(*args, **kwargs)
+
+        self._transport = RedisTransport(conn_params=conn_params,
+                                         logger=self._logger)
+
+    def send_event(self, event):
+        _msg = event.to_dict()
+        _msg = self.__prepare_msg(_msg)
+        _msg = self._serializer.serialize(_msg)
+        self.logger.debug(
+            'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
+        self._transport.publish(event.uri, _msg)
+
+    def __prepare_msg(self, data):
+        header = {
+            'timestamp': int(datetime.datetime.now(
+                datetime.timezone.utc).timestamp() * 1000000),
+            'properties': {
+                'content_type': self._serializer.CONTENT_TYPE,
+                'content_encoding': self._serializer.CONTENT_ENCODING
+            }
+        }
+        _msg = {
+            'data': data,
+            'header': header
+        }
+        return _msg
