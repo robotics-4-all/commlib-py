@@ -15,42 +15,42 @@ or
 pip install . --user
 ```
 
-## Features
+# Features
 The purpose of this implementation is to provide an application-level of
 communication patterns, such as RPCs, Topic-based PubSub, Preemptable Services
 (aka Actions), Events etc.
 
-### Transports
+## Transports
 TODO
 
-#### AMQP
+### AMQP
 TODO
 
-#### Redis
+### Redis
 TODO
 
-### Endpoints
+## Endpoints
 TODO
 
-#### RPCService
+### RPCService
 TODO
 
-#### RPCClient
+### RPCClient
 TODO
 
-#### Publisher
+### Publisher
 TODO
 
-#### Subscriber
+### Subscriber
 TODO
 
-#### ActionServer
+### ActionServer
 TODO
 
-#### ActionClient
+### ActionClient
 TODO
 
-#### EventEmitter
+### EventEmitter
 TODO
 
 # Examples
