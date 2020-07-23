@@ -22,10 +22,11 @@ import datetime
 
 import redis
 
-from commlib_py.logger import Logger
-from commlib_py.rpc import BaseRPCServer, BaseRPCClient
-from commlib_py.pubsub import BasePublisher, BaseSubscriber
-from commlib_py.action import BaseActionServer, BaseActionClient
+from commlib.logger import Logger
+from commlib.rpc import BaseRPCService, BaseRPCClient
+from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.action import BaseActionServer, BaseActionClient
+from commlib.events import BaseEventEmitter, Event
 
 
 class Credentials(object):
@@ -34,7 +35,7 @@ class Credentials(object):
         self.password = password
 
 
-class ConnectionParameters(object):
+class AbstractConnectionParameters(object):
     __slots__ = ['db', 'creds']
 
     def __init__(self, db=0, creds=None):
@@ -45,17 +46,22 @@ class ConnectionParameters(object):
         self.creds = creds
 
 
-class TCPConnectionParameters(ConnectionParameters):
+class TCPConnectionParameters(AbstractConnectionParameters):
     def __init__(self, host='localhost', port=6379, *args, **kwargs):
         super(TCPConnectionParameters, self).__init__(*args, **kwargs)
         self.host = host
         self.port = port
 
 
-class UnixSocketConnectionParameters(ConnectionParameters):
+class UnixSocketConnectionParameters(AbstractConnectionParameters):
     def __init__(self, unix_socket='/tmp/redis.sock', *args, **kwargs):
         super(UnixSocketConnectionParameters, self).__init__(*args, **kwargs)
         self.unix_socket = unix_socket
+
+
+class ConnectionParameters(TCPConnectionParameters):
+    def __init__(self, *args, **kwargs):
+        super(ConnectionParameters, self).__init__(*args, **kwargs)
 
 
 class RedisConnection(redis.Redis):
@@ -109,9 +115,9 @@ class RedisTransport(object):
         return msgq, payload
 
 
-class RPCServer(BaseRPCServer):
+class RPCService(BaseRPCService):
     def __init__(self, conn_params=None, *args, **kwargs):
-        super(RPCServer, self).__init__(*args, **kwargs)
+        super(RPCService, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
@@ -147,7 +153,7 @@ class RPCServer(BaseRPCServer):
 
     def run_forever(self):
         self._transport.delete_queue(self._rpc_name)
-        self.logger.info('RPC Server listening on: <{}>'.format(self._rpc_name))
+        self.logger.info('RPC Service listening on: <{}>'.format(self._rpc_name))
         while True:
             msgq, payload = self._transport.wait_for_msg(self._rpc_name,
                                                          timeout=0)
@@ -216,9 +222,6 @@ class Publisher(BasePublisher):
         self._queue_size = queue_size
         self._msg_seq = 0
 
-        conn_params = ConnectionParameters() if \
-            conn_params is None else conn_params
-
         super(Publisher, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
@@ -231,10 +234,6 @@ class Publisher(BasePublisher):
             'Publishing Message: <{}>:{}'.format(self._topic, payload))
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
-
-    def _gen_random_id(self):
-        """Generate correlationID."""
-        return str(uuid.uuid4()).replace('-', '')
 
     def __prepare_msg(self, data):
         header = {
@@ -255,9 +254,6 @@ class Publisher(BasePublisher):
 class Subscriber(BaseSubscriber):
     def __init__(self, conn_params=None, queue_size=1, *args, **kwargs):
         self._queue_size = queue_size
-
-        conn_params = ConnectionParameters() if \
-            conn_params is None else conn_params
 
         super(Subscriber, self).__init__(*args, **kwargs)
 
@@ -289,8 +285,8 @@ class Subscriber(BaseSubscriber):
             raise exc
 
     def _on_message(self, payload):
-        self.logger.info(
-            'Received Message: <{}>:{}'.format(self._topic, payload))
+        # self.logger.info(
+        #     'Received Message: <{}>:{}'.format(self._topic, payload))
         payload = self._serializer.deserialize(payload['data'])
         data = payload['data']
         header = payload['header']
@@ -306,17 +302,17 @@ class ActionServer(BaseActionServer):
 
         super(ActionServer, self).__init__(*args, **kwargs)
 
-        self._goal_rpc = RPCServer(rpc_name=self._goal_rpc_uri,
+        self._goal_rpc = RPCService(rpc_name=self._goal_rpc_uri,
                                    conn_params=conn_params,
                                    on_request=self._handle_send_goal,
                                    logger=self._logger,
                                    debug=self.debug)
-        self._cancel_rpc = RPCServer(rpc_name=self._cancel_rpc_uri,
+        self._cancel_rpc = RPCService(rpc_name=self._cancel_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_cancel_goal,
                                      logger=self._logger,
                                      debug=self.debug)
-        self._result_rpc = RPCServer(rpc_name=self._result_rpc_uri,
+        self._result_rpc = RPCService(rpc_name=self._result_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_get_result,
                                      logger=self._logger,
@@ -351,3 +347,48 @@ class ActionClient(BaseActionClient):
                                         conn_params=conn_params,
                                         logger=self._logger,
                                         debug=self.debug)
+        self._status_sub = Subscriber(conn_params=conn_params,
+                                      topic=self._status_topic,
+                                      on_message=self._on_status)
+        self._feedback_sub = Subscriber(conn_params=conn_params,
+                                        topic=self._feedback_topic,
+                                        on_message=self._on_feedback)
+        self._status_sub.run()
+        self._feedback_sub.run()
+
+
+class RPCServer(RPCService):
+    """For backward compatibility."""
+    def __init__(self, *args, **kwargs):
+        super(RPCServer, self).__init__(*args, **kwargs)
+
+
+class EventEmitter(BaseEventEmitter):
+    def __init__(self, conn_params=None, *args, **kwargs):
+        super(EventEmitter, self).__init__(*args, **kwargs)
+
+        self._transport = RedisTransport(conn_params=conn_params,
+                                         logger=self._logger)
+
+    def send_event(self, event):
+        _msg = event.to_dict()
+        _msg = self.__prepare_msg(_msg)
+        _msg = self._serializer.serialize(_msg)
+        self.logger.debug(
+            'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
+        self._transport.publish(event.uri, _msg)
+
+    def __prepare_msg(self, data):
+        header = {
+            'timestamp': int(datetime.datetime.now(
+                datetime.timezone.utc).timestamp() * 1000000),
+            'properties': {
+                'content_type': self._serializer.CONTENT_TYPE,
+                'content_encoding': self._serializer.CONTENT_ENCODING
+            }
+        }
+        _msg = {
+            'data': data,
+            'header': header
+        }
+        return _msg

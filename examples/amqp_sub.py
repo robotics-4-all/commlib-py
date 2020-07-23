@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import Subscriber, ConnectionParameters
-# from commlib_py.endpoints import AMQPSubscriber
-# from commlib_py.transports.amqp import ConnectionParameters
+from commlib.transports.amqp import Subscriber, ConnectionParameters
+# from commlib.endpoints import AMQPSubscriber
+# from commlib.transports.amqp import ConnectionParameters
 import time
 
 

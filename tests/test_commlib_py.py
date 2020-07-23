@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 
-"""Tests for `commlib_py` package."""
+"""Tests for `commlib` package."""
 
 
 import unittest
 from click.testing import CliRunner
 
-from commlib_py import commlib_py
-from commlib_py import cli
+from commlib import commlib
+from commlib import cli
 
 
 class TestCommlib_py(unittest.TestCase):
-    """Tests for `commlib_py` package."""
+    """Tests for `commlib` package."""
 
     def setUp(self):
         """Set up test fixtures, if any."""
@@ -27,7 +27,7 @@ class TestCommlib_py(unittest.TestCase):
         runner = CliRunner()
         result = runner.invoke(cli.main)
         assert result.exit_code == 0
-        assert 'commlib_py.cli.main' in result.output
+        assert 'commlib.cli.main' in result.output
         help_result = runner.invoke(cli.main, ['--help'])
         assert help_result.exit_code == 0
         assert '--help  Show this message and exit.' in help_result.output

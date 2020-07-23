@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import RPCServer, ConnectionParameters, RemoteLogger
+from commlib.transports.amqp import RPCService, ConnectionParameters, RemoteLogger
 import time
 
 
@@ -17,7 +17,7 @@ if __name__ == '__main__':
     conn_params.port = 8076
     conn_params.vhost = '/'
     logger = RemoteLogger(rpc_name, conn_params)
-    rpcs = RPCServer(conn_params=conn_params, on_request=callback,
+    rpcs = RPCService(conn_params=conn_params, on_request=callback,
                      rpc_name=rpc_name, logger=logger)
     rpcs.run()
     while True:

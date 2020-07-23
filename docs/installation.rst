@@ -12,7 +12,7 @@ To install commlib-py, run this command in your terminal:
 
 .. code-block:: console
 
-    $ pip install commlib_py
+    $ pip install commlib
 
 This is the preferred method to install commlib-py, as it will always install the most recent stable release.
 
@@ -32,13 +32,13 @@ You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/klpanagi/commlib_py
+    $ git clone git://github.com/klpanagi/commlib
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl -OJL https://github.com/klpanagi/commlib_py/tarball/master
+    $ curl -OJL https://github.com/klpanagi/commlib/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
@@ -47,5 +47,5 @@ Once you have a copy of the source, you can install it with:
     $ python setup.py install
 
 
-.. _Github repo: https://github.com/klpanagi/commlib_py
-.. _tarball: https://github.com/klpanagi/commlib_py/tarball/master
+.. _Github repo: https://github.com/klpanagi/commlib
+.. _tarball: https://github.com/klpanagi/commlib/tarball/master

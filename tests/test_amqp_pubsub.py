@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import (
+from commlib.transports.amqp import (
     Publisher, Subscriber, ConnectionParameters, AMQPConnection)
 import time
 from threading import Thread
@@ -146,6 +146,7 @@ def test_shared_connection_publishers():
     t = Thread(target=thread_runner, args=(p,))
     t.daemon = True
     t.start()
+    conn.detach_amqp_events_thread()
     data = {'msg': 'Sent from Main Thread.'}
     counter = 0
     while counter < ITERATIONS:

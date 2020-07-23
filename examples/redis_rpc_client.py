@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.redis import (
+from commlib.transports.redis import (
     RPCClient, TCPConnectionParameters)
-from commlib_py.logger import Logger
+from commlib.logger import Logger
 import time
 
 

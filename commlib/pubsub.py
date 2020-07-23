@@ -19,6 +19,9 @@ class BasePublisher(object):
         self._debug = debug
         self._topic = topic
 
+        if topic is None:
+            raise ValueError('Topic Name not defined')
+
         if serializer is not None:
             self._serializer = serializer
         else:
@@ -51,6 +54,9 @@ class BaseSubscriber(object):
                  logger=None, debug=True, serializer=None):
         self._debug = debug
         self._topic = topic
+
+        if topic is None:
+            raise ValueError()
 
         self._onmessage = on_message
 
@@ -93,5 +99,5 @@ class BaseSubscriber(object):
         self._main_thread.start()
 
     def stop(self):
-        self._t_stop_event.set()
-
+        if self._t_stop_event is not None:
+            self._t_stop_event.set()

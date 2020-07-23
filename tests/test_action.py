@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import commlib_py.transports.amqp as acomm
-import commlib_py.transports.redis as rcomm
+import commlib.transports.amqp as acomm
+import commlib.transports.redis as rcomm
 import time
 
 
@@ -12,7 +12,7 @@ def on_goal(goalh):
         if goalh.cancel_event.is_set():
             return {'result': 0}
         count += 1
-        if count > 10:
+        if count > 4:
             return {'result': 1}
 
 
@@ -38,20 +38,20 @@ def run_amqp():
     resp = ac.send_goal(goal_data)
     _goal_id = resp['goal_id']
     print('Send-Goal Response: {}'.format(resp))
-    time.sleep(2)
+    time.sleep(1)
     resp = ac.get_result(_goal_id)
     print('Get-Result Response: {}'.format(resp))
-    time.sleep(2)
+    time.sleep(1)
     resp = ac.cancel_goal(_goal_id)
     print('Cancel-Goal Response: {}'.format(resp))
-    time.sleep(2)
+    time.sleep(1)
     resp = ac.get_result(_goal_id)
     print('Get-Result Response: {}'.format(resp))
 
     resp = ac.send_goal(goal_data)
     _goal_id = resp['goal_id']
     print('Send-Goal Response: {}'.format(resp))
-    time.sleep(13)
+    time.sleep(5)
     resp = ac.get_result(_goal_id)
     print('Get-Result Response: {}'.format(resp))
     print('-----------------------------------------------------------------')
@@ -76,25 +76,30 @@ def run_redis():
 
     resp = ac.send_goal(goal_data)
     _goal_id = resp['goal_id']
+    if _goal_id is None:
+        pass
     print('Send-Goal Response: {}'.format(resp))
-    time.sleep(2)
+    time.sleep(1)
     resp = ac.get_result(_goal_id)
     print('Get-Result Response: {}'.format(resp))
-    time.sleep(2)
+    time.sleep(1)
     resp = ac.cancel_goal(_goal_id)
     print('Cancel-Goal Response: {}'.format(resp))
-    time.sleep(2)
+    time.sleep(1)
     resp = ac.get_result(_goal_id)
     print('Get-Result Response: {}'.format(resp))
 
     resp = ac.send_goal(goal_data)
     _goal_id = resp['goal_id']
     print('Send-Goal Response: {}'.format(resp))
-    time.sleep(13)
+    time.sleep(5)
     resp = ac.get_result(_goal_id)
     print('Get-Result Response: {}'.format(resp))
 
 
 if __name__ == '__main__':
-    run_amqp()
     run_redis()
+    run_amqp()
+    print('==========================================')
+    print('================END OF TEST===============')
+    print('==========================================')

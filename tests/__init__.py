@@ -1,1 +1,1 @@
-"""Unit test package for commlib_py."""
+"""Unit test package for commlib."""

@@ -21,12 +21,12 @@ from collections import deque
 from threading import Semaphore, Thread, Event
 #  import ssl
 
-from commlib_py.logger import Logger, LoggingLevel
-from commlib_py.serializer import ContentType
-from commlib_py.rpc import BaseRPCServer, BaseRPCClient
-from commlib_py.pubsub import BasePublisher, BaseSubscriber
-from commlib_py.logger import Logger
-from commlib_py.action import BaseActionServer, BaseActionClient
+from commlib.logger import Logger, LoggingLevel
+from commlib.serializer import ContentType
+from commlib.rpc import BaseRPCService, BaseRPCClient
+from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.logger import Logger
+from commlib.action import BaseActionServer, BaseActionClient
 
 
 class MessageProperties(pika.BasicProperties):
@@ -468,13 +468,13 @@ class AMQPTransport(object):
     def disconnect(self):
         self._graceful_shutdown()
 
-    def __del__(self):
-        self._graceful_shutdown()
+    # def __del__(self):
+    #     self._graceful_shutdown()
 
 
-class RPCServer(BaseRPCServer):
-    """AMQP RPC Server class.
-    Implements an AMQP RPC Server.
+class RPCService(BaseRPCService):
+    """AMQP RPC Service class.
+    Implements an AMQP RPC Service.
 
     Args:
         rpc_name (str): The name of the RPC.
@@ -486,12 +486,10 @@ class RPCServer(BaseRPCServer):
         """Constructor. """
         self._exchange = exchange
         self._closing = False
-        super(RPCServer, self).__init__(*args, **kwargs)
+        super(RPCService, self).__init__(*args, **kwargs)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
-
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-        # self._transport.create_channel()
 
     def is_alive(self):
         """Returns True if connection is alive and False otherwise."""
@@ -503,11 +501,11 @@ class RPCServer(BaseRPCServer):
             return False
 
     def run_forever(self, raise_if_exists=True):
-        """Run RPC Server in normal mode. Blocking function."""
-        if self._rpc_exists() and raise_if_exists:
-            raise ValueError(
-                'RPC <{}> allready registered on broker.'.format(
-                    self._rpc_name))
+        """Run RPC Service in normal mode. Blocking function."""
+        # if self._rpc_exists() and raise_if_exists:
+        #     raise ValueError(
+        #         'RPC <{}> allready registered on broker.'.format(
+        #             self._rpc_name))
         self._rpc_queue = self._transport.create_queue(self._rpc_name)
         self._transport.set_channel_qos()
         self._transport.consume_fromm_queue(self._rpc_queue,
@@ -541,7 +539,7 @@ class RPCServer(BaseRPCServer):
             self.logger.warn("Could not calculate latency", exc_info=False)
 
         try:
-            _msg = self._deserialize_data(body, _ctype, _cencoding)
+            _msg = self._deserialize_req_payload(body, _ctype, _cencoding)
         except Exception:
             self.logger.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
@@ -607,7 +605,7 @@ class RPCServer(BaseRPCServer):
         # Acknowledge receiving the message.
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
-    def _deserialize_data(self, data, content_type, content_encoding):
+    def _deserialize_req_payload(self, data, content_type, content_encoding):
         """Deserialize wire data.
 
         Args:
@@ -633,7 +631,7 @@ class RPCServer(BaseRPCServer):
         return _data
 
     def close(self):
-        """Stop RPC Server.
+        """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
         if self._closing:
@@ -650,10 +648,11 @@ class RPCServer(BaseRPCServer):
             self._transport.stop_consuming)
         self._transport.add_threadsafe_callback(
             self._transport.close)
+        super(RPCService, self).stop()
         return True
 
     def stop(self):
-        """Stop RPC Server.
+        """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
         return self.close()
@@ -757,7 +756,7 @@ class RPCClient(BaseRPCClient):
                               exc_info=True)
 
         try:
-            _msg = self._deserialize_data(body, _ctype, _cencoding)
+            _msg = self._deserialize_req_payload(body, _ctype, _cencoding)
         except Exception:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
@@ -811,7 +810,7 @@ class RPCClient(BaseRPCClient):
             time.sleep(0.001)
         return self._response
 
-    def _deserialize_data(self, data, content_type, content_encoding):
+    def _deserialize_req_payload(self, data, content_type, content_encoding):
         """Deserialize wire data.
 
         Args:
@@ -1013,9 +1012,12 @@ class Subscriber(BaseSubscriber):
         if self._closing:
             return False
         self._closing = True
-        if self._transport._channel.is_closed:
-            self.logger.info('Invoked close() on an already closed channel')
+        if not self._transport.channel:
             return False
+        if self._transport.channel.is_closed:
+            self.logger.warning('Channel was already closed!')
+            return False
+        super(Subscriber, self).stop()
         self._transport.add_threadsafe_callback(
             self._transport.delete_queue, self._queue_name)
         self._transport.add_threadsafe_callback(
@@ -1058,7 +1060,7 @@ class Subscriber(BaseSubscriber):
                               exc_info=False)
 
         try:
-            msg = self._deserialize_data(body, _ctype, _cencoding)
+            msg = self._deserialize_req_payload(body, _ctype, _cencoding)
         except Exception:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
@@ -1102,7 +1104,7 @@ class Subscriber(BaseSubscriber):
                 self._hz = _sum / len(hz_list)
         self._last_msg_ts = ts
 
-    def _deserialize_data(self, data, content_type, content_encoding):
+    def _deserialize_req_payload(self, data, content_type, content_encoding):
         """
         Deserialize wire data.
 
@@ -1120,73 +1122,14 @@ class Subscriber(BaseSubscriber):
             _data = data
         return _data
 
+    def stop(self):
+        self.close()
 
-class RemoteLogger(Logger):
-    """Remote Logger Class."""
-    def __init__(self, namespace, conn_params):
-        super(RemoteLogger, self).__init__(namespace)
-        self.conn_params = conn_params
-        self.remote_topic = '{}.logs'.format(namespace)
-        self.log_pub = Publisher(conn_params=conn_params,
-                                 topic=self.remote_topic)
-        self._remote_state = 1
-        self._std_state = 1
+    def __del__(self):
+        self.close()
 
-        self._formatting = '[{timestamp}][{namespace}][{level}]'
-
-    @property
-    def remote(self):
-        return self._remote_state
-
-    @remote.setter
-    def remote(self, val):
-        assert isinstance(val, bool)
-        if val:
-            self._remote_state = 1
-        else:
-            self._remote_state = 0
-
-    @property
-    def std(self):
-        return self._std_state
-
-    @std.setter
-    def std(self, val):
-        assert isinstance(val, bool)
-        if val:
-            self._std_state = 1
-        else:
-            self._std_state = 0
-
-    def format_msg(self, msg, level):
-        fmsg = self._formatting.format(timestamp=-1,
-                                       namespace=self.namespace,
-                                       level=level)
-        return {'msg': fmsg}
-
-    def debug(self, msg, exc_info=False):
-        if self._std_state:
-            self.std_logger.debug(msg, exc_info=exc_info)
-        if self._remote_state:
-            self.log_pub.publish(self.format_msg(msg, 'DEBUG'))
-
-    def info(self, msg, exc_info=False):
-        if self._std_state:
-            self.std_logger.info(msg, exc_info=exc_info)
-        if self._remote_state:
-            self.log_pub.publish(self.format_msg(msg, 'INFO'))
-
-    def warn(self, msg, exc_info=False):
-        if self._std_state:
-            self.std_logger.warning(msg, exc_info=exc_info)
-        if self._remote_state:
-            self.log_pub.publish(self.format_msg(msg, 'WARNING'))
-
-    def error(self, msg, exc_info=False):
-        if self._std_state:
-            self.std_logger.error(msg, exc_info=exc_info)
-        if self._remote_state:
-            self.log_pub.publish(self.format_msg(msg, 'ERROR'))
+    def __exit__(self, exc_type, value, traceback):
+        self.close()
 
 
 class ActionServer(BaseActionServer):
@@ -1197,17 +1140,17 @@ class ActionServer(BaseActionServer):
         self._conn = AMQPConnection(conn_params)
 
         super(ActionServer, self).__init__(*args, **kwargs)
-        self._goal_rpc = RPCServer(rpc_name=self._goal_rpc_uri,
+        self._goal_rpc = RPCService(rpc_name=self._goal_rpc_uri,
                                    conn_params=conn_params,
                                    on_request=self._handle_send_goal,
                                    logger=self._logger,
                                    debug=self.debug)
-        self._cancel_rpc = RPCServer(rpc_name=self._cancel_rpc_uri,
+        self._cancel_rpc = RPCService(rpc_name=self._cancel_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_cancel_goal,
                                      logger=self._logger,
                                      debug=self.debug)
-        self._result_rpc = RPCServer(rpc_name=self._result_rpc_uri,
+        self._result_rpc = RPCService(rpc_name=self._result_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_get_result,
                                      logger=self._logger,
@@ -1221,6 +1164,14 @@ class ActionServer(BaseActionServer):
                                      logger=self._logger,
                                      debug=self.debug)
         self._conn.detach_amqp_events_thread()
+
+    def stop(self):
+        self._goal_rpc.stop()
+        self._cancel_rpc.stop()
+        self._result_rpc.stop()
+
+    def __del__(self):
+        self.stop()
 
 
 class ActionClient(BaseActionClient):
@@ -1246,3 +1197,24 @@ class ActionClient(BaseActionClient):
                                         logger=self._logger,
                                         debug=self.debug)
         self._conn.detach_amqp_events_thread()
+        self._status_sub = Subscriber(conn_params=conn_params,
+                                      topic=self._status_topic,
+                                      on_message=self._on_status)
+        self._feedback_sub = Subscriber(conn_params=conn_params,
+                                        topic=self._feedback_topic,
+                                        on_message=self._on_feedback)
+        self._status_sub.run()
+        self._feedback_sub.run()
+
+    def stop(self):
+        self._status_sub.stop()
+        self._feedback_sub.stop()
+
+    def __del__(self):
+        self.stop()
+
+
+class RPCServer(RPCService):
+    """For backward compatibility."""
+    def __init__(self, *args, **kwargs):
+        super(RPCServer, self).__init__(*args, **kwargs)

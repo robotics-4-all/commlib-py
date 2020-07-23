@@ -3,19 +3,19 @@ commlib-py
 ==========
 
 
-.. image:: https://img.shields.io/pypi/v/commlib_py.svg
-        :target: https://pypi.python.org/pypi/commlib_py
+.. image:: https://img.shields.io/pypi/v/commlib.svg
+        :target: https://pypi.python.org/pypi/commlib
 
-.. image:: https://img.shields.io/travis/klpanagi/commlib_py.svg
-        :target: https://travis-ci.com/klpanagi/commlib_py
+.. image:: https://img.shields.io/travis/klpanagi/commlib.svg
+        :target: https://travis-ci.com/klpanagi/commlib
 
 .. image:: https://readthedocs.org/projects/commlib-py/badge/?version=latest
         :target: https://commlib-py.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
 
-.. image:: https://pyup.io/repos/github/klpanagi/commlib_py/shield.svg
-     :target: https://pyup.io/repos/github/klpanagi/commlib_py/
+.. image:: https://pyup.io/repos/github/klpanagi/commlib/shield.svg
+     :target: https://pyup.io/repos/github/klpanagi/commlib/
      :alt: Updates
 
 

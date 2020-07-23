@@ -72,12 +72,21 @@ class GoalHandler(object):
         self._goal_task.add_done_callback(self._done_callback)
 
     def cancel(self):
-        self.set_status(GoalStatus.CANCELING)
-        self._goal_task.cancel()
-        self.cancel_event.set()
-        # self._executor.shutdown(wait=False)
-        self._executor._threads.clear()
-        concurrent.futures.thread._threads_queues.clear()
+        if self.status in (GoalStatus.ABORTED,
+                           GoalStatus.CANCELED,
+                           GoalStatus.CANCELING,
+                           GoalStatus.SUCCEDED):
+            return 0
+        try:
+            self.set_status(GoalStatus.CANCELING)
+            self._goal_task.cancel()
+            self.cancel_event.set()
+            # self._executor.shutdown(wait=False)
+            self._executor._threads.clear()
+            concurrent.futures.thread._threads_queues.clear()
+        except Exception as exc:
+            return 0
+        return 1
 
     def set_status(self, status):
         if status not in GoalStatus:
@@ -211,8 +220,8 @@ class BaseActionServer(object):
                 'error': 'Goal <{}> does not exist'.format(_goal_id)
             }
             return resp
-        self._current_goal.cancel()
-        resp['status'] = 1
+        _status =  self._current_goal.cancel()
+        resp['status'] = _status
         return resp
 
     def _handle_get_result(self, msg, meta):
@@ -239,16 +248,6 @@ class BaseActionServer(object):
             resp['result'] = self._current_goal.result
         return resp
 
-    # def run(self):
-    #     self._main_thread = threading.Thread(target=self.run_forever)
-    #     self._main_thread.daemon = True
-    #     self._t_stop_event = threading.Event()
-    #     self._main_thread.start()
-
-    # def stop(self):
-    #     if self._t_stop_event is not None:
-    #         self._t_stop_event.set()
-
     def run(self):
         self._goal_rpc.run()
         self._cancel_rpc.run()
@@ -256,7 +255,8 @@ class BaseActionServer(object):
 
 
 class BaseActionClient(object):
-    def __init__(self, action_name, logger=None, debug=True, serializer=None):
+    def __init__(self, action_name, logger=None, debug=True, serializer=None,
+                 on_feedback=None):
         self._debug = debug
         self._action_name = action_name
 
@@ -270,6 +270,11 @@ class BaseActionClient(object):
         self._goal_client = None
         self._cancel_client = None
         self._result_client = None
+        self._status_sub = None
+        self._feedback_sub = None
+
+        self._status = None
+        self._on_feedback_ext = on_feedback
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -302,9 +307,24 @@ class BaseActionClient(object):
         }
         return self._cancel_client.call(req, timeout=timeout)
 
-    def get_result(self, goal_id, timeout=10):
+    def get_result(self, goal_id, timeout=10, wait=True):
         assert isinstance(goal_id, str)
         req = {
             'goal_id': goal_id
         }
+        if wait:
+            while True:
+                if self._status in (GoalStatus.ABORTED,
+                                    GoalStatus.SUCCEDED,
+                                    GoalStatus.CANCELED):
+                    break
+                time.sleep(0.001)
         return self._result_client.call(req, timeout=timeout)
+
+    def _on_status(self, msg, meta):
+        self.logger.info(msg)
+        self._status = msg['status']
+        # self._status = 
+
+    def _on_feedback(self, msg, meta):
+        self.logger.info(msg)

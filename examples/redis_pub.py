@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from commlib_py.transports.redis import (
+from commlib.transports.redis import (
     Publisher, UnixSocketConnectionParameters)
 import time
 

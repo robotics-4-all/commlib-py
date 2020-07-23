@@ -1,13 +1,13 @@
 # Usage Exanples
 
-## RPC Server
+## RPC Service
 
 ### AMQP
 
 ```python
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import RPCServer, ConnectionParameters
+from commlib.transports.amqp import RPCService, ConnectionParameters
 
 
 def callback(msg, meta):
@@ -21,7 +21,7 @@ if __name__ == '__main__':
     conn_params.credentials.password = 'testuser'
     conn_params.host = 'r4a-platform.ddns.net'
     conn_params.port = 5782
-    rpcs = RPCServer(conn_params, on_request=callback, rpc_name=rpc_name)
+    rpcs = RPCService(conn_params, on_request=callback, rpc_name=rpc_name)
     rpcs.run_forever()
 ```
 
@@ -30,7 +30,7 @@ if __name__ == '__main__':
 ```python
 #!/usr/bin/env python
 
-from commlib_py.transports.redis import RPCServer, ConnectionParameters
+from commlib.transports.redis import RPCService, ConnectionParameters
 
 
 def callback(msg, meta):
@@ -40,7 +40,7 @@ def callback(msg, meta):
 if __name__ == '__main__':
     rpc_name = 'test_rpc'
     conn_params = ConnectionParameters()
-    rpcs = RPCServer(conn_params, on_request=callback, rpc_name=rpc_name)
+    rpcs = RPCService(conn_params, on_request=callback, rpc_name=rpc_name)
     rpcs.run_forever()
 ```
 
@@ -51,7 +51,7 @@ if __name__ == '__main__':
 ```python
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import RPCClient, ConnectionParameters
+from commlib.transports.amqp import RPCClient, ConnectionParameters
 
 
 if __name__ == '__main__':
@@ -72,7 +72,7 @@ if __name__ == '__main__':
 ```python
 #!/usr/bin/env python
 
-from commlib_py.transports.redis import RPCClient, ConnectionParameters
+from commlib.transports.redis import RPCClient, ConnectionParameters
 
 
 if __name__ == '__main__':
@@ -91,7 +91,7 @@ if __name__ == '__main__':
 ```python
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import Publisher, ConnectionParameters
+from commlib.transports.amqp import Publisher, ConnectionParameters
 import time
 
 
@@ -119,7 +119,7 @@ if __name__ == '__main__':
 ```python
 #!/usr/bin/env python
 
-from commlib_py.transports.redis import Publisher, ConnectionParameters
+from commlib.transports.redis import Publisher, ConnectionParameters
 import time
 
 
@@ -145,7 +145,7 @@ if __name__ == '__main__':
 ```python
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import Subscriber, ConnectionParameters
+from commlib.transports.amqp import Subscriber, ConnectionParameters
 
 
 def callback(msg, meta):
@@ -170,7 +170,7 @@ if __name__ == '__main__':
 ```python
 #!/usr/bin/env python
 
-from commlib_py.transports.amqp import Subscriber, ConnectionParameters
+from commlib.transports.amqp import Subscriber, ConnectionParameters
 
 
 def callback(msg, meta):
