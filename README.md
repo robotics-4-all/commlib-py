@@ -1,5 +1,5 @@
 # commlib-py
-Communication Lirary written in Python implementing the most common communication patterns for CyberPhysical Systems.
+Broker-based communication library written in python implementing the most common communication patterns for Cyber-Physical Systems.
 
 
 # Installation
@@ -16,7 +16,9 @@ pip install . --user
 ```
 
 ## Features
-TODO
+The purpose of this implementation is to provide an application-level of
+communication patterns, such as RPCs, Topic-based PubSub, Preemptable Services
+(aka Actions), Events etc.
 
 ### Transports
 TODO
@@ -49,4 +51,20 @@ TODO
 TODO
 
 #### EventEmitter
+TODO
+
+# Examples
+
+Examples can be found at the `./examples` directory of this repo
+
+# Tests
+
+TODO
+
+# Roadmap
+
+TODO
+
+# Credis
+
 TODO
