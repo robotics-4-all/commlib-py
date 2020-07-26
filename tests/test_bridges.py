@@ -25,8 +25,8 @@ def run_redis_to_redis_topic():
     topic_name = 'test-topic3'
     sub_params = rcomm.ConnectionParameters(db=1)
     pub_params = rcomm.ConnectionParameters(db=2)
-    br = TopicBridge(TopicBridgeType.REDIS_TO_REDIS, sub_params,
-                     pub_params, topic_name)
+    br = TopicBridge(TopicBridgeType.REDIS_TO_REDIS, topic_name, sub_params,
+                     pub_params)
     br.run()
 
     pub = rcomm.Publisher(conn_params=sub_params,
@@ -56,8 +56,8 @@ def run_amqp_to_amqp_topic():
     topic_name = 'test-topic4'
     sub_params = acomm.ConnectionParameters()
     pub_params = acomm.ConnectionParameters()
-    br = TopicBridge(TopicBridgeType.AMQP_TO_AMQP, sub_params,
-                     pub_params, topic_name)
+    br = TopicBridge(TopicBridgeType.AMQP_TO_AMQP, topic_name, sub_params,
+                     pub_params)
     br.run()
 
     pub = acomm.Publisher(conn_params=sub_params,
@@ -86,8 +86,8 @@ def run_amqp_to_redis_topic():
     topic_name = 'test-topic2'
     sub_params = acomm.ConnectionParameters()
     pub_params = rcomm.ConnectionParameters()
-    br = TopicBridge(TopicBridgeType.AMQP_TO_REDIS, sub_params,
-                     pub_params, topic_name)
+    br = TopicBridge(TopicBridgeType.AMQP_TO_REDIS, topic_name, sub_params,
+                     pub_params)
     br.run()
 
     pub = acomm.Publisher(conn_params=sub_params,
@@ -117,8 +117,8 @@ def run_redis_to_amqp_topic():
     topic_name = 'test-topic'
     sub_params = rcomm.ConnectionParameters()
     pub_params = acomm.ConnectionParameters()
-    br = TopicBridge(TopicBridgeType.REDIS_TO_AMQP, sub_params,
-                   pub_params, topic_name)
+    br = TopicBridge(TopicBridgeType.REDIS_TO_AMQP, topic_name,
+                     sub_params, pub_params)
     br.run()
 
     pub = rcomm.Publisher(conn_params=sub_params,
@@ -148,8 +148,8 @@ def run_amqp_to_redis_rpc():
     rpc_name = 'testrpc1'
     client_params = rcomm.ConnectionParameters()
     server_params = acomm.ConnectionParameters()
-    br = RPCBridge(RPCBridgeType.AMQP_TO_REDIS, client_params,
-                   server_params, rpc_name)
+    br = RPCBridge(RPCBridgeType.AMQP_TO_REDIS, rpc_name, client_params,
+                   server_params)
     br.run()
 
     client = acomm.RPCClient(conn_params=server_params,
@@ -180,8 +180,8 @@ def run_redis_to_amqp_rpc():
     rpc_name = 'testrpc2'
     client_params = acomm.ConnectionParameters()
     server_params = rcomm.ConnectionParameters()
-    br = RPCBridge(RPCBridgeType.REDIS_TO_AMQP, client_params,
-                   server_params, rpc_name)
+    br = RPCBridge(RPCBridgeType.REDIS_TO_AMQP, rpc_name, client_params,
+                   server_params)
     br.run()
 
     client = rcomm.RPCClient(conn_params=server_params,

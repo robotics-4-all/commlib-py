@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from commlib.transports.amqp import (
-    Publisher, Subscriber, ConnectionParameters, AMQPConnection)
+    Publisher, Subscriber, ConnectionParameters, Connection)
 import time
 from threading import Thread
 
@@ -78,7 +78,7 @@ def test_multiple_publishers_shared_connection():
                     on_message=sub_callback)
     s1.run()
     time.sleep(1)
-    conn = AMQPConnection(conn_params)
+    conn = Connection(conn_params)
     p1 = Publisher(connection=conn,
                    topic=TOPIC_NAME)
     t = Thread(target=thread_runner, args=(p1,))
@@ -140,7 +140,7 @@ def test_shared_connection_publishers():
                    on_message=sub_callback)
     s.run()
     time.sleep(1)
-    conn = AMQPConnection(conn_params)
+    conn = Connection(conn_params)
     p = Publisher(connection=conn,
                   topic=TOPIC_NAME)
     t = Thread(target=thread_runner, args=(p,))

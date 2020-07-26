@@ -11,11 +11,22 @@ import uuid
 
 from .serializer import JSONSerializer
 from .logger import Logger
+from .utils import gen_random_id
 
 
 class BaseRPCService(object):
-    def __init__(self, rpc_name=None, on_request=None,
-                 logger=None, debug=True, workers=2,
+    """RPCService Base class.
+    Inherit to implement transport-specific RPCService.
+
+    Args:
+        - rpc_name (str)
+    """
+
+    def __init__(self, rpc_name: str = None,
+                 on_request: callable = None,
+                 logger: Logger = None,
+                 debug: bool = True,
+                 workers: int = 2,
                  serializer=None):
         if rpc_name is None:
             raise ValueError()
@@ -32,6 +43,8 @@ class BaseRPCService(object):
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
+        self._gen_random_id = gen_random_id
+
         self._executor = ThreadPoolExecutor(max_workers=2)
 
         self._main_thread = None
@@ -45,10 +58,6 @@ class BaseRPCService(object):
     @property
     def logger(self):
         return self._logger
-
-    def _gen_random_id(self):
-        """Generate correlationID."""
-        return str(uuid.uuid4()).replace('-', '')
 
     def run_forever(self):
         raise NotImplementedError()
@@ -65,8 +74,21 @@ class BaseRPCService(object):
 
 
 class BaseRPCClient(object):
-    def __init__(self, rpc_name=None, msg_type=None, logger=None,
-                 debug=True, serializer=None):
+    """RPCClient Base class.
+    Inherit to implement transport-specific RPCClient.
+
+    Args:
+        rpc_name (str): The name of the RPC.
+        logger (Logger): Logger instance.
+        debug (bool): Debug-mode.
+        serializer (): Serializer class.
+    """
+
+    def __init__(self,
+                 rpc_name: str = None,
+                 logger: Logger = None,
+                 debug: bool = True,
+                 serializer=None):
         if rpc_name is None:
             raise ValueError()
         self._rpc_name = rpc_name
@@ -80,6 +102,8 @@ class BaseRPCClient(object):
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
+        self._gen_random_id = gen_random_id
+
         self.logger.info('Created RPC Client: <{}>'.format(self._rpc_name))
 
     @property
@@ -90,9 +114,5 @@ class BaseRPCClient(object):
     def logger(self):
         return self._logger
 
-    def _gen_random_id(self):
-        """Generate correlationID."""
-        return str(uuid.uuid4()).replace('-', '')
-
-    def call(self, data, timeout):
+    def call(self, msg: dict, timeout: float = 30):
         raise NotImplementedError()

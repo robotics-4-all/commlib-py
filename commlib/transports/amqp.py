@@ -145,7 +145,7 @@ class ConnectionParameters():
         return _str
 
 
-class AMQPConnection(pika.BlockingConnection):
+class Connection(pika.BlockingConnection):
     """Connection. qThin wrapper around pika.BlockingConnection"""
     def __init__(self, conn_params):
         self._connection_params = conn_params
@@ -153,7 +153,7 @@ class AMQPConnection(pika.BlockingConnection):
         self._transport = None
         self._events_thread = None
         self._t_stop_event = None
-        super(AMQPConnection, self).__init__(
+        super(Connection, self).__init__(
             parameters=self._connection_params.make_pika())
 
     def stop_amqp_events_thread(self):
@@ -230,7 +230,7 @@ class AMQPTransport(object):
 
         assert isinstance(debug, bool)
         assert isinstance(conn_params, ConnectionParameters)
-        # assert isinstance(connection, AMQPConnection)
+        # assert isinstance(connection, Connection)
 
         self._connection = connection
         self._conn_params = conn_params
@@ -243,7 +243,7 @@ class AMQPTransport(object):
 
         # Create a new connection
         if self._connection is None:
-            self._connection = AMQPConnection(self._conn_params)
+            self._connection = Connection(self._conn_params)
         self.create_channel()
 
     @property
@@ -291,7 +291,7 @@ class AMQPTransport(object):
         except pika.exceptions.ConnectionClosed:
             self.logger.debug('Connection timed out. Reconnecting...')
             self.create_channel()
-        except pika.exceptions.AMQPConnectionError:
+        except pika.exceptions.ConnectionError:
             self.logger.debug('Connection error. Reconnecting...')
             self.create_channel()
 
@@ -472,6 +472,11 @@ class AMQPTransport(object):
     #     self._graceful_shutdown()
 
 
+# class RPCServiceWorker(threading.Thread):
+#     def __init__(self, *args, **kwargs):
+#         super(RPCServiceWorker, self).__init__(*args, **kwargs)
+
+
 class RPCService(BaseRPCService):
     """AMQP RPC Service class.
     Implements an AMQP RPC Service.
@@ -501,7 +506,7 @@ class RPCService(BaseRPCService):
             return False
 
     def run_forever(self, raise_if_exists=True):
-        """Run RPC Service in normal mode. Blocking function."""
+        """Run RPC Service in normal mode. Blocking operation."""
         # if self._rpc_exists() and raise_if_exists:
         #     raise ValueError(
         #         'RPC <{}> allready registered on broker.'.format(
@@ -1137,7 +1142,7 @@ class ActionServer(BaseActionServer):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        self._conn = AMQPConnection(conn_params)
+        self._conn = Connection(conn_params)
 
         super(ActionServer, self).__init__(*args, **kwargs)
         self._goal_rpc = RPCService(rpc_name=self._goal_rpc_uri,
@@ -1180,7 +1185,7 @@ class ActionClient(BaseActionClient):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        self._conn = AMQPConnection(conn_params)
+        self._conn = Connection(conn_params)
 
         super(ActionClient, self).__init__(*args, **kwargs)
 
@@ -1212,9 +1217,3 @@ class ActionClient(BaseActionClient):
 
     def __del__(self):
         self.stop()
-
-
-class RPCServer(RPCService):
-    """For backward compatibility."""
-    def __init__(self, *args, **kwargs):
-        super(RPCServer, self).__init__(*args, **kwargs)

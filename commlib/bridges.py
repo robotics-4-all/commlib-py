@@ -8,6 +8,7 @@ from __future__ import (
 import time
 from enum import IntEnum
 from commlib.endpoints import endpoint_factory, EndpointType, TransportType
+from commlib.logger import Logger
 
 
 class BridgeType(IntEnum):
@@ -32,21 +33,30 @@ class TopicBridgeType(IntEnum):
 
 
 class Bridge(object):
-    def __init__(self, btype):
+    def __init__(self, btype, logger=None):
         self._btype = btype
+        self._logger = Logger(self.__class__.__name__) if \
+            logger is None else logger
+
+    @property
+    def logger(self):
+        return self._logger
 
     def run_forever(self):
         try:
             while True:
                 time.sleep(0.001)
         except Exception as exc:
-            pass
+            self.logger.error(exc)
 
 
 class RPCBridge(Bridge):
-    def __init__(self, btype, client_conn_params, server_conn_params,
-                 rpc_name):
-        super(RPCBridge, self).__init__(btype)
+    def __init__(self, btype: RPCBridgeType,
+                 rpc_name: str,
+                 client_conn_params,
+                 server_conn_params,
+                 logger=None):
+        super(RPCBridge, self).__init__(btype, logger)
         self._client_conn_params = client_conn_params
         self._server_conn_params = server_conn_params
         self._rpc_name = rpc_name
@@ -112,8 +122,10 @@ class RPCBridge(Bridge):
 
 
 class TopicBridge(Bridge):
-    def __init__(self, btype, sub_conn_params, pub_conn_params,
-                 topic_name):
+    def __init__(self, btype: TopicBridgeType,
+                 topic_name: str,
+                 sub_conn_params,
+                 pub_conn_params):
         super(TopicBridge, self).__init__(btype)
         self._sub_conn_params = sub_conn_params
         self._pub_conn_params = pub_conn_params
