@@ -17,6 +17,67 @@ def on_message(nsg, meta):
     print('Data received at topic.')
 
 
+def run_redis_to_redis_topic():
+    print()
+    print('-----------------------------------------------------------------')
+    print('Running REDIS-to-REDIS Topic Bridge Test...')
+    print('-----------------------------------------------------------------')
+    topic_name = 'test-topic3'
+    sub_params = rcomm.ConnectionParameters(db=1)
+    pub_params = rcomm.ConnectionParameters(db=2)
+    br = TopicBridge(TopicBridgeType.REDIS_TO_REDIS, sub_params,
+                     pub_params, topic_name)
+    br.run()
+
+    pub = rcomm.Publisher(conn_params=sub_params,
+                          topic=topic_name)
+
+    sub = rcomm.Subscriber(
+        conn_params=pub_params,
+        topic=topic_name,
+        on_message=on_message
+    )
+    sub.run()
+
+    count = 0
+    pub.publish({'a': 1})
+    while count < 5:
+        time.sleep(1)
+        count += 1
+    br.stop()
+    sub.stop()
+
+
+def run_amqp_to_amqp_topic():
+    print()
+    print('-----------------------------------------------------------------')
+    print('Running AMQP-to-AMQP Topic Bridge Test...')
+    print('-----------------------------------------------------------------')
+    topic_name = 'test-topic4'
+    sub_params = acomm.ConnectionParameters()
+    pub_params = acomm.ConnectionParameters()
+    br = TopicBridge(TopicBridgeType.AMQP_TO_AMQP, sub_params,
+                     pub_params, topic_name)
+    br.run()
+
+    pub = acomm.Publisher(conn_params=sub_params,
+                          topic=topic_name)
+
+    sub = acomm.Subscriber(
+        conn_params=pub_params,
+        topic=topic_name,
+        on_message=on_message
+    )
+    sub.run()
+
+    count = 0
+    pub.publish({'a': 1})
+    while count < 5:
+        time.sleep(1)
+    br.stop()
+    sub.stop()
+
+
 def run_amqp_to_redis_topic():
     print()
     print('-----------------------------------------------------------------')
@@ -26,7 +87,7 @@ def run_amqp_to_redis_topic():
     sub_params = acomm.ConnectionParameters()
     pub_params = rcomm.ConnectionParameters()
     br = TopicBridge(TopicBridgeType.AMQP_TO_REDIS, sub_params,
-                   pub_params, topic_name)
+                     pub_params, topic_name)
     br.run()
 
     pub = acomm.Publisher(conn_params=sub_params,
@@ -144,6 +205,8 @@ def run_redis_to_amqp_rpc():
 
 
 if __name__ == '__main__':
+    # run_amqp_to_amqp_topic()
+    # run_redis_to_redis_topic()
     run_redis_to_amqp_topic()
     run_amqp_to_redis_topic()
     run_redis_to_amqp_rpc()
