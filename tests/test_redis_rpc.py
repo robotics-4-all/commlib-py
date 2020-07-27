@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from commlib.transports.amqp import (
+from commlib.transports.redis import (
     RPCService, RPCClient, ConnectionParameters, Connection)
 import time
 from threading import Thread
@@ -14,11 +14,7 @@ rpc1_name = 'testrpc1'
 rpc2_name = 'testrpc2'
 num_clients = 10
 conn_params = ConnectionParameters()
-conn_params.credentials.username = 'testuser'
-conn_params.credentials.password = 'testuser'
 conn_params.host = 'localhost'
-conn_params.port = 8076
-conn_params.heartbeat_timeout = HB_TIMEOUT  ## Seconds
 
 
 def thread_runner(c):
@@ -35,8 +31,8 @@ def on_request(msg, meta):
     return msg
 
 
-def create_rpc_client(n, rpc_name, connection):
-    l = [RPCClient(connection=connection, rpc_name=rpc_name) for i in range(n)]
+def create_rpc_client(n, rpc_name, conn_params):
+    l = [RPCClient(conn_params=conn_params, rpc_name=rpc_name) for i in range(n)]
     return l
 
 
@@ -54,11 +50,9 @@ def test_multiple_clients():
     s1.run()
     s2.run()
     time.sleep(1)
-    conn = Connection(conn_params)
-    c1 = RPCClient(connection=conn,
+    c1 = RPCClient(conn_params=conn_params,
                    rpc_name=rpc1_name)
-    c_list = create_rpc_client(num_clients, rpc1_name, conn)
-    conn.detach_amqp_events_thread()
+    c_list = create_rpc_client(num_clients, rpc1_name, conn_params)
 
     t = Thread(target=thread_runner, args=(c1,))
     t.daemon = True
@@ -104,39 +98,6 @@ def test_simple_clients():
     print('=================================================================')
 
 
-def test_shared_connection_clients():
-    print('[*] - Running <Heartbeat Timeout> test with Shared Connection client')
-    print('[*] - Configuration:')
-    print(f'[*] - Heartbeat Timeout: {HB_TIMEOUT}')
-    print(f'[*] - Sleep Multiplier: {SLEEP_MULTIPLIER}')
-    print(f'[*] - Iterations: {ITERATIONS}')
-    print('=================================================================')
-    s = RPCService(conn_params=conn_params,
-                  rpc_name=RPC_NAME,
-                  on_request=on_request)
-    s.run()
-    time.sleep(1)
-    conn = Connection(conn_params)
-    c = RPCClient(connection=conn,
-                  rpc_name=RPC_NAME)
-    # c.run()
-    c2 = RPCClient(connection=conn,
-                  rpc_name=RPC_NAME)
-    t = Thread(target=thread_runner, args=(c,))
-    t.daemon = True
-    t.start()
-    conn.detach_amqp_events_thread()
-    data = {'msg': 'Sent from Main Thread.'}
-    counter = 0
-    while counter < ITERATIONS:
-        c2.call(data)
-        time.sleep(HB_TIMEOUT * SLEEP_MULTIPLIER)
-        counter += 1
-    s.stop()
-    print('[*] - Finished Heartbeat Timeout Test!')
-    print('=================================================================')
-
-
 def test_stop_server():
     print('[*] - Running <Heartbeat Timeout> test with Shared Connection client')
     print('[*] - Configuration:')
@@ -157,7 +118,6 @@ def test_stop_server():
 
 
 if __name__ == '__main__':
-    test_stop_server()
+    # test_stop_server()
     test_multiple_clients()
-    test_shared_connection_clients()
     test_simple_clients()

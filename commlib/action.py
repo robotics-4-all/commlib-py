@@ -14,7 +14,6 @@ from enum import IntEnum
 import datetime
 
 from .serializer import JSONSerializer, Serializer
-from .msg import BaseMessage
 from .logger import Logger
 
 
@@ -324,7 +323,6 @@ class BaseActionClient(object):
     def _on_status(self, msg, meta):
         self.logger.info(msg)
         self._status = msg['status']
-        # self._status = 
 
     def _on_feedback(self, msg, meta):
         self.logger.info(msg)

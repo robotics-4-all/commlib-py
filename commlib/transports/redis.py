@@ -35,7 +35,7 @@ class Credentials(object):
         self.password = password
 
 
-class AbstractConnectionParameters(object):
+class ConnectionParametersBase(object):
     __slots__ = ['db', 'creds']
 
     def __init__(self, db=0, creds=None):
@@ -45,15 +45,19 @@ class AbstractConnectionParameters(object):
             creds = Credentials()
         self.creds = creds
 
+    @property
+    def credentials(self):
+        return self.creds
 
-class TCPConnectionParameters(AbstractConnectionParameters):
+
+class TCPConnectionParameters(ConnectionParametersBase):
     def __init__(self, host='localhost', port=6379, *args, **kwargs):
         super(TCPConnectionParameters, self).__init__(*args, **kwargs)
         self.host = host
         self.port = port
 
 
-class UnixSocketConnectionParameters(AbstractConnectionParameters):
+class UnixSocketConnectionParameters(ConnectionParametersBase):
     def __init__(self, unix_socket='/tmp/redis.sock', *args, **kwargs):
         super(UnixSocketConnectionParameters, self).__init__(*args, **kwargs)
         self.unix_socket = unix_socket
@@ -64,9 +68,9 @@ class ConnectionParameters(TCPConnectionParameters):
         super(ConnectionParameters, self).__init__(*args, **kwargs)
 
 
-class RedisConnection(redis.Redis):
+class Connection(redis.Redis):
     def __init__(self, *args, **kwargs):
-        super(RedisConnection, self).__init__(*args, **kwargs)
+        super(Connection, self).__init__(*args, **kwargs)
 
 
 class RedisTransport(object):
@@ -74,11 +78,11 @@ class RedisTransport(object):
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
         if isinstance(conn_params, UnixSocketConnectionParameters):
-            self._redis = RedisConnection(
+            self._redis = Connection(
                 unix_socket_path=conn_params.unix_socket,
                 db=conn_params.db, decode_responses=True)
         elif isinstance(conn_params, TCPConnectionParameters):
-            self._redis = RedisConnection(host=conn_params.host,
+            self._redis = Connection(host=conn_params.host,
                                           port=conn_params.port,
                                           db=conn_params.db,
                                           decode_responses=True)
@@ -204,7 +208,7 @@ class RPCClient(BaseRPCClient):
         }
         return _req
 
-    def call(self, data, timeout=60):
+    def call(self, data: dict, timeout: float = 30):
         _msg = self.__prepare_request(data)
         _reply_to = _msg['header']['reply_to']
         _msg = self._serializer.serialize(_msg)
@@ -261,15 +265,6 @@ class Subscriber(BaseSubscriber):
                                          logger=self._logger)
         self._event_loop_thread = None
 
-    @property
-    def topic(self):
-        """topic"""
-        return self._topic
-
-    def _gen_random_id(self):
-        """Generate a random string id."""
-        return str(uuid.uuid4()).replace('-', '')
-
     def run(self):
         self._subscriber_thread = self._transport.subscribe(self._topic,
                                                             self._on_message)
@@ -296,7 +291,7 @@ class Subscriber(BaseSubscriber):
 
 class ActionServer(BaseActionServer):
     def __init__(self, conn_params=None, *args, **kwargs):
-        assert isinstance(conn_params, ConnectionParameters)
+        assert isinstance(conn_params, ConnectionParametersBase)
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
@@ -329,7 +324,7 @@ class ActionServer(BaseActionServer):
 
 class ActionClient(BaseActionClient):
     def __init__(self, conn_params=None, *args, **kwargs):
-        assert isinstance(conn_params, ConnectionParameters)
+        assert isinstance(conn_params, ConnectionParametersBase)
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
@@ -355,12 +350,6 @@ class ActionClient(BaseActionClient):
                                         on_message=self._on_feedback)
         self._status_sub.run()
         self._feedback_sub.run()
-
-
-class RPCServer(RPCService):
-    """For backward compatibility."""
-    def __init__(self, *args, **kwargs):
-        super(RPCServer, self).__init__(*args, **kwargs)
 
 
 class EventEmitter(BaseEventEmitter):

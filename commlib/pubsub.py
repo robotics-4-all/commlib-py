@@ -11,11 +11,15 @@ import uuid
 
 from .serializer import JSONSerializer
 from .logger import Logger
+from .utils import gen_random_id
 
 
 class BasePublisher(object):
-    def __init__(self, topic=None, msg_type=None, logger=None,
-                 debug=True, serializer=None):
+
+    def __init__(self, topic: str = None,
+                 logger: Logger = None,
+                 debug: bool = True,
+                 serializer=None):
         self._debug = debug
         self._topic = topic
 
@@ -30,6 +34,8 @@ class BasePublisher(object):
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
+        self._gen_random_id = gen_random_id
+
         assert isinstance(self._logger, Logger)
         self.logger.info('Created Publisher: <{}>'.format(self._topic))
 
@@ -41,17 +47,17 @@ class BasePublisher(object):
     def logger(self):
         return self._logger
 
-    def _gen_random_id(self):
-        """Generate correlationID."""
-        return str(uuid.uuid4()).replace('-', '')
-
     def publish(self, payload):
         raise NotImplementedError()
 
 
 class BaseSubscriber(object):
-    def __init__(self, topic=None, msg_type=None, on_message=None,
-                 logger=None, debug=True, serializer=None):
+
+    def __init__(self,topic: str = None,
+                 on_message: callable = None,
+                 logger: Logger = None,
+                 debug: bool = True,
+                 serializer=None):
         self._debug = debug
         self._topic = topic
 
@@ -68,6 +74,8 @@ class BaseSubscriber(object):
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
+        self._gen_random_id = gen_random_id
+
         assert isinstance(self._logger, Logger)
 
         self._executor = ThreadPoolExecutor(max_workers=2)
@@ -77,16 +85,17 @@ class BaseSubscriber(object):
         self.logger.info('Created Subscriber: <{}>'.format(self._topic))
 
     @property
+    def topic(self):
+        """topic"""
+        return self._topic
+
+    @property
     def debug(self):
         return self._debug
 
     @property
     def logger(self):
         return self._logger
-
-    def _gen_random_id(self):
-        """Generate correlationID."""
-        return str(uuid.uuid4()).replace('-', '')
 
     def run_forever(self):
         raise NotImplementedError()
