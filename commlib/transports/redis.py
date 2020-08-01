@@ -83,9 +83,9 @@ class RedisTransport(object):
                 db=conn_params.db, decode_responses=True)
         elif isinstance(conn_params, TCPConnectionParameters):
             self._redis = Connection(host=conn_params.host,
-                                          port=conn_params.port,
-                                          db=conn_params.db,
-                                          decode_responses=True)
+                                     port=conn_params.port,
+                                     db=conn_params.db,
+                                     decode_responses=True)
 
         self._conn_params = conn_params
         self.logger = Logger(self.__class__.__name__) if \
@@ -107,7 +107,8 @@ class RedisTransport(object):
         self._sub = self._rsub.subscribe(
             **{topic: callback})
         self._rsub.get_message()
-        return self._rsub.run_in_thread(0.001)
+        t = self._rsub.run_in_thread(0.001, daemon=True)
+        return t
 
     def wait_for_msg(self, queue_name, timeout=10):
         try:
@@ -157,7 +158,6 @@ class RPCService(BaseRPCService):
 
     def run_forever(self):
         self._transport.delete_queue(self._rpc_name)
-        self.logger.info('RPC Service listening on: <{}>'.format(self._rpc_name))
         while True:
             msgq, payload = self._transport.wait_for_msg(self._rpc_name,
                                                          timeout=0)
@@ -258,19 +258,22 @@ class Publisher(BasePublisher):
 class Subscriber(BaseSubscriber):
     def __init__(self, conn_params=None, queue_size=1, *args, **kwargs):
         self._queue_size = queue_size
-
         super(Subscriber, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
-        self._event_loop_thread = None
 
     def run(self):
         self._subscriber_thread = self._transport.subscribe(self._topic,
                                                             self._on_message)
 
     def stop(self):
-        self._subscriber_thread.stop()
+        """Stop background thread that handle subscribed topic messages"""
+        try:
+            self._exit_gracefully()
+        except Exception as exc:
+            print(exc)
+            pass
 
     def run_forever(self):
         try:
@@ -287,6 +290,9 @@ class Subscriber(BaseSubscriber):
         header = payload['header']
         if self._onmessage is not None:
             self._onmessage(data, header)
+
+    def _exit_gracefully(self):
+        self._subscriber_thread.stop()
 
 
 class ActionServer(BaseActionServer):

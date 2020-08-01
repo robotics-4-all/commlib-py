@@ -16,47 +16,6 @@ def on_goal(goalh):
             return {'result': 1}
 
 
-def run_amqp():
-    print('-----------------------------------------------------------------')
-    print('Running AMQP ACtion Test...')
-    print('-----------------------------------------------------------------')
-    action_name = 'testaction'
-    conn_params = acomm.ConnectionParameters()
-    conn_params.credentials.username = 'testuser'
-    conn_params.credentials.password = 'testuser'
-    conn_params.host = 'localhost'
-    conn_params.port = 8076
-
-    action = acomm.ActionServer(conn_params=conn_params,
-                                action_name=action_name,
-                                on_goal=on_goal)
-    action.run()
-
-    ac = acomm.ActionClient(conn_params=conn_params, action_name=action_name)
-    goal_data = {'a': 1, 'b': 'test'}
-
-    resp = ac.send_goal(goal_data)
-    _goal_id = resp['goal_id']
-    print('Send-Goal Response: {}'.format(resp))
-    time.sleep(1)
-    resp = ac.get_result(_goal_id)
-    print('Get-Result Response: {}'.format(resp))
-    time.sleep(1)
-    resp = ac.cancel_goal(_goal_id)
-    print('Cancel-Goal Response: {}'.format(resp))
-    time.sleep(1)
-    resp = ac.get_result(_goal_id)
-    print('Get-Result Response: {}'.format(resp))
-
-    resp = ac.send_goal(goal_data)
-    _goal_id = resp['goal_id']
-    print('Send-Goal Response: {}'.format(resp))
-    time.sleep(5)
-    resp = ac.get_result(_goal_id)
-    print('Get-Result Response: {}'.format(resp))
-    print('-----------------------------------------------------------------')
-
-
 def run_redis():
     print()
     print('-----------------------------------------------------------------')
@@ -95,11 +54,12 @@ def run_redis():
     time.sleep(5)
     resp = ac.get_result(_goal_id)
     print('Get-Result Response: {}'.format(resp))
+    action.stop()
 
 
 if __name__ == '__main__':
     run_redis()
-    run_amqp()
+    # run_amqp()
     print('==========================================')
     print('================END OF TEST===============')
     print('==========================================')

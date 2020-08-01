@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
-
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures.thread
 import threading
@@ -48,10 +41,8 @@ class GoalHandler(object):
 
     def _done_callback(self, future):
         if future.cancelled() or self._cancel_event.is_set():
-            print('Goal Cancelled')
             self.set_status(GoalStatus.CANCELED)
         elif future.done():
-            print('Goal Completed')
             self.set_status(GoalStatus.SUCCEDED)
         else:
             print('Whaaaaaat?..')
@@ -163,7 +154,6 @@ class BaseActionServer(object):
         return str(uuid.uuid4()).replace('-', '')
 
     def _handle_send_goal(self, msg, meta):
-        self.logger.info('Goal Received!')
         if self._current_goal is None:
             self._current_goal = GoalHandler(self._status_pub,
                                              self._feedback_pub,
@@ -252,6 +242,11 @@ class BaseActionServer(object):
         self._cancel_rpc.run()
         self._result_rpc.run()
 
+    def stop(self):
+        self._goal_rpc.stop()
+        self._cancel_rpc.stop()
+        self._result_rpc.stop()
+
 
 class BaseActionClient(object):
     def __init__(self, action_name, logger=None, debug=True, serializer=None,
@@ -306,7 +301,7 @@ class BaseActionClient(object):
         }
         return self._cancel_client.call(req, timeout=timeout)
 
-    def get_result(self, goal_id, timeout=10, wait=True):
+    def get_result(self, goal_id, timeout=10, wait=False):
         assert isinstance(goal_id, str)
         req = {
             'goal_id': goal_id
@@ -321,8 +316,7 @@ class BaseActionClient(object):
         return self._result_client.call(req, timeout=timeout)
 
     def _on_status(self, msg, meta):
-        self.logger.info(msg)
         self._status = msg['status']
 
     def _on_feedback(self, msg, meta):
-        self.logger.info(msg)
+        pass
