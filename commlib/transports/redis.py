@@ -158,7 +158,6 @@ class RPCService(BaseRPCService):
 
     def run_forever(self):
         self._transport.delete_queue(self._rpc_name)
-        self.logger.info('RPC Service listening on: <{}>'.format(self._rpc_name))
         while True:
             msgq, payload = self._transport.wait_for_msg(self._rpc_name,
                                                          timeout=0)
