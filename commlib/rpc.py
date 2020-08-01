@@ -104,7 +104,7 @@ class BaseRPCClient(object):
 
         self._gen_random_id = gen_random_id
 
-        self.logger.info('Created RPC Client: <{}>'.format(self._rpc_name))
+        self.logger.debug('Created RPC Client: <{}>'.format(self._rpc_name))
 
     @property
     def debug(self):

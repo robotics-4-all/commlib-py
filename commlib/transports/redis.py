@@ -295,14 +295,6 @@ class Subscriber(BaseSubscriber):
     def _exit_gracefully(self):
         self._subscriber_thread.stop()
 
-    def _signal_handle(self, number, frame):
-        self._exit_gracefully()
-
-    def __del__(self):
-        self._exit_gracefully()
-
-    def __exit__(self, type, value, traceback):
-        self._exit_gracefully()
 
 class ActionServer(BaseActionServer):
     def __init__(self, conn_params=None, *args, **kwargs):
