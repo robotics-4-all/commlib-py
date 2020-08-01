@@ -83,9 +83,9 @@ class RedisTransport(object):
                 db=conn_params.db, decode_responses=True)
         elif isinstance(conn_params, TCPConnectionParameters):
             self._redis = Connection(host=conn_params.host,
-                                          port=conn_params.port,
-                                          db=conn_params.db,
-                                          decode_responses=True)
+                                     port=conn_params.port,
+                                     db=conn_params.db,
+                                     decode_responses=True)
 
         self._conn_params = conn_params
         self.logger = Logger(self.__class__.__name__) if \
@@ -107,7 +107,8 @@ class RedisTransport(object):
         self._sub = self._rsub.subscribe(
             **{topic: callback})
         self._rsub.get_message()
-        return self._rsub.run_in_thread(0.001)
+        t = self._rsub.run_in_thread(0.001, daemon=True)
+        return t
 
     def wait_for_msg(self, queue_name, timeout=10):
         try:
@@ -258,19 +259,22 @@ class Publisher(BasePublisher):
 class Subscriber(BaseSubscriber):
     def __init__(self, conn_params=None, queue_size=1, *args, **kwargs):
         self._queue_size = queue_size
-
         super(Subscriber, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
-        self._event_loop_thread = None
 
     def run(self):
         self._subscriber_thread = self._transport.subscribe(self._topic,
                                                             self._on_message)
 
     def stop(self):
-        self._subscriber_thread.stop()
+        """Stop background thread that handle subscribed topic messages"""
+        try:
+            self._exit_gracefully()
+        except Exception as exc:
+            print(exc)
+            pass
 
     def run_forever(self):
         try:
@@ -288,6 +292,17 @@ class Subscriber(BaseSubscriber):
         if self._onmessage is not None:
             self._onmessage(data, header)
 
+    def _exit_gracefully(self):
+        self._subscriber_thread.stop()
+
+    def _signal_handle(self, number, frame):
+        self._exit_gracefully()
+
+    def __del__(self):
+        self._exit_gracefully()
+
+    def __exit__(self, type, value, traceback):
+        self._exit_gracefully()
 
 class ActionServer(BaseActionServer):
     def __init__(self, conn_params=None, *args, **kwargs):

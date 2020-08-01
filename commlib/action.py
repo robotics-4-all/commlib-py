@@ -252,6 +252,11 @@ class BaseActionServer(object):
         self._cancel_rpc.run()
         self._result_rpc.run()
 
+    def stop(self):
+        self._goal_rpc.stop()
+        self._cancel_rpc.stop()
+        self._result_rpc.stop()
+
 
 class BaseActionClient(object):
     def __init__(self, action_name, logger=None, debug=True, serializer=None,
@@ -306,7 +311,7 @@ class BaseActionClient(object):
         }
         return self._cancel_client.call(req, timeout=timeout)
 
-    def get_result(self, goal_id, timeout=10, wait=True):
+    def get_result(self, goal_id, timeout=10, wait=False):
         assert isinstance(goal_id, str)
         req = {
             'goal_id': goal_id

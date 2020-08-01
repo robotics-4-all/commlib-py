@@ -49,7 +49,7 @@ class BaseRPCService(object):
 
         self._main_thread = None
         self._t_stop_event = None
-        self.logger.info('Created RPC Service: <{}>'.format(self._rpc_name))
+        self.logger.debug('Created RPC Service <{}>'.format(self._rpc_name))
 
     @property
     def debug(self):
