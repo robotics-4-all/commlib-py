@@ -441,7 +441,6 @@ class AMQPTransport(object):
         @param bind_key: The binding key name.
         @type bind_key: string
         """
-        self.logger.info('Subscribed to topic: {}'.format(bind_key))
         try:
             self._channel.queue_bind(
                 exchange=exchange_name, queue=queue_name, routing_key=bind_key)
@@ -541,7 +540,7 @@ class RPCService(BaseRPCService):
             _ts_send = properties.timestamp
             # _ts_broker = properties.timestamp
         except Exception:
-            self.logger.warn("Could not calculate latency", exc_info=False)
+            self.logger.debug("Could not calculate latency", exc_info=False)
 
         try:
             _msg = self._deserialize_req_payload(body, _ctype, _cencoding)
@@ -1061,8 +1060,7 @@ class Subscriber(BaseSubscriber):
             _ts_send = properties.timestamp
             # _ts_broker = properties.timestamp
         except Exception:
-            self.logger.warn("Could not calculate latency",
-                              exc_info=False)
+            self.logger.debug("Could not calculate latency", exc_info=False)
 
         try:
             msg = self._deserialize_req_payload(body, _ctype, _cencoding)
