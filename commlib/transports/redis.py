@@ -1,11 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
-
-
 import functools
 import sys
 
@@ -22,7 +14,7 @@ import datetime
 
 import redis
 
-from commlib.logger import Logger
+from commlib.logger import Logger, LoggingLevel
 from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.action import BaseActionServer, BaseActionClient
@@ -100,17 +92,17 @@ class RedisTransport(object):
     def push_msg_to_queue(self, queue_name, payload):
         self._redis.rpush(queue_name, payload)
 
-    def publish(self, queue_name, payload):
+    def publish(self, queue_name: str, payload: dict):
         self._redis.publish(queue_name, payload)
 
-    def subscribe(self, topic, callback):
+    def subscribe(self, topic: str, callback: callable):
         self._sub = self._rsub.subscribe(
             **{topic: callback})
         self._rsub.get_message()
         t = self._rsub.run_in_thread(0.001, daemon=True)
         return t
 
-    def wait_for_msg(self, queue_name, timeout=10):
+    def wait_for_msg(self, queue_name: str, timeout=10):
         try:
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
         except Exception as exc:

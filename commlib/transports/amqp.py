@@ -18,15 +18,15 @@ import json
 import uuid
 import pika
 from collections import deque
-from threading import Semaphore, Thread, Event
+from threading import Semaphore, Thread, Event as ThreadEvent
 #  import ssl
 
 from commlib.logger import Logger, LoggingLevel
 from commlib.serializer import ContentType
 from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.logger import Logger
 from commlib.action import BaseActionServer, BaseActionClient
+from commlib.events import BaseEventEmitter, Event
 
 
 class MessageProperties(pika.BasicProperties):
@@ -167,7 +167,7 @@ class Connection(pika.BlockingConnection):
                 return
         self._events_thread = Thread(target=self._ensure_events_processed)
         self._events_thread.daemon = True
-        self._t_stop_event = Event()
+        self._t_stop_event = ThreadEvent()
         self._events_thread.start()
 
     def _ensure_events_processed(self):
@@ -674,7 +674,7 @@ class RPCClient(BaseRPCClient):
     Args:
         rpc_name (str): The name of the RPC.
         **kwargs: The Keyword arguments to pass to  the base class
-            (AMQPTransportSync).
+            (BaseRPCClient).
     """
     def __init__(self, conn_params=None, connection=None, use_corr_id=False,
                  *args, **kwargs):
@@ -881,7 +881,7 @@ class Publisher(BasePublisher):
         topic (str): The topic uri to publish data.
         exchange (str): The exchange to publish data.
         **kwargs: The keyword arguments to pass to the base class
-            (AMQPTransportSync).
+            (BasePublisher).
     """
 
     def __init__(self, conn_params=None, connection=None,
@@ -944,7 +944,6 @@ class Publisher(BasePublisher):
             routing_key=self._topic,
             properties=msg_props,
             body=_payload)
-        # self.logger.debug('Sent message to topic <{}>'.format(self._topic))
 
 
 class Subscriber(BaseSubscriber):
@@ -961,7 +960,7 @@ class Subscriber(BaseSubscriber):
         overflow (str): queue overflow behavior. Specified by AMQP Protocol.
             Defaults to `drop-head`.
         **kwargs: The keyword arguments to pass to the base class
-            (AMQPTransportSync).
+            (BaseSubscriber).
     """
 
     FREQ_CALC_SAMPLES_MAX = 100
@@ -1215,3 +1214,48 @@ class ActionClient(BaseActionClient):
 
     def __del__(self):
         self.stop()
+
+
+class EventEmitter(BaseEventEmitter):
+    def __init__(self, conn_params=None, exchange='amq.topic', *args, **kwargs):
+        super(EventEmitter, self).__init__(*args, **kwargs)
+
+        self._transport = AMQPTransport(conn_params=conn_params,
+                                        logger=self._logger)
+        self._exchange = exchange
+
+    def send_event(self, event: Event):
+        _msg = event.to_dict()
+        self.logger.debug(
+            'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
+        self._send_data(event.uri, event.to_dict())
+
+    def _send_data(self, topic: str, data: dict) -> None:
+        _payload = None
+        _encoding = None
+        _type = None
+
+        if isinstance(data, dict):
+            _payload = self._serializer.serialize(data).encode('utf-8')
+            _encoding = self._serializer.CONTENT_ENCODING
+            _type = self._serializer.CONTENT_TYPE
+        elif isinstance(data, str):
+            _type = 'text/plain'
+            _encoding = 'utf8'
+            _payload = data
+        elif isinstance(data, bytes):
+            _type = 'application/octet-stream'
+            _encoding = 'utf8'
+            _payload = data
+
+        msg_props = MessageProperties(
+            content_type=_type,
+            content_encoding=_encoding,
+            message_id=0,
+        )
+
+        self._transport._channel.basic_publish(
+            exchange=self._exchange,
+            routing_key=topic,
+            properties=msg_props,
+            body=_payload)

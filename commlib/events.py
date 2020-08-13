@@ -1,11 +1,5 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
-
 import time
+import datetime
 
 from .serializer import JSONSerializer
 from .logger import Logger
