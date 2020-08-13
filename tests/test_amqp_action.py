@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import commlib.transports.amqp as acomm
-import commlib.transports.redis as rcomm
 import time
 
 
@@ -22,14 +21,14 @@ def run_simple():
     print('Running REDIS ACtion Test...')
     print('-----------------------------------------------------------------')
     action_name = 'testaction'
-    conn_params = rcomm.ConnectionParameters()
+    conn_params = acomm.ConnectionParameters()
 
-    action = rcomm.ActionServer(conn_params=conn_params,
+    action = acomm.ActionServer(conn_params=conn_params,
                                 action_name=action_name,
                                 on_goal=on_goal)
     action.run()
 
-    ac = rcomm.ActionClient(conn_params=conn_params,
+    ac = acomm.ActionClient(conn_params=conn_params,
                             action_name=action_name)
     goal_data = {'a': 1, 'b': 'test'}
 
