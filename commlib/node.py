@@ -47,8 +47,13 @@ class Node(object):
             node_name = gen_random_id()
         self._node_name = node_name
 
-        self._input_ports = []
-        self._output_ports = []
+        self._publishers = []
+        self._subscribers = []
+        self._rpc_services = []
+        self._rpc_clients = []
+        self._action_servers = []
+        self._action_clients = []
+
         self._global_tranport_type = transport_type
         if transport_type == TransportType.REDIS:
             import commlib.transports.redis as comm
@@ -70,51 +75,78 @@ class Node(object):
                                     self._conn_params)
 
     @property
+    def input_ports(self):
+        return {
+            'subscriber': self._subscribers,
+            'rpc_service': self._rpc_services,
+            'action_server': self._action_servers
+        }
+
+    @property
+    def output_ports(self):
+        return {
+            'publisher': self._publishers,
+            'rpc_client': self._rpc_clients,
+            'action_client': self._action_clients
+        }
+
+    @property
     def ports(self):
         return {
-            'input': self._input_ports,
-            'output': self._output_ports
+            'input': self.input_ports,
+            'output': self.output_ports
         }
 
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        return self._commlib.Publisher(conn_params=self._conn_params,
-                                       logger = self._logger,
-                                       *args, **kwargs)
+        pub = self._commlib.Publisher(conn_params=self._conn_params,
+                                      logger = self._logger,
+                                      *args, **kwargs)
+        self._publishers.append(pub)
+        return pub
 
     def create_subscriber(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        return self._commlib.Subscriber(conn_params=self._conn_params,
+        sub =  self._commlib.Subscriber(conn_params=self._conn_params,
                                         logger = self._logger,
                                         *args, **kwargs)
+        self._subscribers.append(sub)
+        return sub
 
     def create_rpc(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        return self._commlib.RPCService(conn_params=self._conn_params,
+        rpc = self._commlib.RPCService(conn_params=self._conn_params,
                                        logger = self._logger,
                                        *args, **kwargs)
+        self._rpc_services.append(rpc)
+        return rpc
 
     def create_rpc_client(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        return self._commlib.RPCClient(conn_params=self._conn_params,
-                                       logger = self._logger,
-                                       *args, **kwargs)
+        client = self._commlib.RPCClient(conn_params=self._conn_params,
+                                         logger = self._logger,
+                                         *args, **kwargs)
+        self._rpc_clients.append(client)
+        return client
 
     def create_action(self, *args, **kwargs):
         """Creates a new ActionServer Endpoint.
         """
-        return self._commlib.ActionServer(conn_params=self._conn_params,
-                                          logger = self._logger,
-                                          *args, **kwargs)
+        action =  self._commlib.ActionServer(conn_params=self._conn_params,
+                                             logger = self._logger,
+                                             *args, **kwargs)
+        self._action_servers.append(action)
+        return action
 
     def create_action_client(self, *args, **kwargs):
         """Creates a new ActionClient Endpoint.
         """
-        return self._commlib.ActionClient(conn_params=self._conn_params,
-                                          logger = self._logger,
-                                          *args, **kwargs)
-
+        aclient = self._commlib.ActionClient(conn_params=self._conn_params,
+                                             logger = self._logger,
+                                             *args, **kwargs)
+        self._action_clients.append(aclient)
+        return aclient
