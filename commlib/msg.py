@@ -15,24 +15,50 @@ from typing import List, Dict, Tuple, Sequence
 import redis
 
 from .serializer import JSONSerializer
-from .logger import create_logger
 
 
 @MessageClass
 class Message:
+    """Message Class.
+    Base Message Class. Implements base methods to inherit.
+    """
     def __iter__(self):
         yield from as_tuple(self)
+
+    def as_dict(self):
+        return as_dict(self)
+
+    def from_dict(self, data_dict):
+        """Fill message data fields from dict key-value pairs."""
+        for key, val in data_dict.items():
+            if hasattr(self, key):
+                setattr(self, key, val)
+            else:
+                raise AttributeError(
+                    f'{self.__class__.__name__} has no attribute {key}')
 
 
 @MessageClass
 class HeaderMessage(Message):
+    """HeaderMessage Class.
+    Implements the Header data class.
+    """
     seq: int = MessageField(default=0)
     timestamp: int = MessageField(default=-1)
     node_id: str = MessageField(default='')
     properties: dict = MessageField(default_factory=dict)
 
+    def __post_init__(self):
+        if self.timestamp == -1:
+            self.time = datetime.datetime.now(
+                datetime.timezone.utc).timestamp()
+
 
 class RPCMessage:
+    """RPCMessage Class.
+    RPC Message Class. Defines Request and Response data classes for
+        instantiation. Used as a namespace.
+    """
     @MessageClass
     class Request(Message):
         header: HeaderMessage = HeaderMessage()
@@ -44,6 +70,9 @@ class RPCMessage:
 
 @MessageClass
 class PubSubMessage(Message):
+    """PubSubMessage Class.
+    Implementation of the PubSubMessage Base Data class.
+    """
     header: HeaderMessage = MessageField(default=HeaderMessage())
 
 
