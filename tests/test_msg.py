@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
 from commlib.msg import as_dict, make_msgclass, is_msgclass
-from commlib.msg import MessageClass, MessageField
-from commlib.msg import HeaderMessage, RPCMessage, PubSubMessage
+from dataclasses import dataclass as DataClass
+from dataclasses import field as DataField
+from commlib.msg import HeaderObject, RPCMessage, PubSubMessage, Object
 import time
 
 
-def test_header_message():
+def test_header_object():
     print('-----------------------------------------------------------------')
-    print('Running <Header Message> Test...')
+    print('Running <Header Object> Test...')
     print('-----------------------------------------------------------------')
-    header = HeaderMessage()
+    header = HeaderObject()
     header.seq = 1
     header.timestamp = 12312451231231
     header.node_id = 'test-node'
@@ -23,12 +24,12 @@ def test_rpc_message():
     print('-----------------------------------------------------------------')
 
     class TestRPCMessage(RPCMessage):
-        @MessageClass
+        @DataClass
         class Request(RPCMessage.Request):
             a: int = 0
             b: int = 0
 
-        @MessageClass
+        @DataClass
         class Response(RPCMessage.Response):
             a: int = 0
             b: int = 0
@@ -45,12 +46,12 @@ def test_as_dict():
     print('-----------------------------------------------------------------')
 
     class TestRPCMessage(RPCMessage):
-        @MessageClass
+        @DataClass
         class Request(RPCMessage.Request):
             a: int = 0
             b: int = 0
 
-        @MessageClass
+        @DataClass
         class Response(RPCMessage.Response):
             c: int = 0
             d: int = 0
@@ -87,12 +88,12 @@ def test_from_dict():
     print('-----------------------------------------------------------------')
 
     class TestRPCMessage(RPCMessage):
-        @MessageClass
+        @DataClass
         class Request(RPCMessage.Request):
             a: int = 0
             b: int = 0
 
-        @MessageClass
+        @DataClass
         class Response(RPCMessage.Response):
             c: int = 0
             d: int = 0
@@ -123,7 +124,7 @@ def test_pubsub_message():
     print('Running <PubSub Message> Test...')
     print('-----------------------------------------------------------------')
 
-    @MessageClass
+    @DataClass
     class TestPubSubMessage(PubSubMessage):
         a: int = 1
         b: str = 'aaa'
@@ -132,7 +133,28 @@ def test_pubsub_message():
     print(msg)
 
 
+def test_nested():
+    print('-----------------------------------------------------------------')
+    print('Running <Nested Message> Test...')
+    print('-----------------------------------------------------------------')
+
+    @DataClass
+    class TestObject(Object):
+        c: int = 1
+        d: int = 2
+
+    @DataClass
+    class TestPubSubMessage(PubSubMessage):
+        a: int = 1
+        b: TestObject = TestObject()
+
+    _msg = TestPubSubMessage()
+    _msg.b = TestObject(c=2, d=3)
+    print(_msg.as_dict())
+
+
 if __name__ == '__main__':
+    test_nested()
     test_as_dict()
     test_from_dict()
     test_rpc_message()
