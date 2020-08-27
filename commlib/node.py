@@ -37,7 +37,8 @@ class Node(object):
                  executor: NodeExecutorType = NodeExecutorType.ThreadExecutor,
                  transport_type: TransportType = TransportType.REDIS,
                  transport_connection_params=None,
-                 max_workers: int = 4):
+                 max_workers: int = 4,
+                 debug: bool = False):
         if executor == NodeExecutorType.ThreadExecutor:
             self._executor = ThreadPoolExecutor(max_workers=max_workers)
         elif executor == NodeExecutorType.ProcessExecutor:
@@ -46,6 +47,8 @@ class Node(object):
         if node_name is None:
             node_name = gen_random_id()
         self._node_name = node_name
+
+        self._debug = debug
 
         self._publishers = []
         self._subscribers = []
@@ -72,7 +75,7 @@ class Node(object):
         self._conn_params = transport_connection_params
 
         self._logger = RemoteLogger(self._node_name, transport_type,
-                                    self._conn_params)
+                                    self._conn_params, debug=debug)
 
     @property
     def input_ports(self):

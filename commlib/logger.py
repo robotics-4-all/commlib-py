@@ -106,12 +106,12 @@ class Logger(object):
 
 class RemoteLogger(Logger):
     """Remote Logger Class."""
-    def __init__(self, namespace, transport_type, conn_params):
+    def __init__(self, namespace, transport_type, conn_params, debug=False):
         if transport_type == TransportType.REDIS:
             from commlib.transports.redis import Publisher
         else:
             from commlib.transports.amqp import Publisher
-        super(RemoteLogger, self).__init__(namespace)
+        super(RemoteLogger, self).__init__(namespace, debug)
         self.conn_params = conn_params
         self.remote_topic = '{}.logs'.format(namespace)
         self.log_pub = Publisher(conn_params=conn_params,
