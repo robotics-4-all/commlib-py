@@ -58,6 +58,7 @@ class Node(object):
         self._rpc_clients = []
         self._action_servers = []
         self._action_clients = []
+        self._event_emitters = []
 
         self._global_tranport_type = transport_type
         if transport_type == TransportType.REDIS:
@@ -162,3 +163,12 @@ class Node(object):
                                              *args, **kwargs)
         self._action_clients.append(aclient)
         return aclient
+
+    def create_event_emitter(self, *args, **kwargs):
+        """Creates a new EventEmitter Endpoint.
+        """
+        em = self._commlib.EventEmitter(conn_params=self._conn_params,
+                                        logger = self._logger,
+                                        *args, **kwargs)
+        self._event_emitters.append(em)
+        return em
