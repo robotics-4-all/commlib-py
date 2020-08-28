@@ -19,6 +19,7 @@ import uuid
 import pika
 from collections import deque
 from threading import Semaphore, Thread, Event as ThreadEvent
+import logging
 #  import ssl
 
 from commlib.logger import Logger, LoggingLevel
@@ -27,6 +28,10 @@ from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.action import BaseActionServer, BaseActionClient
 from commlib.events import BaseEventEmitter, Event
+
+
+# Reduce log level for pika internal logger
+logging.getLogger("pika").setLevel(logging.INFO)
 
 
 class MessageProperties(pika.BasicProperties):
