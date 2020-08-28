@@ -1,10 +1,11 @@
 from enum import IntEnum
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import concurrent.futures.thread
+import time
 
 from commlib.endpoints import TransportType
 from commlib.utils import gen_random_id
-from commlib.logger import RemoteLogger
+from commlib.logger import RemoteLogger, Logger
 
 
 class NodePort(object):
@@ -38,6 +39,7 @@ class Node(object):
                  transport_type: TransportType = TransportType.REDIS,
                  transport_connection_params=None,
                  max_workers: int = 4,
+                 remote_logger: bool = False,
                  debug: bool = False):
         if executor == NodeExecutorType.ThreadExecutor:
             self._executor = ThreadPoolExecutor(max_workers=max_workers)
@@ -74,8 +76,11 @@ class Node(object):
             transport_connection_params = conn_params()
         self._conn_params = transport_connection_params
 
-        self._logger = RemoteLogger(self._node_name, transport_type,
-                                    self._conn_params, debug=debug)
+        if remote_logger:
+            self._logger = RemoteLogger(self._node_name, transport_type,
+                                        self._conn_params, debug=debug)
+        else:
+            self._logger = Logger(self._node_name, debug=debug)
 
     @property
     def input_ports(self):
@@ -99,6 +104,10 @@ class Node(object):
             'input': self.input_ports,
             'output': self.output_ports
         }
+
+    def run_forever(self):
+        while True:
+            time.sleep(0.001)
 
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
