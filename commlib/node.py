@@ -40,6 +40,7 @@ class Node(object):
                  transport_connection_params=None,
                  max_workers: int = 4,
                  remote_logger: bool = False,
+                 remote_logger_uri: str = '',
                  debug: bool = False):
         if executor == NodeExecutorType.ThreadExecutor:
             self._executor = ThreadPoolExecutor(max_workers=max_workers)
@@ -79,7 +80,9 @@ class Node(object):
 
         if remote_logger:
             self._logger = RemoteLogger(self._node_name, transport_type,
-                                        self._conn_params, debug=debug)
+                                        self._conn_params,
+                                        remote_topic=remote_logger_uri,
+                                        debug=debug)
         else:
             self._logger = Logger(self._node_name, debug=debug)
 
@@ -105,6 +108,9 @@ class Node(object):
             'input': self.input_ports,
             'output': self.output_ports
         }
+
+    def get_logger(self):
+        return self._logger
 
     def run_forever(self):
         while True:
