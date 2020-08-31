@@ -7,6 +7,7 @@ from __future__ import (
 
 import re
 import uuid
+import time
 
 
 def camelcase_to_snakecase(name):
@@ -17,3 +18,12 @@ def camelcase_to_snakecase(name):
 def gen_random_id():
     """Generate correlationID."""
     return str(uuid.uuid4()).replace('-', '')
+
+
+class Rate:
+    def __init__(self, hz):
+        self._hz = hz
+        self._tsleep = 1.0 / hz
+
+    def sleep(self):
+        time.sleep(self._tsleep)
