@@ -567,7 +567,13 @@ class RPCService(BaseRPCService):
                     'correlation_id': _corr_id
                 }
             }
-            resp = self.on_request(_msg, _meta)
+            try:
+                resp = self.on_request(_msg, _meta)
+            except Exception as exc:
+                resp = {
+                    'status': 500,
+                    'error': str(exc)
+                }
         else:
             resp = {
                 'error': 'Not Implemented',
@@ -1231,8 +1237,8 @@ class EventEmitter(BaseEventEmitter):
 
     def send_event(self, event: Event):
         _msg = event.to_dict()
-        self.logger.debug(
-            'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
+        # self.logger.debug(
+        #     'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
         self._send_data(event.uri, event.to_dict())
 
     def _send_data(self, topic: str, data: dict) -> None:

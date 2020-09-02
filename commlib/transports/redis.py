@@ -136,7 +136,13 @@ class RPCService(BaseRPCService):
 
     def _on_request(self, data, meta):
         if self.on_request is not None:
-            resp = self.on_request(data, meta)
+            try:
+                resp = self.on_request(data, meta)
+            except Exception as exc:
+                resp = {
+                    'status': 500,
+                    'error': str(exc)
+                }
         else:
             resp = {
                 'status': 500,
