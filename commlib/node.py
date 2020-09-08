@@ -2,6 +2,7 @@ from enum import IntEnum
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import concurrent.futures.thread
 import time
+import threading
 
 from commlib.endpoints import TransportType
 from commlib.utils import gen_random_id
@@ -33,8 +34,44 @@ class NodeExecutorType(IntEnum):
     ThreadExecutor = 2
 
 
+class HeartbeatThread(threading.Thread):
+    def __init__(self, pub_instance=None, interval=10, logger=None,
+                 *args, **kwargs):
+        super(HeartbeatThread, self).__init__(*args, **kwargs)
+        self._stop_event = threading.Event()
+        self._rate_secs = interval
+        self._heartbeat_pub = pub_instance
+        if logger is None:
+            logger = Logger(self.__class__.__name__)
+        self.daemon = True
+
+    def run(self):
+        try:
+            while not self._stop_event.isSet():
+                self._heartbeat_pub.publish({})
+                self._stop_event.wait(self._rate_secs)
+        except Exception as exc:
+            # print('Heartbeat Thread Ended')
+            pass
+        finally:
+            # print('Heartbeat Thread Ended')
+            pass
+
+    def force_join(self, timeout=None):
+        """ Stop the thread. """
+        self._stop_event.set()
+        threading.Thread.join(self, timeout)
+
+    def stop(self):
+        self._stop_event.set()
+
+    def stopped(self):
+        return self._stop_event.is_set()
+
+
 class Node(object):
-    def __init__(self, node_name=None, namespace: str = '',
+    def __init__(self, node_name: str = None,
+                 namespace: str = '',
                  executor: NodeExecutorType = NodeExecutorType.ThreadExecutor,
                  transport_type: TransportType = TransportType.REDIS,
                  transport_connection_params=None,
@@ -85,6 +122,15 @@ class Node(object):
                                         debug=debug)
         else:
             self._logger = Logger(self._node_name, debug=debug)
+
+    def init_heartbeat_thread(self, device_id: str = None):
+        if device_id is None:
+            hb_topic = f'thing.{self._node_name}.heartbeat'
+        else:
+            hb_topic = f'thing.{device_id}.{self._node_name}.heartbeat'
+
+        self._hb_thread = HeartbeatThread(
+            self.create_publisher(topic=hb_topic))
 
     @property
     def input_ports(self):

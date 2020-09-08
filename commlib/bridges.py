@@ -55,58 +55,68 @@ class RPCBridge(Bridge):
                  rpc_name: str,
                  client_conn_params,
                  server_conn_params,
-                 logger=None):
+                 logger=None,
+                 debug: bool = False):
         super(RPCBridge, self).__init__(btype, logger)
         self._client_conn_params = client_conn_params
         self._server_conn_params = server_conn_params
         self._rpc_name = rpc_name
+
         if self._btype == RPCBridgeType.REDIS_TO_AMQP:
             self._server = endpoint_factory(
                 EndpointType.RPCService, TransportType.REDIS)(
                     conn_params=self._server_conn_params,
                     rpc_name=self._rpc_name,
-                    on_request=self.on_request
+                    on_request=self.on_request,
+                    debug=debug
                 )
             self._client = endpoint_factory(
                 EndpointType.RPCClient, TransportType.AMQP)(
                     rpc_name=self._rpc_name,
-                    conn_params=self._client_conn_params
+                    conn_params=self._client_conn_params,
+                    debug=debug
                 )
         elif self._btype == RPCBridgeType.AMQP_TO_REDIS:
             self._server = endpoint_factory(
                 EndpointType.RPCService, TransportType.AMQP)(
                     conn_params=self._server_conn_params,
                     rpc_name=self._rpc_name,
-                    on_request=self.on_request
+                    on_request=self.on_request,
+                    debug=debug
                 )
             self._client = endpoint_factory(
                 EndpointType.RPCClient, TransportType.REDIS)(
                     rpc_name=self._rpc_name,
                     conn_params=self._client_conn_params,
+                    debug=debug
                 )
         elif self._btype == RPCBridgeType.AMQP_TO_AMQP:
             self._server = endpoint_factory(
                 EndpointType.RPCService, TransportType.AMQP)(
                     conn_params=self._server_conn_params,
                     rpc_name=self._rpc_name,
-                    on_request=self.on_request
+                    on_request=self.on_request,
+                    debug=debug
                 )
             self._client = endpoint_factory(
                 EndpointType.RPCClient, TransportType.AMQP)(
                     rpc_name=self._rpc_name,
                     conn_params=self._client_conn_params,
+                    debug=debug
                 )
         elif self._btype == RPCBridgeType.REDIS_TO_REDIS:
             self._server = endpoint_factory(
                 EndpointType.RPCService, TransportType.REDIS)(
                     conn_params=self._server_conn_params,
                     rpc_name=self._rpc_name,
-                    on_request=self.on_request
+                    on_request=self.on_request,
+                    debug=debug
                 )
             self._client = endpoint_factory(
                 EndpointType.RPCClient, TransportType.REDIS)(
                     rpc_name=self._rpc_name,
                     conn_params=self._client_conn_params,
+                    debug=debug
                 )
 
     def on_request(self, msg, meta):

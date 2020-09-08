@@ -26,7 +26,6 @@ if __name__ == '__main__':
              transport_connection_params=conn_params, debug=True)
     rpc = n.create_rpc(rpc_name=rpc_name, on_request=on_request)
     rpc.run()
-    time.sleep(1)
     rpc_c = n.create_rpc_client(rpc_name=rpc_name)
 
     _f = rpc_c.call_async({'a': 1, 'b': 2}, on_response=on_response)
