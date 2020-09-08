@@ -42,7 +42,7 @@ class BaseRPCService(object):
         else:
             self._serializer = JSONSerializer
 
-        self._logger = Logger(self.__class__.__name__) if \
+        self._logger = Logger(self.__class__.__name__, self._debug) if \
             logger is None else logger
 
         self._gen_random_id = gen_random_id
@@ -102,7 +102,7 @@ class BaseRPCClient(object):
         else:
             self._serializer = JSONSerializer
 
-        self._logger = Logger(self.__class__.__name__) if \
+        self._logger = Logger(self.__class__.__name__, debug=self._debug) if \
             logger is None else logger
 
         self._gen_random_id = gen_random_id
