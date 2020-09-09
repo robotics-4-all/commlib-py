@@ -570,6 +570,7 @@ class RPCService(BaseRPCService):
             try:
                 resp = self.on_request(_msg, _meta)
             except Exception as exc:
+                self.logger.error(str(exc), exc_info=False)
                 resp = {
                     'status': 500,
                     'error': str(exc)
