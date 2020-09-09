@@ -7,6 +7,7 @@ import threading
 from commlib.endpoints import TransportType
 from commlib.utils import gen_random_id
 from commlib.logger import RemoteLogger, Logger
+from commlib.bridges import TopicBridge, RPCBridge
 
 
 class NodePort(object):
@@ -48,7 +49,7 @@ class HeartbeatThread(threading.Thread):
     def run(self):
         try:
             while not self._stop_event.isSet():
-                self._heartbeat_pub.publish({})
+                self._heartbeat_pub.publish({'ts': self.get_ts()})
                 self._stop_event.wait(self._rate_secs)
         except Exception as exc:
             # print('Heartbeat Thread Ended')
@@ -67,6 +68,10 @@ class HeartbeatThread(threading.Thread):
 
     def stopped(self):
         return self._stop_event.is_set()
+
+    def get_ts(self):
+        timestamp = (time.time() + 0.5) * 1000000
+        return int(timestamp)
 
 
 class Node(object):
@@ -97,6 +102,8 @@ class Node(object):
         self._action_servers = []
         self._action_clients = []
         self._event_emitters = []
+        self._rpc_bridges = []
+        self._topic_bridges = []
 
         self._global_tranport_type = transport_type
         if transport_type == TransportType.REDIS:
@@ -224,3 +231,15 @@ class Node(object):
                                         *args, **kwargs)
         self._event_emitters.append(em)
         return em
+
+    def create_rpc_bridge(self, *args, **kwargs):
+        br = self._commlib.RPCBridge(logger=self._logger,
+                                     *args, **kwargs)
+        self._rpc_bridges.append(br)
+        return br
+
+    def create_topic_bridge(self, *args, **kwargs):
+        br = self._commlib.TopicBridge(logger=self._logger,
+                                       *args, **kwargs)
+        self._topic_bridges.append(br)
+        return br

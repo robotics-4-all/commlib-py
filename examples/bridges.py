@@ -13,8 +13,39 @@ def on_request(msg, meta):
     return msg
 
 
-def on_message(nsg, meta):
-    print('Data received at topic.')
+def on_message(msg, meta):
+    print(f'Data received at topic - {msg}')
+
+
+def redis_to_amqp_topic_bridge():
+    """
+    [Broker A] ------------> [Broker B] ---> [Consumer Endpoint]
+    """
+    bA_params = rcomm.ConnectionParameters()
+    bB_params = acomm.ConnectionParameters()
+    bA_uri = 'rpc.bridge.testA'
+    bB_uri = 'rpc.bridge.testB'
+    br = TopicBridge(TopicBridgeType.REDIS_TO_AMQP, bA_uri, bB_uri,
+                     bA_params, bB_params, debug=True)
+    br.run()
+
+    pub = rcomm.Publisher(conn_params=bA_params,
+                          topic=bA_uri)
+
+    sub = acomm.Subscriber(
+        conn_params=bB_params,
+        topic=bB_uri,
+        on_message=on_message
+    )
+    sub.run()
+
+    count = 0
+    while count < 10:
+        pub.publish({'a': 1})
+        time.sleep(1)
+        count += 1
+    br.stop()
+    sub.stop()
 
 
 def redis_to_amqp_rpc_bridge():
@@ -52,4 +83,5 @@ def redis_to_amqp_rpc_bridge():
 
 
 if __name__ == '__main__':
-    redis_to_amqp_rpc_bridge()
+    # redis_to_amqp_rpc_bridge()
+    redis_to_amqp_topic_bridge()

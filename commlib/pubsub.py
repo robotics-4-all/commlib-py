@@ -36,7 +36,6 @@ class BasePublisher(object):
 
         self._gen_random_id = gen_random_id
 
-        assert isinstance(self._logger, Logger)
         self.logger.debug('Created Publisher: <{}>'.format(self._topic))
 
     @property
