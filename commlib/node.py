@@ -76,7 +76,6 @@ class HeartbeatThread(threading.Thread):
 
 class Node(object):
     def __init__(self, node_name: str = None,
-                 namespace: str = '',
                  executor: NodeExecutorType = NodeExecutorType.ThreadExecutor,
                  transport_type: TransportType = TransportType.REDIS,
                  transport_connection_params=None,
@@ -130,14 +129,10 @@ class Node(object):
         else:
             self._logger = Logger(self._node_name, debug=debug)
 
-    def init_heartbeat_thread(self, device_id: str = None):
-        if device_id is None:
-            hb_topic = f'thing.{self._node_name}.heartbeat'
-        else:
-            hb_topic = f'thing.{device_id}.{self._node_name}.heartbeat'
-
+    def init_heartbeat_thread(self, topic: str):
         self._hb_thread = HeartbeatThread(
-            self.create_publisher(topic=hb_topic))
+            self.create_publisher(topic=topic))
+        self._hb_thread.start()
 
     @property
     def input_ports(self):

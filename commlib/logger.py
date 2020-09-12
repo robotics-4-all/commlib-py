@@ -129,6 +129,8 @@ class RemoteLogger(Logger):
 
         self._formatting = '[{timestamp}][{namespace}][{level}] - {msg}'
 
+        self.info(f'Initiated RemoteLogger <{self.remote_topic}>')
+
     @property
     def remote(self):
         return self._remote_state
