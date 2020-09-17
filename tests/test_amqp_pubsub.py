@@ -12,10 +12,10 @@ ITERATIONS = 3
 TOPIC_NAME = 'testtopic'
 num_clients = 10
 conn_params = ConnectionParameters()
-conn_params.credentials.username = 'testuser'
-conn_params.credentials.password = 'testuser'
+conn_params.credentials.username = 'guest'
+conn_params.credentials.password = 'guest'
 conn_params.host = 'localhost'
-conn_params.port = 8076
+conn_params.port = 5672
 conn_params.heartbeat_timeout = HB_TIMEOUT  ## Seconds
 
 

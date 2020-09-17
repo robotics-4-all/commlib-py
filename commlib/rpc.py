@@ -8,6 +8,8 @@ from __future__ import (
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import uuid
+from concurrent import futures
+from functools import partial
 
 from .serializer import JSONSerializer
 from .logger import Logger
@@ -40,7 +42,7 @@ class BaseRPCService(object):
         else:
             self._serializer = JSONSerializer
 
-        self._logger = Logger(self.__class__.__name__) if \
+        self._logger = Logger(self.__class__.__name__, self._debug) if \
             logger is None else logger
 
         self._gen_random_id = gen_random_id
@@ -88,7 +90,8 @@ class BaseRPCClient(object):
                  rpc_name: str = None,
                  logger: Logger = None,
                  debug: bool = True,
-                 serializer=None):
+                 serializer=None,
+                 max_workers=5):
         if rpc_name is None:
             raise ValueError()
         self._rpc_name = rpc_name
@@ -99,10 +102,12 @@ class BaseRPCClient(object):
         else:
             self._serializer = JSONSerializer
 
-        self._logger = Logger(self.__class__.__name__) if \
+        self._logger = Logger(self.__class__.__name__, debug=self._debug) if \
             logger is None else logger
 
         self._gen_random_id = gen_random_id
+
+        self._executor = futures.ThreadPoolExecutor(max_workers=max_workers)
 
         self.logger.debug('Created RPC Client: <{}>'.format(self._rpc_name))
 
@@ -116,3 +121,26 @@ class BaseRPCClient(object):
 
     def call(self, msg: dict, timeout: float = 30):
         raise NotImplementedError()
+
+    def call_async(self, msg: dict, timeout: float = 30,
+                   on_response: callable = None):
+        _future = self._executor.submit(self.call, msg, timeout)
+        if on_response is not None:
+            _future.add_done_callback(
+                partial(self._done_callback, on_response)
+            )
+        return _future
+
+    def _done_callback(self, on_response, _future):
+        if _future.cancelled():
+            self.logger.debug('Future object was cancelled')
+            ## TODO: Implement Calcellation logic
+        elif _future.done():
+            error = _future.exception()
+            if error:
+                self.logger.debug('Future threw exception')
+                ## TODO: Implement Exception logic
+            else:
+                result = _future.result()
+                on_response(result)
+                return result

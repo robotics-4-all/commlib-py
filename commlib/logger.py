@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import time
 import logging
 import logging.config
 
@@ -106,20 +107,29 @@ class Logger(object):
 
 class RemoteLogger(Logger):
     """Remote Logger Class."""
-    def __init__(self, namespace, transport_type, conn_params):
+    def __init__(self, namespace, transport_type, conn_params,
+                 remote_topic='', debug=False):
         if transport_type == TransportType.REDIS:
             from commlib.transports.redis import Publisher
         else:
             from commlib.transports.amqp import Publisher
-        super(RemoteLogger, self).__init__(namespace)
+        super(RemoteLogger, self).__init__(namespace, debug)
+
         self.conn_params = conn_params
-        self.remote_topic = '{}.logs'.format(namespace)
+
+        if remote_topic == '':
+            self.remote_topic = '{}.logs'.format(namespace)
+        else:
+            self.remote_topic = remote_topic
+
         self.log_pub = Publisher(conn_params=conn_params,
                                  topic=self.remote_topic)
         self._remote_state = 1
         self._std_state = 1
 
-        self._formatting = '[{timestamp}][{namespace}][{level}]'
+        self._formatting = '[{timestamp}][{namespace}][{level}] - {msg}'
+
+        self.info(f'Initiated RemoteLogger <{self.remote_topic}>')
 
     @property
     def remote(self):
@@ -146,9 +156,10 @@ class RemoteLogger(Logger):
             self._std_state = 0
 
     def format_msg(self, msg, level):
-        fmsg = self._formatting.format(timestamp=-1,
+        fmsg = self._formatting.format(timestamp=self._gen_ts(),
                                        namespace=self.namespace,
-                                       level=level)
+                                       level=level,
+                                       msg=msg)
         return {'msg': fmsg}
 
     def debug(self, msg, exc_info=False):
@@ -174,3 +185,6 @@ class RemoteLogger(Logger):
             self.std_logger.error(msg, exc_info=exc_info)
         if self._remote_state:
             self.log_pub.publish(self.format_msg(msg, 'ERROR'))
+
+    def _gen_ts(self):
+        return int((time.time() + 0.5) * 1000)
