@@ -14,6 +14,7 @@ from functools import partial
 from .serializer import JSONSerializer
 from .logger import Logger
 from .utils import gen_random_id
+from .msg import RPCMessage
 
 
 class BaseRPCService(object):
@@ -25,14 +26,18 @@ class BaseRPCService(object):
     """
 
     def __init__(self, rpc_name: str = None,
+                 msg_type: RPCMessage = None,
                  on_request: callable = None,
                  logger: Logger = None,
                  debug: bool = True,
                  workers: int = 2,
                  serializer=None):
         if rpc_name is None:
-            raise ValueError()
+            raise ValueError('rpc_name cannot be None')
+        if msg_type is None:
+            raise ValueError('msg_type cannot be None')
         self._rpc_name = rpc_name
+        self._msg_type = msg_type
         self._num_workers = workers
         self._debug = debug
         self.on_request = on_request
@@ -88,13 +93,17 @@ class BaseRPCClient(object):
 
     def __init__(self,
                  rpc_name: str = None,
+                 msg_type: RPCMessage = None,
                  logger: Logger = None,
                  debug: bool = True,
                  serializer=None,
                  max_workers=5):
         if rpc_name is None:
-            raise ValueError()
+            raise ValueError('rpc_name cannot be None')
+        if msg_type is None:
+            raise ValueError('msg_type cannot be None')
         self._rpc_name = rpc_name
+        self._msg_type = msg_type
         self._debug = debug
 
         if serializer is not None:
@@ -119,10 +128,11 @@ class BaseRPCClient(object):
     def logger(self):
         return self._logger
 
-    def call(self, msg: dict, timeout: float = 30):
+    def call(self, msg: RPCMessage.Request, timeout: float = 30):
         raise NotImplementedError()
 
-    def call_async(self, msg: dict, timeout: float = 30,
+    def call_async(self, msg: RPCMessage.Request,
+                   timeout: float = 30.0,
                    on_response: callable = None):
         _future = self._executor.submit(self.call, msg, timeout)
         if on_response is not None:

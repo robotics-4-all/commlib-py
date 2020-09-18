@@ -19,6 +19,7 @@ from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.action import BaseActionServer, BaseActionClient
 from commlib.events import BaseEventEmitter, Event
+from commlib.msg import RPCMessage, PubSubMessage
 
 
 class Credentials(object):
@@ -124,7 +125,8 @@ class RPCService(BaseRPCService):
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
                 'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING
+                'content_encoding': self._serializer.CONTENT_ENCODING,
+                'msg_type': ''  ## TODO
             }
         }
         _resp = {
@@ -134,26 +136,20 @@ class RPCService(BaseRPCService):
         _resp = self._serializer.serialize(_resp)
         self._transport.push_msg_to_queue(reply_to, _resp)
 
-    def _on_request(self, data, meta):
-        if self.on_request is not None:
-            try:
-                resp = self.on_request(data, meta)
-            except Exception as exc:
-                self.logger.error(str(exc), exc_info=False)
-                resp = {
-                    'status': 500,
-                    'error': str(exc)
-                }
-        else:
-            resp = {
-                'status': 500,
-                'error': 'Not Implemented'
-            }
-        if not isinstance(resp, dict):
-            raise ValueError()
+    def _on_request(self, msg: RPCMessage.Request, meta):
+        try:
+            resp = self.on_request(msg)
+        except Exception as exc:
+            self.logger.error(str(exc), exc_info=False)
+            resp = self._msg_type.Response()
+        if not isinstance(resp, self._msg_type.Response):
+            self.logger.error('Wrong Response type!')
+            resp = self._msg_type.Response()
+        data = resp.as_dict()
+
         reply_to = meta['reply_to']
 
-        self._send_response(resp, reply_to)
+        self._send_response(data, reply_to)
 
     def run_forever(self):
         self._transport.delete_queue(self._rpc_name)
@@ -176,8 +172,9 @@ class RPCService(BaseRPCService):
         payload = self._serializer.deserialize(payload)
         data = payload['data']
         header = payload['header']
+        req_msg = self._msg_type.Request(**data)
         self.logger.debug('RPC Request <{}>'.format(self._rpc_name))
-        _future = self._executor.submit(self._on_request, data, header)
+        _future = self._executor.submit(self._on_request, req_msg, header)
         return _future
 
 
@@ -207,7 +204,9 @@ class RPCClient(BaseRPCClient):
         }
         return _req
 
-    def call(self, data: dict, timeout: float = 30):
+    def call(self, msg: RPCMessage.Request, timeout: float = 30):
+        ## TODO: Evaluate msg type passed here.
+        data = msg.as_dict()
         _msg = self.__prepare_request(data)
         _reply_to = _msg['header']['reply_to']
         _msg = self._serializer.serialize(_msg)
@@ -217,7 +216,9 @@ class RPCClient(BaseRPCClient):
         if _msg is None:
             return None
         _msg = self._serializer.deserialize(_msg)
-        return _msg['data']
+        resp = self._msg_type.Response(**_msg['data'])
+        ## TODO: Evaluate response type and raise exception if necessary
+        return resp
 
 
 class Publisher(BasePublisher):
