@@ -28,6 +28,7 @@ from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.action import BaseActionServer, BaseActionClient
 from commlib.events import BaseEventEmitter, Event
+from commlib.msg import RPCMessage, PubSubMessage
 
 
 # Reduce log level for pika internal logger
@@ -491,23 +492,26 @@ class RPCService(BaseRPCService):
             Defaults to (AMQT default).
         on_request (function): The on-request callback function to register.
     """
-    def __init__(self, conn_params=None, exchange='', *args, **kwargs):
-        """Constructor. """
+    def __init__(self,
+                 msg_type: RPCMessage,
+                 conn_params: ConnectionParameters = None,
+                 exchange: str = '',
+                 *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            exchange (str): exchange
+            args:
+            kwargs:
+        """
+        self._msg_type = msg_type
         self._exchange = exchange
         self._closing = False
-        super(RPCService, self).__init__(*args, **kwargs)
+        super(RPCService, self).__init__(msg_type=msg_type, *args, **kwargs)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
-
-    def is_alive(self):
-        """Returns True if connection is alive and False otherwise."""
-        if self._transport.connection is None:
-            return False
-        elif self._transport.connection.is_open:
-            return True
-        else:
-            return False
 
     def run_forever(self, raise_if_exists=True):
         """Run RPC Service in normal mode. Blocking operation."""
@@ -518,7 +522,7 @@ class RPCService(BaseRPCService):
         self._rpc_queue = self._transport.create_queue(self._rpc_name)
         self._transport.set_channel_qos()
         self._transport.consume_fromm_queue(self._rpc_queue,
-                                            self._on_request_wrapper)
+                                            self._on_request)
         try:
             self._transport.start_consuming()
         except Exception as exc:
@@ -528,8 +532,8 @@ class RPCService(BaseRPCService):
     def _rpc_exists(self):
         return self._transport.queue_exists(self._rpc_name)
 
-    def _on_request_wrapper(self, ch, method, properties, body):
-        _msg = {}
+    def _on_request(self, ch, method, properties, body):
+        _data = {}
         _ctype = None
         _cencoding = None
         _ts_send = None
@@ -548,7 +552,7 @@ class RPCService(BaseRPCService):
             self.logger.debug("Could not calculate latency", exc_info=False)
 
         try:
-            _msg = self._deserialize_req_payload(body, _ctype, _cencoding)
+            _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
@@ -568,37 +572,22 @@ class RPCService(BaseRPCService):
                 }
             }
             try:
-                resp = self.on_request(_msg, _meta)
+                req_msg = self._msg_type.Request(**_data)
+                resp = self.on_request(req_msg)
             except Exception as exc:
                 self.logger.error(str(exc), exc_info=False)
-                resp = {
-                    'status': 500,
-                    'error': str(exc)
-                }
+                resp = self._msg_type.Response()
         else:
-            resp = {
-                'error': 'Not Implemented',
-                'status': 501
-            }
+            resp = self._msg_type.Response()
 
+        _payload = None
+        _encoding = None
+        _type = None
         try:
-            _payload = None
-            _encoding = None
-            _type = None
-
-            if isinstance(resp, dict):
-                _payload = self._serializer.serialize(resp).encode('utf-8')
-                _encoding = self._serializer.CONTENT_ENCODING
-                _type = self._serializer.CONTENT_TYPE
-            elif isinstance(resp, str):
-                _type = 'text/plain'
-                _encoding = 'utf8'
-                _payload = resp
-            elif isinstance(resp, bytes):
-                _type = 'application/octet-stream'
-                _encoding = 'utf8'
-                _payload = resp
-
+            _encoding = self._serializer.CONTENT_ENCODING
+            _type = self._serializer.CONTENT_TYPE
+            _payload = self._serializer.serialize(
+                resp.as_dict()).encode(_encoding)
         except Exception as e:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
@@ -620,31 +609,6 @@ class RPCService(BaseRPCService):
             body=_payload)
         # Acknowledge receiving the message.
         ch.basic_ack(delivery_tag=method.delivery_tag)
-
-    def _deserialize_req_payload(self, data, content_type, content_encoding):
-        """Deserialize wire data.
-
-        Args:
-            data (str|dict): Data to deserialize.
-            content_encoding (str): The content encoding.
-            content_type (str): The content type. Defaults to `utf8`.
-        """
-        _data = None
-        if content_encoding is None:
-            content_encoding = 'utf8'
-        if content_type == ContentType.json:
-            _data = self._serializer.deserialize(data)
-        elif content_type == ContentType.text:
-            _data = data.decode(content_encoding)
-        elif content_type == ContentType.raw_bytes:
-            _data = data
-        else:
-            self.logger.warning(
-                    'Content-Type was not set in headers or is invalid!' + \
-                            ' Deserializing using default JSON serializer')
-            ## TODO: Not the proper way!!!!
-            _data = self._serializer.deserialize(data)
-        return _data
 
     def close(self):
         """Stop RPC Service.
@@ -688,10 +652,15 @@ class RPCClient(BaseRPCClient):
         **kwargs: The Keyword arguments to pass to  the base class
             (BaseRPCClient).
     """
-    def __init__(self, conn_params=None, connection=None, use_corr_id=False,
+    def __init__(self,
+                 msg_type: RPCMessage,
+                 conn_params: ConnectionParameters = None,
+                 connection: Connection = None,
+                 use_corr_id=False,
                  *args, **kwargs):
         """Constructor."""
         self._use_corr_id = use_corr_id
+        self._msg_type = msg_type
         self._corr_id = None
         self._response = None
         self._exchange = ExchangeTypes.Default
@@ -699,7 +668,7 @@ class RPCClient(BaseRPCClient):
         self._delay = 0
         self.onresponse = None
 
-        super(RPCClient, self).__init__(*args, **kwargs)
+        super(RPCClient, self).__init__(msg_type=msg_type, *args, **kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -707,7 +676,6 @@ class RPCClient(BaseRPCClient):
         self._transport = AMQPTransport(conn_params, self._debug,
                                         self._logger, connection)
         # self._transport.create_channel()
-
 
         self._transport.add_threadsafe_callback(
             self._transport.channel.basic_consume,
@@ -733,14 +701,13 @@ class RPCClient(BaseRPCClient):
         """
         return self._delay
 
-
     def _on_response(self, ch, method, properties, body):
         _ctype = None
         _cencoding = None
         _ts_send = None
         _ts_broker = 0
         _dmode = None
-        _msg = None
+        _data = None
         _meta = None
         try:
             if self._use_corr_id:
@@ -772,18 +739,18 @@ class RPCClient(BaseRPCClient):
                               exc_info=True)
 
         try:
-            _msg = self._deserialize_req_payload(body, _ctype, _cencoding)
+            _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
-            _msg = body
-
+            _data = {}
+        _msg = self._msg_type.Response(**_data)
 
         self._response = _msg
         self._response_meta = _meta
 
         if self.onresponse is not None and callable(self.onresponse):
-            self.onresponse(_msg, _meta)
+            self.onresponse(_msg)
 
     def run(self):
         self._transport.detach_amqp_events_thread()
@@ -792,11 +759,11 @@ class RPCClient(BaseRPCClient):
         """Generate correlationID."""
         return str(uuid.uuid4())
 
-    def call(self, payload, timeout=10):
+    def call(self, msg: RPCMessage.Request, timeout=10):
         """Call RPC.
 
         Args:
-            msg (dict|Message): The message to send.
+            msg (RPCMessage.Request): The message to send.
             timeout (float): Response timeout. Set this value carefully
                 based on application criteria.
         """
@@ -806,7 +773,7 @@ class RPCClient(BaseRPCClient):
 
         start_t = time.time()
         self._transport.connection.add_callback_threadsafe(
-            functools.partial(self._send_data, payload))
+            functools.partial(self._send_msg, msg))
         # self._transport.process_amqp_events()
         resp = self._wait_for_response(timeout=timeout)
         elapsed_t = time.time() - start_t
@@ -821,47 +788,19 @@ class RPCClient(BaseRPCClient):
         while self._response is None:
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:
-                return None
+                return self._msg_type.Response()
             # self._transport.connection.sleep(0.001)
             time.sleep(0.001)
         return self._response
 
-    def _deserialize_req_payload(self, data, content_type, content_encoding):
-        """Deserialize wire data.
-
-        Args:
-            data: Data to deserialize.
-            content_encoding (str): The content encoding.
-            content_type (str): The content type. Defaults to `utf8`
-        """
-        _data = None
-        if content_encoding is None:
-            content_encoding = 'utf8'
-        if content_type == ContentType.json:
-            _data = self._serializer.deserialize(data)
-        elif content_type == ContentType.text:
-            _data = data.decode(content_encoding)
-        elif content_type == ContentType.raw_bytes:
-            _data = data
-        return _data
-
-    def _send_data(self, data):
+    def _send_msg(self, msg):
         _payload = None
         _encoding = None
         _type = None
 
-        if isinstance(data, dict):
-            _payload = self._serializer.serialize(data).encode('utf-8')
-            _encoding = self._serializer.CONTENT_ENCODING
-            _type = self._serializer.CONTENT_TYPE
-        elif isinstance(data, str):
-            _type = 'text/plain'
-            _encoding = 'utf8'
-            _payload = data
-        elif isinstance(data, bytes):
-            _type = 'application/octet-stream'
-            _encoding = 'utf8'
-            _payload = data
+        _encoding = self._serializer.CONTENT_ENCODING
+        _type = self._serializer.CONTENT_TYPE
+        _payload = self._serializer.serialize(msg.as_dict()).encode(_encoding)
 
         # Direct reply-to implementation
         _rpc_props = MessageProperties(

@@ -3,7 +3,6 @@
 import time
 
 from commlib.msg import RPCMessage, DataClass
-from commlib.transports.redis import RPCService, RPCClient, ConnectionParameters
 
 
 class AddTwoIntMessage(RPCMessage):
@@ -23,8 +22,10 @@ def add_two_int_handler(msg):
     return resp
 
 
-if __name__ == '__main__':
-    rpc_name = 'example_rpc_service'
+def run_amqp(rpc_name):
+    from commlib.transports.amqp import (
+        RPCService, RPCClient, ConnectionParameters
+    )
     rpc = RPCService(rpc_name=rpc_name,
                      msg_type=AddTwoIntMessage,
                      on_request=add_two_int_handler)
@@ -37,3 +38,24 @@ if __name__ == '__main__':
     while True:
         time.sleep(0.001)
 
+
+def run_redis(rpc_name):
+    from commlib.transports.redis import (
+        RPCService, RPCClient, ConnectionParameters
+    )
+    rpc = RPCService(rpc_name=rpc_name,
+                     msg_type=AddTwoIntMessage,
+                     on_request=add_two_int_handler)
+    rpc.run()
+
+    client = RPCClient(rpc_name=rpc_name, msg_type=AddTwoIntMessage)
+    msg = AddTwoIntMessage.Request(a=1, b=2)
+    resp = client.call(msg)
+    print(resp)
+    while True:
+        time.sleep(0.001)
+
+
+if __name__ == '__main__':
+    rpc_name = 'example_rpc_service'
+    run_amqp(rpc_name)

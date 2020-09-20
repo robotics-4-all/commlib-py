@@ -36,7 +36,9 @@ class NodeExecutorType(IntEnum):
 
 
 class HeartbeatThread(threading.Thread):
-    def __init__(self, pub_instance=None, interval=10, logger=None,
+    def __init__(self, pub_instance=None,
+                 interval: int = 10,
+                 logger: Logger = None,
                  *args, **kwargs):
         super(HeartbeatThread, self).__init__(*args, **kwargs)
         self._stop_event = threading.Event()
