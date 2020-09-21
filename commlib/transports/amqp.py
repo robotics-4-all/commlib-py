@@ -835,12 +835,16 @@ class Publisher(BasePublisher):
             (BasePublisher).
     """
 
-    def __init__(self, conn_params=None, connection=None,
-                 exchange='amq.topic', *args, **kwargs):
+    def __init__(self,
+                 msg_type: PubSubMessage,
+                 conn_params: ConnectionParameters = None,
+                 connection: Connection = None,
+                 exchange: str = 'amq.topic',
+                 *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
 
-        super(Publisher, self).__init__(*args, **kwargs)
+        super(Publisher, self).__init__(msg_type=msg_type, *args, **kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -855,34 +859,25 @@ class Publisher(BasePublisher):
     def run(self):
         self._transport.detach_amqp_events_thread()
 
-    def publish(self, payload):
+    def publish(self, msg: PubSubMessage):
         """ Publish message once.
 
         Args:
-            msg (dict|Message|str|bytes): Message/Data to publish.
+            msg (PubSubMessage): Message to publish.
         """
         ## Thread Safe solution
-        self._transport.add_threadsafe_callback(self._send_data, payload)
+        self._transport.add_threadsafe_callback(self._send_msg, msg)
         # self._send_data(payload)
         # self._transport.process_amqp_events()
 
-    def _send_data(self, data):
+    def _send_msg(self, msg: PubSubMessage):
         _payload = None
         _encoding = None
         _type = None
 
-        if isinstance(data, dict):
-            _payload = self._serializer.serialize(data).encode('utf-8')
-            _encoding = self._serializer.CONTENT_ENCODING
-            _type = self._serializer.CONTENT_TYPE
-        elif isinstance(data, str):
-            _type = 'text/plain'
-            _encoding = 'utf8'
-            _payload = data
-        elif isinstance(data, bytes):
-            _type = 'application/octet-stream'
-            _encoding = 'utf8'
-            _payload = data
+        _encoding = self._serializer.CONTENT_ENCODING
+        _type = self._serializer.CONTENT_TYPE
+        _payload = self._serializer.serialize(msg.as_dict()).encode(_encoding)
 
         msg_props = MessageProperties(
             content_type=_type,
@@ -916,8 +911,14 @@ class Subscriber(BaseSubscriber):
 
     FREQ_CALC_SAMPLES_MAX = 100
 
-    def __init__(self, conn_params=None, exchange='amq.topic', queue_size=10,
-                 message_ttl=60000, overflow='drop-head', *args, **kwargs):
+    def __init__(self,
+                 msg_type = PubSubMessage,
+                 conn_params: ConnectionParameters = None,
+                 exchange: str = 'amq.topic',
+                 queue_size: int = 10,
+                 message_ttl: int = 60000,
+                 overflow: str = 'drop-head',
+                 *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
         self._queue_name = None
@@ -926,7 +927,7 @@ class Subscriber(BaseSubscriber):
         self._overflow = overflow
         self._closing = False
 
-        super(Subscriber, self).__init__(*args, **kwargs)
+        super(Subscriber, self).__init__(msg_type=msg_type, *args, **kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -1013,12 +1014,12 @@ class Subscriber(BaseSubscriber):
             self.logger.debug("Could not calculate latency", exc_info=False)
 
         try:
-            msg = self._deserialize_req_payload(body, _ctype, _cencoding)
+            _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
             # Return data as is. Let callback handle with encoding...
-            msg = body
+            _data = {}
 
         try:
             self._sem.acquire()
@@ -1040,7 +1041,8 @@ class Subscriber(BaseSubscriber):
                     'delivery_mode': _dmode
                 }
             }
-            self._onmessage(msg, meta)
+            msg = self._msg_type(**_data)
+            self._onmessage(msg)
 
     def _calc_msg_frequency(self):
         ts = time.time()
@@ -1056,24 +1058,6 @@ class Subscriber(BaseSubscriber):
                 _sum = sum(hz_list)
                 self._hz = _sum / len(hz_list)
         self._last_msg_ts = ts
-
-    def _deserialize_req_payload(self, data, content_type, content_encoding):
-        """
-        Deserialize wire data.
-
-        @param data: Data to deserialize.
-        @type data: dict|int|bool
-        """
-        _data = None
-        if content_encoding is None:
-            content_encoding = 'utf8'
-        if content_type == ContentType.json:
-            _data = self._serializer.deserialize(data)
-        elif content_type == ContentType.text:
-            _data = data.decode(content_encoding)
-        elif content_type == ContentType.raw_bytes:
-            _data = data
-        return _data
 
     def stop(self):
         self.close()

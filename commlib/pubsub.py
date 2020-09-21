@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
-
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import uuid
@@ -12,16 +5,19 @@ import uuid
 from .serializer import JSONSerializer
 from .logger import Logger
 from .utils import gen_random_id
+from .msg import PubSubMessage
 
 
 class BasePublisher(object):
 
     def __init__(self, topic: str = None,
+                 msg_type: PubSubMessage = None,
                  logger: Logger = None,
                  debug: bool = True,
                  serializer=None):
         self._debug = debug
         self._topic = topic
+        self._msg_type = msg_type
 
         if topic is None:
             raise ValueError('Topic Name not defined')
@@ -52,13 +48,15 @@ class BasePublisher(object):
 
 class BaseSubscriber(object):
 
-    def __init__(self,topic: str = None,
+    def __init__(self, topic: str = None,
+                 msg_type: PubSubMessage = None,
                  on_message: callable = None,
                  logger: Logger = None,
                  debug: bool = True,
                  serializer=None):
         self._debug = debug
         self._topic = topic
+        self._msg_type = msg_type
 
         if topic is None:
             raise ValueError()
