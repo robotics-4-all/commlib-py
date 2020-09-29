@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import sys
 import time
 
 from commlib.msg import PubSubMessage, DataClass
@@ -50,5 +51,12 @@ def run_redis(topic):
         msg.distance += 1.2
 
 if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        broker = 'redis'
+    else:
+        broker = str(sys.argv[1])
     topic = 'example_pubsub'
-    run_redis(topic)
+    if broker == 'amqp':
+        run_amqp(topic)
+    elif broker == 'redis':
+        run_redis(topic)

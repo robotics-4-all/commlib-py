@@ -31,11 +31,14 @@ def test_rpc_message():
 
         @DataClass
         class Response(RPCMessage.Response):
-            a: int = 0
-            b: int = 0
+            c: int = 0
+            d: int = 0
 
-    req = TestRPCMessage.Request()
-    resp = TestRPCMessage.Response()
+    req_dict = {'a': 1, 'b': 2}
+    resp_dict = {'c': 3, 'd': 4}
+
+    req = TestRPCMessage.Request(**req_dict)
+    resp = TestRPCMessage.Response(**resp_dict)
     print(req)
     print(resp)
 
@@ -102,7 +105,6 @@ def test_from_dict():
 
     resp_dict = {'c': 1, 'd': 2}
     resp.from_dict(resp_dict)
-    print(resp)
     resp = TestRPCMessage.Response(**resp_dict)
     print(resp)
 
@@ -111,12 +113,12 @@ def test_from_dict():
         resp.from_dict(resp_dict)
         print(resp)
     except Exception as exc:
-        print(exc)
+        pass
     try:
         resp = TestRPCMessage.Response(**resp_dict)
         print(resp)
     except Exception as exc:
-        print(exc)
+        pass
 
 
 def test_pubsub_message():

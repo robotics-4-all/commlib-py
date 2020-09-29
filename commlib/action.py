@@ -8,6 +8,7 @@ import datetime
 
 from .serializer import JSONSerializer, Serializer
 from .logger import Logger
+from .msg import ActionMessage, RPCMessage, PubSubMessage, DataClass
 
 
 class GoalStatus(IntEnum):
@@ -108,6 +109,37 @@ class GoalHandler(object):
             'data': self.data,
             'result': self.result
         }
+
+
+class _ActionGoalMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        description: str = ''
+        goal_id: str = ''
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        accepted: bool = False
+        timestamp: int = -1
+        goal_id: str = ''
+
+
+class _ActionResultMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        description: str = ''
+        goal_id: str = ''
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        accepted: bool = False
+        timestamp: int = -1
+        goal_id: str = ''
+
+
+# @DataClass
+# class _ActionFeedbackMessage(PubSubMessage):
+
 
 
 class BaseActionServer(object):
@@ -249,10 +281,16 @@ class BaseActionServer(object):
 
 
 class BaseActionClient(object):
-    def __init__(self, action_name, logger=None, debug=True, serializer=None,
-                 on_feedback=None):
+    def __init__(self,
+                 action_name: str,
+                 msg_type: ActionMessage,
+                 logger: Logger = None,
+                 debug: bool = False,
+                 serializer=None,
+                 on_feedback: callable = None):
         self._debug = debug
         self._action_name = action_name
+        self._msg_type = msg_type
 
         self._status_topic = '{}.status'.format(self._action_name)
         self._feedback_topic = '{}.feedback'.format(self._action_name)
@@ -273,9 +311,6 @@ class BaseActionClient(object):
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
-        assert isinstance(self._logger, Logger)
-        self._executor = ThreadPoolExecutor(max_workers=2)
-
     @property
     def debug(self):
         return self._debug
@@ -288,9 +323,11 @@ class BaseActionClient(object):
         """Generate correlationID."""
         return str(uuid.uuid4()).replace('-', '')
 
-    def send_goal(self, goal_data, timeout=10):
-        assert isinstance(goal_data, dict)
-        return self._goal_client.call(goal_data, timeout=timeout)
+    def send_goal(self,
+                  goal_msg: ActionMessage.Goal,
+                  timeout: int = 10) -> None:
+        assert isinstance(goal_msg, ActionMessage.Goal)
+        _ = self._goal_client.call(goal_msg, timeout=timeout)
 
     def cancel_goal(self, goal_id, timeout=10):
         assert isinstance(goal_id, str)

@@ -28,7 +28,7 @@ class Object:
     def as_dict(self) -> dict:
         return as_dict(self)
 
-    def from_dict(self, data_dict) -> None:
+    def from_dict(self, data_dict: dict) -> None:
         """Fill message data fields from dict key-value pairs."""
         for key, val in data_dict.items():
             if hasattr(self, key):
@@ -76,65 +76,15 @@ class PubSubMessage(Object):
     header: HeaderObject = DataField(default=HeaderObject())
 
 
-class _BaseObject(object):
-    __slots__ = []
+class ActionMessage(Object):
+    @DataClass
+    class Goal(Object):
+        header: HeaderObject = HeaderObject()
 
-    def __init__(self, *args, **kwargs):
-        self._set_props(*args, **kwargs)
+    @DataClass
+    class Result(Object):
+        header: HeaderObject = HeaderObject()
 
-    def _set_props(self, *args, **kwargs):
-        """Constructor."""
-        for key in kwargs:
-            if hasattr(self, key):
-                setattr(self, key, kwargs[key])
-            else:
-                raise AttributeError(
-                    '{}{}{}'.format(
-                        self.__class__.__name__,
-                        ' object does not have a property named ',
-                        str(key)
-                    )
-                )
-
-    def _to_dict(self):
-        """Serialize message object to a dict."""
-        _d = {}
-        for k in self.__slots__:
-            # Recursive object seriazilation to dictionary
-            if not k.startswith('_'):
-                _prop = getattr(self, k)
-                if isinstance(_prop, _BaseObject):
-                    _d[k] = _prop._to_dict()
-                else:
-                    _d[k] = _prop
-        return _d
-
-    def _from_dict(self, data_dict):
-        """Fill message data fields from dict key-value pairs."""
-        for key, val in data_dict.items():
-            setattr(self, key, val)
-
-    def to_dict(self):
-        """Serialize Object to dictionary."""
-        return self._to_dict()
-
-    def __hash__(self):
-        return hashlib.sha1(
-            json.dumps(self.to_dict(), sort_keys=True)).hexdigest()
-
-    def __eq__(self, other):
-        """! Equality method """
-        return self.__hash__() == other.__hash__()
-
-    def __str__(self):
-        return json.dumps(self.to_dict(), sort_keys=True)
-
-    def __call__(self, *args, **kwargs):
-        return _BaseObject(*args, **kwargs)
-
-
-class _CommObjectProperties(_BaseObject):
-    __slots__ = ['content_type', 'content_encoding']
-
-    def __init__(self, *args, **kwargs):
-        super(_CommObjectProperties, self).__init__(*args, **kwargs)
+    @DataClass
+    class Feedback(Object):
+        header: HeaderObject = HeaderObject()

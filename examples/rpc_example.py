@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import sys
 import time
 
 from commlib.msg import RPCMessage, DataClass
@@ -30,14 +31,12 @@ def run_amqp(rpc_name):
                      msg_type=AddTwoIntMessage,
                      on_request=add_two_int_handler)
     rpc.run()
+    time.sleep(1)
 
     client = RPCClient(rpc_name=rpc_name, msg_type=AddTwoIntMessage)
     msg = AddTwoIntMessage.Request(a=1, b=2)
     resp = client.call(msg)
     print(resp)
-    while True:
-        time.sleep(0.001)
-
 
 def run_redis(rpc_name):
     from commlib.transports.redis import (
@@ -47,15 +46,20 @@ def run_redis(rpc_name):
                      msg_type=AddTwoIntMessage,
                      on_request=add_two_int_handler)
     rpc.run()
+    time.sleep(1)
 
     client = RPCClient(rpc_name=rpc_name, msg_type=AddTwoIntMessage)
     msg = AddTwoIntMessage.Request(a=1, b=2)
     resp = client.call(msg)
     print(resp)
-    while True:
-        time.sleep(0.001)
-
 
 if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        broker = 'redis'
+    else:
+        broker = str(sys.argv[1])
     rpc_name = 'example_rpc_service'
-    run_amqp(rpc_name)
+    if broker == 'amqp':
+        run_amqp(rpc_name)
+    elif broker == 'redis':
+        run_redis(rpc_name)
