@@ -9,6 +9,7 @@ import datetime
 from .serializer import JSONSerializer, Serializer
 from .logger import Logger
 from .msg import ActionMessage, RPCMessage, PubSubMessage, DataClass
+from .utils import gen_random_id
 
 
 class GoalStatus(IntEnum):
@@ -24,7 +25,7 @@ class GoalHandler(object):
     def __init__(self, status_publisher, feedback_publisher, on_goal=None,
                  on_cancel=None):
         self.status = 1
-        self.id = self._gen_random_id()
+        self.id = gen_random_id()
         self.data = {}
         self._pub_status = status_publisher
         self._pub_feedback = feedback_publisher
@@ -98,10 +99,6 @@ class GoalHandler(object):
         assert isinstance(result, dict)
         self.result = result
 
-    def _gen_random_id(self):
-        """Generate correlationID."""
-        return str(uuid.uuid4()).replace('-', '')
-
     def to_dict(self):
         return {
             'status': self.status,
@@ -119,7 +116,7 @@ class _ActionGoalMessage(RPCMessage):
 
     @DataClass
     class Response(RPCMessage.Response):
-        accepted: bool = False
+        status: int = 0
         timestamp: int = -1
         goal_id: str = ''
 
@@ -127,15 +124,25 @@ class _ActionGoalMessage(RPCMessage):
 class _ActionResultMessage(RPCMessage):
     @DataClass
     class Request(RPCMessage.Request):
-        description: str = ''
         goal_id: str = ''
 
     @DataClass
     class Response(RPCMessage.Response):
-        accepted: bool = False
+        status: int = 0
         timestamp: int = -1
-        goal_id: str = ''
+        result: dict = {}
 
+class _ActionCancelMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        goal_id: str = ''
+        timestamp: int = -1  ## Timestamp of when the request was made
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        status: int = 0
+        timestamp: int = -1  ## Timestamp of when it was canceled
+        result: dict = {}
 
 # @DataClass
 # class _ActionFeedbackMessage(PubSubMessage):
@@ -181,11 +188,8 @@ class BaseActionServer(object):
     def logger(self):
         return self._logger
 
-    def _gen_random_id(self):
-        """Generate correlationID."""
-        return str(uuid.uuid4()).replace('-', '')
-
-    def _handle_send_goal(self, msg, meta):
+    def _handle_send_goal(self, msg: _ActionGoalMessage.Request, meta):
+        resp = _ActionGoalMessage.Response()
         if self._current_goal is None:
             self._current_goal = GoalHandler(self._status_pub,
                                              self._feedback_pub,
@@ -204,22 +208,14 @@ class BaseActionServer(object):
         elif self._current_goal.status == GoalStatus.ACCEPTED:
             pass
         else:
-            resp = {
-                'status': 0,
-                'goal_id': ''
-            }
             return resp
+        ## Execute user-defined callback
         if self._on_goal is not None:
-            resp = {
-                'status': 1,
-                'goal_id': self._current_goal.id
-            }
+            resp.status = 1
+            resp.goal_id = self._current_goal.id
             self._current_goal.start()
         else:
-            resp = {
-                'status': 0,
-                'goal_id': self._current_goal.id
-            }
+            resp.goal_id = self._current_goal.id
         return resp
 
     def _handle_cancel_goal(self, msg, meta):
@@ -245,19 +241,12 @@ class BaseActionServer(object):
         resp['status'] = _status
         return resp
 
-    def _handle_get_result(self, msg, meta):
-        resp = {
-            'status': 0,
-            'result': {}
-        }
-        if 'goal_id' not in msg:
-            resp['result'] = {'error': 'Missing goal_id parameter'}
+    def _handle_get_result(self, msg: _ActionResultMessage.Request, meta):
+        resp = _ActionResultMessage.Response()
+        _goal_id = msg.goal_id
+        if _goal_id == '':
             return resp
-        _goal_id = msg['goal_id']
         if self._current_goal is None:
-            resp['result'] = {
-                'error': 'Goal <{}> does not exist'.format(_goal_id)
-            }
             return resp
         if self._current_goal.id != _goal_id:
             resp['result'] = {
@@ -266,7 +255,7 @@ class BaseActionServer(object):
             return resp
         resp['status'] = self._current_goal.status
         if self._current_goal.result is not None:
-            resp['result'] = self._current_goal.result
+            resp['result'] = self._current_goal.result.as_dict()
         return resp
 
     def run(self):
@@ -306,7 +295,7 @@ class BaseActionClient(object):
         self._feedback_sub = None
 
         self._status = None
-        self._on_feedback_ext = on_feedback
+        self._on_feedback = on_feedback
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -319,18 +308,14 @@ class BaseActionClient(object):
     def logger(self):
         return self._logger
 
-    def _gen_random_id(self):
-        """Generate correlationID."""
-        return str(uuid.uuid4()).replace('-', '')
-
     def send_goal(self,
                   goal_msg: ActionMessage.Goal,
-                  timeout: int = 10) -> None:
+                  timeout: int = 10,
+                  wait_for_result: bool = False) -> None:
         assert isinstance(goal_msg, ActionMessage.Goal)
         _ = self._goal_client.call(goal_msg, timeout=timeout)
 
-    def cancel_goal(self, goal_id, timeout=10):
-        assert isinstance(goal_id, str)
+    def cancel_goal(self, goal_id: str, timeout: float = 10.0):
         req = {
             'goal_id': goal_id,
             'timestamp': datetime.datetime.now(
@@ -338,22 +323,20 @@ class BaseActionClient(object):
         }
         return self._cancel_client.call(req, timeout=timeout)
 
-    def get_result(self, goal_id, timeout=10, wait=False):
-        assert isinstance(goal_id, str)
-        req = {
-            'goal_id': goal_id
-        }
+    def get_result(self, goal_id: str, timeout: float = 10.0,
+                   wait: bool = False, wait_max_sec: float = 30.0):
+        req = _ActionResultMessage.Request(goal_id=goal_id)
         if wait:
-            while True:
+            t_start = time.time()
+            t_elapsed = 0
+            while t_elapsed < wait_max_sec:
                 if self._status in (GoalStatus.ABORTED,
                                     GoalStatus.SUCCEDED,
                                     GoalStatus.CANCELED):
                     break
                 time.sleep(0.001)
+                t_elapsed = time.time() - t_start
         return self._result_client.call(req, timeout=timeout)
 
     def _on_status(self, msg, meta):
         self._status = msg['status']
-
-    def _on_feedback(self, msg, meta):
-        pass

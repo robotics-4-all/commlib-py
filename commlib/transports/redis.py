@@ -319,10 +319,10 @@ class ActionServer(BaseActionServer):
         super(ActionServer, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(rpc_name=self._goal_rpc_uri,
-                                   conn_params=conn_params,
-                                   on_request=self._handle_send_goal,
-                                   logger=self._logger,
-                                   debug=self.debug)
+                                    conn_params=conn_params,
+                                    on_request=self._handle_send_goal,
+                                    logger=self._logger,
+                                    debug=self.debug)
         self._cancel_rpc = RPCService(rpc_name=self._cancel_rpc_uri,
                                      conn_params=conn_params,
                                      on_request=self._handle_cancel_goal,
