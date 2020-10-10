@@ -8,8 +8,9 @@ import datetime
 
 from .serializer import JSONSerializer, Serializer
 from .logger import Logger
-from .msg import ActionMessage, RPCMessage, PubSubMessage, DataClass
+from .msg import ActionMessage, RPCMessage, PubSubMessage, DataClass, DataField
 from .utils import gen_random_id
+from functools import partial
 
 
 class GoalStatus(IntEnum):
@@ -22,14 +23,18 @@ class GoalStatus(IntEnum):
 
 
 class GoalHandler(object):
-    def __init__(self, status_publisher, feedback_publisher, on_goal=None,
-                 on_cancel=None):
-        self.status = 1
+    def __init__(self, msg_type: ActionMessage,
+                 status_publisher: callable,
+                 feedback_publisher: callable,
+                 on_goal: callable,
+                 on_cancel: callable):
+        self._msg_type = msg_type
+        self.status = GoalStatus.ACCEPTED
         self.id = gen_random_id()
-        self.data = {}
+        self.data = msg_type.Result()
         self._pub_status = status_publisher
         self._pub_feedback = feedback_publisher
-        self.result = None
+        self.result = msg_type.Result()
         self._task = None
         self._on_goal = on_goal
         self._on_cancel = on_cancel
@@ -48,7 +53,9 @@ class GoalHandler(object):
             self.set_status(GoalStatus.SUCCEDED)
         else:
             print('Whaaaaaat?..')
-        self.result = future.result()
+        res = future.result()
+        assert isinstance(res, ActionMessage.Result)
+        self.result = res
 
     def is_finished(self):
         if self.status in (GoalStatus.SUCCEDED,
@@ -59,7 +66,10 @@ class GoalHandler(object):
             return False
 
     def start(self):
-        self._goal_task = self._executor.submit(self._on_goal, self)
+        self._goal_task = self._executor.submit(
+            partial(self._on_goal, self, self._msg_type.Result,
+                    self._msg_type.Feedback)
+        )
         # self._cancel_task = self._executor.submit(self._on_cancel, self)
         self._goal_task.add_done_callback(self._done_callback)
 
@@ -85,34 +95,24 @@ class GoalHandler(object):
             raise ValueError()
         status = int(status)
         self.status = status
-        pmsg = {
-            'goal_id': self.id,
-            'status': status
-        }
-        self._pub_status.publish(pmsg)
+        msg = _ActionStatusMessage(status=status)
+        self._pub_status.publish(msg)
 
     def send_feedback(self, feedback_msg):
-        assert isinstance(feedback_msg, dict)
-        self._pub_feedback.publish(feedback_msg)
+        assert isinstance(feedback_msg, ActionMessage.Feedback)
+        msg = _ActionFeedbackMessage(feedback_data=feedback_msg.as_dict())
+        self._pub_feedback.publish(msg)
 
     def set_result(self, result):
         assert isinstance(result, dict)
         self.result = result
-
-    def to_dict(self):
-        return {
-            'status': self.status,
-            'goal_id': self.id,
-            'data': self.data,
-            'result': self.result
-        }
 
 
 class _ActionGoalMessage(RPCMessage):
     @DataClass
     class Request(RPCMessage.Request):
         description: str = ''
-        goal_id: str = ''
+        goal_data: dict = DataField(default_factory=dict)
 
     @DataClass
     class Response(RPCMessage.Response):
@@ -130,7 +130,7 @@ class _ActionResultMessage(RPCMessage):
     class Response(RPCMessage.Response):
         status: int = 0
         timestamp: int = -1
-        result: dict = {}
+        result: dict = DataField(default_factory=dict)
 
 class _ActionCancelMessage(RPCMessage):
     @DataClass
@@ -142,17 +142,30 @@ class _ActionCancelMessage(RPCMessage):
     class Response(RPCMessage.Response):
         status: int = 0
         timestamp: int = -1  ## Timestamp of when it was canceled
-        result: dict = {}
+        result: dict = DataField(default_factory=dict)
 
-# @DataClass
-# class _ActionFeedbackMessage(PubSubMessage):
+@DataClass
+class _ActionStatusMessage(PubSubMessage):
+    goal_id: str = ''
+    status: int = 0
 
+
+@DataClass
+class _ActionFeedbackMessage(PubSubMessage):
+    feedback_data: dict = DataField(default_factory=dict)
 
 
 class BaseActionServer(object):
-    def __init__(self, action_name, logger=None, debug=True,
-                 workers=4, on_goal=None, on_cancel=None,
-                 on_getresult=None):
+    def __init__(self,
+                 action_name: str,
+                 msg_type: ActionMessage,
+                 logger: Logger = None,
+                 debug: bool = True,
+                 workers: int = 4,
+                 on_goal: callable = None,
+                 on_cancel: callable = None,
+                 on_getresult: callable = None):
+        self._msg_type = msg_type
         self._debug = debug
         self._num_workers = workers
         self._action_name = action_name
@@ -188,23 +201,25 @@ class BaseActionServer(object):
     def logger(self):
         return self._logger
 
-    def _handle_send_goal(self, msg: _ActionGoalMessage.Request, meta):
+    def _handle_send_goal(self, msg: _ActionGoalMessage.Request):
         resp = _ActionGoalMessage.Response()
         if self._current_goal is None:
-            self._current_goal = GoalHandler(self._status_pub,
+            self._current_goal = GoalHandler(self._msg_type,
+                                             self._status_pub,
                                              self._feedback_pub,
                                              self._on_goal,
                                              self._on_cancel)
-            self._current_goal.data = msg
+            self._current_goal.data = self._msg_type.Goal(**msg.goal_data)
         elif self._current_goal.status in (GoalStatus.SUCCEDED,
                                            GoalStatus.CANCELED,
                                            GoalStatus.ABORTED):
             # Final States - Completed Goal Task
-            self._current_goal = GoalHandler(self._status_pub,
+            self._current_goal = GoalHandler(self._msg_type,
+                                             self._status_pub,
                                              self._feedback_pub,
                                              self._on_goal,
                                              self._on_cancel)
-            self._current_goal.data = msg
+            self._current_goal.data = self._msg_type.Goal(**msg.goal_data)
         elif self._current_goal.status == GoalStatus.ACCEPTED:
             pass
         else:
@@ -249,13 +264,10 @@ class BaseActionServer(object):
         if self._current_goal is None:
             return resp
         if self._current_goal.id != _goal_id:
-            resp['result'] = {
-                'error': 'Goal <{}> does not exist'.format(_goal_id)
-            }
             return resp
-        resp['status'] = self._current_goal.status
+        resp.status = self._current_goal.status
         if self._current_goal.result is not None:
-            resp['result'] = self._current_goal.result.as_dict()
+            resp.result = self._current_goal.result.as_dict()
         return resp
 
     def run(self):
@@ -295,7 +307,7 @@ class BaseActionClient(object):
         self._feedback_sub = None
 
         self._status = None
-        self._on_feedback = on_feedback
+        self.on_feedback = on_feedback
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -312,20 +324,23 @@ class BaseActionClient(object):
                   goal_msg: ActionMessage.Goal,
                   timeout: int = 10,
                   wait_for_result: bool = False) -> None:
-        assert isinstance(goal_msg, ActionMessage.Goal)
-        _ = self._goal_client.call(goal_msg, timeout=timeout)
+        assert isinstance(goal_msg, self._msg_type.Goal)
+        req = _ActionGoalMessage.Request()
+        resp = self._goal_client.call(req, timeout=timeout)
+        self._goal_id = resp.goal_id
+        return resp
 
-    def cancel_goal(self, goal_id: str, timeout: float = 10.0):
+    def cancel_goal(self, timeout: float = 10.0):
         req = {
-            'goal_id': goal_id,
+            'goal_id': self._goal_id,
             'timestamp': datetime.datetime.now(
             datetime.timezone.utc).timestamp()
         }
         return self._cancel_client.call(req, timeout=timeout)
 
-    def get_result(self, goal_id: str, timeout: float = 10.0,
+    def get_result(self, timeout: float = 10.0,
                    wait: bool = False, wait_max_sec: float = 30.0):
-        req = _ActionResultMessage.Request(goal_id=goal_id)
+        req = _ActionResultMessage.Request(goal_id=self._goal_id)
         if wait:
             t_start = time.time()
             t_elapsed = 0
@@ -338,5 +353,10 @@ class BaseActionClient(object):
                 t_elapsed = time.time() - t_start
         return self._result_client.call(req, timeout=timeout)
 
-    def _on_status(self, msg, meta):
-        self._status = msg['status']
+    def _on_status(self, msg):
+        self._status = msg.status
+
+    def _on_feedback(self, msg):
+        fb = self._msg_type.Feedback(**msg.feedback_data)
+        if self.on_feedback is not None:
+            self.on_feedback(fb)

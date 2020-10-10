@@ -781,9 +781,6 @@ class RPCClient(BaseRPCClient):
         return resp
 
     def _wait_for_response(self, timeout=10):
-        # self.logger.debug(
-        #     'Waiting for response from [{}]...'.format(self._rpc_name))
-        # self._transport.process_amqp_events()
         start_t = time.time()
         while self._response is None:
             elapsed_t = time.time() - start_t
@@ -807,8 +804,7 @@ class RPCClient(BaseRPCClient):
             content_type=_type,
             content_encoding=_encoding,
             correlation_id=self._corr_id,
-            # timestamp=(1.0 * (time.time() + 0.5) * 1000),
-            message_id=0,
+            timestamp=(1.0 * (time.time() + 0.5) * 1000),
             # user_id="",
             # app_id="",
             reply_to='amq.rabbitmq.reply-to'
