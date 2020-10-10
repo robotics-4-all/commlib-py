@@ -23,11 +23,14 @@ class ExampleAction(ActionMessage):
 
 def on_goal(goal_h, result_msg, feedback_msg):
     c = 0
+    res = result_msg()
     while c < 5:
+        if goal_h.cancel_event.is_set():
+            break
         goal_h.send_feedback(feedback_msg(current_cm=c))
         c += 1
         time.sleep(1)
-    res = result_msg(dest_cm=c)
+    res.dest_cm = c
     return res
 
 def on_feedback(feedback):
@@ -36,6 +39,7 @@ def on_feedback(feedback):
 
 def on_result(result):
     print(result)
+    pass
 
 
 if __name__ == '__main__':
@@ -57,7 +61,8 @@ if __name__ == '__main__':
     goal_msg = ExampleAction.Goal()
 
     action_c.send_goal(goal_msg)
-    res = action_c.get_result(wait=True)
-    print(res)
-    while True:
-        time.sleep(0.01)
+    # res = action_c.get_result(wait=True)
+    time.sleep(1)
+    resp = action_c.cancel_goal(wait_for_result=True)
+    resp = action_c.get_result()
+    print(resp)

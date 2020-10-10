@@ -82,11 +82,13 @@ class GoalHandler(object):
         try:
             self.set_status(GoalStatus.CANCELING)
             self._goal_task.cancel()
-            self.cancel_event.set()
+            self._cancel_event.set()
+            s = self._goal_task.result()
             # self._executor.shutdown(wait=False)
             self._executor._threads.clear()
             concurrent.futures.thread._threads_queues.clear()
         except Exception as exc:
+            print(exc)
             return 0
         return 1
 
@@ -234,26 +236,14 @@ class BaseActionServer(object):
         return resp
 
     def _handle_cancel_goal(self, msg: _ActionCancelMessage.Request):
-        resp = {
-            'status': 0,
-            'result': {}
-        }
-        if 'goal_id' not in msg:
-            resp['result'] = {'error': 'Missing goal_id parameter'}
-            return resp
-        _goal_id = msg['goal_id']
+        resp = _ActionCancelMessage.Response()
+        _goal_id = msg.goal_id
         if self._current_goal is None:
-            resp['result'] = {
-                'error': 'Goal <{}> does not exist'.format(_goal_id)
-            }
             return resp
         if self._current_goal.id != _goal_id:
-            resp['result'] = {
-                'error': 'Goal <{}> does not exist'.format(_goal_id)
-            }
             return resp
         _status =  self._current_goal.cancel()
-        resp['status'] = _status
+        resp.status = _status
         return resp
 
     def _handle_get_result(self, msg: _ActionResultMessage.Request):
@@ -309,6 +299,7 @@ class BaseActionClient(object):
 
         self._status = _ActionStatusMessage()
         self.on_feedback = on_feedback
+        self.result = None
         self.on_result = on_result
 
         self._logger = Logger(self.__class__.__name__) if \
@@ -329,21 +320,23 @@ class BaseActionClient(object):
         assert isinstance(goal_msg, self._msg_type.Goal)
         req = _ActionGoalMessage.Request()
         resp = self._goal_client.call(req, timeout=timeout)
+        self.result = None
         self._goal_id = resp.goal_id
+        self._status = _ActionStatusMessage()
         return resp
 
-    def cancel_goal(self, timeout: float = 10.0):
-        req = {
-            'goal_id': self._goal_id,
-            'timestamp': datetime.datetime.now(
-            datetime.timezone.utc).timestamp()
-        }
-        return self._cancel_client.call(req, timeout=timeout)
+    def cancel_goal(self, timeout: float = 10.0, wait_for_result: bool = False):
+        req = _ActionCancelMessage.Request(goal_id=self._goal_id)
+        resp = self._cancel_client.call(req, timeout=timeout)
+        res = self.get_result(wait=wait_for_result)
+        return res
 
     def get_result(self,
                    timeout: float = 10.0,
                    wait: bool = False,
                    wait_max_sec: float = 30.0):
+        if self.result is not None:
+            return self.result
         req = _ActionResultMessage.Request(goal_id=self._goal_id)
         if wait:
             t_start = time.time()
@@ -354,18 +347,22 @@ class BaseActionClient(object):
                                            GoalStatus.CANCELED):
                     resp = self._result_client.call(req, timeout=timeout)
                     res = self._msg_type.Result(**resp.result)
+                    self.result = res
                     return res
                 time.sleep(0.001)
                 t_elapsed = time.time() - t_start
         return None
 
     def _on_status(self, msg):
+        if msg.goal_id != self._goal_id:
+            return
         self._status = msg
         if self._status.status in (GoalStatus.SUCCEDED,
                                    GoalStatus.CANCELED,
                                    GoalStatus.ABORTED):
+            res = self.get_result(wait=True, wait_max_sec=10)
+            self.result = res
             if self.on_result is not None:
-                res = self.get_result(wait=True, wait_max_sec=10)
                 self.on_result(res)
 
     def _on_feedback(self, msg):
