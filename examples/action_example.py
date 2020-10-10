@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from commlib.transports.amqp import (ActionServer, ActionClient,
+from commlib.transports.redis import (ActionServer, ActionClient,
                                       ConnectionParameters)
 from commlib.action import GoalStatus
 from commlib.msg import ActionMessage, DataClass
