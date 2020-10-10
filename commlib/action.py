@@ -102,7 +102,8 @@ class GoalHandler(object):
 
     def send_feedback(self, feedback_msg):
         assert isinstance(feedback_msg, ActionMessage.Feedback)
-        msg = _ActionFeedbackMessage(feedback_data=feedback_msg.as_dict())
+        msg = _ActionFeedbackMessage(feedback_data=feedback_msg.as_dict(),
+                                     goal_id=self.id)
         self._pub_feedback.publish(msg)
 
     def set_result(self, result):
@@ -155,6 +156,7 @@ class _ActionStatusMessage(PubSubMessage):
 @DataClass
 class _ActionFeedbackMessage(PubSubMessage):
     feedback_data: dict = DataField(default_factory=dict)
+    goal_id: str = ''
 
 
 class BaseActionServer(object):
@@ -366,7 +368,8 @@ class BaseActionClient(object):
                 self.on_result(res)
 
     def _on_feedback(self, msg):
+        if msg.goal_id != self._goal_id:
+            return
         fb = self._msg_type.Feedback(**msg.feedback_data)
         if self.on_feedback is not None:
             self.on_feedback(fb)
-
