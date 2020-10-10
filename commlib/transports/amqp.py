@@ -26,9 +26,13 @@ from commlib.logger import Logger, LoggingLevel
 from commlib.serializer import ContentType
 from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.action import BaseActionServer, BaseActionClient
+from commlib.action import (
+    BaseActionServer, BaseActionClient, _ActionGoalMessage,
+    _ActionResultMessage, _ActionGoalMessage, _ActionCancelMessage,
+    _ActionStatusMessage, _ActionFeedbackMessage
+)
 from commlib.events import BaseEventEmitter, Event
-from commlib.msg import RPCMessage, PubSubMessage
+from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
 
 
 # Reduce log level for pika internal logger
@@ -1066,37 +1070,48 @@ class Subscriber(BaseSubscriber):
 
 
 class ActionServer(BaseActionServer):
-    def __init__(self, conn_params=None, *args, **kwargs):
+    def __init__(self,
+                 action_name: str,
+                 msg_type: ActionMessage,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        self._conn = Connection(conn_params)
+        # self._conn = Connection(conn_params)
 
-        super(ActionServer, self).__init__(*args, **kwargs)
-        self._goal_rpc = RPCService(rpc_name=self._goal_rpc_uri,
-                                   conn_params=conn_params,
-                                   on_request=self._handle_send_goal,
-                                   logger=self._logger,
-                                   debug=self.debug)
-        self._cancel_rpc = RPCService(rpc_name=self._cancel_rpc_uri,
-                                     conn_params=conn_params,
-                                     on_request=self._handle_cancel_goal,
-                                     logger=self._logger,
-                                     debug=self.debug)
-        self._result_rpc = RPCService(rpc_name=self._result_rpc_uri,
-                                     conn_params=conn_params,
-                                     on_request=self._handle_get_result,
-                                     logger=self._logger,
-                                     debug=self.debug)
-        self._feedback_pub = Publisher(topic=self._feedback_topic,
-                                       connection=self._conn,
+        super(ActionServer, self).__init__(action_name, msg_type,
+                                           *args, **kwargs)
+
+        self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
+                                    rpc_name=self._goal_rpc_uri,
+                                    conn_params=conn_params,
+                                    on_request=self._handle_send_goal,
+                                    logger=self._logger,
+                                    debug=self.debug)
+        self._cancel_rpc = RPCService(msg_type=_ActionCancelMessage,
+                                      rpc_name=self._cancel_rpc_uri,
+                                      conn_params=conn_params,
+                                      on_request=self._handle_cancel_goal,
+                                      logger=self._logger,
+                                      debug=self.debug)
+        self._result_rpc = RPCService(msg_type=_ActionResultMessage,
+                                      rpc_name=self._result_rpc_uri,
+                                      conn_params=conn_params,
+                                      on_request=self._handle_get_result,
+                                      logger=self._logger,
+                                      debug=self.debug)
+        self._feedback_pub = Publisher(msg_type=_ActionFeedbackMessage,
+                                       topic=self._feedback_topic,
+                                       conn_params=conn_params,
                                        logger=self._logger,
                                        debug=self.debug)
-        self._status_pub = Publisher(topic=self._status_topic,
-                                     connection=self._conn,
+        self._status_pub = Publisher(msg_type=_ActionStatusMessage,
+                                     topic=self._status_topic,
+                                     conn_params=conn_params,
                                      logger=self._logger,
                                      debug=self.debug)
-        self._conn.detach_amqp_events_thread()
+        # self._conn.detach_amqp_events_thread()
 
     def stop(self):
         self._goal_rpc.stop()
@@ -1108,32 +1123,45 @@ class ActionServer(BaseActionServer):
 
 
 class ActionClient(BaseActionClient):
-    def __init__(self, conn_params=None, *args, **kwargs):
+    def __init__(self,
+                 action_name: str,
+                 msg_type: ActionMessage,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
         assert isinstance(conn_params, ConnectionParameters)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        self._conn = Connection(conn_params)
+        # self._conn = Connection(conn_params)
 
-        super(ActionClient, self).__init__(*args, **kwargs)
+        super(ActionClient, self).__init__(action_name, msg_type,
+                                           *args, **kwargs)
 
-        self._goal_client = RPCClient(rpc_name=self._goal_rpc_uri,
-                                      connection=self._conn,
+        self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
+                                      rpc_name=self._goal_rpc_uri,
+                                      conn_params=conn_params,
                                       logger=self._logger,
                                       debug=self.debug)
-        self._cancel_client = RPCClient(rpc_name=self._cancel_rpc_uri,
-                                        connection=self._conn,
+        self._cancel_client = RPCClient(msg_type=_ActionCancelMessage,
+                                        rpc_name=self._cancel_rpc_uri,
+                                        conn_params=conn_params,
                                         logger=self._logger,
                                         debug=self.debug)
-        self._result_client = RPCClient(rpc_name=self._result_rpc_uri,
-                                        connection=self._conn,
+        self._result_client = RPCClient(msg_type=_ActionResultMessage,
+                                        rpc_name=self._result_rpc_uri,
+                                        conn_params=conn_params,
                                         logger=self._logger,
                                         debug=self.debug)
-        self._conn.detach_amqp_events_thread()
-        self._status_sub = Subscriber(conn_params=conn_params,
+        self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
+                                      conn_params=conn_params,
                                       topic=self._status_topic,
                                       on_message=self._on_status)
-        self._feedback_sub = Subscriber(conn_params=conn_params,
+        self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
+                                      conn_params=conn_params,
+                                      topic=self._status_topic,
+                                      on_message=self._on_status)
+        self._feedback_sub = Subscriber(msg_type=_ActionFeedbackMessage,
+                                        conn_params=conn_params,
                                         topic=self._feedback_topic,
                                         on_message=self._on_feedback)
         self._status_sub.run()

@@ -299,6 +299,8 @@ class BaseActionClient(object):
         self._status_sub = None
         self._feedback_sub = None
 
+        self._goal_id = None
+
         self._status = _ActionStatusMessage()
         self.on_feedback = on_feedback
         self.result = None
