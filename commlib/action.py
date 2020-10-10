@@ -95,7 +95,7 @@ class GoalHandler(object):
             raise ValueError()
         status = int(status)
         self.status = status
-        msg = _ActionStatusMessage(status=status)
+        msg = _ActionStatusMessage(status=status, goal_id=self.id)
         self._pub_status.publish(msg)
 
     def send_feedback(self, feedback_msg):
@@ -233,7 +233,7 @@ class BaseActionServer(object):
             resp.goal_id = self._current_goal.id
         return resp
 
-    def _handle_cancel_goal(self, msg, meta):
+    def _handle_cancel_goal(self, msg: _ActionCancelMessage.Request):
         resp = {
             'status': 0,
             'result': {}
@@ -256,7 +256,7 @@ class BaseActionServer(object):
         resp['status'] = _status
         return resp
 
-    def _handle_get_result(self, msg: _ActionResultMessage.Request, meta):
+    def _handle_get_result(self, msg: _ActionResultMessage.Request):
         resp = _ActionResultMessage.Response()
         _goal_id = msg.goal_id
         if _goal_id == '':
@@ -288,7 +288,8 @@ class BaseActionClient(object):
                  logger: Logger = None,
                  debug: bool = False,
                  serializer=None,
-                 on_feedback: callable = None):
+                 on_feedback: callable = None,
+                 on_result: callable = None):
         self._debug = debug
         self._action_name = action_name
         self._msg_type = msg_type
@@ -306,8 +307,9 @@ class BaseActionClient(object):
         self._status_sub = None
         self._feedback_sub = None
 
-        self._status = None
+        self._status = _ActionStatusMessage()
         self.on_feedback = on_feedback
+        self.on_result = on_result
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -338,25 +340,36 @@ class BaseActionClient(object):
         }
         return self._cancel_client.call(req, timeout=timeout)
 
-    def get_result(self, timeout: float = 10.0,
-                   wait: bool = False, wait_max_sec: float = 30.0):
+    def get_result(self,
+                   timeout: float = 10.0,
+                   wait: bool = False,
+                   wait_max_sec: float = 30.0):
         req = _ActionResultMessage.Request(goal_id=self._goal_id)
         if wait:
             t_start = time.time()
             t_elapsed = 0
             while t_elapsed < wait_max_sec:
-                if self._status in (GoalStatus.ABORTED,
-                                    GoalStatus.SUCCEDED,
-                                    GoalStatus.CANCELED):
-                    break
+                if self._status.status in (GoalStatus.ABORTED,
+                                           GoalStatus.SUCCEDED,
+                                           GoalStatus.CANCELED):
+                    resp = self._result_client.call(req, timeout=timeout)
+                    res = self._msg_type.Result(**resp.result)
+                    return res
                 time.sleep(0.001)
                 t_elapsed = time.time() - t_start
-        return self._result_client.call(req, timeout=timeout)
+        return None
 
     def _on_status(self, msg):
-        self._status = msg.status
+        self._status = msg
+        if self._status.status in (GoalStatus.SUCCEDED,
+                                   GoalStatus.CANCELED,
+                                   GoalStatus.ABORTED):
+            if self.on_result is not None:
+                res = self.get_result(wait=True, wait_max_sec=10)
+                self.on_result(res)
 
     def _on_feedback(self, msg):
         fb = self._msg_type.Feedback(**msg.feedback_data)
         if self.on_feedback is not None:
             self.on_feedback(fb)
+

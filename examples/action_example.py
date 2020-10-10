@@ -23,17 +23,19 @@ class ExampleAction(ActionMessage):
 
 def on_goal(goal_h, result_msg, feedback_msg):
     c = 0
-    print(feedback_msg())
-    while c < 10:
+    while c < 5:
         goal_h.send_feedback(feedback_msg(current_cm=c))
         c += 1
         time.sleep(1)
     res = result_msg(dest_cm=c)
-    print(res)
     return res
 
 def on_feedback(feedback):
     print(feedback)
+
+
+def on_result(result):
+    print(result)
 
 
 if __name__ == '__main__':
@@ -46,14 +48,16 @@ if __name__ == '__main__':
     action_c = ActionClient(msg_type=ExampleAction,
                             conn_params=conn_params,
                             action_name=action_name,
-                            on_feedback=on_feedback)
+                            on_feedback=on_feedback,
+                            on_result=on_result)
 
     action.run()
     time.sleep(1)
 
     goal_msg = ExampleAction.Goal()
 
-    resp = action_c.send_goal(goal_msg)
-    print(resp)
+    action_c.send_goal(goal_msg)
+    res = action_c.get_result(wait=True)
+    print(res)
     while True:
         time.sleep(0.01)
