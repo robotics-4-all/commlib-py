@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
-from commlib.transports.redis import (ActionServer, ActionClient,
-                                      ConnectionParameters)
 from commlib.action import GoalStatus
 from commlib.msg import ActionMessage, DataClass
+import sys
 import time
 
 
@@ -34,16 +33,35 @@ def on_goal(goal_h, result_msg, feedback_msg):
     return res
 
 def on_feedback(feedback):
-    print(feedback)
+    print(f'ActionClient <on-feedback> callback: {feedback}')
 
 
 def on_result(result):
-    print(result)
-    pass
+    print(f'ActionClient <on-result> callback: {result}')
+
+
+def on_goal_reached(result):
+    print(f'ActionClient <on-goal-reached> callback: {result}')
 
 
 if __name__ == '__main__':
     action_name = 'testaction'
+    broker_type = 'redis'
+    if len(sys.argv) > 1:
+        broker_type = str(sys.argv[1])
+    if broker_type == 'redis':
+        from commlib.transports.redis import (
+            ActionServer, ActionClient, ConnectionParameters
+        )
+    elif broker_type == 'amqp':
+        from commlib.transports.amqp import (
+            ActionServer, ActionClient, ConnectionParameters
+        )
+    else:
+        print('Not a valid broker-type was given!')
+        sys.exit(1)
+
+
     conn_params = ConnectionParameters()
     action = ActionServer(msg_type=ExampleAction,
                           conn_params=conn_params,
@@ -53,7 +71,8 @@ if __name__ == '__main__':
                             conn_params=conn_params,
                             action_name=action_name,
                             on_feedback=on_feedback,
-                            on_result=on_result)
+                            on_result=on_result,
+                            on_goal_reached=on_goal_reached)
 
     action.run()
     time.sleep(1)
@@ -63,6 +82,9 @@ if __name__ == '__main__':
     action_c.send_goal(goal_msg)
     # res = action_c.get_result(wait=True)
     time.sleep(1)
-    resp = action_c.cancel_goal(wait_for_result=True)
-    resp = action_c.get_result()
+    # resp = action_c.cancel_goal(wait_for_result=True)
+    resp = action_c.get_result(wait=True)
     print(resp)
+
+    action.stop()
+    action_c.stop()
