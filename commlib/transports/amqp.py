@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
-
 import functools
 import sys
 
@@ -36,7 +29,7 @@ from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
 
 
 # Reduce log level for pika internal logger
-logging.getLogger("pika").setLevel(logging.INFO)
+logging.getLogger("pika").setLevel(logging.WARN)
 
 
 class MessageProperties(pika.BasicProperties):
