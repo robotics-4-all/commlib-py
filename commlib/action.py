@@ -123,6 +123,9 @@ class _ActionGoalMessage(RPCMessage):
         timestamp: int = -1
         goal_id: str = ''
 
+        def __post_init__(self):
+            self.timestamp = int(time.time())
+
 
 class _ActionResultMessage(RPCMessage):
     @DataClass
@@ -135,17 +138,28 @@ class _ActionResultMessage(RPCMessage):
         timestamp: int = -1
         result: dict = DataField(default_factory=dict)
 
+        def __post_init__(self):
+            self.timestamp = int(time.time())
+
+
 class _ActionCancelMessage(RPCMessage):
     @DataClass
     class Request(RPCMessage.Request):
         goal_id: str = ''
         timestamp: int = -1  ## Timestamp of when the request was made
 
+        def __post_init__(self):
+            self.timestamp = int(time.time())
+
     @DataClass
     class Response(RPCMessage.Response):
         status: int = 0
         timestamp: int = -1  ## Timestamp of when it was canceled
         result: dict = DataField(default_factory=dict)
+
+        def __post_init__(self):
+            self.timestamp = int(time.time())
+
 
 @DataClass
 class _ActionStatusMessage(PubSubMessage):

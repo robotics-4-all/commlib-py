@@ -1,4 +1,3 @@
-import datetime
 import time
 import uuid
 import json
@@ -49,9 +48,7 @@ class HeaderObject(Object):
     properties: dict = DataField(default_factory=dict)
 
     def __post_init__(self):
-        if self.timestamp == -1:
-            self.time = datetime.datetime.now(
-                datetime.timezone.utc).timestamp()
+        self.timestamp = int(time.time())
 
 
 class RPCMessage:

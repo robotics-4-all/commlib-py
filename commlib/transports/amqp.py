@@ -474,11 +474,6 @@ class AMQPTransport(object):
     #     self._graceful_shutdown()
 
 
-# class RPCServiceWorker(threading.Thread):
-#     def __init__(self, *args, **kwargs):
-#         super(RPCServiceWorker, self).__init__(*args, **kwargs)
-
-
 class RPCService(BaseRPCService):
     """AMQP RPC Service class.
     Implements an AMQP RPC Service.
@@ -510,7 +505,7 @@ class RPCService(BaseRPCService):
             conn_params is None else conn_params
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
 
-    def run_forever(self, raise_if_exists=True):
+    def run_forever(self, raise_if_exists: bool = True):
         """Run RPC Service in normal mode. Blocking operation."""
         # if self._rpc_exists() and raise_if_exists:
         #     raise ValueError(
@@ -607,7 +602,7 @@ class RPCService(BaseRPCService):
         # Acknowledge receiving the message.
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
-    def close(self):
+    def close(self) -> bool:
         """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
@@ -628,7 +623,7 @@ class RPCService(BaseRPCService):
         super(RPCService, self).stop()
         return True
 
-    def stop(self):
+    def stop(self) -> bool:
         """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
@@ -687,12 +682,12 @@ class RPCClient(BaseRPCClient):
             self.run()
 
     @property
-    def mean_delay(self):
+    def mean_delay(self) -> float:
         """The mean delay of the communication. Internally calculated."""
         return self._mean_delay
 
     @property
-    def delay(self):
+    def delay(self) -> float:
         """The last recorded delay of the communication.
             Internally calculated.
         """
@@ -752,11 +747,11 @@ class RPCClient(BaseRPCClient):
     def run(self):
         self._transport.detach_amqp_events_thread()
 
-    def gen_corr_id(self):
+    def gen_corr_id(self) -> str:
         """Generate correlationID."""
         return str(uuid.uuid4())
 
-    def call(self, msg: RPCMessage.Request, timeout=10):
+    def call(self, msg: RPCMessage.Request, timeout: float = 10.0):
         """Call RPC.
 
         Args:
@@ -777,7 +772,7 @@ class RPCClient(BaseRPCClient):
         self._delay = elapsed_t
         return resp
 
-    def _wait_for_response(self, timeout=10):
+    def _wait_for_response(self, timeout: float = 10.0) -> RPCMessage.Response:
         start_t = time.time()
         while self._response is None:
             elapsed_t = time.time() - start_t
@@ -787,7 +782,7 @@ class RPCClient(BaseRPCClient):
             time.sleep(0.001)
         return self._response
 
-    def _send_msg(self, msg):
+    def _send_msg(self, msg: RPCMessage.Request) -> None:
         _payload = None
         _encoding = None
         _type = None
@@ -948,15 +943,15 @@ class Subscriber(BaseSubscriber):
         self._sem = Semaphore()
 
     @property
-    def hz(self):
+    def hz(self) -> float:
         """Incoming message frequency."""
         return self._hz
 
-    def run_forever(self):
+    def run_forever(self) -> None:
         """Start Subscriber. Blocking method."""
         self._consume()
 
-    def close(self):
+    def close(self) -> None:
         if self._closing:
             return False
         self._closing = True
@@ -973,7 +968,7 @@ class Subscriber(BaseSubscriber):
         self._transport.add_threadsafe_callback(
             self._transport.close)
 
-    def _consume(self, reliable=False):
+    def _consume(self, reliable: bool = False) -> None:
         """Start AMQP consumer."""
         self._transport._channel.basic_consume(
             self._queue_name,
@@ -1037,7 +1032,7 @@ class Subscriber(BaseSubscriber):
             msg = self._msg_type(**_data)
             self._onmessage(msg)
 
-    def _calc_msg_frequency(self):
+    def _calc_msg_frequency(self) -> None:
         ts = time.time()
         if self._last_msg_ts is not None:
             diff = ts - self._last_msg_ts
@@ -1052,7 +1047,7 @@ class Subscriber(BaseSubscriber):
                 self._hz = _sum / len(hz_list)
         self._last_msg_ts = ts
 
-    def stop(self):
+    def stop(self) -> None:
         self.close()
 
     def __del__(self):
@@ -1155,7 +1150,10 @@ class ActionClient(BaseActionClient):
 
 
 class EventEmitter(BaseEventEmitter):
-    def __init__(self, conn_params=None, exchange='amq.topic', *args, **kwargs):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 exchange: str = 'amq.topic',
+                 *args, **kwargs):
         super(EventEmitter, self).__init__(*args, **kwargs)
 
         self._transport = AMQPTransport(conn_params=conn_params,
