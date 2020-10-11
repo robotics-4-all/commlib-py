@@ -1,13 +1,26 @@
 #!/usr/bin/env python
 
-from commlib.transports.amqp import ConnectionParameters
 from commlib.node import Node, TransportType
+from commlib.msg import RPCMessage, DataClass
 import time
+import sys
 
 
-def on_request(msg, meta):
+class AddTwoIntMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
+def on_request(msg):
     print(f'On-Request: {msg}')
-    return {'c': msg['a'] + msg['b']}
+    resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
+    return resp
 
 
 def on_response(msg):
@@ -15,19 +28,43 @@ def on_response(msg):
 
 
 if __name__ == '__main__':
-    topic_name = 'testtopic'
     rpc_name = 'testrpc'
-    conn_params = ConnectionParameters()
-    conn_params.credentials.username = 'testuser'
-    conn_params.credentials.password = 'testuser'
-    conn_params.host = '155.207.33.189'
-    conn_params.port = 5672
-    n = Node(node_name='test-node', transport_type=TransportType.AMQP,
-             transport_connection_params=conn_params, debug=True)
-    rpc = n.create_rpc(rpc_name=rpc_name, on_request=on_request)
+
+    if len(sys.argv) < 2:
+        broker = 'redis'
+    else:
+        broker = str(sys.argv[1])
+    if broker == 'redis':
+        from commlib.transports.redis import (
+            ConnectionParameters
+        )
+        conn_params = ConnectionParameters()
+        node = Node(node_name='example-node',
+                    transport_type=TransportType.REDIS,
+                    transport_connection_params=conn_params, debug=True)
+    elif broker == 'amqp':
+        from commlib.transports.amqp import (
+            ConnectionParameters
+        )
+        conn_params = ConnectionParameters()
+        node = Node(node_name='example-node', transport_type=TransportType.AMQP,
+                    transport_connection_params=conn_params, debug=True)
+    else:
+        print('Not a valid broker-type was given!')
+        sys.exit(1)
+
+
+    rpc = node.create_rpc(msg_type=AddTwoIntMessage,
+                          rpc_name=rpc_name, on_request=on_request)
     rpc.run()
-    rpc_c = n.create_rpc_client(rpc_name=rpc_name)
+    time.sleep(1)
+    rpc_c = node.create_rpc_client(msg_type=AddTwoIntMessage, rpc_name=rpc_name)
 
-    _f = rpc_c.call_async({'a': 1, 'b': 2}, on_response=on_response)
+    msg = AddTwoIntMessage.Request(a=1, b=2)
 
-    n.run_forever()
+    resp = rpc_c.call(msg)
+    print(resp)
+
+    _f = rpc_c.call_async(msg, on_response=on_response)
+
+    node.run_forever()
