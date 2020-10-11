@@ -205,6 +205,16 @@ class BaseActionServer(object):
     def logger(self):
         return self._logger
 
+    def run(self):
+        self._goal_rpc.run()
+        self._cancel_rpc.run()
+        self._result_rpc.run()
+
+    def stop(self):
+        self._goal_rpc.stop()
+        self._cancel_rpc.stop()
+        self._result_rpc.stop()
+
     def _handle_send_goal(self, msg: _ActionGoalMessage.Request):
         resp = _ActionGoalMessage.Response()
         if self._current_goal is None:
@@ -262,15 +272,8 @@ class BaseActionServer(object):
             resp.result = self._current_goal.result.as_dict()
         return resp
 
-    def run(self):
-        self._goal_rpc.run()
-        self._cancel_rpc.run()
-        self._result_rpc.run()
-
-    def stop(self):
-        self._goal_rpc.stop()
-        self._cancel_rpc.stop()
-        self._result_rpc.stop()
+    def __del__(self):
+        self.stop()
 
 
 class BaseActionClient(object):
@@ -281,7 +284,8 @@ class BaseActionClient(object):
                  debug: bool = False,
                  serializer=None,
                  on_feedback: callable = None,
-                 on_result: callable = None):
+                 on_result: callable = None,
+                 on_goal_reached: callable = None):
         self._debug = debug
         self._action_name = action_name
         self._msg_type = msg_type
@@ -305,6 +309,7 @@ class BaseActionClient(object):
         self.on_feedback = on_feedback
         self.result = None
         self.on_result = on_result
+        self.on_goal_reached = on_goal_reached
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -316,6 +321,10 @@ class BaseActionClient(object):
     @property
     def logger(self):
         return self._logger
+
+    def stop(self):
+        self._status_sub.stop()
+        self._feedback_sub.stop()
 
     def send_goal(self,
                   goal_msg: ActionMessage.Goal,
@@ -366,6 +375,10 @@ class BaseActionClient(object):
                                    GoalStatus.ABORTED):
             res = self.get_result(wait=True, wait_max_sec=10)
             self.result = res
+            if self._status.status == GoalStatus.SUCCEDED and \
+                    self.on_goal_reached is not None:
+                self.on_goal_reached(res)
+
             if self.on_result is not None:
                 self.on_result(res)
 
@@ -375,3 +388,7 @@ class BaseActionClient(object):
         fb = self._msg_type.Feedback(**msg.feedback_data)
         if self.on_feedback is not None:
             self.on_feedback(fb)
+
+    def __del__(self):
+        self.stop()
+
