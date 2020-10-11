@@ -23,43 +23,36 @@ def add_two_int_handler(msg):
     return resp
 
 
-def run_amqp(rpc_name):
-    from commlib.transports.amqp import (
-        RPCService, RPCClient, ConnectionParameters
-    )
-    rpc = RPCService(rpc_name=rpc_name,
-                     msg_type=AddTwoIntMessage,
-                     on_request=add_two_int_handler)
-    rpc.run()
-    time.sleep(1)
-
-    client = RPCClient(rpc_name=rpc_name, msg_type=AddTwoIntMessage)
-    msg = AddTwoIntMessage.Request(a=1, b=2)
-    resp = client.call(msg)
-    print(resp)
-
-def run_redis(rpc_name):
-    from commlib.transports.redis import (
-        RPCService, RPCClient, ConnectionParameters
-    )
-    rpc = RPCService(rpc_name=rpc_name,
-                     msg_type=AddTwoIntMessage,
-                     on_request=add_two_int_handler)
-    rpc.run()
-    time.sleep(1)
-
-    client = RPCClient(rpc_name=rpc_name, msg_type=AddTwoIntMessage)
-    msg = AddTwoIntMessage.Request(a=1, b=2)
-    resp = client.call(msg)
-    print(resp)
-
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         broker = 'redis'
     else:
         broker = str(sys.argv[1])
+    if broker == 'redis':
+        from commlib.transports.redis import (
+            RPCService, RPCClient, ConnectionParameters
+        )
+    elif broker == 'amqp':
+        from commlib.transports.amqp import (
+            RPCService, RPCClient, ConnectionParameters
+        )
+    else:
+        print('Not a valid broker-type was given!')
+        sys.exit(1)
+
     rpc_name = 'example_rpc_service'
-    if broker == 'amqp':
-        run_amqp(rpc_name)
-    elif broker == 'redis':
-        run_redis(rpc_name)
+
+    conn_params = ConnectionParameters()
+
+    rpc = RPCService(rpc_name=rpc_name,
+                     msg_type=AddTwoIntMessage,
+                     conn_params=conn_params,
+                     on_request=add_two_int_handler)
+    rpc.run()
+    time.sleep(1)
+
+    client = RPCClient(rpc_name=rpc_name, msg_type=AddTwoIntMessage,
+                       conn_params=conn_params)
+    msg = AddTwoIntMessage.Request(a=1, b=2)
+    resp = client.call(msg)
+    print(resp)
