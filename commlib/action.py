@@ -315,21 +315,21 @@ class BaseActionClient(object):
             logger is None else logger
 
     @property
-    def debug(self):
+    def debug(self) -> bool:
         return self._debug
 
     @property
-    def logger(self):
+    def logger(self) -> Logger:
         return self._logger
 
-    def stop(self):
+    def stop(self) -> None:
         self._status_sub.stop()
         self._feedback_sub.stop()
 
     def send_goal(self,
                   goal_msg: ActionMessage.Goal,
                   timeout: int = 10,
-                  wait_for_result: bool = False) -> None:
+                  wait_for_result: bool = False) -> _ActionGoalMessage.Response:
         assert isinstance(goal_msg, self._msg_type.Goal)
         req = _ActionGoalMessage.Request()
         resp = self._goal_client.call(req, timeout=timeout)
@@ -338,7 +338,9 @@ class BaseActionClient(object):
         self._status = _ActionStatusMessage()
         return resp
 
-    def cancel_goal(self, timeout: float = 10.0, wait_for_result: bool = False):
+    def cancel_goal(self,
+                    timeout: float = 10.0,
+                    wait_for_result: bool = False) -> _ActionCancelMessage.Response:
         req = _ActionCancelMessage.Request(goal_id=self._goal_id)
         resp = self._cancel_client.call(req, timeout=timeout)
         res = self.get_result(wait=wait_for_result)
@@ -347,7 +349,7 @@ class BaseActionClient(object):
     def get_result(self,
                    timeout: float = 10.0,
                    wait: bool = False,
-                   wait_max_sec: float = 30.0):
+                   wait_max_sec: float = 30.0) -> ActionMessage.Result:
         if self.result is not None:
             return self.result
         req = _ActionResultMessage.Request(goal_id=self._goal_id)
@@ -366,7 +368,7 @@ class BaseActionClient(object):
                 t_elapsed = time.time() - t_start
         return None
 
-    def _on_status(self, msg):
+    def _on_status(self, msg: _ActionStatusMessage) -> None:
         if msg.goal_id != self._goal_id:
             return
         self._status = msg
@@ -382,7 +384,7 @@ class BaseActionClient(object):
             if self.on_result is not None:
                 self.on_result(res)
 
-    def _on_feedback(self, msg):
+    def _on_feedback(self, msg: _ActionFeedbackMessage) -> None:
         if msg.goal_id != self._goal_id:
             return
         fb = self._msg_type.Feedback(**msg.feedback_data)

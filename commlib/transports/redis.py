@@ -291,8 +291,7 @@ class Subscriber(BaseSubscriber):
         try:
             self._exit_gracefully()
         except Exception as exc:
-            print(exc)
-            pass
+            self.logger.error(f'Exception thrown in Subscriber.stop(): {exc}')
 
     def run_forever(self):
         try:
@@ -301,9 +300,7 @@ class Subscriber(BaseSubscriber):
         except Exception as exc:
             raise exc
 
-    def _on_message(self, payload):
-        # self.logger.info(
-        #     'Received Message: <{}>:{}'.format(self._topic, payload))
+    def _on_message(self, payload: dict):
         payload = self._serializer.deserialize(payload['data'])
         data = payload['data']
         header = payload['header']
