@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import concurrent.futures.thread
 import time
 import threading
+from typing import Dict, List, Any, Text
 
 from commlib.endpoints import TransportType
 from commlib.utils import gen_random_id
@@ -77,7 +78,7 @@ class HeartbeatThread(threading.Thread):
 
 
 class Node(object):
-    def __init__(self, node_name: str = None,
+    def __init__(self, node_name: Text = '',
                  executor: NodeExecutorType = NodeExecutorType.ThreadExecutor,
                  transport_type: TransportType = TransportType.REDIS,
                  transport_connection_params=None,
@@ -90,7 +91,7 @@ class Node(object):
         elif executor == NodeExecutorType.ProcessExecutor:
             self._executor = ProcessPoolExecutor(max_workers=max_workers)
 
-        if node_name is None:
+        if node_name is '' or node_name is None:
             node_name = gen_random_id()
         self._node_name = node_name
 

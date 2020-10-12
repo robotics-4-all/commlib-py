@@ -5,11 +5,11 @@ import hashlib
 
 from dataclasses import dataclass as DataClass
 from dataclasses import field as DataField
-from dataclasses import is_dataclass as is_msgclass
-from dataclasses import make_dataclass as make_msgclass
+from dataclasses import is_dataclass
+from dataclasses import make_dataclass
 from dataclasses import asdict as as_dict
 from dataclasses import astuple as as_tuple
-from typing import List, Dict, Tuple, Sequence
+from typing import List, Dict, Tuple, Sequence, Any, Text
 
 import redis
 
@@ -44,7 +44,7 @@ class HeaderObject(Object):
     """
     seq: int = DataField(default=0)
     timestamp: int = DataField(default=-1)
-    node_id: str = DataField(default='')
+    node_id: Text = DataField(default='')
     properties: dict = DataField(default_factory=dict)
 
     def __post_init__(self):
