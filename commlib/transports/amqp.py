@@ -178,7 +178,7 @@ class Connection(pika.BlockingConnection):
     def _ensure_events_processed(self):
         try:
             while True:
-                self.sleep(0.001)
+                self.sleep(1)
                 if self._t_stop_event.is_set():
                     break
         except Exception as exc:
