@@ -232,25 +232,25 @@ class RPCClient(BaseRPCClient):
         return resp
 
 
-class Publisher(BasePublisher):
+class _Publisher(BasePublisher):
     def __init__(self,
-                 msg_type: PubSubMessage,
                  conn_params: ConnectionParameters = None,
                  queue_size: int = 10,
                  *args, **kwargs):
         self._queue_size = queue_size
         self._msg_seq = 0
 
-        super(Publisher, self).__init__(msg_type=msg_type, *args, **kwargs)
+        super(_Publisher, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
-    def publish(self, msg: PubSubMessage):
-        _msg = self.__prepare_msg(msg.as_dict())
+    def publish(self, data: dict):
+        print(data)
+        _msg = self.__prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
         self.logger.debug(
-            'Publishing Message: <{}>:{}'.format(self._topic, msg))
+            'Publishing Message: <{}>:{}'.format(self._topic, data))
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
@@ -268,6 +268,25 @@ class Publisher(BasePublisher):
             'header': header
         }
         return _msg
+
+
+class Publisher(_Publisher):
+    def __init__(self,
+                 msg_type: PubSubMessage,
+                 conn_params: ConnectionParameters = None,
+                 queue_size: int = 10,
+                 *args, **kwargs):
+        self._queue_size = queue_size
+        self._msg_seq = 0
+        self._msg_type = msg_type
+
+        super(Publisher, self).__init__(msg_type=msg_type, *args, **kwargs)
+
+        self._transport = RedisTransport(conn_params=conn_params,
+                                         logger=self._logger)
+
+    def publish(self, msg: PubSubMessage):
+        super(Publisher, self).publish(msg.as_dict())
 
 
 class Subscriber(BaseSubscriber):

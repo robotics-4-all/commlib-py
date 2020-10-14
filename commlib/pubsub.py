@@ -42,7 +42,7 @@ class BasePublisher(object):
     def logger(self):
         return self._logger
 
-    def publish(self, payload):
+    def publish(self, msg: PubSubMessage):
         raise NotImplementedError()
 
 
