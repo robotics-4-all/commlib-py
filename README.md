@@ -59,6 +59,10 @@ TODO
 ### EventEmitter
 TODO
 
+## Broker-to-broker (B2B) bridges
+
+![bridges_1](./assets/2020-07-24-025901_713x483_scrot.png)
+
 # Examples
 
 Examples can be found at the `./examples` directory of this repo
