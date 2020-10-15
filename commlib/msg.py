@@ -85,3 +85,8 @@ class ActionMessage(Object):
     @DataClass
     class Feedback(Object):
         header: HeaderObject = HeaderObject()
+
+
+@DataClass
+class HeartbeatMessage(PubSubMessage):
+    ts: int = -1

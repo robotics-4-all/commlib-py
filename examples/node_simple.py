@@ -53,6 +53,7 @@ if __name__ == '__main__':
         print('Not a valid broker-type was given!')
         sys.exit(1)
 
+    node.init_heartbeat_thread()
 
     rpc = node.create_rpc(msg_type=AddTwoIntMessage,
                           rpc_name=rpc_name, on_request=on_request)
