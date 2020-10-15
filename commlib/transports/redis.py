@@ -118,17 +118,16 @@ class RedisTransport(object):
         return msgq, payload
 
 
-class RPCService(BaseRPCService):
+class _RPCService(BaseRPCService):
     def __init__(self,
-                 msg_type: RPCMessage,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
-        super(RPCService, self).__init__(msg_type=msg_type, *args, **kwargs)
+        super(_RPCService, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
     def _send_response(self, data, reply_to):
-        header = {
+        meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -139,25 +138,19 @@ class RPCService(BaseRPCService):
         }
         _resp = {
             'data': data,
-            'header': header
+            'meta': meta
         }
         _resp = self._serializer.serialize(_resp)
         self._transport.push_msg_to_queue(reply_to, _resp)
 
-    def _on_request(self, msg: RPCMessage.Request, meta):
+    def _on_request(self, data: dict, meta: dict):
         try:
-            resp = self.on_request(msg)
+            resp = self.on_request(data)
         except Exception as exc:
             self.logger.error(str(exc), exc_info=False)
-            resp = self._msg_type.Response()
-        if not isinstance(resp, self._msg_type.Response):
-            self.logger.error('Wrong Response type!')
-            resp = self._msg_type.Response()
-        data = resp.as_dict()
-
+            resp = {}
         reply_to = meta['reply_to']
-
-        self._send_response(data, reply_to)
+        self._send_response(resp, reply_to)
 
     def run_forever(self):
         self._transport.delete_queue(self._rpc_name)
@@ -179,19 +172,54 @@ class RPCService(BaseRPCService):
     def __detach_request_handler(self, payload):
         payload = self._serializer.deserialize(payload)
         data = payload['data']
-        header = payload['header']
-        req_msg = self._msg_type.Request(**data)
+        meta = payload['meta']
         self.logger.debug('RPC Request <{}>'.format(self._rpc_name))
-        _future = self._executor.submit(self._on_request, req_msg, header)
+        _future = self.__exec_in_thread(
+            functools.partial(self._on_request, data, meta)
+        )
+        return _future
+
+    def __exec_in_thread(self, on_request):
+        _future = self._executor.submit(on_request)
         return _future
 
 
-class RPCClient(BaseRPCClient):
+class RPCService(_RPCService):
     def __init__(self,
                  msg_type: RPCMessage,
+                 *args, **kwargs):
+        super(RPCService, self).__init__(*args, **kwargs)
+        self._msg_type = msg_type
+
+    def _on_request(self, msg: RPCMessage.Request, meta):
+        try:
+            resp = self.on_request(msg)
+        except Exception as exc:
+            self.logger.error(str(exc), exc_info=False)
+            resp = self._msg_type.Response()
+        if not isinstance(resp, self._msg_type.Response):
+            self.logger.error('Wrong Response type!')
+            resp = self._msg_type.Response()
+        data = resp.as_dict()
+        reply_to = meta['reply_to']
+        self._send_response(data, reply_to)
+
+    def __detach_request_handler(self, payload):
+        payload = self._serializer.deserialize(payload)
+        data = payload['data']
+        meta = payload['meta']
+        req_msg = self._msg_type.Request(**data)
+        self.logger.debug('RPC Request <{}>'.format(self._rpc_name))
+        _future = self.__exec_in_thread(
+            functools.partial(self._on_request, req_msg, meta)
+        )
+        return _future
+
+class _RPCClient(BaseRPCClient):
+    def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
-        super(RPCClient, self).__init__(msg_type=msg_type, *args, **kwargs)
+        super(_RPCClient, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
@@ -200,7 +228,7 @@ class RPCClient(BaseRPCClient):
 
     def __prepare_request(self, data):
         _reply_to = self.__gen_queue_name()
-        header = {
+        meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'reply_to': _reply_to,
@@ -211,15 +239,14 @@ class RPCClient(BaseRPCClient):
         }
         _req = {
             'data': data,
-            'header': header
+            'meta': meta
         }
         return _req
 
-    def call(self, msg: RPCMessage.Request, timeout: float = 30):
+    def call(self, data: dict, timeout: float = 30):
         ## TODO: Evaluate msg type passed here.
-        data = msg.as_dict()
         _msg = self.__prepare_request(data)
-        _reply_to = _msg['header']['reply_to']
+        _reply_to = _msg['meta']['reply_to']
         _msg = self._serializer.serialize(_msg)
         self._transport.push_msg_to_queue(self._rpc_name, _msg)
         msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
@@ -227,10 +254,41 @@ class RPCClient(BaseRPCClient):
         if _msg is None:
             return None
         _msg = self._serializer.deserialize(_msg)
-        resp = self._msg_type.Response(**_msg['data'])
         ## TODO: Evaluate response type and raise exception if necessary
-        return resp
+        return _msg
 
+
+class RPCClient(_RPCClient):
+    def __init__(self,
+                 msg_type: RPCMessage,
+                 *args, **kwargs):
+        super(RPCClient, self).__init__(*args, **kwargs)
+        self._msg_type = msg_type
+
+    def __gen_queue_name(self):
+        return 'rpc-{}'.format(self._gen_random_id())
+
+    def __prepare_request(self, data):
+        _reply_to = self.__gen_queue_name()
+        meta = {
+            'timestamp': int(datetime.datetime.now(
+                datetime.timezone.utc).timestamp() * 1000000),
+            'reply_to': _reply_to,
+            'properties': {
+                'content_type': self._serializer.CONTENT_TYPE,
+                'content_encoding': self._serializer.CONTENT_ENCODING
+            }
+        }
+        _req = {
+            'data': data,
+            'meta': meta
+        }
+        return _req
+
+    def call(self, msg: RPCMessage.Request, timeout: float = 30):
+        ## TODO: Evaluate msg type passed here.
+        data = msg.as_dict()
+        return super(RPCClient, self).call(data, timeout)
 
 class _Publisher(BasePublisher):
     def __init__(self,
@@ -246,7 +304,6 @@ class _Publisher(BasePublisher):
                                          logger=self._logger)
 
     def publish(self, data: dict):
-        print(data)
         _msg = self.__prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
         self.logger.debug(
@@ -255,7 +312,7 @@ class _Publisher(BasePublisher):
         self._msg_seq += 1
 
     def __prepare_msg(self, data):
-        header = {
+        meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -265,7 +322,7 @@ class _Publisher(BasePublisher):
         }
         _msg = {
             'data': data,
-            'header': header
+            'meta': meta
         }
         return _msg
 
@@ -321,7 +378,7 @@ class _Subscriber(BaseSubscriber):
     def _on_message(self, payload: dict):
         payload = self._serializer.deserialize(payload['data'])
         data = payload['data']
-        header = payload['header']
+        meta = payload['meta']
         if self.onmessage is not None:
             self.onmessage(data)
 
@@ -338,7 +395,7 @@ class Subscriber(_Subscriber):
     def _on_message(self, payload: dict):
         payload = self._serializer.deserialize(payload['data'])
         data = payload['data']
-        header = payload['header']
+        meta = payload['meta']
         msg = self._msg_type(**data)
         if self.onmessage is not None:
             self.onmessage(msg)
@@ -443,7 +500,7 @@ class EventEmitter(BaseEventEmitter):
         self._transport.publish(event.uri, _msg)
 
     def __prepare_msg(self, data):
-        header = {
+        meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -453,6 +510,6 @@ class EventEmitter(BaseEventEmitter):
         }
         _msg = {
             'data': data,
-            'header': header
+            'meta': meta
         }
         return _msg

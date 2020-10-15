@@ -38,14 +38,13 @@ class Object:
 
 
 @DataClass
-class HeaderObject(Object):
-    """HeaderObject Class.
+class MetaInfoObject(Object):
+    """MetaInfoObject Class.
     Implements the Header data class.
     """
     seq: int = DataField(default=0)
     timestamp: int = DataField(default=-1)
     node_id: Text = DataField(default='')
-    properties: dict = DataField(default_factory=dict)
 
     def __post_init__(self):
         self.timestamp = int(time.time())
@@ -58,11 +57,11 @@ class RPCMessage:
     """
     @DataClass
     class Request(Object):
-        header: HeaderObject = HeaderObject()
+        meta: MetaInfoObject = MetaInfoObject()
 
     @DataClass
     class Response(Object):
-        header: HeaderObject = HeaderObject()
+        meta: MetaInfoObject = MetaInfoObject()
 
 
 @DataClass
@@ -70,21 +69,21 @@ class PubSubMessage(Object):
     """PubSubObject Class.
     Implementation of the PubSubObject Base Data class.
     """
-    header: HeaderObject = DataField(default=HeaderObject())
+    meta: MetaInfoObject = DataField(default=MetaInfoObject())
 
 
 class ActionMessage(Object):
     @DataClass
     class Goal(Object):
-        header: HeaderObject = HeaderObject()
+        meta: MetaInfoObject = MetaInfoObject()
 
     @DataClass
     class Result(Object):
-        header: HeaderObject = HeaderObject()
+        meta: MetaInfoObject = MetaInfoObject()
 
     @DataClass
     class Feedback(Object):
-        header: HeaderObject = HeaderObject()
+        meta: MetaInfoObject = MetaInfoObject()
 
 
 @DataClass
