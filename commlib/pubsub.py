@@ -61,7 +61,7 @@ class BaseSubscriber(object):
         if topic is None:
             raise ValueError()
 
-        self._onmessage = on_message
+        self.onmessage = on_message
 
         if serializer is not None:
             self._serializer = serializer
@@ -95,6 +95,9 @@ class BaseSubscriber(object):
         return self._logger
 
     def run_forever(self):
+        raise NotImplementedError()
+
+    def on_message(self):
         raise NotImplementedError()
 
     def run(self):

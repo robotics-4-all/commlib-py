@@ -289,14 +289,13 @@ class Publisher(_Publisher):
         super(Publisher, self).publish(msg.as_dict())
 
 
-class Subscriber(BaseSubscriber):
+class _Subscriber(BaseSubscriber):
     def __init__(self,
-                 msg_type: PubSubMessage,
                  conn_params: ConnectionParameters = None,
                  queue_size: int = 1,
                  *args, **kwargs):
         self._queue_size = queue_size
-        super(Subscriber, self).__init__(msg_type=msg_type, *args, **kwargs)
+        super(_Subscriber, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
@@ -323,12 +322,26 @@ class Subscriber(BaseSubscriber):
         payload = self._serializer.deserialize(payload['data'])
         data = payload['data']
         header = payload['header']
-        msg = self._msg_type(**data)
-        if self._onmessage is not None:
-            self._onmessage(msg)
+        if self.onmessage is not None:
+            self.onmessage(data)
 
     def _exit_gracefully(self):
         self._subscriber_thread.stop()
+
+class Subscriber(_Subscriber):
+    def __init__(self,
+                 msg_type: PubSubMessage,
+                 *args, **kwargs):
+        super(Subscriber, self).__init__(*args, **kwargs)
+        self._msg_type = msg_type
+
+    def _on_message(self, payload: dict):
+        payload = self._serializer.deserialize(payload['data'])
+        data = payload['data']
+        header = payload['header']
+        msg = self._msg_type(**data)
+        if self.onmessage is not None:
+            self.onmessage(msg)
 
 
 class ActionServer(BaseActionServer):
