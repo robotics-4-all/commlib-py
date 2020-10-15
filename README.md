@@ -1,5 +1,11 @@
 # commlib-py
-Broker-based communication library written in python implementing the most common communication patterns for Cyber-Physical Systems.
+Broker-based communication framework written in python 3.
+Implements the most common communication patterns (RPC/ReqResp, PubSub) over a message broker.
+A message broker is a communication middleware responsible for routing messages to the
+proper endpoints. Some examples of message brokers are: AMQP-based brokers (e.g. RabbitMQ),
+Apache Kafka, MQTT brokers (e.g. Mosquito) and Redis.
+
+Yes, Redis can also be used as a message broker for RPC and PubSub communication!!
 
 
 # Installation
