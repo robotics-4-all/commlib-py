@@ -9,6 +9,10 @@ def camelcase_to_snakecase(name):
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
+def gen_timestamp():
+    return int(1.0 * (time.time() + 0.5) * 1000)
+
+
 def gen_random_id():
     """Generate correlationID."""
     return str(uuid.uuid4()).replace('-', '')

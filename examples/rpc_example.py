@@ -55,4 +55,4 @@ if __name__ == '__main__':
                        conn_params=conn_params)
     msg = AddTwoIntMessage.Request(a=1, b=2)
     resp = client.call(msg)
-    print(resp)
+    print(f'Response Message: {resp}')
