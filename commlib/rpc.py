@@ -124,7 +124,8 @@ class BaseRPCClient(object):
     def logger(self):
         return self._logger
 
-    def call(self, msg: RPCMessage.Request, timeout: float = 30):
+    def call(self, msg: RPCMessage.Request,
+             timeout: float = 30) -> RPCMessage.Response:
         raise NotImplementedError()
 
     def call_async(self, msg: RPCMessage.Request,
@@ -137,7 +138,7 @@ class BaseRPCClient(object):
             )
         return _future
 
-    def _done_callback(self, on_response, _future):
+    def _done_callback(self, on_response: callable, _future):
         if _future.cancelled():
             self.logger.debug('Future object was cancelled')
             ## TODO: Implement Calcellation logic

@@ -45,6 +45,7 @@ class MetaInfoObject(Object):
     seq: int = DataField(default=0)
     timestamp: int = DataField(default=-1)
     node_id: Text = DataField(default='')
+    agent: Text = DataField(default='commlib-py')
 
     def __post_init__(self):
         self.timestamp = int(time.time())

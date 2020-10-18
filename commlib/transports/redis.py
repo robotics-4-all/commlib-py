@@ -92,7 +92,7 @@ class RedisTransport(object):
         self._rsub = self._redis.pubsub()
 
     def delete_queue(self, queue_name):
-        self.logger.debug('Removing message queue: <{}>'.format(queue_name))
+        # self.logger.debug('Removing message queue: <{}>'.format(queue_name))
         self._redis.delete(queue_name)
 
     def push_msg_to_queue(self, queue_name, payload):
@@ -243,7 +243,7 @@ class _RPCClient(BaseRPCClient):
         }
         return _req
 
-    def call(self, data: dict, timeout: float = 30):
+    def call(self, data: dict, timeout: float = 30) -> dict:
         ## TODO: Evaluate msg type passed here.
         _msg = self.__prepare_request(data)
         _reply_to = _msg['meta']['reply_to']
@@ -255,7 +255,7 @@ class _RPCClient(BaseRPCClient):
             return None
         _msg = self._serializer.deserialize(_msg)
         ## TODO: Evaluate response type and raise exception if necessary
-        return _msg
+        return _msg['data']
 
 
 class RPCClient(_RPCClient):
@@ -285,10 +285,12 @@ class RPCClient(_RPCClient):
         }
         return _req
 
-    def call(self, msg: RPCMessage.Request, timeout: float = 30):
+    def call(self, msg: RPCMessage.Request,
+             timeout: float = 30) -> RPCMessage.Response:
         ## TODO: Evaluate msg type passed here.
-        data = msg.as_dict()
-        return super(RPCClient, self).call(data, timeout)
+        resp_data = super(RPCClient, self).call(msg.as_dict(), timeout)
+        return self._msg_type.Response(**resp_data)
+
 
 class _Publisher(BasePublisher):
     def __init__(self,
@@ -485,18 +487,20 @@ class ActionClient(BaseActionClient):
 
 
 class EventEmitter(BaseEventEmitter):
-    def __init__(self, conn_params=None, *args, **kwargs):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
         super(EventEmitter, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
     def send_event(self, event):
-        _msg = event.to_dict()
+        _msg = event.as_dict()
         _msg = self.__prepare_msg(_msg)
         _msg = self._serializer.serialize(_msg)
-        self.logger.debug(
-            'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
+        # self.logger.debug(
+        #     'Firing Event: <{}>:{}'.format(event.uri, _msg))
         self._transport.publish(event.uri, _msg)
 
     def __prepare_msg(self, data):

@@ -5,15 +5,13 @@ if sys.version_info[0] >= 3:
     unicode = str
 
 import time
-import atexit
-import signal
 import json
 import uuid
 import pika
 from collections import deque
 from threading import Semaphore, Thread, Event as ThreadEvent
 import logging
-#  import ssl
+from typing import OrderedDict, Any
 
 from commlib.logger import Logger, LoggingLevel
 from commlib.serializer import ContentType
@@ -226,7 +224,6 @@ class AMQPTransport(object):
     def __init__(self, conn_params, debug=False, logger=None, connection=None):
         """Constructor."""
         # So that connections do not go zombie
-        # atexit.register(self._graceful_shutdown)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -844,7 +841,8 @@ class RPCClient(_RPCClient):
         super(RPCClient, self).__init__(*args, **kwargs)
         self._msg_type = msg_type
 
-    def call(self, msg: RPCMessage.Request, timeout: float = 10.0):
+    def call(self, msg: RPCMessage.Request,
+             timeout: float = 10.0) -> RPCMessage.Response:
         """Call RPC.
 
         Args:
@@ -905,7 +903,7 @@ class _Publisher(BasePublisher):
         ## Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data)
 
-    def _send_msg(self, data: dict):
+    def _send_msg(self, data: OrderedDict):
         _payload = None
         _encoding = None
         _type = None
@@ -1293,10 +1291,8 @@ class EventEmitter(BaseEventEmitter):
         self._exchange = exchange
 
     def send_event(self, event: Event):
-        _msg = event.to_dict()
-        # self.logger.debug(
-        #     'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
-        self._send_data(event.uri, event.to_dict())
+        _data = event.as_dict()
+        self._send_data(event.uri, _data)
 
     def _send_data(self, topic: str, data: dict) -> None:
         _payload = None

@@ -23,6 +23,11 @@ def add_two_int_handler(msg):
     return resp
 
 
+def client_onrespone(msg):
+    print('[*] - Client async onresponse callback')
+    print(msg)
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         broker = 'redis'
@@ -56,3 +61,7 @@ if __name__ == '__main__':
     msg = AddTwoIntMessage.Request(a=1, b=2)
     resp = client.call(msg)
     print(f'Response Message: {resp}')
+
+    client.call_async(msg, on_response=client_onrespone)
+    while True:
+        time.sleep(1)
