@@ -181,6 +181,7 @@ class RPCBridge(Bridge):
 
     def run(self):
         self._server.run()
+        self.logger.info(f'Started RPC B2B Bridge <{self._from_uri} -> {self._to_uri}')
 
 
 class TopicBridge(Bridge):
@@ -281,3 +282,4 @@ class TopicBridge(Bridge):
 
     def run(self):
         self._sub.run()
+        self.logger.info(f'Started Topic B2B Bridge <{self._from_broker_params.host}:{self._from_uri} -> {self._to_broker_params.host}:{self._to_uri}>')
