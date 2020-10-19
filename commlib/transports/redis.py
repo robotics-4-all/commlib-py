@@ -173,7 +173,7 @@ class _RPCService(BaseRPCService):
         payload = self._serializer.deserialize(payload)
         data = payload['data']
         meta = payload['meta']
-        self.logger.debug('RPC Request <{}>'.format(self._rpc_name))
+        self.logger.debug(f'RPC Request <{self._rpc_name}>')
         _future = self.__exec_in_thread(
             functools.partial(self._on_request, data, meta)
         )
@@ -209,7 +209,7 @@ class RPCService(_RPCService):
         data = payload['data']
         meta = payload['meta']
         req_msg = self._msg_type.Request(**data)
-        self.logger.debug('RPC Request <{}>'.format(self._rpc_name))
+        self.logger.debug(f'RPC Request <{self._rpc_name}>')
         _future = self.__exec_in_thread(
             functools.partial(self._on_request, req_msg, meta)
         )
@@ -224,7 +224,7 @@ class _RPCClient(BaseRPCClient):
                                          logger=self._logger)
 
     def __gen_queue_name(self):
-        return 'rpc-{}'.format(self._gen_random_id())
+        return f'rpc-{self._gen_random_id()}'
 
     def __prepare_request(self, data):
         _reply_to = self.__gen_queue_name()
@@ -266,7 +266,7 @@ class RPCClient(_RPCClient):
         self._msg_type = msg_type
 
     def __gen_queue_name(self):
-        return 'rpc-{}'.format(self._gen_random_id())
+        return f'rpc-{self._gen_random_id()}'
 
     def __prepare_request(self, data):
         _reply_to = self.__gen_queue_name()
@@ -309,7 +309,7 @@ class _Publisher(BasePublisher):
         _msg = self.__prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
         self.logger.debug(
-            'Publishing Message: <{}>:{}'.format(self._topic, data))
+            f'Publishing Message: <{self._topic}>:{data}')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
@@ -362,6 +362,7 @@ class _Subscriber(BaseSubscriber):
     def run(self):
         self._subscriber_thread = self._transport.subscribe(self._topic,
                                                             self._on_message)
+        self.logger.info(f'Started Subscriber: <{self._topic}>')
 
     def stop(self):
         """Stop background thread that handle subscribed topic messages"""
@@ -495,7 +496,7 @@ class EventEmitter(BaseEventEmitter):
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
-    def send_event(self, event):
+    def send_event(self, event: Event) -> None:
         _msg = event.as_dict()
         _msg = self.__prepare_msg(_msg)
         _msg = self._serializer.serialize(_msg)
@@ -503,7 +504,7 @@ class EventEmitter(BaseEventEmitter):
         #     'Firing Event: <{}>:{}'.format(event.uri, _msg))
         self._transport.publish(event.uri, _msg)
 
-    def __prepare_msg(self, data):
+    def __prepare_msg(self, data: dict) -> None:
         meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),

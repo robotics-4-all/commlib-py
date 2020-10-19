@@ -180,9 +180,7 @@ class Connection(pika.BlockingConnection):
                     break
         except Exception as exc:
             self._logger.warning(
-                'Exception thrown while processing amqp events - {}'.format(
-                    str(exc)
-                ))
+                f'Exception thrown while processing amqp events - {exc}')
 
 
     def set_transport_ref(self, transport):
@@ -291,8 +289,10 @@ class AMQPTransport(object):
         except pika.exceptions.ConnectionClosed:
             self.logger.debug('Connection timed out. Reconnecting...')
             self.create_channel()
-        except pika.exceptions.ConnectionError:
-            self.logger.debug('Connection error. Reconnecting...')
+        except pika.exceptions.AuthenticationError:
+            self.logger.debug('Authentication Error. Reconnecting...')
+        except pika.exceptions.AMQPConnectionError as e:
+            self.logger.debug(f'Connection Error ({e}). Reconnecting...')
             self.create_channel()
 
     def add_threadsafe_callback(self, cb, *args, **kwargs):
@@ -310,7 +310,7 @@ class AMQPTransport(object):
 
     def _signal_handler(self, signum, frame):
         """TODO"""
-        self.logger.info('Signal received: {}'.format(signum))
+        self.logger.debug(f'Signal received: {signum}')
         self._graceful_shutdown()
 
     def _graceful_shutdown(self):
@@ -331,7 +331,7 @@ class AMQPTransport(object):
             exchange=exchange_name,
             passive=True,  # Perform a declare or just to see if it exists
         )
-        self.logger.debug('Exchange exists result: {}'.format(resp))
+        self.logger.debug(f'Exchange exists result: {resp}')
         return resp
 
     def create_exchange(self, exchange_name, exchange_type, internal=None):
@@ -352,8 +352,8 @@ class AMQPTransport(object):
             exchange_type=exchange_type
         )
 
-        self.logger.debug('Created exchange: [name={}, type={}]'.format(
-            exchange_name, exchange_type))
+        self.logger.debug(
+            f'Created exchange: [name={exchange_name}, type={exchange_type}]')
 
     def create_queue(self, queue_name='', exclusive=True, queue_size=10,
                      message_ttl=60000, overflow_behaviour='drop-head',
@@ -400,8 +400,8 @@ class AMQPTransport(object):
             auto_delete=True,
             arguments=args)
         queue_name = result.method.queue
-        self.logger.debug('Created queue [{}] [size={}, ttl={}]'.format(
-            queue_name, queue_size, message_ttl))
+        self.logger.debug(
+            f'Created queue [{queue_name}] [size={queue_size}, ttl={message_ttl}]')
         return queue_name
 
     def delete_queue(self, queue_name):
@@ -425,7 +425,7 @@ class AMQPTransport(object):
             if exc.reply_code == 404:  # Not Found
                 return False
             else:
-                self.logger.warning('Queue exists <{}>'.format(queue_name))
+                self.logger.warning(f'Queue exists <{queue_name}>')
                 return True
 
     def bind_queue(self, exchange_name, queue_name, bind_key):
@@ -502,10 +502,10 @@ class _RPCService(BaseRPCService):
 
     def run_forever(self, raise_if_exists: bool = False):
         """Run RPC Service in normal mode. Blocking operation."""
-        if self._rpc_exists() and raise_if_exists:
-            raise ValueError(
-                'RPC <{}> allready registered on broker.'.format(
-                    self._rpc_name))
+        # if self._rpc_exists() and raise_if_exists:
+        #     raise ValueError(
+        #         'RPC <{}> allready registered on broker.'.format(
+        #             self._rpc_name))
         self._rpc_queue = self._transport.create_queue(self._rpc_name)
         self._transport.set_channel_qos()
         self._transport.consume_fromm_queue(self._rpc_queue,
@@ -581,7 +581,7 @@ class _RPCService(BaseRPCService):
                               exc_info=True)
             _payload = {
                 'status': 501,
-                'error': 'Internal server error: {}'.format(str(e))
+                'error': f'Internal server error: {e}'
             }
 
         _msg_props = MessageProperties(

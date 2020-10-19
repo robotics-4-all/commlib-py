@@ -35,12 +35,12 @@ class BaseEventEmitter(object):
         self.logger.debug(f'Initiated Event Emitter <{self._name}>')
 
     @property
-    def debug(self):
+    def debug(self) -> bool:
         return self._debug
 
     @property
-    def logger(self):
+    def logger(self) -> Logger:
         return self._logger
 
-    def send_event(self, event: Event):
+    def send_event(self, event: Event) -> None:
         raise NotImplementedError()

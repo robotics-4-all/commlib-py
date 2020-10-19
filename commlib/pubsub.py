@@ -79,7 +79,6 @@ class BaseSubscriber(object):
 
         self._main_thread = None
         self._t_stop_event = None
-        self.logger.debug('Created Subscriber: <{}>'.format(self._topic))
 
     @property
     def topic(self):
@@ -106,6 +105,7 @@ class BaseSubscriber(object):
         self._main_thread.daemon = True
         self._t_stop_event = threading.Event()
         self._main_thread.start()
+        self.logger.info(f'Started Subscriber: <{self._topic}>')
 
     def stop(self):
         if self._t_stop_event is not None:

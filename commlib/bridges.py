@@ -282,4 +282,7 @@ class TopicBridge(Bridge):
 
     def run(self):
         self._sub.run()
-        self.logger.info(f'Started Topic B2B Bridge <{self._from_broker_params.host}:{self._from_uri} -> {self._to_broker_params.host}:{self._to_uri}>')
+        self.logger.info(
+            f'Started Topic B2B Bridge ' + \
+            f'<{self._from_broker_params.host}:{self._from_broker_params.port}[{self._from_uri}] ' + \
+            f'-> {self._to_broker_params.host}:{self._to_broker_params.port}[{self._to_uri}]>')

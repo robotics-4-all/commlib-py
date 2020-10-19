@@ -54,7 +54,6 @@ class BaseRPCService(object):
 
         self._main_thread = None
         self._t_stop_event = None
-        self.logger.debug('Created RPC Service <{}>'.format(self._rpc_name))
 
     @property
     def debug(self):
@@ -72,6 +71,7 @@ class BaseRPCService(object):
         self._main_thread.daemon = True
         self._t_stop_event = threading.Event()
         self._main_thread.start()
+        self.logger.info(f'Started RPC Service <{self._rpc_name}>')
 
     def stop(self):
         if self._t_stop_event is not None:

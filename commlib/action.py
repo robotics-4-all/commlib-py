@@ -191,11 +191,11 @@ class BaseActionServer(object):
         self._on_cancel = on_cancel
         self._on_getresult = on_getresult
 
-        self._status_topic = '{}.status'.format(self._action_name)
-        self._feedback_topic = '{}.feedback'.format(self._action_name)
-        self._goal_rpc_uri = '{}.send_goal'.format(self._action_name)
-        self._cancel_rpc_uri = '{}.cancel_goal'.format(self._action_name)
-        self._result_rpc_uri = '{}.get_result'.format(self._action_name)
+        self._status_topic = f'{self._action_name}.status'
+        self._feedback_topic = f'{self._action_name}.feedback'
+        self._goal_rpc_uri = f'{self._action_name}.send_goal'
+        self._cancel_rpc_uri = f'{self._action_name}.cancel_goal'
+        self._result_rpc_uri = f'{self._action_name}.get_result'
 
         ## To be instantiated by the child classes
         self._feedback_pub = None
@@ -223,6 +223,7 @@ class BaseActionServer(object):
         self._goal_rpc.run()
         self._cancel_rpc.run()
         self._result_rpc.run()
+        self.logger.info(f'Started Action Server <{self._action_name}>')
 
     def stop(self):
         self._goal_rpc.stop()
@@ -304,11 +305,11 @@ class BaseActionClient(object):
         self._action_name = action_name
         self._msg_type = msg_type
 
-        self._status_topic = '{}.status'.format(self._action_name)
-        self._feedback_topic = '{}.feedback'.format(self._action_name)
-        self._goal_rpc_uri = '{}.send_goal'.format(self._action_name)
-        self._cancel_rpc_uri = '{}.cancel_goal'.format(self._action_name)
-        self._result_rpc_uri = '{}.get_result'.format(self._action_name)
+        self._status_topic = f'{self._action_name}.status'
+        self._feedback_topic = f'{self._action_name}.feedback'
+        self._goal_rpc_uri = f'{self._action_name}.send_goal'
+        self._cancel_rpc_uri = f'{self._action_name}.cancel_goal'
+        self._result_rpc_uri = f'{self._action_name}.get_result'
 
         ## To be instantiated by the child classes
         self._goal_client = None

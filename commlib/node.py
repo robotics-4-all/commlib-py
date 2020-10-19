@@ -142,12 +142,14 @@ class Node(object):
                                         debug=debug)
         else:
             self._logger = Logger(self._node_name, debug=debug)
+        self._logger.info(f'Created Node <{self._node_name}>')
 
     def init_heartbeat_thread(self):
         topic = f'{self._namespace}.heartbeat'
         self._hb_thread = HeartbeatThread(
             self.create_publisher(topic=topic, msg_type=HeartbeatMessage))
         self._hb_thread.start()
+        self._logger.info(f'Started Publishing heartbeats: <{topic}>')
 
     @property
     def input_ports(self):
