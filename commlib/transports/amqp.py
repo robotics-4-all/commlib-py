@@ -94,7 +94,7 @@ class ConnectionParameters():
     ]
 
     def __init__(self, host='127.0.0.1', port='5672', creds=None,
-                 secure=False, vhost='/', reconnect_attempts=5,
+                 secure=False, vhost='/', reconnect_attempts=10,
                  retry_delay=2.0, timeout=120, blocked_connection_timeout=None,
                  heartbeat_timeout=60, channel_max=128):
         """Constructor."""
@@ -242,7 +242,6 @@ class AMQPTransport(object):
         # Create a new connection
         if self._connection is None:
             self._connection = Connection(self._conn_params)
-        self.create_channel()
 
     @property
     def logger(self):
@@ -271,6 +270,9 @@ class AMQPTransport(object):
         else:
             self.logger.setLevel(LoggingLevel.INFO)
 
+    def connect(self):
+        self.create_channel()
+
     def _on_connect(self):
         ch = self._connection.channel()
         self._channel = ch
@@ -288,12 +290,12 @@ class AMQPTransport(object):
                         self._conn_params.vhost))
         except pika.exceptions.ConnectionClosed:
             self.logger.debug('Connection timed out. Reconnecting...')
-            self.create_channel()
+            self.connect()
         except pika.exceptions.AuthenticationError:
             self.logger.debug('Authentication Error. Reconnecting...')
         except pika.exceptions.AMQPConnectionError as e:
             self.logger.debug(f'Connection Error ({e}). Reconnecting...')
-            self.create_channel()
+            self.connect()
 
     def add_threadsafe_callback(self, cb, *args, **kwargs):
         self.connection.add_callback_threadsafe(
@@ -506,12 +508,17 @@ class _RPCService(BaseRPCService):
         #     raise ValueError(
         #         'RPC <{}> allready registered on broker.'.format(
         #             self._rpc_name))
+        self._transport.connect()
         self._rpc_queue = self._transport.create_queue(self._rpc_name)
         self._transport.set_channel_qos()
         self._transport.consume_fromm_queue(self._rpc_queue,
                                             self._on_request_handle)
         try:
             self._transport.start_consuming()
+        except pika.exceptions.ConnectionClosedByBroker as exc:
+            self.logger.error(exc, exc_info=True)
+        except pika.exceptions.AMQPConnectionError as exc:
+            self.logger.error(exc, exc_info=True)
         except Exception as exc:
             self.logger.error(exc, exc_info=True)
             raise exc
@@ -697,6 +704,7 @@ class _RPCClient(BaseRPCClient):
 
         self._transport = AMQPTransport(conn_params, self._debug,
                                         self._logger, connection)
+        self._transport.connect()
 
         ## Register on_request cabblack handle
         self._transport.add_threadsafe_callback(
@@ -886,6 +894,7 @@ class _Publisher(BasePublisher):
 
         self._transport = AMQPTransport(conn_params, self._debug,
                                         self._logger, connection)
+        self._transport.connect()
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
         if connection is None:
@@ -996,6 +1005,19 @@ class _Subscriber(BaseSubscriber):
 
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
 
+        self._last_msg_ts = None
+        self._msg_freq_fifo = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
+        self._hz = 0
+        self._sem = Semaphore()
+
+    @property
+    def hz(self) -> float:
+        """Incoming message frequency."""
+        return self._hz
+
+    def run_forever(self) -> None:
+        """Start Subscriber. Blocking method."""
+        self._transport.connect()
         _exch_ex = self._transport.exchange_exists(self._topic_exchange)
         if _exch_ex.method.NAME != 'Exchange.DeclareOk':
             self._transport.create_exchange(self._topic_exchange,
@@ -1011,18 +1033,6 @@ class _Subscriber(BaseSubscriber):
         # Bind queue to the Topic exchange
         self._transport.bind_queue(self._topic_exchange, self._queue_name,
                                    self._topic)
-        self._last_msg_ts = None
-        self._msg_freq_fifo = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
-        self._hz = 0
-        self._sem = Semaphore()
-
-    @property
-    def hz(self) -> float:
-        """Incoming message frequency."""
-        return self._hz
-
-    def run_forever(self) -> None:
-        """Start Subscriber. Blocking method."""
         self._consume()
 
     def close(self) -> None:
@@ -1288,6 +1298,7 @@ class EventEmitter(BaseEventEmitter):
 
         self._transport = AMQPTransport(conn_params=conn_params,
                                         logger=self._logger)
+        self._transport.connect()
         self._exchange = exchange
 
     def send_event(self, event: Event):
