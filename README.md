@@ -22,8 +22,8 @@ pip install . --user
 ```
 
 # Features
-The purpose of this implementation is to provide an application-level of
-communication patterns, such as RPCs, Topic-based PubSub, Preemptable Services
+The purpose of this implementation is to provide an application-level communication layer, 
+by providing implementations for Remote-Procedure-Calls (RPCs), Topic-based PubSub, Preemptable Services
 (aka Actions), Events etc.
 
 ## Transports
@@ -73,6 +73,22 @@ data model of the request message.
 
 Furthermore, `content_type` and `content_encoding` properties must be set 
 for serialization/deserialization purposes.
+
+
+**Note**: The **RPC Client** implementation is responsible to remove any created 
+temporary queues!
+
+
+### NATS
+
+**NOT YET SUPPORTED**
+
+
+### MQTT
+
+
+**NOT YET SUPPORTED**
+
 
 
 ## Endpoints
