@@ -115,11 +115,11 @@ class RedisTransport(object):
         return msgq, payload
 
 
-class _RPCService(BaseRPCService):
+class RPCService(BaseRPCService):
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
-        super(_RPCService, self).__init__(*args, **kwargs)
+        super(RPCService, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
@@ -142,7 +142,12 @@ class _RPCService(BaseRPCService):
 
     def _on_request(self, data: dict, meta: dict):
         try:
-            resp = self.on_request(data)
+            if self._msg_type is None:
+                resp = self.on_request(OrderedDict(data))
+            else:
+                resp = self.on_request(self._msg_type.Request(**data))
+                ## RPCMessage.Response object here
+                resp = resp.as_dict()
         except Exception as exc:
             self.logger.error(str(exc), exc_info=False)
             resp = {}
@@ -181,87 +186,13 @@ class _RPCService(BaseRPCService):
         return _future
 
 
-class RPCService(_RPCService):
-    def __init__(self,
-                 msg_type: RPCMessage,
-                 *args, **kwargs):
-        super(RPCService, self).__init__(*args, **kwargs)
-        self._msg_type = msg_type
-
-    def _on_request(self, msg: RPCMessage.Request, meta):
-        try:
-            resp = self.on_request(msg)
-        except Exception as exc:
-            self.logger.error(str(exc), exc_info=False)
-            resp = self._msg_type.Response()
-        if not isinstance(resp, self._msg_type.Response):
-            self.logger.error('Wrong Response type!')
-            resp = self._msg_type.Response()
-        data = resp.as_dict()
-        reply_to = meta['reply_to']
-        self._send_response(data, reply_to)
-
-    def __detach_request_handler(self, payload):
-        payload = self._serializer.deserialize(payload)
-        data = payload['data']
-        meta = payload['meta']
-        req_msg = self._msg_type.Request(**data)
-        self.logger.debug(f'RPC Request <{self._rpc_name}>')
-        _future = self.__exec_in_thread(
-            functools.partial(self._on_request, req_msg, meta)
-        )
-        return _future
-
-
-class _RPCClient(BaseRPCClient):
+class RPCClient(BaseRPCClient):
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
-        super(_RPCClient, self).__init__(*args, **kwargs)
+        super(RPCClient, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
-
-    def __gen_queue_name(self):
-        return f'rpc-{self._gen_random_id()}'
-
-    def __prepare_request(self, data):
-        _reply_to = self.__gen_queue_name()
-        meta = {
-            'timestamp': int(datetime.datetime.now(
-                datetime.timezone.utc).timestamp() * 1000000),
-            'reply_to': _reply_to,
-            'properties': {
-                'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING
-            }
-        }
-        _req = {
-            'data': data,
-            'meta': meta
-        }
-        return _req
-
-    def call(self, data: dict, timeout: float = 30) -> dict:
-        ## TODO: Evaluate msg type passed here.
-        _msg = self.__prepare_request(data)
-        _reply_to = _msg['meta']['reply_to']
-        _msg = self._serializer.serialize(_msg)
-        self._transport.push_msg_to_queue(self._rpc_name, _msg)
-        msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
-        self._transport.delete_queue(_reply_to)
-        if _msg is None:
-            return None
-        _msg = self._serializer.deserialize(_msg)
-        ## TODO: Evaluate response type and raise exception if necessary
-        return _msg['data']
-
-
-class RPCClient(_RPCClient):
-    def __init__(self,
-                 msg_type: RPCMessage,
-                 *args, **kwargs):
-        super(RPCClient, self).__init__(*args, **kwargs)
-        self._msg_type = msg_type
 
     def __gen_queue_name(self):
         return f'rpc-{self._gen_random_id()}'
@@ -286,8 +217,26 @@ class RPCClient(_RPCClient):
     def call(self, msg: RPCMessage.Request,
              timeout: float = 30) -> RPCMessage.Response:
         ## TODO: Evaluate msg type passed here.
-        resp_data = super(RPCClient, self).call(msg.as_dict(), timeout)
-        return self._msg_type.Response(**resp_data)
+        if self._msg_type is None:
+            data = msg
+        else:
+            data = msg.as_dict()
+
+        _msg = self.__prepare_request(data)
+        _reply_to = _msg['meta']['reply_to']
+        _msg = self._serializer.serialize(_msg)
+        self._transport.push_msg_to_queue(self._rpc_name, _msg)
+        msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
+        self._transport.delete_queue(_reply_to)
+        if _msg is None:
+            return None
+        _msg = self._serializer.deserialize(_msg)
+        ## TODO: Evaluate response type and raise exception if necessary
+        data = _msg['data']
+        if self._msg_type is None:
+            return data
+        else:
+            return self._msg_type.Response(**data)
 
 
 class Publisher(BasePublisher):

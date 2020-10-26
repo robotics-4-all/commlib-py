@@ -469,7 +469,7 @@ class AMQPTransport(object):
     #     self._graceful_shutdown()
 
 
-class _RPCService(BaseRPCService):
+class RPCService(BaseRPCService):
     """AMQP RPC Service class.
     Implements an AMQP RPC Service.
 
@@ -493,7 +493,8 @@ class _RPCService(BaseRPCService):
         """
         self._exchange = exchange
         self._closing = False
-        super(_RPCService, self).__init__(*args, **kwargs)
+        super(RPCService, self).__init__(*args, **kwargs)
+
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
@@ -559,15 +560,21 @@ class _RPCService(BaseRPCService):
         resp = self._invoke_onrequest_callback(_data)
         self._send_response(resp, ch, _corr_id, _reply_to, _delivery_tag)
 
-    def _invoke_onrequest_callback(self, data):
-        if self.on_request is not None:
+    def _invoke_onrequest_callback(self, data: dict):
+        if self._msg_type is None:
             try:
                 resp = self.on_request(data)
             except Exception as exc:
                 self.logger.error(str(exc), exc_info=False)
                 resp = {}
         else:
-            resp = {}
+            try:
+                msg = self._msg_type.Request(**data)
+                resp = self.on_request(msg)
+            except Exception as exc:
+                self.logger.error(str(exc), exc_info=False)
+                resp = self._msg_type.Response()
+            resp = resp.as_dict()
         return resp
 
     def _send_response(self, data: dict, channel, correlation_id: str,
@@ -635,43 +642,7 @@ class _RPCService(BaseRPCService):
         self.close()
 
 
-class RPCService(_RPCService):
-    """AMQP RPC Service class.
-    Implements an AMQP RPC Service.
-
-    Args:
-        rpc_name (str): The name of the RPC.
-        exchange (str): The exchange to bind the RPC.
-            Defaults to (AMQT default).
-        on_request (function): The on-request callback function to register.
-    """
-    def __init__(self,
-                 msg_type: RPCMessage,
-                 *args, **kwargs):
-        """__init__.
-
-        Args:
-            args:
-            kwargs:
-        """
-        super(RPCService, self).__init__(*args, **kwargs)
-        self._msg_type = msg_type
-
-    def _invoke_onrequest_callback(self, data: dict):
-        if self.on_request is not None:
-            try:
-                msg = self._msg_type.Request(**data)
-                resp = self.on_request(msg)
-                assert isinstance(resp, RPCMessage.Response)
-            except Exception as exc:
-                self.logger.error(str(exc), exc_info=False)
-                resp = self._msg_type.Response()
-        else:
-            resp = self._msg_type.Response()
-        return resp.as_dict()
-
-
-class _RPCClient(BaseRPCClient):
+class RPCClient(BaseRPCClient):
     """AMQP RPC Client class.
 
     Args:
@@ -691,9 +662,8 @@ class _RPCClient(BaseRPCClient):
         self._exchange = ExchangeTypes.Default
         self._mean_delay = 0
         self._delay = 0
-        self.onresponse = None
 
-        super(_RPCClient, self).__init__(*args, **kwargs)
+        super(RPCClient, self).__init__(*args, **kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -734,25 +704,33 @@ class _RPCClient(BaseRPCClient):
         """Generate correlationID."""
         return str(uuid.uuid4())
 
-    def call(self, data: dict, timeout: float = 10.0):
+    def call(self, msg: RPCMessage.Request, timeout: float = 10.0):
         """Call RPC.
 
         Args:
             timeout (float): Response timeout. Set this value carefully
                 based on application criteria.
         """
+        if self._msg_type is None:
+            data = msg
+        else:
+            data = msg.as_dict()
+
         self._response = None
         if self._use_corr_id:
             self._corr_id = self.gen_corr_id()
 
         start_t = time.time()
         self._transport.connection.add_callback_threadsafe(
-            functools.partial(self._send_msg, data))
-        # self._transport.process_amqp_events()
+            functools.partial(self._send_msg, data)
+        )
         resp = self._wait_for_response(timeout=timeout)
         elapsed_t = time.time() - start_t
         self._delay = elapsed_t
-        return resp
+        if self._msg_type is None:
+            return resp
+        else:
+            return self._msg_type.Response(**resp)
 
     def _wait_for_response(self, timeout: float = 10.0):
         start_t = time.time()
@@ -794,13 +772,7 @@ class _RPCClient(BaseRPCClient):
             self.logger.error("Could not deserialize data",
                               exc_info=True)
             _data = {}
-        resp = self._on_response(_data)
-        self._response = resp
-
-    def _on_response(self, data: dict):
-        if self.onresponse is not None and callable(self.onresponse):
-            self.onresponse(data)
-        return data
+        self._response = _data
 
     def _send_msg(self, data: dict) -> None:
         _payload = None
@@ -828,41 +800,6 @@ class _RPCClient(BaseRPCClient):
             properties=_rpc_props,
             body=_payload
         )
-        # self._transport.process_amqp_events()
-
-
-class RPCClient(_RPCClient):
-    """AMQP RPC Client class.
-
-    Args:
-        rpc_name (str): The name of the RPC.
-        **kwargs: The Keyword arguments to pass to  the base class
-            (BaseRPCClient).
-    """
-    def __init__(self,
-                 msg_type: RPCMessage,
-                 *args, **kwargs):
-        super(RPCClient, self).__init__(*args, **kwargs)
-        self._msg_type = msg_type
-
-    def call(self, msg: RPCMessage.Request,
-             timeout: float = 10.0) -> RPCMessage.Response:
-        """Call RPC.
-
-        Args:
-            msg (RPCMessage.Request): The message to send.
-            timeout (float): Response timeout. Set this value carefully
-                based on application criteria.
-        """
-        assert isinstance(msg, self._msg_type.Request)
-        _resp = super(RPCClient, self).call(msg.as_dict())
-        return _resp
-
-    def _on_response(self, data: dict):
-        msg = self._msg_type.Response(**data)
-        if self.onresponse is not None and callable(self.onresponse):
-            self.onresponse(msg)
-        return msg
 
 
 class Publisher(BasePublisher):
