@@ -904,8 +904,13 @@ class Subscriber(BaseSubscriber):
         self._overflow = overflow
         self._queue_name = None
         self._closing = False
+        self._transport = None
 
         super(Subscriber, self).__init__(*args, **kwargs)
+
+        # if '*' in self._topic or '#' in self._topic or '?' in self._topic:
+        #     raise ValueError(
+        #         'Use PSubscriber class for pattern-based subscription.')
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -945,12 +950,14 @@ class Subscriber(BaseSubscriber):
     def close(self) -> None:
         if self._closing:
             return False
-        self._closing = True
-        if not self._transport.channel:
+        elif not self._transport:
             return False
-        if self._transport.channel.is_closed:
+        elif not self._transport.channel:
+            return False
+        elif self._transport.channel.is_closed:
             self.logger.warning('Channel was already closed!')
             return False
+        self._closing = True
         super(Subscriber, self).stop()
         self._transport.add_threadsafe_callback(
             self._transport.delete_queue, self._queue_name)

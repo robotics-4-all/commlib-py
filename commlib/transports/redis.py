@@ -99,7 +99,7 @@ class RedisTransport(object):
         self._redis.publish(queue_name, payload)
 
     def subscribe(self, topic: str, callback: callable):
-        self._sub = self._rsub.subscribe(
+        self._sub = self._rsub.psubscribe(
             **{topic: callback})
         self._rsub.get_message()
         t = self._rsub.run_in_thread(0.001, daemon=True)
@@ -287,6 +287,10 @@ class Subscriber(BaseSubscriber):
                  *args, **kwargs):
         self._queue_size = queue_size
         super(Subscriber, self).__init__(*args, **kwargs)
+
+        # if '*' in self._topic or '#' in self._topic or '?' in self._topic:
+        #     raise ValueError(
+        #         'Use PSubscriber class for pattern-based subscription.')
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
