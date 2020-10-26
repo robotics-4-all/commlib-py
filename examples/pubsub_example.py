@@ -15,9 +15,46 @@ class SonarMessage(PubSubMessage):
 
 def sonar_data_callback(msg):
     print(f'Message: {msg}')
+    # print(f'{msg["distance"]}')
+    # print(f'{msg.distance}')
+
+def run_amqp_dict(topic):
+    from commlib.transports.amqp import (
+        Publisher, Subscriber, ConnectionParameters
+    )
+    sub = Subscriber(topic=topic,
+                      on_message=sonar_data_callback)
+    sub.run()
+
+    pub = Publisher(topic=topic)
+    msg = {
+        'distance': 0
+    }
+    while True:
+        time.sleep(0.5)
+        pub.publish(msg)
+        msg['distance'] += 1
 
 
-def run_amqp(topic):
+def run_redis_dict(topic):
+    from commlib.transports.redis import (
+        Publisher, Subscriber, ConnectionParameters
+    )
+    sub = Subscriber(topic=topic,
+                      on_message=sonar_data_callback)
+    sub.run()
+
+    pub = Publisher(topic=topic)
+    msg = {
+        'distance': 0
+    }
+    while True:
+        time.sleep(0.5)
+        pub.publish(msg)
+        msg['distance'] += 1
+
+
+def run_amqp_msg(topic):
     from commlib.transports.amqp import (
         Publisher, Subscriber, ConnectionParameters
     )
@@ -34,7 +71,7 @@ def run_amqp(topic):
         msg.distance += 1
 
 
-def run_redis(topic):
+def run_redis_msg(topic):
     from commlib.transports.redis import (
         Publisher, Subscriber, ConnectionParameters
     )
@@ -57,6 +94,8 @@ if __name__ == '__main__':
         broker = str(sys.argv[1])
     topic = 'example_pubsub'
     if broker == 'amqp':
-        run_amqp(topic)
+        run_amqp_dict(topic)
+        # run_amqp_msg(topic)
     elif broker == 'redis':
-        run_redis(topic)
+        # run_redis_dict(topic)
+        run_redis_msg(topic)

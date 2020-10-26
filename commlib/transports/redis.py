@@ -1,9 +1,5 @@
 import functools
 import sys
-
-if sys.version_info[0] >= 3:
-    unicode = str
-
 import time
 import atexit
 import signal
@@ -11,6 +7,7 @@ import json
 import uuid
 import hashlib
 import datetime
+from typing import OrderedDict, Any
 
 import redis
 
@@ -215,6 +212,7 @@ class RPCService(_RPCService):
         )
         return _future
 
+
 class _RPCClient(BaseRPCClient):
     def __init__(self,
                  conn_params: ConnectionParameters = None,
@@ -292,7 +290,7 @@ class RPCClient(_RPCClient):
         return self._msg_type.Response(**resp_data)
 
 
-class _Publisher(BasePublisher):
+class Publisher(BasePublisher):
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  queue_size: int = 10,
@@ -300,12 +298,16 @@ class _Publisher(BasePublisher):
         self._queue_size = queue_size
         self._msg_seq = 0
 
-        super(_Publisher, self).__init__(*args, **kwargs)
+        super(Publisher, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
-    def publish(self, data: dict):
+    def publish(self, msg: PubSubMessage) -> None:
+        if self._msg_type is None:
+            data = msg
+        else:
+            data = msg.as_dict()
         _msg = self.__prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
         self.logger.debug(
@@ -329,32 +331,13 @@ class _Publisher(BasePublisher):
         return _msg
 
 
-class Publisher(_Publisher):
-    def __init__(self,
-                 msg_type: PubSubMessage,
-                 conn_params: ConnectionParameters = None,
-                 queue_size: int = 10,
-                 *args, **kwargs):
-        self._queue_size = queue_size
-        self._msg_seq = 0
-        self._msg_type = msg_type
-
-        super(Publisher, self).__init__(msg_type=msg_type, *args, **kwargs)
-
-        self._transport = RedisTransport(conn_params=conn_params,
-                                         logger=self._logger)
-
-    def publish(self, msg: PubSubMessage):
-        super(Publisher, self).publish(msg.as_dict())
-
-
-class _Subscriber(BaseSubscriber):
+class Subscriber(BaseSubscriber):
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  queue_size: int = 1,
                  *args, **kwargs):
         self._queue_size = queue_size
-        super(_Subscriber, self).__init__(*args, **kwargs)
+        super(Subscriber, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
@@ -383,25 +366,13 @@ class _Subscriber(BaseSubscriber):
         data = payload['data']
         meta = payload['meta']
         if self.onmessage is not None:
-            self.onmessage(data)
+            if self._msg_type is None:
+                self.onmessage(OrderedDict(data))
+            else:
+                self.onmessage(self._msg_type(**data))
 
     def _exit_gracefully(self):
         self._subscriber_thread.stop()
-
-class Subscriber(_Subscriber):
-    def __init__(self,
-                 msg_type: PubSubMessage,
-                 *args, **kwargs):
-        super(Subscriber, self).__init__(*args, **kwargs)
-        self._msg_type = msg_type
-
-    def _on_message(self, payload: dict):
-        payload = self._serializer.deserialize(payload['data'])
-        data = payload['data']
-        meta = payload['meta']
-        msg = self._msg_type(**data)
-        if self.onmessage is not None:
-            self.onmessage(msg)
 
 
 class ActionServer(BaseActionServer):

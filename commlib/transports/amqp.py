@@ -1,9 +1,5 @@
 import functools
 import sys
-
-if sys.version_info[0] >= 3:
-    unicode = str
-
 import time
 import json
 import uuid
@@ -869,7 +865,7 @@ class RPCClient(_RPCClient):
         return msg
 
 
-class _Publisher(BasePublisher):
+class Publisher(BasePublisher):
     """Publisher class.
 
     Args:
@@ -886,8 +882,7 @@ class _Publisher(BasePublisher):
                  *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
-
-        super(_Publisher, self).__init__(*args, **kwargs)
+        super(Publisher, self).__init__(*args, **kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -900,17 +895,22 @@ class _Publisher(BasePublisher):
         if connection is None:
             self.run()
 
-    def run(self):
+    def run(self) -> None:
         self._transport.detach_amqp_events_thread()
 
-    def publish(self, data: dict):
+    def publish(self, msg: PubSubMessage) -> None:
         """ Publish message once.
 
         Args:
             msg (PubSubMessage): Message to publish.
         """
         ## Thread Safe solution
-        self._transport.add_threadsafe_callback(self._send_msg, data)
+        if self._msg_type is None:
+            self._transport.add_threadsafe_callback(self._send_msg, msg)
+        else:
+            self._transport.add_threadsafe_callback(self._send_msg,
+                                                    msg.as_dict())
+
 
     def _send_msg(self, data: OrderedDict):
         _payload = None
@@ -934,37 +934,7 @@ class _Publisher(BasePublisher):
             body=_payload)
 
 
-class Publisher(_Publisher):
-    """Publisher class.
-
-    Args:
-        topic (str): The topic uri to publish data.
-        exchange (str): The exchange to publish data.
-        **kwargs: The keyword arguments to pass to the base class
-            (BasePublisher).
-    """
-
-    def __init__(self,
-                 msg_type: PubSubMessage,
-                 *args, **kwargs):
-        """Constructor."""
-        super(Publisher, self).__init__(*args, **kwargs)
-        self._msg_type = msg_type
-
-    def run(self):
-        self._transport.detach_amqp_events_thread()
-
-    def publish(self, msg: PubSubMessage):
-        """ Publish message once.
-
-        Args:
-            msg (PubSubMessage): Message to publish.
-        """
-        ## Thread Safe solution
-        self._transport.add_threadsafe_callback(self._send_msg, msg.as_dict())
-
-
-class _Subscriber(BaseSubscriber):
+class Subscriber(BaseSubscriber):
     """Subscriber class.
     Implements the Subscriber endpoint of the PubSub communication pattern.
 
@@ -992,13 +962,13 @@ class _Subscriber(BaseSubscriber):
                  *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
-        self._queue_name = None
         self._queue_size = queue_size
         self._message_ttl = message_ttl
         self._overflow = overflow
+        self._queue_name = None
         self._closing = False
 
-        super(_Subscriber, self).__init__(*args, **kwargs)
+        super(Subscriber, self).__init__(*args, **kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -1081,7 +1051,6 @@ class _Subscriber(BaseSubscriber):
             _dmode = properties.delivery_mode
             _ts_broker = properties.headers['timestamp_in_ms']
             _ts_send = properties.timestamp
-            # _ts_broker = properties.timestamp
         except Exception:
             self.logger.debug("Could not calculate latency", exc_info=False)
 
@@ -1101,7 +1070,11 @@ class _Subscriber(BaseSubscriber):
                               exc_info=True)
 
         if self.onmessage is not None:
-            self.onmessage(_data)
+            if self._msg_type is None:
+                self.onmessage(OrderedDict(_data))
+            else:
+                msg = self._msg_type(**_data)
+                self.onmessage(msg)
 
     def _calc_msg_frequency(self) -> None:
         ts = time.time()
@@ -1126,76 +1099,6 @@ class _Subscriber(BaseSubscriber):
 
     def __exit__(self, exc_type, value, traceback):
         self.close()
-
-
-class Subscriber(_Subscriber):
-    """Subscriber class.
-    Implements the Subscriber endpoint of the PubSub communication pattern.
-
-    Args:
-        topic (str): The topic uri.
-        on_message (function): The callback function. This function
-            is fired when messages arrive at the registered topic.
-        exchange (str): The name of the exchange. Defaults to `amq.topic`
-        queue_size (int): The maximum queue size of the topic.
-        message_ttl (int): Message Time-to-Live as specified by AMQP.
-        overflow (str): queue overflow behavior. Specified by AMQP Protocol.
-            Defaults to `drop-head`.
-        **kwargs: The keyword arguments to pass to the base class
-            (BaseSubscriber).
-    """
-
-    FREQ_CALC_SAMPLES_MAX = 100
-
-    def __init__(self,
-                 msg_type = PubSubMessage,
-                 conn_params: ConnectionParameters = None,
-                 exchange: str = 'amq.topic',
-                 queue_size: int = 10,
-                 message_ttl: int = 60000,
-                 overflow: str = 'drop-head',
-                 *args, **kwargs):
-        """Constructor."""
-        super(Subscriber, self).__init__(*args, **kwargs)
-        self._msg_type = msg_type
-
-
-
-    def _on_msg_callback_wrapper(self, ch, method, properties, body):
-        _ctype = None
-        _cencoding = None
-        _ts_send = None
-        _ts_broker = None
-        _dmode = None
-        try:
-            _ctype = properties.content_type
-            _cencoding = properties.content_encoding
-            _dmode = properties.delivery_mode
-            _ts_broker = properties.headers['timestamp_in_ms']
-            _ts_send = properties.timestamp
-            # _ts_broker = properties.timestamp
-        except Exception:
-            self.logger.debug("Could not calculate latency", exc_info=False)
-
-        try:
-            _data = self._serializer.deserialize(body)
-        except Exception:
-            self.logger.error("Could not deserialize data",
-                              exc_info=True)
-            # Return data as is. Let callback handle with encoding...
-            _data = {}
-
-        try:
-            self._sem.acquire()
-            self._calc_msg_frequency()
-            self._sem.release()
-        except Exception:
-            self.logger.warn("Could not calculate message rate",
-                              exc_info=True)
-
-        if self.onmessage is not None:
-            msg = self._msg_type(**_data)
-            self.onmessage(msg)
 
 
 class ActionServer(BaseActionServer):

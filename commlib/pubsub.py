@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import uuid
+from typing import OrderedDict, Any
 
 from .serializer import JSONSerializer
 from .logger import Logger
@@ -35,14 +36,14 @@ class BasePublisher(object):
         self.logger.debug('Created Publisher: <{}>'.format(self._topic))
 
     @property
-    def debug(self):
+    def debug(self) -> bool:
         return self._debug
 
     @property
-    def logger(self):
+    def logger(self) -> Logger:
         return self._logger
 
-    def publish(self, msg: PubSubMessage):
+    def publish(self, msg: PubSubMessage) -> None:
         raise NotImplementedError()
 
 
@@ -81,25 +82,25 @@ class BaseSubscriber(object):
         self._t_stop_event = None
 
     @property
-    def topic(self):
+    def topic(self) -> str:
         """topic"""
         return self._topic
 
     @property
-    def debug(self):
+    def debug(self) -> bool:
         return self._debug
 
     @property
-    def logger(self):
+    def logger(self) -> Logger:
         return self._logger
 
-    def run_forever(self):
+    def run_forever(self) -> None:
         raise NotImplementedError()
 
-    def on_message(self):
+    def on_message(self, data: OrderedDict) -> None:
         raise NotImplementedError()
 
-    def run(self):
+    def run(self) -> None:
         """Execute subscriber in a separate thread."""
         self._main_thread = threading.Thread(target=self.run_forever)
         self._main_thread.daemon = True
@@ -107,6 +108,6 @@ class BaseSubscriber(object):
         self._main_thread.start()
         self.logger.info(f'Started Subscriber: <{self._topic}>')
 
-    def stop(self):
+    def stop(self) -> None:
         if self._t_stop_event is not None:
             self._t_stop_event.set()
