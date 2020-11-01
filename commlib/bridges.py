@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
-
 import time
 from enum import IntEnum
 from commlib.endpoints import endpoint_factory, EndpointType, TransportType
@@ -76,11 +69,11 @@ class RPCBridge(Bridge):
 
     def __init__(self,
                  btype: RPCBridgeType,
-                 msg_type: RPCMessage,
                  from_uri: str,
                  to_uri: str,
                  from_broker_params,
                  to_broker_params,
+                 msg_type: RPCMessage = None,
                  logger: Logger = None,
                  debug: bool = False):
         """__init__.
@@ -194,11 +187,11 @@ class TopicBridge(Bridge):
     """
     def __init__(self,
                  btype: TopicBridgeType,
-                 msg_type: PubSubMessage,
                  from_uri: str,
                  to_uri: str,
                  from_broker_params,
                  to_broker_params,
+                 msg_type: PubSubMessage = None,
                  logger: Logger = None,
                  debug: bool = False):
         super(TopicBridge, self).__init__(btype, logger, debug)
@@ -274,7 +267,6 @@ class TopicBridge(Bridge):
             )
 
     def on_message(self, msg):
-        print(msg)
         self._pub.publish(msg)
 
     def stop(self):
@@ -284,5 +276,7 @@ class TopicBridge(Bridge):
         self._sub.run()
         self.logger.info(
             f'Started Topic B2B Bridge ' + \
-            f'<{self._from_broker_params.host}:{self._from_broker_params.port}[{self._from_uri}] ' + \
-            f'-> {self._to_broker_params.host}:{self._to_broker_params.port}[{self._to_uri}]>')
+            f'<{self._from_broker_params.host}:' + \
+            f'{self._from_broker_params.port}[{self._from_uri}] ' + \
+            f'-> {self._to_broker_params.host}:' + \
+            f'{self._to_broker_params.port}[{self._to_uri}]>')

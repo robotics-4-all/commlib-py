@@ -9,12 +9,25 @@ from commlib.msg import PubSubMessage, RPCMessage, DataClass
 import time
 
 
+@DataClass
+class TopicMessage(PubSubMessage):
+    a: int = 0
+
+
+class ExampleRPCMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
 def on_request(msg):
     print(f'[Broker-B] - RPC Service received request: {msg}')
-    c = msg['a'] + msg['b']
-    resp = {
-        'c': c
-    }
+    resp = ExampleRPCMessage.Response(c=msg.a+msg.b)
     return resp
 
 
@@ -31,29 +44,26 @@ def redis_to_amqp_topic_bridge():
     bA_uri = 'rpc.bridge.testA'
     bB_uri = 'rpc.bridge.testB'
     br = TopicBridge(TopicBridgeType.REDIS_TO_AMQP,
-                     from_uri=bA_uri, to_uri=bB_uri,
-                     from_broker_params=bA_params,
-                     to_broker_params=bB_params,
-                     debug=False)
+                     TopicMessage, bA_uri, bB_uri,
+                     bA_params, bB_params, debug=False)
     br.run()
 
     pub = rcomm.Publisher(conn_params=bA_params,
-                          topic=bA_uri,
-                          debug=False)
+                          msg_type=TopicMessage,
+                          topic=bA_uri)
 
     sub = acomm.Subscriber(
         conn_params=bB_params,
+        msg_type=TopicMessage,
         topic=bB_uri,
         on_message=on_message
     )
     sub.run()
 
     count = 0
-    msg = {
-        'a': 1
-    }
+    msg = TopicMessage()
     while count < 5:
-        msg['a'] = count
+        msg.a = count
         pub.publish(msg)
         time.sleep(1)
         count += 1
@@ -70,36 +80,29 @@ def redis_to_amqp_rpc_bridge():
     bA_uri = 'rpc.bridge.testA'
     bB_uri = 'rpc.bridge.testB'
     br = RPCBridge(RPCBridgeType.REDIS_TO_AMQP,
-                     from_uri=bA_uri, to_uri=bB_uri,
-                     from_broker_params=bA_params,
-                     to_broker_params=bB_params,
-                     debug=False)
+                   ExampleRPCMessage, bA_uri, bB_uri,
+                   bA_params, bB_params, debug=False)
     br.run()
 
 
     ## For Testing Bridge ------------------>
     ## BrokerA
-    client = rcomm.RPCClient(conn_params=bA_params,
-                             rpc_name=bA_uri,
-                             debug=False)
+    client = rcomm.RPCClient(msg_type=ExampleRPCMessage,
+                             conn_params=bA_params, rpc_name=bA_uri)
 
     ## BrokerB
     server = acomm.RPCService(
+        msg_type=ExampleRPCMessage,
         conn_params=bB_params,
         rpc_name=bB_uri,
-        on_request=on_request,
-        debug=False
+        on_request=on_request
     )
     server.run()
-    time.sleep(1)
 
     count = 0
-    req_msg = {
-        'a': 1,
-        'b': 2
-    }
+    req_msg = ExampleRPCMessage.Request()
     while count < 5:
-        req_msg['a'] = count
+        req_msg.a = count
         resp = client.call(req_msg)
         print(f'[Broker-A Client] - Response from AMQP RPC Service: {resp}')
         time.sleep(1)
@@ -111,4 +114,4 @@ def redis_to_amqp_rpc_bridge():
 
 if __name__ == '__main__':
     redis_to_amqp_rpc_bridge()
-    # redis_to_amqp_topic_bridge()
+    redis_to_amqp_topic_bridge()
