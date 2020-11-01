@@ -201,8 +201,6 @@ class TopicBridge(Bridge):
         self._to_uri = to_uri
         self._msg_type = msg_type
 
-        print(self._from_uri)
-
         if self._btype == TopicBridgeType.REDIS_TO_AMQP:
             self._sub = endpoint_factory(
                 EndpointType.Subscriber, TransportType.REDIS

@@ -333,16 +333,19 @@ class Subscriber(BaseSubscriber):
             raise exc
 
     def _on_message(self, payload: dict):
-        _topic = payload['channel']
-        payload = self._serializer.deserialize(payload['data'])
-        data = payload['data']
-        meta = payload['meta']
-        if self.onmessage is not None:
-            if self._msg_type is None:
-                _clb = functools.partial(self.onmessage, OrderedDict(data))
-            else:
-                _clb = functools.partial(self.onmessage, self._msg_type(**data))
-            _clb()
+        try:
+            _topic = payload['channel']
+            payload = self._serializer.deserialize(payload['data'])
+            data = payload['data']
+            meta = payload['meta']
+            if self.onmessage is not None:
+                if self._msg_type is None:
+                    _clb = functools.partial(self.onmessage, OrderedDict(data))
+                else:
+                    _clb = functools.partial(self.onmessage, self._msg_type(**data))
+                _clb()
+        except Exception:
+            self.logger.error('Exception caught in _on_message', exc_info=True)
 
     def _exit_gracefully(self):
         self._subscriber_thread.stop()
@@ -354,16 +357,19 @@ class PSubscriber(Subscriber):
         payload = self._serializer.deserialize(payload['data'])
         data = payload['data']
         meta = payload['meta']
-        if self.onmessage is not None:
-            if self._msg_type is None:
-                _clb = functools.partial(self.onmessage,
-                                         OrderedDict(data),
-                                         _topic)
-            else:
-                _clb = functools.partial(self.onmessage,
-                                         self._msg_type(**data),
-                                         _topic)
-            _clb()
+        try:
+            if self.onmessage is not None:
+                if self._msg_type is None:
+                    _clb = functools.partial(self.onmessage,
+                                             OrderedDict(data),
+                                             _topic)
+                else:
+                    _clb = functools.partial(self.onmessage,
+                                             self._msg_type(**data),
+                                             _topic)
+                _clb()
+        except Exception:
+            self.logger.error('Exception caught in _on_message', exc_info=True)
 
 
 class ActionServer(BaseActionServer):

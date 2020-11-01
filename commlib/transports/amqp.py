@@ -1039,13 +1039,16 @@ class Subscriber(BaseSubscriber):
             self.logger.warn("Could not calculate message rate",
                              exc_info=True)
 
-        if self.onmessage is not None:
-            if self._msg_type is None:
-                _clb = functools.partial(self.onmessage, OrderedDict(_data))
-            else:
-                _clb = functools.partial(self.onmessage,
-                                         self._msg_type(**_data))
-            _clb()
+        try:
+            if self.onmessage is not None:
+                if self._msg_type is None:
+                    _clb = functools.partial(self.onmessage, OrderedDict(_data))
+                else:
+                    _clb = functools.partial(self.onmessage,
+                                             self._msg_type(**_data))
+                _clb()
+        except Exception:
+            self.logger.error('Error in on_msg_callback', exc_info=True)
 
     def _calc_msg_frequency(self) -> None:
         ts = time.time()
@@ -1110,16 +1113,19 @@ class PSubscriber(Subscriber):
                               exc_info=True)
             return
 
-        if self.onmessage is not None:
-            if self._msg_type is None:
-                _clb = functools.partial(self.onmessage,
-                                         OrderedDict(_data),
-                                         _topic)
-            else:
-                _clb = functools.partial(self.onmessage,
-                                         self._msg_type(**_data),
-                                         _topic)
-            _clb()
+        try:
+            if self.onmessage is not None:
+                if self._msg_type is None:
+                    _clb = functools.partial(self.onmessage,
+                                             OrderedDict(_data),
+                                             _topic)
+                else:
+                    _clb = functools.partial(self.onmessage,
+                                             self._msg_type(**_data),
+                                             _topic)
+                _clb()
+        except Exception:
+            self.logger.error('Error in on_msg_callback', exc_info=True)
 
 class ActionServer(BaseActionServer):
     def __init__(self,
