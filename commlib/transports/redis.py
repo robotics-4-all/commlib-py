@@ -8,6 +8,7 @@ import uuid
 import hashlib
 import datetime
 from typing import OrderedDict, Any
+from inspect import signature
 
 import redis
 
@@ -257,14 +258,14 @@ class Publisher(BasePublisher):
             data = msg
         else:
             data = msg.as_dict()
-        _msg = self.__prepare_msg(data)
+        _msg = self._prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
         self.logger.debug(
             f'Publishing Message: <{self._topic}>:{data}')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
-    def __prepare_msg(self, data):
+    def _prepare_msg(self, data):
         meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
@@ -278,6 +279,23 @@ class Publisher(BasePublisher):
             'meta': meta
         }
         return _msg
+
+
+class MPublisher(Publisher):
+    def __init__(self, *args, **kwargs):
+        super(MPublisher, self).__init__(topic='*', *args, **kwargs)
+
+    def publish(self, msg: PubSubMessage, topic: str) -> None:
+        if self._msg_type is None:
+            data = msg
+        else:
+            data = msg.as_dict()
+        _msg = self._prepare_msg(data)
+        _msg = self._serializer.serialize(_msg)
+        self.logger.debug(
+            f'Publishing Message: <{self._topic}>:{data}')
+        self._transport.publish(topic, _msg)
+        self._msg_seq += 1
 
 
 class Subscriber(BaseSubscriber):
@@ -315,17 +333,37 @@ class Subscriber(BaseSubscriber):
             raise exc
 
     def _on_message(self, payload: dict):
+        _topic = payload['channel']
         payload = self._serializer.deserialize(payload['data'])
         data = payload['data']
         meta = payload['meta']
         if self.onmessage is not None:
             if self._msg_type is None:
-                self.onmessage(OrderedDict(data))
+                _clb = functools.partial(self.onmessage, OrderedDict(data))
             else:
-                self.onmessage(self._msg_type(**data))
+                _clb = functools.partial(self.onmessage, self._msg_type(**data))
+            _clb()
 
     def _exit_gracefully(self):
         self._subscriber_thread.stop()
+
+
+class PSubscriber(Subscriber):
+    def _on_message(self, payload: dict):
+        _topic = payload['channel']
+        payload = self._serializer.deserialize(payload['data'])
+        data = payload['data']
+        meta = payload['meta']
+        if self.onmessage is not None:
+            if self._msg_type is None:
+                _clb = functools.partial(self.onmessage,
+                                         OrderedDict(data),
+                                         _topic)
+            else:
+                _clb = functools.partial(self.onmessage,
+                                         self._msg_type(**data),
+                                         _topic)
+            _clb()
 
 
 class ActionServer(BaseActionServer):
@@ -422,13 +460,13 @@ class EventEmitter(BaseEventEmitter):
 
     def send_event(self, event: Event) -> None:
         _msg = event.as_dict()
-        _msg = self.__prepare_msg(_msg)
+        _msg = self._prepare_msg(_msg)
         _msg = self._serializer.serialize(_msg)
         # self.logger.debug(
         #     'Firing Event: <{}>:{}'.format(event.uri, _msg))
         self._transport.publish(event.uri, _msg)
 
-    def __prepare_msg(self, data: dict) -> None:
+    def _prepare_msg(self, data: dict) -> None:
         meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),

@@ -13,10 +13,8 @@ class SonarMessage(PubSubMessage):
     vertical_fov: float = 14.0
 
 
-def sonar_data_callback(msg):
-    print(f'Message: {msg}')
-    # print(f'{msg["distance"]}')
-    # print(f'{msg.distance}')
+def sensor_data_callback(msg, topic):
+    print(f'Sensor Data Message: {topic}:{msg}')
 
 
 if __name__ == '__main__':
@@ -26,23 +24,22 @@ if __name__ == '__main__':
         broker = str(sys.argv[1])
     if broker == 'amqp':
         from commlib.transports.amqp import (
-            Publisher, Subscriber, ConnectionParameters
+            MPublisher, PSubscriber, ConnectionParameters
         )
         topic = 'sensors.#'
     elif broker == 'redis':
         from commlib.transports.redis import (
-            Publisher, Subscriber, ConnectionParameters
+            MPublisher, PSubscriber, ConnectionParameters
         )
         topic = 'sensors.*'
 
-    sub = Subscriber(topic=topic,
-                     on_message=sonar_data_callback)
+    sub = PSubscriber(topic=topic,
+                     on_message=sensor_data_callback)
     sub.run()
 
     p1_topic = topic.split('*')[0] + 'sonar.front'
     p2_topic = topic.split('*')[0] + 'ir.rear'
-    pub1 = Publisher(topic=p1_topic)
-    pub2 = Publisher(topic=p2_topic)
+    pub1 = MPublisher()
     msg1 = {
         'id': 'sensor',
         'distance': 0
@@ -53,7 +50,7 @@ if __name__ == '__main__':
     }
     while True:
         time.sleep(1)
-        pub1.publish(msg1)
-        pub2.publish(msg2)
+        pub1.publish(msg1, p1_topic)
+        pub1.publish(msg2, p2_topic)
         msg1['distance'] += 1
         msg2['distance'] += 1

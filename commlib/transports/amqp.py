@@ -8,6 +8,7 @@ from collections import deque
 from threading import Semaphore, Thread, Event as ThreadEvent
 import logging
 from typing import OrderedDict, Any
+from inspect import signature
 
 from commlib.logger import Logger, LoggingLevel
 from commlib.serializer import ContentType
@@ -843,13 +844,15 @@ class Publisher(BasePublisher):
         """
         ## Thread Safe solution
         if self._msg_type is None:
-            self._transport.add_threadsafe_callback(self._send_msg, msg)
+            self._transport.add_threadsafe_callback(self._send_msg, msg,
+                                                    self._topic)
         else:
             self._transport.add_threadsafe_callback(self._send_msg,
-                                                    msg.as_dict())
+                                                    msg.as_dict(),
+                                                    self._topic)
 
 
-    def _send_msg(self, data: OrderedDict):
+    def _send_msg(self, data: OrderedDict, topic: str):
         _payload = None
         _encoding = None
         _type = None
@@ -864,11 +867,33 @@ class Publisher(BasePublisher):
             message_id=0,
         )
 
+        # In amqp '#' defines one or more words.
+        topic = topic.replace('*', '#')
+
         self._transport._channel.basic_publish(
             exchange=self._topic_exchange,
-            routing_key=self._topic,
+            routing_key=topic,
             properties=msg_props,
             body=_payload)
+
+
+class MPublisher(Publisher):
+    def __init__(self, *args, **kwargs):
+        super(MPublisher, self).__init__(topic='*', *args, **kwargs)
+
+    def publish(self, msg: PubSubMessage, topic: str) -> None:
+        """ Publish message once.
+
+        Args:
+            msg (PubSubMessage): Message to publish.
+        """
+        ## Thread Safe solution
+        if self._msg_type is None:
+            self._transport.add_threadsafe_callback(self._send_msg, msg, topic)
+        else:
+            self._transport.add_threadsafe_callback(self._send_msg,
+                                                    msg.as_dict(),
+                                                    topic)
 
 
 class Subscriber(BaseSubscriber):
@@ -989,6 +1014,7 @@ class Subscriber(BaseSubscriber):
         _ts_send = None
         _ts_broker = None
         _dmode = None
+
         try:
             _ctype = properties.content_type
             _cencoding = properties.content_encoding
@@ -1011,14 +1037,15 @@ class Subscriber(BaseSubscriber):
             self._sem.release()
         except Exception:
             self.logger.warn("Could not calculate message rate",
-                              exc_info=True)
+                             exc_info=True)
 
         if self.onmessage is not None:
             if self._msg_type is None:
-                self.onmessage(OrderedDict(_data))
+                _clb = functools.partial(self.onmessage, OrderedDict(_data))
             else:
-                msg = self._msg_type(**_data)
-                self.onmessage(msg)
+                _clb = functools.partial(self.onmessage,
+                                         self._msg_type(**_data))
+            _clb()
 
     def _calc_msg_frequency(self) -> None:
         ts = time.time()
@@ -1044,6 +1071,51 @@ class Subscriber(BaseSubscriber):
     def __exit__(self, exc_type, value, traceback):
         self.close()
 
+
+class PSubscriber(Subscriber):
+
+    def _on_msg_callback_wrapper(self, ch, method, properties, body):
+        _data = {}
+        _ctype = None
+        _cencoding = None
+        _ts_send = None
+        _ts_broker = None
+        _dmode = None
+
+        try:
+            _ctype = properties.content_type
+            _cencoding = properties.content_encoding
+            _dmode = properties.delivery_mode
+            _ts_broker = properties.headers['timestamp_in_ms']
+            _ts_send = properties.timestamp
+        except Exception:
+            self.logger.debug("Could not calculate latency", exc_info=False)
+
+        try:
+            _data = self._serializer.deserialize(body)
+        except Exception:
+            self.logger.error("Could not deserialize data",
+                              exc_info=True)
+            # Return data as is. Let callback handle with encoding...
+            _data = {}
+        try:
+            _topic = method.routing_key
+            _topic = _topic.replace('#', '').replace('*', '')
+        except Exception:
+            self.logger.error('Routing key could not be retrieved for message',
+                              exc_info=True)
+            return
+
+        if self.onmessage is not None:
+            if self._msg_type is None:
+                _clb = functools.partial(self.onmessage,
+                                         OrderedDict(_data),
+                                         _topic)
+            else:
+                _clb = functools.partial(self.onmessage,
+                                         self._msg_type(**_data),
+                                         _topic)
+            _clb()
 
 class ActionServer(BaseActionServer):
     def __init__(self,
