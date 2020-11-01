@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
-
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import uuid
@@ -29,7 +22,7 @@ class BaseRPCService(object):
                  msg_type: RPCMessage = None,
                  on_request: callable = None,
                  logger: Logger = None,
-                 debug: bool = True,
+                 debug: bool = False,
                  workers: int = 2,
                  serializer=None):
         if rpc_name is None:
@@ -93,7 +86,7 @@ class BaseRPCClient(object):
                  rpc_name: str = None,
                  msg_type: RPCMessage = None,
                  logger: Logger = None,
-                 debug: bool = True,
+                 debug: bool = False,
                  serializer=None,
                  max_workers=5):
         if rpc_name is None:
