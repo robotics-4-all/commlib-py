@@ -111,4 +111,4 @@ def redis_to_amqp_rpc_bridge():
 
 if __name__ == '__main__':
     redis_to_amqp_rpc_bridge()
-    # redis_to_amqp_topic_bridge()
+    redis_to_amqp_topic_bridge()

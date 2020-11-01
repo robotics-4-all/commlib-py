@@ -201,6 +201,8 @@ class TopicBridge(Bridge):
         self._to_uri = to_uri
         self._msg_type = msg_type
 
+        print(self._from_uri)
+
         if self._btype == TopicBridgeType.REDIS_TO_AMQP:
             self._sub = endpoint_factory(
                 EndpointType.Subscriber, TransportType.REDIS
@@ -280,3 +282,110 @@ class TopicBridge(Bridge):
             f'{self._from_broker_params.port}[{self._from_uri}] ' + \
             f'-> {self._to_broker_params.host}:' + \
             f'{self._to_broker_params.port}[{self._to_uri}]>')
+
+
+class MTopicBridge(Bridge):
+    """TopicBridge.
+    Bridge implementation for Topic-based/PubSub Communication.
+
+
+    [Broker A] ------------> [Broker B] ---> [Consumer Endpoint]
+          <from>           <to>
+    """
+    def __init__(self,
+                 btype: TopicBridgeType,
+                 from_uri: str,
+                 to_namespace: str,
+                 from_broker_params,
+                 to_broker_params,
+                 msg_type: PubSubMessage = None,
+                 logger: Logger = None,
+                 debug: bool = False):
+        super(MTopicBridge, self).__init__(btype, logger, debug)
+        if not '*' in from_uri:
+            raise ValueError('from_uri must be defined using topic patterns')
+        self._from_broker_params = from_broker_params
+        self._to_broker_params = to_broker_params
+        self._from_uri = from_uri
+        self._to_namespace = to_namespace
+        self._msg_type = msg_type
+
+        if self._btype == TopicBridgeType.REDIS_TO_AMQP:
+            self._sub = endpoint_factory(
+                EndpointType.PSubscriber, TransportType.REDIS
+            )(
+                topic=self._from_uri,
+                msg_type=self._msg_type,
+                conn_params=self._from_broker_params,
+                on_message=self.on_message
+            )
+            self._pub = endpoint_factory(
+                EndpointType.MPublisher, TransportType.AMQP
+            )(
+                msg_type=self._msg_type,
+                conn_params=self._to_broker_params,
+            )
+        elif self._btype == TopicBridgeType.AMQP_TO_REDIS:
+            self._sub = endpoint_factory(
+                EndpointType.PSubscriber, TransportType.AMQP
+            )(
+                topic=self._from_uri,
+                msg_type=self._msg_type,
+                conn_params=self._from_broker_params,
+                on_message=self.on_message
+            )
+            self._pub = endpoint_factory(
+                EndpointType.MPublisher, TransportType.REDIS
+            )(
+                msg_type=self._msg_type,
+                conn_params=self._to_broker_params,
+            )
+        elif self._btype == TopicBridgeType.AMQP_TO_AMQP:
+            self._sub = endpoint_factory(
+                EndpointType.PSubscriber, TransportType.AMQP
+            )(
+                topic=self._from_uri,
+                msg_type=self._msg_type,
+                conn_params=self._from_broker_params,
+                on_message=self.on_message
+            )
+            self._pub = endpoint_factory(
+                EndpointType.MPublisher, TransportType.AMQP
+            )(
+                msg_type=self._msg_type,
+                conn_params=self._to_broker_params,
+            )
+        elif self._btype == TopicBridgeType.REDIS_TO_REDIS:
+            self._sub = endpoint_factory(
+                EndpointType.PSubscriber, TransportType.REDIS
+            )(
+                topic=self._from_uri,
+                msg_type=self._msg_type,
+                conn_params=self._from_broker_params,
+                on_message=self.on_message
+            )
+            self._pub = endpoint_factory(
+                EndpointType.MPublisher, TransportType.REDIS
+            )(
+                msg_type=self._msg_type,
+                conn_params=self._to_broker_params,
+            )
+
+    def on_message(self, msg: PubSubMessage, topic: str):
+        if self._to_namespace != '':
+            to_topic = f'{self._to_namespace}.{topic}'
+        else:
+            to_topic = topic
+        self._pub.publish(msg, to_topic)
+
+    def stop(self):
+        self._sub.stop()
+
+    def run(self):
+        self._sub.run()
+        self.logger.info(
+            f'Started B2B Multi-Topic Bridge ' + \
+            f'<{self._from_broker_params.host}:' + \
+            f'{self._from_broker_params.port}[{self._from_uri}] ' + \
+            f'-> {self._to_broker_params.host}:' + \
+            f'{self._to_broker_params.port}[{self._to_namespace}.*]>')

@@ -1074,6 +1074,10 @@ class Subscriber(BaseSubscriber):
 
 class PSubscriber(Subscriber):
 
+    def __init__(self, *args, **kwargs):
+        kwargs['topic'] = kwargs['topic'].replace('*', '#')
+        super(PSubscriber, self).__init__(*args, **kwargs)
+
     def _on_msg_callback_wrapper(self, ch, method, properties, body):
         _data = {}
         _ctype = None
