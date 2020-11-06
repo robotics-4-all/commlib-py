@@ -8,6 +8,8 @@ class EndpointType(Enum):
     Subscriber = 4
     ActionServer = 5
     ActionClient = 6
+    MPublisher = 7
+    PSubscriber = 8
 
 
 class TransportType(Enum):
@@ -34,3 +36,7 @@ def endpoint_factory(etype, etransport):
         return comm.ActionServer
     elif etype == EndpointType.ActionClient:
         return comm.ActionClient
+    elif etype == EndpointType.MPublisher:
+        return comm.MPublisher
+    elif etype == EndpointType.PSubscriber:
+        return comm.PSubscriber

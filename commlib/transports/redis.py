@@ -1,9 +1,5 @@
 import functools
 import sys
-
-if sys.version_info[0] >= 3:
-    unicode = str
-
 import time
 import atexit
 import signal
@@ -11,14 +7,22 @@ import json
 import uuid
 import hashlib
 import datetime
+from typing import OrderedDict, Any
+from inspect import signature
 
 import redis
 
 from commlib.logger import Logger, LoggingLevel
 from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.action import BaseActionServer, BaseActionClient
+from commlib.action import (
+    BaseActionServer, BaseActionClient, _ActionGoalMessage,
+    _ActionResultMessage, _ActionGoalMessage, _ActionCancelMessage,
+    _ActionStatusMessage, _ActionFeedbackMessage
+)
+
 from commlib.events import BaseEventEmitter, Event
+from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
 
 
 class Credentials(object):
@@ -67,7 +71,7 @@ class Connection(redis.Redis):
 
 class RedisTransport(object):
     def __init__(self, conn_params=None, logger=None):
-        conn_params = UnixSocketConnectionParameters() if \
+        conn_params = TCPConnectionParameters() if \
             conn_params is None else conn_params
         if isinstance(conn_params, UnixSocketConnectionParameters):
             self._redis = Connection(
@@ -86,7 +90,7 @@ class RedisTransport(object):
         self._rsub = self._redis.pubsub()
 
     def delete_queue(self, queue_name):
-        self.logger.debug('Removing message queue: <{}>'.format(queue_name))
+        # self.logger.debug('Removing message queue: <{}>'.format(queue_name))
         self._redis.delete(queue_name)
 
     def push_msg_to_queue(self, queue_name, payload):
@@ -96,7 +100,7 @@ class RedisTransport(object):
         self._redis.publish(queue_name, payload)
 
     def subscribe(self, topic: str, callback: callable):
-        self._sub = self._rsub.subscribe(
+        self._sub = self._rsub.psubscribe(
             **{topic: callback})
         self._rsub.get_message()
         t = self._rsub.run_in_thread(0.001, daemon=True)
@@ -113,46 +117,42 @@ class RedisTransport(object):
 
 
 class RPCService(BaseRPCService):
-    def __init__(self, conn_params=None, *args, **kwargs):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
     def _send_response(self, data, reply_to):
-        header = {
+        meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
                 'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING
+                'content_encoding': self._serializer.CONTENT_ENCODING,
+                'msg_type': ''  ## TODO
             }
         }
         _resp = {
             'data': data,
-            'header': header
+            'meta': meta
         }
         _resp = self._serializer.serialize(_resp)
         self._transport.push_msg_to_queue(reply_to, _resp)
 
-    def _on_request(self, data, meta):
-        if self.on_request is not None:
-            try:
-                resp = self.on_request(data, meta)
-            except Exception as exc:
-                self.logger.error(str(exc), exc_info=False)
-                resp = {
-                    'status': 500,
-                    'error': str(exc)
-                }
-        else:
-            resp = {
-                'status': 500,
-                'error': 'Not Implemented'
-            }
-        if not isinstance(resp, dict):
-            raise ValueError()
+    def _on_request(self, data: dict, meta: dict):
+        try:
+            if self._msg_type is None:
+                resp = self.on_request(OrderedDict(data))
+            else:
+                resp = self.on_request(self._msg_type.Request(**data))
+                ## RPCMessage.Response object here
+                resp = resp.as_dict()
+        except Exception as exc:
+            self.logger.error(str(exc), exc_info=False)
+            resp = {}
         reply_to = meta['reply_to']
-
         self._send_response(resp, reply_to)
 
     def run_forever(self):
@@ -175,24 +175,32 @@ class RPCService(BaseRPCService):
     def __detach_request_handler(self, payload):
         payload = self._serializer.deserialize(payload)
         data = payload['data']
-        header = payload['header']
-        self.logger.debug('RPC Request <{}>'.format(self._rpc_name))
-        _future = self._executor.submit(self._on_request, data, header)
+        meta = payload['meta']
+        self.logger.debug(f'RPC Request <{self._rpc_name}>')
+        _future = self.__exec_in_thread(
+            functools.partial(self._on_request, data, meta)
+        )
+        return _future
+
+    def __exec_in_thread(self, on_request):
+        _future = self._executor.submit(on_request)
         return _future
 
 
 class RPCClient(BaseRPCClient):
-    def __init__(self, conn_params=None, *args, **kwargs):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
         super(RPCClient, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
     def __gen_queue_name(self):
-        return 'rpc-{}'.format(self._gen_random_id())
+        return f'rpc-{self._gen_random_id()}'
 
     def __prepare_request(self, data):
         _reply_to = self.__gen_queue_name()
-        header = {
+        meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'reply_to': _reply_to,
@@ -203,13 +211,20 @@ class RPCClient(BaseRPCClient):
         }
         _req = {
             'data': data,
-            'header': header
+            'meta': meta
         }
         return _req
 
-    def call(self, data: dict, timeout: float = 30):
+    def call(self, msg: RPCMessage.Request,
+             timeout: float = 30) -> RPCMessage.Response:
+        ## TODO: Evaluate msg type passed here.
+        if self._msg_type is None:
+            data = msg
+        else:
+            data = msg.as_dict()
+
         _msg = self.__prepare_request(data)
-        _reply_to = _msg['header']['reply_to']
+        _reply_to = _msg['meta']['reply_to']
         _msg = self._serializer.serialize(_msg)
         self._transport.push_msg_to_queue(self._rpc_name, _msg)
         msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
@@ -217,11 +232,19 @@ class RPCClient(BaseRPCClient):
         if _msg is None:
             return None
         _msg = self._serializer.deserialize(_msg)
-        return _msg['data']
+        ## TODO: Evaluate response type and raise exception if necessary
+        data = _msg['data']
+        if self._msg_type is None:
+            return data
+        else:
+            return self._msg_type.Response(**data)
 
 
 class Publisher(BasePublisher):
-    def __init__(self, conn_params=None, queue_size=10, *args, **kwargs):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 queue_size: int = 10,
+                 *args, **kwargs):
         self._queue_size = queue_size
         self._msg_seq = 0
 
@@ -230,16 +253,20 @@ class Publisher(BasePublisher):
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
-    def publish(self, payload):
-        _msg = self.__prepare_msg(payload)
+    def publish(self, msg: PubSubMessage) -> None:
+        if self._msg_type is None:
+            data = msg
+        else:
+            data = msg.as_dict()
+        _msg = self._prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
         self.logger.debug(
-            'Publishing Message: <{}>:{}'.format(self._topic, payload))
+            f'Publishing Message: <{self._topic}>:{data}')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
-    def __prepare_msg(self, data):
-        header = {
+    def _prepare_msg(self, data):
+        meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -249,15 +276,39 @@ class Publisher(BasePublisher):
         }
         _msg = {
             'data': data,
-            'header': header
+            'meta': meta
         }
         return _msg
 
 
+class MPublisher(Publisher):
+    def __init__(self, *args, **kwargs):
+        super(MPublisher, self).__init__(topic='*', *args, **kwargs)
+
+    def publish(self, msg: PubSubMessage, topic: str) -> None:
+        if self._msg_type is None:
+            data = msg
+        else:
+            data = msg.as_dict()
+        _msg = self._prepare_msg(data)
+        _msg = self._serializer.serialize(_msg)
+        self.logger.debug(
+            f'Publishing Message: <{self._topic}>:{data}')
+        self._transport.publish(topic, _msg)
+        self._msg_seq += 1
+
+
 class Subscriber(BaseSubscriber):
-    def __init__(self, conn_params=None, queue_size=1, *args, **kwargs):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 queue_size: int = 1,
+                 *args, **kwargs):
         self._queue_size = queue_size
         super(Subscriber, self).__init__(*args, **kwargs)
+
+        # if '*' in self._topic or '#' in self._topic or '?' in self._topic:
+        #     raise ValueError(
+        #         'Use PSubscriber class for pattern-based subscription.')
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
@@ -265,14 +316,14 @@ class Subscriber(BaseSubscriber):
     def run(self):
         self._subscriber_thread = self._transport.subscribe(self._topic,
                                                             self._on_message)
+        self.logger.info(f'Started Subscriber: <{self._topic}>')
 
     def stop(self):
         """Stop background thread that handle subscribed topic messages"""
         try:
             self._exit_gracefully()
         except Exception as exc:
-            print(exc)
-            pass
+            self.logger.error(f'Exception thrown in Subscriber.stop(): {exc}')
 
     def run_forever(self):
         try:
@@ -281,76 +332,123 @@ class Subscriber(BaseSubscriber):
         except Exception as exc:
             raise exc
 
-    def _on_message(self, payload):
-        # self.logger.info(
-        #     'Received Message: <{}>:{}'.format(self._topic, payload))
-        payload = self._serializer.deserialize(payload['data'])
-        data = payload['data']
-        header = payload['header']
-        if self._onmessage is not None:
-            self._onmessage(data, header)
+    def _on_message(self, payload: dict):
+        try:
+            _topic = payload['channel']
+            payload = self._serializer.deserialize(payload['data'])
+            data = payload['data']
+            meta = payload['meta']
+            if self.onmessage is not None:
+                if self._msg_type is None:
+                    _clb = functools.partial(self.onmessage, OrderedDict(data))
+                else:
+                    _clb = functools.partial(self.onmessage, self._msg_type(**data))
+                _clb()
+        except Exception:
+            self.logger.error('Exception caught in _on_message', exc_info=True)
 
     def _exit_gracefully(self):
         self._subscriber_thread.stop()
 
 
+class PSubscriber(Subscriber):
+    def _on_message(self, payload: dict):
+        _topic = payload['channel']
+        payload = self._serializer.deserialize(payload['data'])
+        data = payload['data']
+        meta = payload['meta']
+        try:
+            if self.onmessage is not None:
+                if self._msg_type is None:
+                    _clb = functools.partial(self.onmessage,
+                                             OrderedDict(data),
+                                             _topic)
+                else:
+                    _clb = functools.partial(self.onmessage,
+                                             self._msg_type(**data),
+                                             _topic)
+                _clb()
+        except Exception:
+            self.logger.error('Exception caught in _on_message', exc_info=True)
+
+
 class ActionServer(BaseActionServer):
-    def __init__(self, conn_params=None, *args, **kwargs):
+    def __init__(self,
+                 action_name: str,
+                 msg_type: ActionMessage,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
         assert isinstance(conn_params, ConnectionParametersBase)
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
-        super(ActionServer, self).__init__(*args, **kwargs)
+        super(ActionServer, self).__init__(action_name, msg_type,
+                                           *args, **kwargs)
 
-        self._goal_rpc = RPCService(rpc_name=self._goal_rpc_uri,
-                                   conn_params=conn_params,
-                                   on_request=self._handle_send_goal,
-                                   logger=self._logger,
-                                   debug=self.debug)
-        self._cancel_rpc = RPCService(rpc_name=self._cancel_rpc_uri,
-                                     conn_params=conn_params,
-                                     on_request=self._handle_cancel_goal,
-                                     logger=self._logger,
-                                     debug=self.debug)
-        self._result_rpc = RPCService(rpc_name=self._result_rpc_uri,
-                                     conn_params=conn_params,
-                                     on_request=self._handle_get_result,
-                                     logger=self._logger,
-                                     debug=self.debug)
-        self._feedback_pub = Publisher(topic=self._feedback_topic,
+        self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
+                                    rpc_name=self._goal_rpc_uri,
+                                    conn_params=conn_params,
+                                    on_request=self._handle_send_goal,
+                                    logger=self._logger,
+                                    debug=self.debug)
+        self._cancel_rpc = RPCService(msg_type=_ActionCancelMessage,
+                                      rpc_name=self._cancel_rpc_uri,
+                                      conn_params=conn_params,
+                                      on_request=self._handle_cancel_goal,
+                                      logger=self._logger,
+                                      debug=self.debug)
+        self._result_rpc = RPCService(msg_type=_ActionResultMessage,
+                                      rpc_name=self._result_rpc_uri,
+                                      conn_params=conn_params,
+                                      on_request=self._handle_get_result,
+                                      logger=self._logger,
+                                      debug=self.debug)
+        self._feedback_pub = Publisher(msg_type=_ActionFeedbackMessage,
+                                       topic=self._feedback_topic,
                                        conn_params=conn_params,
                                        logger=self._logger,
                                        debug=self.debug)
-        self._status_pub = Publisher(topic=self._status_topic,
+        self._status_pub = Publisher(msg_type=_ActionStatusMessage,
+                                     topic=self._status_topic,
                                      conn_params=conn_params,
                                      logger=self._logger,
                                      debug=self.debug)
 
 
 class ActionClient(BaseActionClient):
-    def __init__(self, conn_params=None, *args, **kwargs):
+    def __init__(self,
+                 action_name: str,
+                 msg_type: ActionMessage,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
         assert isinstance(conn_params, ConnectionParametersBase)
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
-        super(ActionClient, self).__init__(*args, **kwargs)
+        super(ActionClient, self).__init__(action_name, msg_type,
+                                           *args, **kwargs)
 
-        self._goal_client = RPCClient(rpc_name=self._goal_rpc_uri,
+        self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
+                                      rpc_name=self._goal_rpc_uri,
                                       conn_params=conn_params,
                                       logger=self._logger,
                                       debug=self.debug)
-        self._cancel_client = RPCClient(rpc_name=self._cancel_rpc_uri,
+        self._cancel_client = RPCClient(msg_type=_ActionCancelMessage,
+                                        rpc_name=self._cancel_rpc_uri,
                                         conn_params=conn_params,
                                         logger=self._logger,
                                         debug=self.debug)
-        self._result_client = RPCClient(rpc_name=self._result_rpc_uri,
+        self._result_client = RPCClient(msg_type=_ActionResultMessage,
+                                        rpc_name=self._result_rpc_uri,
                                         conn_params=conn_params,
                                         logger=self._logger,
                                         debug=self.debug)
-        self._status_sub = Subscriber(conn_params=conn_params,
+        self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
+                                      conn_params=conn_params,
                                       topic=self._status_topic,
                                       on_message=self._on_status)
-        self._feedback_sub = Subscriber(conn_params=conn_params,
+        self._feedback_sub = Subscriber(msg_type=_ActionFeedbackMessage,
+                                        conn_params=conn_params,
                                         topic=self._feedback_topic,
                                         on_message=self._on_feedback)
         self._status_sub.run()
@@ -358,22 +456,24 @@ class ActionClient(BaseActionClient):
 
 
 class EventEmitter(BaseEventEmitter):
-    def __init__(self, conn_params=None, *args, **kwargs):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
         super(EventEmitter, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
-    def send_event(self, event):
-        _msg = event.to_dict()
-        _msg = self.__prepare_msg(_msg)
+    def send_event(self, event: Event) -> None:
+        _msg = event.as_dict()
+        _msg = self._prepare_msg(_msg)
         _msg = self._serializer.serialize(_msg)
-        self.logger.debug(
-            'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
+        # self.logger.debug(
+        #     'Firing Event: <{}>:{}'.format(event.uri, _msg))
         self._transport.publish(event.uri, _msg)
 
-    def __prepare_msg(self, data):
-        header = {
+    def _prepare_msg(self, data: dict) -> None:
+        meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -383,6 +483,6 @@ class EventEmitter(BaseEventEmitter):
         }
         _msg = {
             'data': data,
-            'header': header
+            'meta': meta
         }
         return _msg

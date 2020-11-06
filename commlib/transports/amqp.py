@@ -1,37 +1,31 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
-
 import functools
 import sys
-
-if sys.version_info[0] >= 3:
-    unicode = str
-
 import time
-import atexit
-import signal
 import json
 import uuid
 import pika
 from collections import deque
 from threading import Semaphore, Thread, Event as ThreadEvent
 import logging
-#  import ssl
+from typing import OrderedDict, Any
+from inspect import signature
 
 from commlib.logger import Logger, LoggingLevel
 from commlib.serializer import ContentType
 from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.action import BaseActionServer, BaseActionClient
+from commlib.action import (
+    BaseActionServer, BaseActionClient, _ActionGoalMessage,
+    _ActionResultMessage, _ActionGoalMessage, _ActionCancelMessage,
+    _ActionStatusMessage, _ActionFeedbackMessage
+)
 from commlib.events import BaseEventEmitter, Event
+from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
+from commlib.utils import gen_timestamp
 
 
 # Reduce log level for pika internal logger
-logging.getLogger("pika").setLevel(logging.INFO)
+logging.getLogger("pika").setLevel(logging.WARN)
 
 
 class MessageProperties(pika.BasicProperties):
@@ -97,7 +91,7 @@ class ConnectionParameters():
     ]
 
     def __init__(self, host='127.0.0.1', port='5672', creds=None,
-                 secure=False, vhost='/', reconnect_attempts=5,
+                 secure=False, vhost='/', reconnect_attempts=10,
                  retry_delay=2.0, timeout=120, blocked_connection_timeout=None,
                  heartbeat_timeout=60, channel_max=128):
         """Constructor."""
@@ -182,11 +176,8 @@ class Connection(pika.BlockingConnection):
                 if self._t_stop_event.is_set():
                     break
         except Exception as exc:
-            pass
-            # self._logger.debug(
-            #     'Exception thrown while processing amqp events - {}'.format(
-            #         str(exc)
-            #     ))
+            self._logger.warning(
+                f'Exception thrown while processing amqp events - {exc}')
 
 
     def set_transport_ref(self, transport):
@@ -228,7 +219,6 @@ class AMQPTransport(object):
     def __init__(self, conn_params, debug=False, logger=None, connection=None):
         """Constructor."""
         # So that connections do not go zombie
-        # atexit.register(self._graceful_shutdown)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -249,7 +239,6 @@ class AMQPTransport(object):
         # Create a new connection
         if self._connection is None:
             self._connection = Connection(self._conn_params)
-        self.create_channel()
 
     @property
     def logger(self):
@@ -278,6 +267,9 @@ class AMQPTransport(object):
         else:
             self.logger.setLevel(LoggingLevel.INFO)
 
+    def connect(self):
+        self.create_channel()
+
     def _on_connect(self):
         ch = self._connection.channel()
         self._channel = ch
@@ -295,10 +287,12 @@ class AMQPTransport(object):
                         self._conn_params.vhost))
         except pika.exceptions.ConnectionClosed:
             self.logger.debug('Connection timed out. Reconnecting...')
-            self.create_channel()
-        except pika.exceptions.ConnectionError:
-            self.logger.debug('Connection error. Reconnecting...')
-            self.create_channel()
+            self.connect()
+        except pika.exceptions.AuthenticationError:
+            self.logger.debug('Authentication Error. Reconnecting...')
+        except pika.exceptions.AMQPConnectionError as e:
+            self.logger.debug(f'Connection Error ({e}). Reconnecting...')
+            self.connect()
 
     def add_threadsafe_callback(self, cb, *args, **kwargs):
         self.connection.add_callback_threadsafe(
@@ -315,7 +309,7 @@ class AMQPTransport(object):
 
     def _signal_handler(self, signum, frame):
         """TODO"""
-        self.logger.info('Signal received: {}'.format(signum))
+        self.logger.debug(f'Signal received: {signum}')
         self._graceful_shutdown()
 
     def _graceful_shutdown(self):
@@ -336,7 +330,7 @@ class AMQPTransport(object):
             exchange=exchange_name,
             passive=True,  # Perform a declare or just to see if it exists
         )
-        self.logger.debug('Exchange exists result: {}'.format(resp))
+        self.logger.debug(f'Exchange exists result: {resp}')
         return resp
 
     def create_exchange(self, exchange_name, exchange_type, internal=None):
@@ -357,8 +351,8 @@ class AMQPTransport(object):
             exchange_type=exchange_type
         )
 
-        self.logger.debug('Created exchange: [name={}, type={}]'.format(
-            exchange_name, exchange_type))
+        self.logger.debug(
+            f'Created exchange: [name={exchange_name}, type={exchange_type}]')
 
     def create_queue(self, queue_name='', exclusive=True, queue_size=10,
                      message_ttl=60000, overflow_behaviour='drop-head',
@@ -405,8 +399,8 @@ class AMQPTransport(object):
             auto_delete=True,
             arguments=args)
         queue_name = result.method.queue
-        self.logger.debug('Created queue [{}] [size={}, ttl={}]'.format(
-            queue_name, queue_size, message_ttl))
+        self.logger.debug(
+            f'Created queue [{queue_name}] [size={queue_size}, ttl={message_ttl}]')
         return queue_name
 
     def delete_queue(self, queue_name):
@@ -430,7 +424,7 @@ class AMQPTransport(object):
             if exc.reply_code == 404:  # Not Found
                 return False
             else:
-                self.logger.warning('Queue exists <{}>'.format(queue_name))
+                self.logger.warning(f'Queue exists <{queue_name}>')
                 return True
 
     def bind_queue(self, exchange_name, queue_name, bind_key):
@@ -476,11 +470,6 @@ class AMQPTransport(object):
     #     self._graceful_shutdown()
 
 
-# class RPCServiceWorker(threading.Thread):
-#     def __init__(self, *args, **kwargs):
-#         super(RPCServiceWorker, self).__init__(*args, **kwargs)
-
-
 class RPCService(BaseRPCService):
     """AMQP RPC Service class.
     Implements an AMQP RPC Service.
@@ -491,36 +480,43 @@ class RPCService(BaseRPCService):
             Defaults to (AMQT default).
         on_request (function): The on-request callback function to register.
     """
-    def __init__(self, conn_params=None, exchange='', *args, **kwargs):
-        """Constructor. """
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 exchange: str = '',
+                 *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            exchange (str): exchange
+            args:
+            kwargs:
+        """
         self._exchange = exchange
         self._closing = False
         super(RPCService, self).__init__(*args, **kwargs)
+
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
 
-    def is_alive(self):
-        """Returns True if connection is alive and False otherwise."""
-        if self._transport.connection is None:
-            return False
-        elif self._transport.connection.is_open:
-            return True
-        else:
-            return False
-
-    def run_forever(self, raise_if_exists=True):
+    def run_forever(self, raise_if_exists: bool = False):
         """Run RPC Service in normal mode. Blocking operation."""
         # if self._rpc_exists() and raise_if_exists:
         #     raise ValueError(
         #         'RPC <{}> allready registered on broker.'.format(
         #             self._rpc_name))
+        self._transport.connect()
         self._rpc_queue = self._transport.create_queue(self._rpc_name)
         self._transport.set_channel_qos()
         self._transport.consume_fromm_queue(self._rpc_queue,
-                                            self._on_request_wrapper)
+                                            self._on_request_handle)
         try:
             self._transport.start_consuming()
+        except pika.exceptions.ConnectionClosedByBroker as exc:
+            self.logger.error(exc, exc_info=True)
+        except pika.exceptions.AMQPConnectionError as exc:
+            self.logger.error(exc, exc_info=True)
         except Exception as exc:
             self.logger.error(exc, exc_info=True)
             raise exc
@@ -528,125 +524,92 @@ class RPCService(BaseRPCService):
     def _rpc_exists(self):
         return self._transport.queue_exists(self._rpc_name)
 
-    def _on_request_wrapper(self, ch, method, properties, body):
-        _msg = {}
+    def _on_request_handle(self, ch, method, properties, body):
+        _data = {}
         _ctype = None
         _cencoding = None
         _ts_send = None
         _ts_broker = None
         _dmode = None
         _corr_id = None
+        _reply_to = None
+        _delivery_tag = None
         try:
+            _reply_to = properties.reply_to
+            _delivery_tag = method.delivery_tag
             _corr_id = properties.correlation_id
             _ctype = properties.content_type
             _cencoding = properties.content_encoding
-            _ts_broker = properties.headers['timestamp_in_ms']
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
             # _ts_broker = properties.timestamp
+        except Exception as exc:
+            self.logger.error("Exception Thrown in on_request_handle",
+                              exc_info=True)
+        try:
+            _ts_broker = properties.headers['timestamp_in_ms']
         except Exception:
             self.logger.debug("Could not calculate latency", exc_info=False)
 
         try:
-            _msg = self._deserialize_req_payload(body, _ctype, _cencoding)
+            _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
-            _msg = body
+            _data = {}
+            self._send_response(_data)
+        resp = self._invoke_onrequest_callback(_data)
+        self._send_response(resp, ch, _corr_id, _reply_to, _delivery_tag)
 
-        if self.on_request is not None:
-            _meta = {
-                'channel': ch,
-                'method': method,
-                'properties': {
-                    'content_type': _ctype,
-                    'content_encoding': _cencoding,
-                    'timestamp_broker': _ts_broker,
-                    'timestamp_producer': _ts_send,
-                    'delivery_mode': _dmode,
-                    'correlation_id': _corr_id
-                }
-            }
+    def _invoke_onrequest_callback(self, data: dict):
+        if self._msg_type is None:
             try:
-                resp = self.on_request(_msg, _meta)
+                resp = self.on_request(data)
             except Exception as exc:
                 self.logger.error(str(exc), exc_info=False)
-                resp = {
-                    'status': 500,
-                    'error': str(exc)
-                }
+                resp = {}
         else:
-            resp = {
-                'error': 'Not Implemented',
-                'status': 501
-            }
+            try:
+                msg = self._msg_type.Request(**data)
+                resp = self.on_request(msg)
+            except Exception as exc:
+                self.logger.error(str(exc), exc_info=False)
+                resp = self._msg_type.Response()
+            resp = resp.as_dict()
+        return resp
 
+    def _send_response(self, data: dict, channel, correlation_id: str,
+                       reply_to: str, delivery_tag: str):
+        _payload = None
+        _encoding = None
+        _type = None
         try:
-            _payload = None
-            _encoding = None
-            _type = None
-
-            if isinstance(resp, dict):
-                _payload = self._serializer.serialize(resp).encode('utf-8')
-                _encoding = self._serializer.CONTENT_ENCODING
-                _type = self._serializer.CONTENT_TYPE
-            elif isinstance(resp, str):
-                _type = 'text/plain'
-                _encoding = 'utf8'
-                _payload = resp
-            elif isinstance(resp, bytes):
-                _type = 'application/octet-stream'
-                _encoding = 'utf8'
-                _payload = resp
-
+            _encoding = self._serializer.CONTENT_ENCODING
+            _type = self._serializer.CONTENT_TYPE
+            _payload = self._serializer.serialize(data).encode(_encoding)
         except Exception as e:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
             _payload = {
                 'status': 501,
-                'error': 'Internal server error: {}'.format(str(e))
+                'error': f'Internal server error: {e}'
             }
 
         _msg_props = MessageProperties(
             content_type=_type,
             content_encoding=_encoding,
-            correlation_id=_corr_id
+            correlation_id=correlation_id
         )
 
-        ch.basic_publish(
+        channel.basic_publish(
             exchange=self._exchange,
-            routing_key=properties.reply_to,
+            routing_key=reply_to,
             properties=_msg_props,
             body=_payload)
         # Acknowledge receiving the message.
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        channel.basic_ack(delivery_tag=delivery_tag)
 
-    def _deserialize_req_payload(self, data, content_type, content_encoding):
-        """Deserialize wire data.
-
-        Args:
-            data (str|dict): Data to deserialize.
-            content_encoding (str): The content encoding.
-            content_type (str): The content type. Defaults to `utf8`.
-        """
-        _data = None
-        if content_encoding is None:
-            content_encoding = 'utf8'
-        if content_type == ContentType.json:
-            _data = self._serializer.deserialize(data)
-        elif content_type == ContentType.text:
-            _data = data.decode(content_encoding)
-        elif content_type == ContentType.raw_bytes:
-            _data = data
-        else:
-            self.logger.warning(
-                    'Content-Type was not set in headers or is invalid!' + \
-                            ' Deserializing using default JSON serializer')
-            ## TODO: Not the proper way!!!!
-            _data = self._serializer.deserialize(data)
-        return _data
-
-    def close(self):
+    def close(self) -> bool:
         """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
@@ -667,7 +630,7 @@ class RPCService(BaseRPCService):
         super(RPCService, self).stop()
         return True
 
-    def stop(self):
+    def stop(self) -> bool:
         """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
@@ -688,7 +651,10 @@ class RPCClient(BaseRPCClient):
         **kwargs: The Keyword arguments to pass to  the base class
             (BaseRPCClient).
     """
-    def __init__(self, conn_params=None, connection=None, use_corr_id=False,
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 connection: Connection = None,
+                 use_corr_id=False,
                  *args, **kwargs):
         """Constructor."""
         self._use_corr_id = use_corr_id
@@ -697,7 +663,6 @@ class RPCClient(BaseRPCClient):
         self._exchange = ExchangeTypes.Default
         self._mean_delay = 0
         self._delay = 0
-        self.onresponse = None
 
         super(RPCClient, self).__init__(*args, **kwargs)
 
@@ -706,13 +671,13 @@ class RPCClient(BaseRPCClient):
 
         self._transport = AMQPTransport(conn_params, self._debug,
                                         self._logger, connection)
-        # self._transport.create_channel()
+        self._transport.connect()
 
-
+        ## Register on_request cabblack handle
         self._transport.add_threadsafe_callback(
             self._transport.channel.basic_consume,
             'amq.rabbitmq.reply-to',
-            self._on_response,
+            self._on_response_handle,
             exclusive=True,
             consumer_tag=None,
             auto_ack=True
@@ -722,26 +687,68 @@ class RPCClient(BaseRPCClient):
             self.run()
 
     @property
-    def mean_delay(self):
+    def mean_delay(self) -> float:
         """The mean delay of the communication. Internally calculated."""
         return self._mean_delay
 
     @property
-    def delay(self):
+    def delay(self) -> float:
         """The last recorded delay of the communication.
             Internally calculated.
         """
         return self._delay
 
+    def run(self):
+        self._transport.detach_amqp_events_thread()
 
-    def _on_response(self, ch, method, properties, body):
+    def gen_corr_id(self) -> str:
+        """Generate correlationID."""
+        return str(uuid.uuid4())
+
+    def call(self, msg: RPCMessage.Request, timeout: float = 10.0):
+        """Call RPC.
+
+        Args:
+            timeout (float): Response timeout. Set this value carefully
+                based on application criteria.
+        """
+        if self._msg_type is None:
+            data = msg
+        else:
+            data = msg.as_dict()
+
+        self._response = None
+        if self._use_corr_id:
+            self._corr_id = self.gen_corr_id()
+
+        start_t = time.time()
+        self._transport.connection.add_callback_threadsafe(
+            functools.partial(self._send_msg, data)
+        )
+        resp = self._wait_for_response(timeout=timeout)
+        elapsed_t = time.time() - start_t
+        self._delay = elapsed_t
+        if self._msg_type is None:
+            return resp
+        else:
+            return self._msg_type.Response(**resp)
+
+    def _wait_for_response(self, timeout: float = 10.0):
+        start_t = time.time()
+        while self._response is None:
+            elapsed_t = time.time() - start_t
+            if elapsed_t >= timeout:
+                return None
+            time.sleep(0.001)
+        return self._response
+
+    def _on_response_handle(self, ch, method, properties, body):
         _ctype = None
         _cencoding = None
         _ts_send = None
         _ts_broker = 0
         _dmode = None
-        _msg = None
-        _meta = None
+        _data = None
         try:
             if self._use_corr_id:
                 _corr_id = properties.correlation_id
@@ -756,122 +763,33 @@ class RPCClient(BaseRPCClient):
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
 
-            _meta = {
-                'channel': ch,
-                'method': method,
-                'properties': {
-                    'content_type': _ctype,
-                    'content_encoding': _cencoding,
-                    'timestamp_broker': _ts_broker,
-                    'timestamp_producer': _ts_send,
-                    'delivery_mode': _dmode
-                }
-            }
         except Exception:
             self.logger.error("Error parsing response from rpc server.",
                               exc_info=True)
 
         try:
-            _msg = self._deserialize_req_payload(body, _ctype, _cencoding)
+            _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
-            _msg = body
+            _data = {}
+        self._response = _data
 
-
-        self._response = _msg
-        self._response_meta = _meta
-
-        if self.onresponse is not None and callable(self.onresponse):
-            self.onresponse(_msg, _meta)
-
-    def run(self):
-        self._transport.detach_amqp_events_thread()
-
-    def gen_corr_id(self):
-        """Generate correlationID."""
-        return str(uuid.uuid4())
-
-    def call(self, payload, timeout=10):
-        """Call RPC.
-
-        Args:
-            msg (dict|Message): The message to send.
-            timeout (float): Response timeout. Set this value carefully
-                based on application criteria.
-        """
-        self._response = None
-        if self._use_corr_id:
-            self._corr_id = self.gen_corr_id()
-
-        start_t = time.time()
-        self._transport.connection.add_callback_threadsafe(
-            functools.partial(self._send_data, payload))
-        # self._transport.process_amqp_events()
-        resp = self._wait_for_response(timeout=timeout)
-        elapsed_t = time.time() - start_t
-        self._delay = elapsed_t
-        return resp
-
-    def _wait_for_response(self, timeout=10):
-        # self.logger.debug(
-        #     'Waiting for response from [{}]...'.format(self._rpc_name))
-        # self._transport.process_amqp_events()
-        start_t = time.time()
-        while self._response is None:
-            elapsed_t = time.time() - start_t
-            if elapsed_t >= timeout:
-                return None
-            # self._transport.connection.sleep(0.001)
-            time.sleep(0.001)
-        return self._response
-
-    def _deserialize_req_payload(self, data, content_type, content_encoding):
-        """Deserialize wire data.
-
-        Args:
-            data: Data to deserialize.
-            content_encoding (str): The content encoding.
-            content_type (str): The content type. Defaults to `utf8`
-        """
-        _data = None
-        if content_encoding is None:
-            content_encoding = 'utf8'
-        if content_type == ContentType.json:
-            _data = self._serializer.deserialize(data)
-        elif content_type == ContentType.text:
-            _data = data.decode(content_encoding)
-        elif content_type == ContentType.raw_bytes:
-            _data = data
-        return _data
-
-    def _send_data(self, data):
+    def _send_msg(self, data: dict) -> None:
         _payload = None
         _encoding = None
         _type = None
 
-        if isinstance(data, dict):
-            _payload = self._serializer.serialize(data).encode('utf-8')
-            _encoding = self._serializer.CONTENT_ENCODING
-            _type = self._serializer.CONTENT_TYPE
-        elif isinstance(data, str):
-            _type = 'text/plain'
-            _encoding = 'utf8'
-            _payload = data
-        elif isinstance(data, bytes):
-            _type = 'application/octet-stream'
-            _encoding = 'utf8'
-            _payload = data
+        _encoding = self._serializer.CONTENT_ENCODING
+        _type = self._serializer.CONTENT_TYPE
+        _payload = self._serializer.serialize(data).encode(_encoding)
 
         # Direct reply-to implementation
         _rpc_props = MessageProperties(
             content_type=_type,
             content_encoding=_encoding,
             correlation_id=self._corr_id,
-            # timestamp=(1.0 * (time.time() + 0.5) * 1000),
-            message_id=0,
-            # user_id="",
-            # app_id="",
+            timestamp=gen_timestamp(),
             reply_to='amq.rabbitmq.reply-to'
         )
 
@@ -883,7 +801,6 @@ class RPCClient(BaseRPCClient):
             properties=_rpc_props,
             body=_payload
         )
-        # self._transport.process_amqp_events()
 
 
 class Publisher(BasePublisher):
@@ -896,11 +813,13 @@ class Publisher(BasePublisher):
             (BasePublisher).
     """
 
-    def __init__(self, conn_params=None, connection=None,
-                 exchange='amq.topic', *args, **kwargs):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 connection: Connection = None,
+                 exchange: str = 'amq.topic',
+                 *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
-
         super(Publisher, self).__init__(*args, **kwargs)
 
         conn_params = ConnectionParameters() if \
@@ -908,42 +827,39 @@ class Publisher(BasePublisher):
 
         self._transport = AMQPTransport(conn_params, self._debug,
                                         self._logger, connection)
+        self._transport.connect()
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeTypes.Topic)
         if connection is None:
             self.run()
 
-    def run(self):
+    def run(self) -> None:
         self._transport.detach_amqp_events_thread()
 
-    def publish(self, payload):
+    def publish(self, msg: PubSubMessage) -> None:
         """ Publish message once.
 
         Args:
-            msg (dict|Message|str|bytes): Message/Data to publish.
+            msg (PubSubMessage): Message to publish.
         """
         ## Thread Safe solution
-        self._transport.add_threadsafe_callback(self._send_data, payload)
-        # self._send_data(payload)
-        # self._transport.process_amqp_events()
+        if self._msg_type is None:
+            self._transport.add_threadsafe_callback(self._send_msg, msg,
+                                                    self._topic)
+        else:
+            self._transport.add_threadsafe_callback(self._send_msg,
+                                                    msg.as_dict(),
+                                                    self._topic)
 
-    def _send_data(self, data):
+
+    def _send_msg(self, data: OrderedDict, topic: str):
         _payload = None
         _encoding = None
         _type = None
 
-        if isinstance(data, dict):
-            _payload = self._serializer.serialize(data).encode('utf-8')
-            _encoding = self._serializer.CONTENT_ENCODING
-            _type = self._serializer.CONTENT_TYPE
-        elif isinstance(data, str):
-            _type = 'text/plain'
-            _encoding = 'utf8'
-            _payload = data
-        elif isinstance(data, bytes):
-            _type = 'application/octet-stream'
-            _encoding = 'utf8'
-            _payload = data
+        _encoding = self._serializer.CONTENT_ENCODING
+        _type = self._serializer.CONTENT_TYPE
+        _payload = self._serializer.serialize(data).encode(_encoding)
 
         msg_props = MessageProperties(
             content_type=_type,
@@ -951,11 +867,33 @@ class Publisher(BasePublisher):
             message_id=0,
         )
 
+        # In amqp '#' defines one or more words.
+        topic = topic.replace('*', '#')
+
         self._transport._channel.basic_publish(
             exchange=self._topic_exchange,
-            routing_key=self._topic,
+            routing_key=topic,
             properties=msg_props,
             body=_payload)
+
+
+class MPublisher(Publisher):
+    def __init__(self, *args, **kwargs):
+        super(MPublisher, self).__init__(topic='*', *args, **kwargs)
+
+    def publish(self, msg: PubSubMessage, topic: str) -> None:
+        """ Publish message once.
+
+        Args:
+            msg (PubSubMessage): Message to publish.
+        """
+        ## Thread Safe solution
+        if self._msg_type is None:
+            self._transport.add_threadsafe_callback(self._send_msg, msg, topic)
+        else:
+            self._transport.add_threadsafe_callback(self._send_msg,
+                                                    msg.as_dict(),
+                                                    topic)
 
 
 class Subscriber(BaseSubscriber):
@@ -977,23 +915,46 @@ class Subscriber(BaseSubscriber):
 
     FREQ_CALC_SAMPLES_MAX = 100
 
-    def __init__(self, conn_params=None, exchange='amq.topic', queue_size=10,
-                 message_ttl=60000, overflow='drop-head', *args, **kwargs):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 exchange: str = 'amq.topic',
+                 queue_size: int = 10,
+                 message_ttl: int = 60000,
+                 overflow: str = 'drop-head',
+                 *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
-        self._queue_name = None
         self._queue_size = queue_size
         self._message_ttl = message_ttl
         self._overflow = overflow
+        self._queue_name = None
         self._closing = False
+        self._transport = None
 
         super(Subscriber, self).__init__(*args, **kwargs)
+
+        # if '*' in self._topic or '#' in self._topic or '?' in self._topic:
+        #     raise ValueError(
+        #         'Use PSubscriber class for pattern-based subscription.')
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
         self._transport = AMQPTransport(conn_params, self.debug, self.logger)
 
+        self._last_msg_ts = None
+        self._msg_freq_fifo = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
+        self._hz = 0
+        self._sem = Semaphore()
+
+    @property
+    def hz(self) -> float:
+        """Incoming message frequency."""
+        return self._hz
+
+    def run_forever(self) -> None:
+        """Start Subscriber. Blocking method."""
+        self._transport.connect()
         _exch_ex = self._transport.exchange_exists(self._topic_exchange)
         if _exch_ex.method.NAME != 'Exchange.DeclareOk':
             self._transport.create_exchange(self._topic_exchange,
@@ -1009,29 +970,19 @@ class Subscriber(BaseSubscriber):
         # Bind queue to the Topic exchange
         self._transport.bind_queue(self._topic_exchange, self._queue_name,
                                    self._topic)
-        self._last_msg_ts = None
-        self._msg_freq_fifo = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
-        self._hz = 0
-        self._sem = Semaphore()
-
-    @property
-    def hz(self):
-        """Incoming message frequency."""
-        return self._hz
-
-    def run_forever(self):
-        """Start Subscriber. Blocking method."""
         self._consume()
 
-    def close(self):
+    def close(self) -> None:
         if self._closing:
             return False
-        self._closing = True
-        if not self._transport.channel:
+        elif not self._transport:
             return False
-        if self._transport.channel.is_closed:
+        elif not self._transport.channel:
+            return False
+        elif self._transport.channel.is_closed:
             self.logger.warning('Channel was already closed!')
             return False
+        self._closing = True
         super(Subscriber, self).stop()
         self._transport.add_threadsafe_callback(
             self._transport.delete_queue, self._queue_name)
@@ -1040,7 +991,7 @@ class Subscriber(BaseSubscriber):
         self._transport.add_threadsafe_callback(
             self._transport.close)
 
-    def _consume(self, reliable=False):
+    def _consume(self, reliable: bool = False) -> None:
         """Start AMQP consumer."""
         self._transport._channel.basic_consume(
             self._queue_name,
@@ -1057,53 +1008,49 @@ class Subscriber(BaseSubscriber):
             raise exc
 
     def _on_msg_callback_wrapper(self, ch, method, properties, body):
-        msg = {}
+        _data = {}
         _ctype = None
         _cencoding = None
         _ts_send = None
         _ts_broker = None
         _dmode = None
+
         try:
             _ctype = properties.content_type
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_broker = properties.headers['timestamp_in_ms']
             _ts_send = properties.timestamp
-            # _ts_broker = properties.timestamp
         except Exception:
             self.logger.debug("Could not calculate latency", exc_info=False)
 
         try:
-            msg = self._deserialize_req_payload(body, _ctype, _cencoding)
+            _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
             # Return data as is. Let callback handle with encoding...
-            msg = body
-
+            _data = {}
         try:
             self._sem.acquire()
             self._calc_msg_frequency()
             self._sem.release()
         except Exception:
             self.logger.warn("Could not calculate message rate",
-                              exc_info=True)
+                             exc_info=True)
 
-        if self._onmessage is not None:
-            meta = {
-                'channel': ch,
-                'method': method,
-                'properties': {
-                    'content_type': _ctype,
-                    'content_encoding': _cencoding,
-                    'timestamp_broker': _ts_broker,
-                    'timestamp_producer': _ts_send,
-                    'delivery_mode': _dmode
-                }
-            }
-            self._onmessage(msg, meta)
+        try:
+            if self.onmessage is not None:
+                if self._msg_type is None:
+                    _clb = functools.partial(self.onmessage, OrderedDict(_data))
+                else:
+                    _clb = functools.partial(self.onmessage,
+                                             self._msg_type(**_data))
+                _clb()
+        except Exception:
+            self.logger.error('Error in on_msg_callback', exc_info=True)
 
-    def _calc_msg_frequency(self):
+    def _calc_msg_frequency(self) -> None:
         ts = time.time()
         if self._last_msg_ts is not None:
             diff = ts - self._last_msg_ts
@@ -1118,25 +1065,7 @@ class Subscriber(BaseSubscriber):
                 self._hz = _sum / len(hz_list)
         self._last_msg_ts = ts
 
-    def _deserialize_req_payload(self, data, content_type, content_encoding):
-        """
-        Deserialize wire data.
-
-        @param data: Data to deserialize.
-        @type data: dict|int|bool
-        """
-        _data = None
-        if content_encoding is None:
-            content_encoding = 'utf8'
-        if content_type == ContentType.json:
-            _data = self._serializer.deserialize(data)
-        elif content_type == ContentType.text:
-            _data = data.decode(content_encoding)
-        elif content_type == ContentType.raw_bytes:
-            _data = data
-        return _data
-
-    def stop(self):
+    def stop(self) -> None:
         self.close()
 
     def __del__(self):
@@ -1146,101 +1075,164 @@ class Subscriber(BaseSubscriber):
         self.close()
 
 
+class PSubscriber(Subscriber):
+
+    def __init__(self, *args, **kwargs):
+        kwargs['topic'] = kwargs['topic'].replace('*', '#')
+        super(PSubscriber, self).__init__(*args, **kwargs)
+
+    def _on_msg_callback_wrapper(self, ch, method, properties, body):
+        _data = {}
+        _ctype = None
+        _cencoding = None
+        _ts_send = None
+        _ts_broker = None
+        _dmode = None
+
+        try:
+            _ctype = properties.content_type
+            _cencoding = properties.content_encoding
+            _dmode = properties.delivery_mode
+            _ts_broker = properties.headers['timestamp_in_ms']
+            _ts_send = properties.timestamp
+        except Exception:
+            self.logger.debug("Could not calculate latency", exc_info=False)
+
+        try:
+            _data = self._serializer.deserialize(body)
+        except Exception:
+            self.logger.error("Could not deserialize data",
+                              exc_info=True)
+            # Return data as is. Let callback handle with encoding...
+            _data = {}
+        try:
+            _topic = method.routing_key
+            _topic = _topic.replace('#', '').replace('*', '')
+        except Exception:
+            self.logger.error('Routing key could not be retrieved for message',
+                              exc_info=True)
+            return
+
+        try:
+            if self.onmessage is not None:
+                if self._msg_type is None:
+                    _clb = functools.partial(self.onmessage,
+                                             OrderedDict(_data),
+                                             _topic)
+                else:
+                    _clb = functools.partial(self.onmessage,
+                                             self._msg_type(**_data),
+                                             _topic)
+                _clb()
+        except Exception:
+            self.logger.error('Error in on_msg_callback', exc_info=True)
+
 class ActionServer(BaseActionServer):
-    def __init__(self, conn_params=None, *args, **kwargs):
+    def __init__(self,
+                 action_name: str,
+                 msg_type: ActionMessage,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        self._conn = Connection(conn_params)
+        # self._conn = Connection(conn_params)
 
-        super(ActionServer, self).__init__(*args, **kwargs)
-        self._goal_rpc = RPCService(rpc_name=self._goal_rpc_uri,
-                                   conn_params=conn_params,
-                                   on_request=self._handle_send_goal,
-                                   logger=self._logger,
-                                   debug=self.debug)
-        self._cancel_rpc = RPCService(rpc_name=self._cancel_rpc_uri,
-                                     conn_params=conn_params,
-                                     on_request=self._handle_cancel_goal,
-                                     logger=self._logger,
-                                     debug=self.debug)
-        self._result_rpc = RPCService(rpc_name=self._result_rpc_uri,
-                                     conn_params=conn_params,
-                                     on_request=self._handle_get_result,
-                                     logger=self._logger,
-                                     debug=self.debug)
-        self._feedback_pub = Publisher(topic=self._feedback_topic,
-                                       connection=self._conn,
+        super(ActionServer, self).__init__(action_name, msg_type,
+                                           *args, **kwargs)
+
+        self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
+                                    rpc_name=self._goal_rpc_uri,
+                                    conn_params=conn_params,
+                                    on_request=self._handle_send_goal,
+                                    logger=self._logger,
+                                    debug=self.debug)
+        self._cancel_rpc = RPCService(msg_type=_ActionCancelMessage,
+                                      rpc_name=self._cancel_rpc_uri,
+                                      conn_params=conn_params,
+                                      on_request=self._handle_cancel_goal,
+                                      logger=self._logger,
+                                      debug=self.debug)
+        self._result_rpc = RPCService(msg_type=_ActionResultMessage,
+                                      rpc_name=self._result_rpc_uri,
+                                      conn_params=conn_params,
+                                      on_request=self._handle_get_result,
+                                      logger=self._logger,
+                                      debug=self.debug)
+        self._feedback_pub = Publisher(msg_type=_ActionFeedbackMessage,
+                                       topic=self._feedback_topic,
+                                       conn_params=conn_params,
                                        logger=self._logger,
                                        debug=self.debug)
-        self._status_pub = Publisher(topic=self._status_topic,
-                                     connection=self._conn,
+        self._status_pub = Publisher(msg_type=_ActionStatusMessage,
+                                     topic=self._status_topic,
+                                     conn_params=conn_params,
                                      logger=self._logger,
                                      debug=self.debug)
-        self._conn.detach_amqp_events_thread()
-
-    def stop(self):
-        self._goal_rpc.stop()
-        self._cancel_rpc.stop()
-        self._result_rpc.stop()
-
-    def __del__(self):
-        self.stop()
+        # self._conn.detach_amqp_events_thread()
 
 
 class ActionClient(BaseActionClient):
-    def __init__(self, conn_params=None, *args, **kwargs):
+    def __init__(self,
+                 action_name: str,
+                 msg_type: ActionMessage,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
         assert isinstance(conn_params, ConnectionParameters)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        self._conn = Connection(conn_params)
+        # self._conn = Connection(conn_params)
 
-        super(ActionClient, self).__init__(*args, **kwargs)
+        super(ActionClient, self).__init__(action_name, msg_type,
+                                           *args, **kwargs)
 
-        self._goal_client = RPCClient(rpc_name=self._goal_rpc_uri,
-                                      connection=self._conn,
+        self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
+                                      rpc_name=self._goal_rpc_uri,
+                                      conn_params=conn_params,
                                       logger=self._logger,
                                       debug=self.debug)
-        self._cancel_client = RPCClient(rpc_name=self._cancel_rpc_uri,
-                                        connection=self._conn,
+        self._cancel_client = RPCClient(msg_type=_ActionCancelMessage,
+                                        rpc_name=self._cancel_rpc_uri,
+                                        conn_params=conn_params,
                                         logger=self._logger,
                                         debug=self.debug)
-        self._result_client = RPCClient(rpc_name=self._result_rpc_uri,
-                                        connection=self._conn,
+        self._result_client = RPCClient(msg_type=_ActionResultMessage,
+                                        rpc_name=self._result_rpc_uri,
+                                        conn_params=conn_params,
                                         logger=self._logger,
                                         debug=self.debug)
-        self._conn.detach_amqp_events_thread()
-        self._status_sub = Subscriber(conn_params=conn_params,
+        self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
+                                      conn_params=conn_params,
                                       topic=self._status_topic,
                                       on_message=self._on_status)
-        self._feedback_sub = Subscriber(conn_params=conn_params,
+        self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
+                                      conn_params=conn_params,
+                                      topic=self._status_topic,
+                                      on_message=self._on_status)
+        self._feedback_sub = Subscriber(msg_type=_ActionFeedbackMessage,
+                                        conn_params=conn_params,
                                         topic=self._feedback_topic,
                                         on_message=self._on_feedback)
         self._status_sub.run()
         self._feedback_sub.run()
 
-    def stop(self):
-        self._status_sub.stop()
-        self._feedback_sub.stop()
-
-    def __del__(self):
-        self.stop()
-
 
 class EventEmitter(BaseEventEmitter):
-    def __init__(self, conn_params=None, exchange='amq.topic', *args, **kwargs):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 exchange: str = 'amq.topic',
+                 *args, **kwargs):
         super(EventEmitter, self).__init__(*args, **kwargs)
 
         self._transport = AMQPTransport(conn_params=conn_params,
                                         logger=self._logger)
+        self._transport.connect()
         self._exchange = exchange
 
     def send_event(self, event: Event):
-        _msg = event.to_dict()
-        # self.logger.debug(
-        #     'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
-        self._send_data(event.uri, event.to_dict())
+        _data = event.as_dict()
+        self._send_data(event.uri, _data)
 
     def _send_data(self, topic: str, data: dict) -> None:
         _payload = None

@@ -15,35 +15,28 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
-
+from typing import Text, OrderedDict, Any
 import json
 
 
 class ContentType(object):
     """Content Types."""
-    json = 'application/json'
-    raw_bytes = 'application/octet-stream'
-    text = 'plain/text'
+    json: Text = 'application/json'
+    raw_bytes: Text = 'application/octet-stream'
+    text: Text = 'plain/text'
 
 
 class Serializer(object):
     """Serializer Abstract Class."""
-    CONTENT_TYPE = 'None'
-    CONTENT_ENCODING = 'None'
+    CONTENT_TYPE: Text = 'None'
+    CONTENT_ENCODING: Text = 'None'
 
     @staticmethod
-    def serialize(self, msg):
+    def serialize(self, data: Text):
         raise NotImplementedError()
 
     @staticmethod
-    def deserialize(self, data):
+    def deserialize(self, data: Text):
         raise NotImplementedError()
 
 
@@ -52,15 +45,15 @@ class JSONSerializer(Serializer):
 
     Static class.
     """
-    CONTENT_TYPE = 'application/json'
-    CONTENT_ENCODING = 'utf8'
+    CONTENT_TYPE: Text = 'application/json'
+    CONTENT_ENCODING: Text = 'utf8'
 
     @staticmethod
-    def serialize(_dict):
-        if not isinstance(_dict, dict):
-            raise TypeError('Data are not in dict structure.')
-        return json.dumps(_dict)
+    def serialize(data: dict):
+        if not isinstance(data, dict):
+            raise TypeError('Data are not of type Dict.')
+        return json.dumps(data)
 
     @staticmethod
-    def deserialize(data):
+    def deserialize(data: str):
         return json.loads(data)

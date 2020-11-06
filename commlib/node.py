@@ -3,11 +3,13 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import concurrent.futures.thread
 import time
 import threading
+from typing import Dict, List, Any, Text
 
 from commlib.endpoints import TransportType
 from commlib.utils import gen_random_id
 from commlib.logger import RemoteLogger, Logger
 from commlib.bridges import TopicBridge, RPCBridge
+from commlib.msg import HeartbeatMessage
 
 
 class NodePort(object):
@@ -36,7 +38,9 @@ class NodeExecutorType(IntEnum):
 
 
 class HeartbeatThread(threading.Thread):
-    def __init__(self, pub_instance=None, interval=10, logger=None,
+    def __init__(self, pub_instance=None,
+                 interval: int = 10,
+                 logger: Logger = None,
                  *args, **kwargs):
         super(HeartbeatThread, self).__init__(*args, **kwargs)
         self._stop_event = threading.Event()
@@ -44,19 +48,22 @@ class HeartbeatThread(threading.Thread):
         self._heartbeat_pub = pub_instance
         if logger is None:
             logger = Logger(self.__class__.__name__)
+        self.logger = logger
         self.daemon = True
 
     def run(self):
         try:
+            msg = HeartbeatMessage(ts=self.get_ts())
             while not self._stop_event.isSet():
-                self._heartbeat_pub.publish({'ts': self.get_ts()})
+                if self._heartbeat_pub._msg_type == None:
+                    self._heartbeat_pub.publish(msg.as_dict())
+                else:
+                    self._heartbeat_pub.publish(msg)
                 self._stop_event.wait(self._rate_secs)
         except Exception as exc:
-            # print('Heartbeat Thread Ended')
-            pass
+            self.logger.info(f'Exception in Heartbeat-Thread: {exc}')
         finally:
-            # print('Heartbeat Thread Ended')
-            pass
+            self.logger.info('Heartbeat Thread Ended')
 
     def force_join(self, timeout=None):
         """ Stop the thread. """
@@ -75,22 +82,29 @@ class HeartbeatThread(threading.Thread):
 
 
 class Node(object):
-    def __init__(self, node_name: str = None,
+    def __init__(self, node_name: Text = '',
                  executor: NodeExecutorType = NodeExecutorType.ThreadExecutor,
                  transport_type: TransportType = TransportType.REDIS,
                  transport_connection_params=None,
                  max_workers: int = 4,
                  remote_logger: bool = False,
                  remote_logger_uri: str = '',
-                 debug: bool = False):
+                 debug: bool = False,
+                 device_id: str = None):
         if executor == NodeExecutorType.ThreadExecutor:
             self._executor = ThreadPoolExecutor(max_workers=max_workers)
         elif executor == NodeExecutorType.ProcessExecutor:
             self._executor = ProcessPoolExecutor(max_workers=max_workers)
 
-        if node_name is None:
+        if node_name == '' or node_name is None:
             node_name = gen_random_id()
         self._node_name = node_name
+
+        self._device_id = device_id
+        if device_id is None:
+            self._namespace = f'{self._node_name}'
+        else:
+            self._namespace = f'thing.{device_id}.{self._node_name}'
 
         self._debug = debug
 
@@ -128,11 +142,14 @@ class Node(object):
                                         debug=debug)
         else:
             self._logger = Logger(self._node_name, debug=debug)
+        self._logger.info(f'Created Node <{self._node_name}>')
 
-    def init_heartbeat_thread(self, topic: str):
+    def init_heartbeat_thread(self):
+        topic = f'{self._namespace}.heartbeat'
         self._hb_thread = HeartbeatThread(
-            self.create_publisher(topic=topic))
+            self.create_publisher(topic=topic, msg_type=HeartbeatMessage))
         self._hb_thread.start()
+        self._logger.info(f'Started Publishing heartbeats: <{topic}>')
 
     @property
     def input_ports(self):

@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
-
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import uuid
@@ -14,6 +7,7 @@ from functools import partial
 from .serializer import JSONSerializer
 from .logger import Logger
 from .utils import gen_random_id
+from .msg import RPCMessage
 
 
 class BaseRPCService(object):
@@ -25,14 +19,16 @@ class BaseRPCService(object):
     """
 
     def __init__(self, rpc_name: str = None,
+                 msg_type: RPCMessage = None,
                  on_request: callable = None,
                  logger: Logger = None,
-                 debug: bool = True,
+                 debug: bool = False,
                  workers: int = 2,
                  serializer=None):
         if rpc_name is None:
-            raise ValueError()
+            raise ValueError('rpc_name cannot be None')
         self._rpc_name = rpc_name
+        self._msg_type = msg_type
         self._num_workers = workers
         self._debug = debug
         self.on_request = on_request
@@ -51,7 +47,6 @@ class BaseRPCService(object):
 
         self._main_thread = None
         self._t_stop_event = None
-        self.logger.debug('Created RPC Service <{}>'.format(self._rpc_name))
 
     @property
     def debug(self):
@@ -69,6 +64,7 @@ class BaseRPCService(object):
         self._main_thread.daemon = True
         self._t_stop_event = threading.Event()
         self._main_thread.start()
+        self.logger.info(f'Started RPC Service <{self._rpc_name}>')
 
     def stop(self):
         if self._t_stop_event is not None:
@@ -88,13 +84,15 @@ class BaseRPCClient(object):
 
     def __init__(self,
                  rpc_name: str = None,
+                 msg_type: RPCMessage = None,
                  logger: Logger = None,
-                 debug: bool = True,
+                 debug: bool = False,
                  serializer=None,
                  max_workers=5):
         if rpc_name is None:
-            raise ValueError()
+            raise ValueError('rpc_name cannot be None')
         self._rpc_name = rpc_name
+        self._msg_type = msg_type
         self._debug = debug
 
         if serializer is not None:
@@ -119,10 +117,12 @@ class BaseRPCClient(object):
     def logger(self):
         return self._logger
 
-    def call(self, msg: dict, timeout: float = 30):
+    def call(self, msg: RPCMessage.Request,
+             timeout: float = 30) -> RPCMessage.Response:
         raise NotImplementedError()
 
-    def call_async(self, msg: dict, timeout: float = 30,
+    def call_async(self, msg: RPCMessage.Request,
+                   timeout: float = 30.0,
                    on_response: callable = None):
         _future = self._executor.submit(self.call, msg, timeout)
         if on_response is not None:
@@ -131,7 +131,7 @@ class BaseRPCClient(object):
             )
         return _future
 
-    def _done_callback(self, on_response, _future):
+    def _done_callback(self, on_response: callable, _future):
         if _future.cancelled():
             self.logger.debug('Future object was cancelled')
             ## TODO: Implement Calcellation logic
