@@ -43,7 +43,7 @@ class MQTTProtocolType(IntEnum):
 
 
 class Credentials(object):
-    def __init__(self, username='', password=''):
+    def __init__(self, username: str = '', password: str = ''):
         self.username = username
         self.password = password
 
@@ -96,25 +96,28 @@ class MQTTTransport(object):
             self.logger.warn("Unexpected disconnection from MQTT Broker.")
 
     def on_message(self, client, userdata, msg):
-        # print(f"{msg.topic}:{msg.payload}")
         _topic = msg.topic
         _payload = json.loads(msg.payload)
         if self._data_clb is not None:
             self._data_clb(_topic, _payload)
 
     def on_log(self, client, userdata, level, buf):
-        self.logger.debug(f'MQTT Log: {buf}')
+        ## SPAM output
+        # self.logger.debug(f'MQTT Log: {buf}')
+        pass
 
     def publish(self, topic: str, payload: dict, qos: int = 0,
                 retain: bool = False,
                 confirm_delivery: bool = False):
-        topic = topic.replace('.', '/')
+        topic = topic.replace('.', '/').replace('*', '#')
         ph = self._client.publish(topic, payload, qos=qos, retain=retain)
         if confirm_delivery:
             ph.wait_for_publish()
 
     def subscribe(self, topic: str, callback: callable, qos: int = 0):
+        ## Adds subtopic specific callback handlers
         # self._client.message_callback_add(topic, callback)
+        topic = topic.replace('.', '/').replace('*', '#')
         self._data_clb = callback
         self._client.subscribe(topic, qos)
 
