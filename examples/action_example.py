@@ -57,6 +57,10 @@ if __name__ == '__main__':
         from commlib.transports.amqp import (
             ActionServer, ActionClient, ConnectionParameters
         )
+    elif broker_type == 'mqtt':
+        from commlib.transports.mqtt import (
+            ActionServer, ActionClient, ConnectionParameters
+        )
     else:
         print('Not a valid broker-type was given!')
         sys.exit(1)
