@@ -110,7 +110,7 @@ class RedisTransport(object):
         try:
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
         except Exception as exc:
-            self.logger.error(exc)
+            self.logger.error(exc, exc_info=True)
             msgq = ''
             payload = None
         return msgq, payload

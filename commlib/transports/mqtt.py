@@ -24,6 +24,7 @@ from commlib.action import (
 from commlib.events import BaseEventEmitter, Event
 from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
 from commlib.utils import gen_timestamp
+from commlib.exceptions import RPCClientTimeoutError
 
 import paho.mqtt.client as mqtt
 
@@ -66,7 +67,6 @@ class MQTTTransport(object):
         self._conn_params = conn_params
         self._logger = logger
         self._connected = False
-        self._data_clb = None
 
         self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -85,6 +85,10 @@ class MQTTTransport(object):
 
         self._client.connect(self._conn_params.host, self._conn_params.port, 60)
 
+    @property
+    def is_connected(self):
+        return self._connected
+
     def on_connect(self, client, userdata, flags, rc):
         if rc == MQTTReturnCode.CONNECTION_SUCCESS:
             self.logger.debug(
@@ -96,10 +100,7 @@ class MQTTTransport(object):
             self.logger.warn("Unexpected disconnection from MQTT Broker.")
 
     def on_message(self, client, userdata, msg):
-        _topic = msg.topic
-        _payload = json.loads(msg.payload)
-        if self._data_clb is not None:
-            self._data_clb(_topic, _payload)
+        raise NotImplementedError()
 
     def on_log(self, client, userdata, level, buf):
         ## SPAM output
@@ -109,20 +110,25 @@ class MQTTTransport(object):
     def publish(self, topic: str, payload: dict, qos: int = 0,
                 retain: bool = False,
                 confirm_delivery: bool = False):
-        topic = topic.replace('.', '/').replace('*', '#')
+        topic = topic.replace('.', '/')
         ph = self._client.publish(topic, payload, qos=qos, retain=retain)
         if confirm_delivery:
             ph.wait_for_publish()
 
     def subscribe(self, topic: str, callback: callable, qos: int = 0):
         ## Adds subtopic specific callback handlers
-        # self._client.message_callback_add(topic, callback)
         topic = topic.replace('.', '/').replace('*', '#')
-        self._data_clb = callback
         self._client.subscribe(topic, qos)
+        self._client.message_callback_add(topic, callback)
 
     def start_loop(self):
         self._client.loop_start()
+
+    def stop_loop(self):
+        self._client.loop_stop(force=True)
+
+    def loop_forever(self):
+        self._client.loop_forever()
 
 
 class Publisher(BasePublisher):
@@ -143,8 +149,6 @@ class Publisher(BasePublisher):
             data = msg.as_dict()
         _msg = self._prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
-        # self.logger.debug(
-        #     f'Publishing Message: <{self._topic}>:{data}')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
@@ -164,6 +168,21 @@ class Publisher(BasePublisher):
         return _msg
 
 
+class MPublisher(Publisher):
+    def __init__(self, *args, **kwargs):
+        super(MPublisher, self).__init__(topic='*', *args, **kwargs)
+
+    def publish(self, msg: PubSubMessage, topic: str) -> None:
+        if self._msg_type is None:
+            data = msg
+        else:
+            data = msg.as_dict()
+        _msg = self._prepare_msg(data)
+        _msg = self._serializer.serialize(_msg)
+        self._transport.publish(topic, _msg)
+        self._msg_seq += 1
+
+
 class Subscriber(BaseSubscriber):
     def __init__(self,
                  conn_params: ConnectionParameters = ConnectionParameters(),
@@ -179,15 +198,179 @@ class Subscriber(BaseSubscriber):
         self._transport.start_loop()
         self.logger.info(f'Started Subscriber: <{self._topic}>')
 
-    def _on_message(self, topic: str, payload: dict):
+    def _on_message(self, client, userdata, msg):
         try:
-            data = payload['data']
-            meta = payload['meta']
+            _topic = msg.topic
+            _payload = json.loads(msg.payload)
+            data = _payload['data']
+            meta = _payload['meta']
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, OrderedDict(data))
                 else:
-                    _clb = functools.partial(self.onmessage, self._msg_type(**data))
+                    _clb = functools.partial(self.onmessage,
+                                             self._msg_type(**data))
                 _clb()
         except Exception:
             self.logger.error('Exception caught in _on_message', exc_info=True)
+
+
+class PSubscriber(Subscriber):
+    def _on_message(self, client, userdata, msg):
+        try:
+            _topic = msg.topic
+            _payload = json.loads(msg.payload)
+            data = _payload['data']
+            meta = _payload['meta']
+            if self.onmessage is not None:
+                if self._msg_type is None:
+                    _clb = functools.partial(self.onmessage,
+                                             OrderedDict(data),
+                                             _topic)
+                else:
+                    _clb = functools.partial(self.onmessage,
+                                             self._msg_type(**data),
+                                             _topic)
+                _clb()
+        except Exception:
+            self.logger.error('Exception caught in _on_message', exc_info=True)
+
+
+class RPCService(BaseRPCService):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
+        self.conn_params = conn_params
+        super(RPCService, self).__init__(*args, **kwargs)
+        self._transport = MQTTTransport(conn_params=conn_params,
+                                        logger=self._logger)
+
+    def _send_response(self, data, reply_to):
+        meta = {
+            'timestamp': int(datetime.datetime.now(
+                datetime.timezone.utc).timestamp() * 1000000),
+            'properties': {
+                'content_type': self._serializer.CONTENT_TYPE,
+                'content_encoding': self._serializer.CONTENT_ENCODING,
+                'msg_type': ''  ## TODO
+            }
+        }
+        _resp = {
+            'data': data,
+            'meta': meta
+        }
+        _resp = self._serializer.serialize(_resp)
+        self._transport.publish(reply_to, _resp)
+
+    def _on_request_wrapper(self, client, userdata, msg):
+        try:
+            _topic = msg.topic
+            _payload = json.loads(msg.payload)
+            data = _payload['data']
+            meta = _payload['meta']
+            if self._msg_type is None:
+                resp = self.on_request(OrderedDict(data))
+            else:
+                resp = self.on_request(self._msg_type.Request(**data))
+                ## RPCMessage.Response object here
+                resp = resp.as_dict()
+        except Exception as exc:
+            self.logger.error(str(exc), exc_info=False)
+            resp = {}
+        reply_to = meta['reply_to']
+        self._send_response(resp, reply_to)
+
+    def run_forever(self):
+        self._transport.subscribe(self._rpc_name,
+                                  self._on_request_wrapper)
+        self._transport.start_loop()
+        while True:
+            if self._t_stop_event is not None:
+                if self._t_stop_event.is_set():
+                    self.logger.debug('Stop event caught in thread')
+                    break
+            time.sleep(0.001)
+        self._transport.stop_loop()
+
+    def stop(self):
+        self._t_stop_event.set()
+
+
+class RPCClient(BaseRPCClient):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
+        self.conn_params = conn_params
+        self._response = None
+
+        super(RPCClient, self).__init__(*args, **kwargs)
+        self._transport = MQTTTransport(conn_params=conn_params,
+                                        logger=self._logger)
+        self._transport.start_loop()
+
+    def __gen_queue_name(self):
+        return f'rpc-{self._gen_random_id()}'
+
+    def __prepare_request(self, data):
+        _reply_to = self.__gen_queue_name()
+        meta = {
+            'timestamp': int(datetime.datetime.now(
+                datetime.timezone.utc).timestamp() * 1000000),
+            'reply_to': _reply_to,
+            'properties': {
+                'content_type': self._serializer.CONTENT_TYPE,
+                'content_encoding': self._serializer.CONTENT_ENCODING
+            }
+        }
+        _req = {
+            'data': data,
+            'meta': meta
+        }
+        return _req
+
+    def _on_response_wrapper(self, client, userdata, msg):
+        try:
+            _topic = msg.topic
+            _payload = json.loads(msg.payload)
+            data = _payload['data']
+            meta = _payload['meta']
+        except Exception as exc:
+            self.logger.error(exc, exc_info=True)
+            data = {}
+        self._response = data
+
+    def _wait_for_response(self, timeout: float = 10.0):
+        start_t = time.time()
+        while self._response is None:
+            elapsed_t = time.time() - start_t
+            if elapsed_t >= timeout:
+                raise RPCClientTimeoutError(
+                    f'Response timeout after {timeout} seconds')
+            time.sleep(0.001)
+        return self._response
+
+    def call(self, msg: RPCMessage.Request,
+             timeout: float = 30) -> RPCMessage.Response:
+        ## TODO: Evaluate msg type passed here.
+        if self._msg_type is None:
+            data = msg
+        else:
+            data = msg.as_dict()
+
+        self._response = None
+
+        _msg = self.__prepare_request(data)
+        _reply_to = _msg['meta']['reply_to']
+        _msg = self._serializer.serialize(_msg)
+
+        self._transport.subscribe(_reply_to, callback=self._on_response_wrapper)
+        start_t = time.time()
+        self._transport.publish(self._rpc_name, _msg)
+        _resp = self._wait_for_response(timeout=timeout)
+        elapsed_t = time.time() - start_t
+        self._delay = elapsed_t
+
+        if self._msg_type is None:
+            return _resp
+        else:
+            return self._msg_type.Response(**_resp)
