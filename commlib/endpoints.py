@@ -15,6 +15,7 @@ class EndpointType(Enum):
 class TransportType(Enum):
     AMQP = 1
     REDIS = 2
+    MQTT = 3
 
 
 def endpoint_factory(etype, etransport):
@@ -22,6 +23,8 @@ def endpoint_factory(etype, etransport):
         import commlib.transports.amqp as comm
     elif etransport == TransportType.REDIS:
         import commlib.transports.redis as comm
+    elif etransport == TransportType.MQTT:
+        import commlib.transports.mqtt as comm
     else:
         raise ValueError()
     if etype == EndpointType.RPCService:
