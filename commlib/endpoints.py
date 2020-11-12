@@ -18,7 +18,7 @@ class TransportType(Enum):
     MQTT = 3
 
 
-def endpoint_factory(etype, etransport):
+def endpoint_factory(etype: EndpointType, etransport: TransportType):
     if etransport == TransportType.AMQP:
         import commlib.transports.amqp as comm
     elif etransport == TransportType.REDIS:

@@ -61,9 +61,15 @@ class ConnectionParameters(object):
         self.protocol = protocol
         self.creds = creds
 
+    @property
+    def credentials(self):
+        return self.creds
+
 
 class MQTTTransport(object):
-    def __init__(self, conn_params=ConnectionParameters(), logger=None):
+    def __init__(self,
+                 conn_params: ConnectionParameters = ConnectionParameters(),
+                 logger: Logger = None):
         self._conn_params = conn_params
         self._logger = logger
         self._connected = False
@@ -251,7 +257,7 @@ class RPCService(BaseRPCService):
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
 
-    def _send_response(self, data, reply_to):
+    def _send_response(self, data: dict, reply_to: str):
         meta = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
