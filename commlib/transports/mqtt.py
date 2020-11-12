@@ -198,6 +198,12 @@ class Subscriber(BaseSubscriber):
         self._transport.start_loop()
         self.logger.info(f'Started Subscriber: <{self._topic}>')
 
+    def run_forever(self):
+        self._transport.subscribe(self._topic,
+                                  self._on_message)
+        self.logger.info(f'Started Subscriber: <{self._topic}>')
+        self._transport.loop_forever()
+
     def _on_message(self, client, userdata, msg):
         try:
             _topic = msg.topic

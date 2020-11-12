@@ -326,11 +326,9 @@ class Subscriber(BaseSubscriber):
             self.logger.error(f'Exception thrown in Subscriber.stop(): {exc}')
 
     def run_forever(self):
-        try:
-            self.run()
+        self.run()
+        while True:
             time.sleep(0.001)
-        except Exception as exc:
-            raise exc
 
     def _on_message(self, payload: dict):
         try:
