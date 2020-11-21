@@ -68,15 +68,9 @@ class GoalHandler(object):
             return False
 
     def start(self):
-        if self._msg_type is not None:
-            self._goal_task = self._executor.submit(
-                partial(self._on_goal, self, self._msg_type.Result,
-                        self._msg_type.Feedback)
-            )
-        else:
-            self._goal_task = self._executor.submit(
-                partial(self._on_goal, self)
-            )
+        self._goal_task = self._executor.submit(
+            partial(self._on_goal, self)
+        )
         # self._cancel_task = self._executor.submit(self._on_cancel, self)
         self._goal_task.add_done_callback(self._done_callback)
 
