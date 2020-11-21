@@ -17,6 +17,11 @@ class RPCBridgeType(IntEnum):
     AMQP_TO_REDIS = 2
     AMQP_TO_AMQP = 3
     REDIS_TO_REDIS = 4
+    MQTT_TO_REDIS = 5
+    MQTT_TO_AMQP = 6
+    MQTT_TO_MQTT = 7
+    REDIS_TO_MQTT = 8
+    AMQP_TO_MQTT = 9
 
 
 class TopicBridgeType(IntEnum):
@@ -24,6 +29,11 @@ class TopicBridgeType(IntEnum):
     AMQP_TO_REDIS = 2
     AMQP_TO_AMQP = 3
     REDIS_TO_REDIS = 4
+    MQTT_TO_REDIS = 5
+    MQTT_TO_AMQP = 6
+    MQTT_TO_MQTT = 7
+    REDIS_TO_MQTT = 8
+    AMQP_TO_MQTT = 9
 
 
 class Bridge(object):
@@ -95,69 +105,47 @@ class RPCBridge(Bridge):
         self._msg_type = msg_type
 
         if self._btype == RPCBridgeType.REDIS_TO_AMQP:
-            self._server = endpoint_factory(
-                EndpointType.RPCService, TransportType.REDIS)(
-                    conn_params=self._from_broker_params,
-                    msg_type=self._msg_type,
-                    rpc_name=self._from_uri,
-                    on_request=self.on_request,
-                    debug=debug
-                )
-            self._client = endpoint_factory(
-                EndpointType.RPCClient, TransportType.AMQP)(
-                    rpc_name=self._to_uri,
-                    msg_type=self._msg_type,
-                    conn_params=self._to_broker_params,
-                    debug=debug
-                )
+            from_transport = TransportType.REDIS
+            to_transport = TransportType.AMQP
         elif self._btype == RPCBridgeType.AMQP_TO_REDIS:
-            self._server = endpoint_factory(
-                EndpointType.RPCService, TransportType.AMQP)(
-                    conn_params=self._from_broker_params,
-                    msg_type=self._msg_type,
-                    rpc_name=self._from_uri,
-                    on_request=self.on_request,
-                    debug=debug
-                )
-            self._client = endpoint_factory(
-                EndpointType.RPCClient, TransportType.REDIS)(
-                    rpc_name=self._to_uri,
-                    msg_type=self._msg_type,
-                    conn_params=self._to_broker_params,
-                    debug=debug
-                )
+            from_transport = TransportType.AMQP
+            to_transport = TransportType.REDIS
         elif self._btype == RPCBridgeType.AMQP_TO_AMQP:
-            self._server = endpoint_factory(
-                EndpointType.RPCService, TransportType.AMQP)(
-                    conn_params=self._from_broker_params,
-                    msg_type=self._msg_type,
-                    rpc_name=self._from_uri,
-                    on_request=self.on_request,
-                    debug=debug
-                )
-            self._client = endpoint_factory(
-                EndpointType.RPCClient, TransportType.AMQP)(
-                    rpc_name=self._to_uri,
-                    msg_type=self._msg_type,
-                    conn_params=self._to_broker_params,
-                    debug=debug
-                )
+            from_transport = TransportType.AMQP
+            to_transport = TransportType.AMQP
         elif self._btype == RPCBridgeType.REDIS_TO_REDIS:
-            self._server = endpoint_factory(
-                EndpointType.RPCService, TransportType.REDIS)(
-                    conn_params=self._from_broker_params,
-                    msg_type=self._msg_type,
-                    rpc_name=self._from_uri,
-                    on_request=self.on_request,
-                    debug=debug
-                )
-            self._client = endpoint_factory(
-                EndpointType.RPCClient, TransportType.REDIS)(
-                    rpc_name=self._to_uri,
-                    msg_type=self._msg_type,
-                    conn_params=self._to_broker_params,
-                    debug=debug
-                )
+            from_transport = TransportType.REDIS
+            to_transport = TransportType.REDIS
+        elif self._btype == RPCBridgeType.MQTT_TO_REDIS:
+            from_transport = TransportType.MQTT
+            to_transport = TransportType.REDIS
+        elif self._btype == RPCBridgeType.MQTT_TO_AMQP:
+            from_transport = TransportType.MQTT
+            to_transport = TransportType.AMQP
+        elif self._btype == RPCBridgeType.MQTT_TO_MQTT:
+            from_transport = TransportType.MQTT
+            to_transport = TransportType.MQTT
+        elif self._btype == RPCBridgeType.REDIS_TO_MQTT:
+            from_transport = TransportType.REDIS
+            to_transport = TransportType.MQTT
+        elif self._btype == RPCBridgeType.AMQP_TO_MQTT:
+            from_transport = TransportType.AMQP
+            to_transport = TransportType.MQTT
+        self._server = endpoint_factory(
+            EndpointType.RPCService, from_transport)(
+                conn_params=self._from_broker_params,
+                msg_type=self._msg_type,
+                rpc_name=self._from_uri,
+                on_request=self.on_request,
+                debug=debug
+            )
+        self._client = endpoint_factory(
+            EndpointType.RPCClient, to_transport)(
+                rpc_name=self._to_uri,
+                msg_type=self._msg_type,
+                conn_params=self._to_broker_params,
+                debug=debug
+            )
 
     def on_request(self, msg):
         """on_request.
@@ -201,70 +189,48 @@ class TopicBridge(Bridge):
         self._to_uri = to_uri
         self._msg_type = msg_type
 
-        if self._btype == TopicBridgeType.REDIS_TO_AMQP:
-            self._sub = endpoint_factory(
-                EndpointType.Subscriber, TransportType.REDIS
-            )(
-                topic=self._from_uri,
-                msg_type=self._msg_type,
-                conn_params=self._from_broker_params,
-                on_message=self.on_message
-            )
-            self._pub = endpoint_factory(
-                EndpointType.Publisher, TransportType.AMQP
-            )(
-                topic=self._to_uri,
-                msg_type=self._msg_type,
-                conn_params=self._to_broker_params,
-            )
-        elif self._btype == TopicBridgeType.AMQP_TO_REDIS:
-            self._sub = endpoint_factory(
-                EndpointType.Subscriber, TransportType.AMQP
-            )(
-                topic=self._from_uri,
-                msg_type=self._msg_type,
-                conn_params=self._from_broker_params,
-                on_message=self.on_message
-            )
-            self._pub = endpoint_factory(
-                EndpointType.Publisher, TransportType.REDIS
-            )(
-                topic=self._to_uri,
-                msg_type=self._msg_type,
-                conn_params=self._to_broker_params,
-            )
-        elif self._btype == TopicBridgeType.AMQP_TO_AMQP:
-            self._sub = endpoint_factory(
-                EndpointType.Subscriber, TransportType.AMQP
-            )(
-                topic=self._from_uri,
-                msg_type=self._msg_type,
-                conn_params=self._from_broker_params,
-                on_message=self.on_message
-            )
-            self._pub = endpoint_factory(
-                EndpointType.Publisher, TransportType.AMQP
-            )(
-                topic=self._to_uri,
-                msg_type=self._msg_type,
-                conn_params=self._to_broker_params,
-            )
-        elif self._btype == TopicBridgeType.REDIS_TO_REDIS:
-            self._sub = endpoint_factory(
-                EndpointType.Subscriber, TransportType.REDIS
-            )(
-                topic=self._from_uri,
-                msg_type=self._msg_type,
-                conn_params=self._from_broker_params,
-                on_message=self.on_message
-            )
-            self._pub = endpoint_factory(
-                EndpointType.Publisher, TransportType.REDIS
-            )(
-                topic=self._to_uri,
-                msg_type=self._msg_type,
-                conn_params=self._to_broker_params,
-            )
+        if self._btype == RPCBridgeType.REDIS_TO_AMQP:
+            from_transport = TransportType.REDIS
+            to_transport = TransportType.AMQP
+        elif self._btype == RPCBridgeType.AMQP_TO_REDIS:
+            from_transport = TransportType.AMQP
+            to_transport = TransportType.REDIS
+        elif self._btype == RPCBridgeType.AMQP_TO_AMQP:
+            from_transport = TransportType.AMQP
+            to_transport = TransportType.AMQP
+        elif self._btype == RPCBridgeType.REDIS_TO_REDIS:
+            from_transport = TransportType.REDIS
+            to_transport = TransportType.REDIS
+        elif self._btype == RPCBridgeType.MQTT_TO_REDIS:
+            from_transport = TransportType.MQTT
+            to_transport = TransportType.REDIS
+        elif self._btype == RPCBridgeType.MQTT_TO_AMQP:
+            from_transport = TransportType.MQTT
+            to_transport = TransportType.AMQP
+        elif self._btype == RPCBridgeType.MQTT_TO_MQTT:
+            from_transport = TransportType.MQTT
+            to_transport = TransportType.MQTT
+        elif self._btype == RPCBridgeType.REDIS_TO_MQTT:
+            from_transport = TransportType.REDIS
+            to_transport = TransportType.MQTT
+        elif self._btype == RPCBridgeType.AMQP_TO_MQTT:
+            from_transport = TransportType.AMQP
+            to_transport = TransportType.MQTT
+        self._sub = endpoint_factory(
+            EndpointType.Subscriber, from_transport
+        )(
+            topic=self._from_uri,
+            msg_type=self._msg_type,
+            conn_params=self._from_broker_params,
+            on_message=self.on_message
+        )
+        self._pub = endpoint_factory(
+            EndpointType.Publisher, to_transport
+        )(
+            topic=self._to_uri,
+            msg_type=self._msg_type,
+            conn_params=self._to_broker_params,
+        )
 
     def on_message(self, msg):
         self._pub.publish(msg)
@@ -308,66 +274,47 @@ class MTopicBridge(Bridge):
         self._to_namespace = to_namespace
         self._msg_type = msg_type
 
-        if self._btype == TopicBridgeType.REDIS_TO_AMQP:
-            self._sub = endpoint_factory(
-                EndpointType.PSubscriber, TransportType.REDIS
-            )(
-                topic=self._from_uri,
-                msg_type=self._msg_type,
-                conn_params=self._from_broker_params,
-                on_message=self.on_message
-            )
-            self._pub = endpoint_factory(
-                EndpointType.MPublisher, TransportType.AMQP
-            )(
-                msg_type=self._msg_type,
-                conn_params=self._to_broker_params,
-            )
-        elif self._btype == TopicBridgeType.AMQP_TO_REDIS:
-            self._sub = endpoint_factory(
-                EndpointType.PSubscriber, TransportType.AMQP
-            )(
-                topic=self._from_uri,
-                msg_type=self._msg_type,
-                conn_params=self._from_broker_params,
-                on_message=self.on_message
-            )
-            self._pub = endpoint_factory(
-                EndpointType.MPublisher, TransportType.REDIS
-            )(
-                msg_type=self._msg_type,
-                conn_params=self._to_broker_params,
-            )
-        elif self._btype == TopicBridgeType.AMQP_TO_AMQP:
-            self._sub = endpoint_factory(
-                EndpointType.PSubscriber, TransportType.AMQP
-            )(
-                topic=self._from_uri,
-                msg_type=self._msg_type,
-                conn_params=self._from_broker_params,
-                on_message=self.on_message
-            )
-            self._pub = endpoint_factory(
-                EndpointType.MPublisher, TransportType.AMQP
-            )(
-                msg_type=self._msg_type,
-                conn_params=self._to_broker_params,
-            )
-        elif self._btype == TopicBridgeType.REDIS_TO_REDIS:
-            self._sub = endpoint_factory(
-                EndpointType.PSubscriber, TransportType.REDIS
-            )(
-                topic=self._from_uri,
-                msg_type=self._msg_type,
-                conn_params=self._from_broker_params,
-                on_message=self.on_message
-            )
-            self._pub = endpoint_factory(
-                EndpointType.MPublisher, TransportType.REDIS
-            )(
-                msg_type=self._msg_type,
-                conn_params=self._to_broker_params,
-            )
+        if self._btype == RPCBridgeType.REDIS_TO_AMQP:
+            from_transport = TransportType.REDIS
+            to_transport = TransportType.AMQP
+        elif self._btype == RPCBridgeType.AMQP_TO_REDIS:
+            from_transport = TransportType.AMQP
+            to_transport = TransportType.REDIS
+        elif self._btype == RPCBridgeType.AMQP_TO_AMQP:
+            from_transport = TransportType.AMQP
+            to_transport = TransportType.AMQP
+        elif self._btype == RPCBridgeType.REDIS_TO_REDIS:
+            from_transport = TransportType.REDIS
+            to_transport = TransportType.REDIS
+        elif self._btype == RPCBridgeType.MQTT_TO_REDIS:
+            from_transport = TransportType.MQTT
+            to_transport = TransportType.REDIS
+        elif self._btype == RPCBridgeType.MQTT_TO_AMQP:
+            from_transport = TransportType.MQTT
+            to_transport = TransportType.AMQP
+        elif self._btype == RPCBridgeType.MQTT_TO_MQTT:
+            from_transport = TransportType.MQTT
+            to_transport = TransportType.MQTT
+        elif self._btype == RPCBridgeType.REDIS_TO_MQTT:
+            from_transport = TransportType.REDIS
+            to_transport = TransportType.MQTT
+        elif self._btype == RPCBridgeType.AMQP_TO_MQTT:
+            from_transport = TransportType.AMQP
+            to_transport = TransportType.MQTT
+        self._sub = endpoint_factory(
+            EndpointType.PSubscriber, from_transport
+        )(
+            topic=self._from_uri,
+            msg_type=self._msg_type,
+            conn_params=self._from_broker_params,
+            on_message=self.on_message
+        )
+        self._pub = endpoint_factory(
+            EndpointType.MPublisher, to_transport
+        )(
+            msg_type=self._msg_type,
+            conn_params=self._to_broker_params,
+        )
 
     def on_message(self, msg: PubSubMessage, topic: str):
         if self._to_namespace != '':

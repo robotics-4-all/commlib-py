@@ -50,10 +50,12 @@ def run_with_msg(RPCService, RPCClient, conn_params):
                        msg_type=AddTwoIntMessage,
                        conn_params=conn_params)
     msg = AddTwoIntMessage.Request(a=1, b=2)
-    resp = client.call(msg)
-    print(f'Response Message: {resp}')
 
-    client.call_async(msg, on_response=client_onrespone)
+    while True:
+        resp = client.call(msg)
+        print(f'Response Message: {resp}')
+        client.call_async(msg, on_response=client_onrespone)
+        time.sleep(2)
 
 
 def run_with_dict(RPCService, RPCClient, conn_params):
@@ -71,10 +73,12 @@ def run_with_dict(RPCService, RPCClient, conn_params):
         'a': 1,
         'b': 2
     }
-    resp = client.call(msg)
-    print(f'Response Message: {resp}')
+    while True:
+        resp = client.call(msg)
+        print(f'Response Message: {resp}')
+        client.call_async(msg, on_response=client_onrespone)
+        time.sleep(2)
 
-    client.call_async(msg, on_response=client_onrespone)
 
 
 if __name__ == '__main__':
@@ -88,6 +92,10 @@ if __name__ == '__main__':
         )
     elif broker == 'amqp':
         from commlib.transports.amqp import (
+            RPCService, RPCClient, ConnectionParameters
+        )
+    elif broker == 'mqtt':
+        from commlib.transports.mqtt import (
             RPCService, RPCClient, ConnectionParameters
         )
     else:

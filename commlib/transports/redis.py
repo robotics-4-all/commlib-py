@@ -26,7 +26,7 @@ from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
 
 
 class Credentials(object):
-    def __init__(self, username='', password=''):
+    def __init__(self, username: str = '', password: str = ''):
         self.username = username
         self.password = password
 
@@ -34,7 +34,7 @@ class Credentials(object):
 class ConnectionParametersBase(object):
     __slots__ = ['db', 'creds']
 
-    def __init__(self, db=0, creds=None):
+    def __init__(self, db: int = 0, creds: Credentials = None):
         self.db = db
 
         if creds is None:
@@ -54,7 +54,7 @@ class TCPConnectionParameters(ConnectionParametersBase):
 
 
 class UnixSocketConnectionParameters(ConnectionParametersBase):
-    def __init__(self, unix_socket='/tmp/redis.sock', *args, **kwargs):
+    def __init__(self, unix_socket: str = '/tmp/redis.sock', *args, **kwargs):
         super(UnixSocketConnectionParameters, self).__init__(*args, **kwargs)
         self.unix_socket = unix_socket
 
@@ -110,7 +110,7 @@ class RedisTransport(object):
         try:
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
         except Exception as exc:
-            self.logger.error(exc)
+            self.logger.error(exc, exc_info=True)
             msgq = ''
             payload = None
         return msgq, payload
@@ -326,11 +326,9 @@ class Subscriber(BaseSubscriber):
             self.logger.error(f'Exception thrown in Subscriber.stop(): {exc}')
 
     def run_forever(self):
-        try:
-            self.run()
+        self.run()
+        while True:
             time.sleep(0.001)
-        except Exception as exc:
-            raise exc
 
     def _on_message(self, payload: dict):
         try:

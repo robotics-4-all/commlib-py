@@ -18,6 +18,46 @@ def sonar_data_callback(msg):
     # print(f'{msg["distance"]}')
     # print(f'{msg.distance}')
 
+
+def run_mqtt_dict(topic):
+    from commlib.transports.mqtt import (
+        Publisher, Subscriber, ConnectionParameters, Credentials
+    )
+    conn_params = ConnectionParameters(host='localhost', port=1883)
+    sub = Subscriber(topic=topic,
+                     on_message=sonar_data_callback,
+                     conn_params=conn_params)
+    sub.run()
+
+    pub = Publisher(topic=topic, conn_params=conn_params)
+    msg = {
+        'distance': 0
+    }
+    while True:
+        time.sleep(0.5)
+        pub.publish(msg)
+        msg['distance'] += 1
+
+
+def run_mqtt_msg(topic):
+    from commlib.transports.mqtt import (
+        Publisher, Subscriber, ConnectionParameters
+    )
+    conn_params = ConnectionParameters(host='localhost', port=1883)
+    sub = Subscriber(topic=topic,
+                     msg_type=SonarMessage,
+                     on_message=sonar_data_callback,
+                     conn_params=conn_params)
+    sub.run()
+
+    pub = Publisher(topic=topic, msg_type=SonarMessage, conn_params=conn_params)
+    msg = SonarMessage(distance=2.0)
+    while True:
+        time.sleep(0.5)
+        pub.publish(msg)
+        msg.distance += 1
+
+
 def run_amqp_dict(topic):
     from commlib.transports.amqp import (
         Publisher, Subscriber, ConnectionParameters
@@ -99,3 +139,6 @@ if __name__ == '__main__':
     elif broker == 'redis':
         # run_redis_dict(topic)
         run_redis_msg(topic)
+    elif broker == 'mqtt':
+        # run_redis_dict(topic)
+        run_mqtt_msg(topic)

@@ -33,9 +33,7 @@ setup(
     ],
     description="Communication Lirary for Python implementing the most common communication patterns for CyberPhysical Systems.",
     entry_points={
-        'console_scripts': [
-            'commlib=commlib.cli:main',
-        ],
+        'console_scripts': [],
     },
     install_requires=requirements,
     license="MIT license",
