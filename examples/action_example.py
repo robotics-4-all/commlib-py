@@ -23,7 +23,7 @@ class ExampleAction(ActionMessage):
 def on_goal(goal_h, result_msg, feedback_msg):
     c = 0
     res = result_msg()
-    while c < 5:
+    while c < goal_h.data.target_cm:
         if goal_h.cancel_event.is_set():
             break
         goal_h.send_feedback(feedback_msg(current_cm=c))
@@ -31,6 +31,22 @@ def on_goal(goal_h, result_msg, feedback_msg):
         time.sleep(1)
     res.dest_cm = c
     return res
+
+
+def on_goal_b(goal_h):
+    c = 0
+    res = {
+        'dest_cm': 0
+    }
+    while c < goal_h.data['target_cm']:
+        if goal_h.cancel_event.is_set():
+            break
+        goal_h.send_feedback({'current_cm': c})
+        c += 1
+        time.sleep(1)
+    res['dest_cm'] = c
+    return res
+
 
 def on_feedback(feedback):
     print(f'ActionClient <on-feedback> callback: {feedback}')
@@ -67,11 +83,11 @@ if __name__ == '__main__':
 
 
     conn_params = ConnectionParameters()
-    action = ActionServer(msg_type=ExampleAction,
+    action = ActionServer(msg_type=None,
                           conn_params=conn_params,
                           action_name=action_name,
-                          on_goal=on_goal)
-    action_c = ActionClient(msg_type=ExampleAction,
+                          on_goal=on_goal_b)
+    action_c = ActionClient(msg_type=None,
                             conn_params=conn_params,
                             action_name=action_name,
                             on_feedback=on_feedback,
@@ -81,7 +97,10 @@ if __name__ == '__main__':
     action.run()
     time.sleep(1)
 
-    goal_msg = ExampleAction.Goal()
+    # goal_msg = ExampleAction.Goal(target_cm=5)
+    goal_msg = {
+        'target_cm': 5
+    }
 
     action_c.send_goal(goal_msg)
     # res = action_c.get_result(wait=True)
