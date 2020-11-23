@@ -79,10 +79,6 @@ def on_request(msg):
     return resp
 
 
-def on_response(msg):
-    print(f'On-Response: {msg}')
-
-
 if __name__ == '__main__':
     rpc_name = 'testrpc'
 

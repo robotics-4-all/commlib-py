@@ -243,15 +243,3 @@ class Node(object):
                                         *args, **kwargs)
         self._event_emitters.append(em)
         return em
-
-    def create_rpc_bridge(self, *args, **kwargs):
-        br = self._commlib.RPCBridge(logger=self._logger,
-                                     *args, **kwargs)
-        self._rpc_bridges.append(br)
-        return br
-
-    def create_topic_bridge(self, *args, **kwargs):
-        br = self._commlib.TopicBridge(logger=self._logger,
-                                       *args, **kwargs)
-        self._topic_bridges.append(br)
-        return br
