@@ -28,8 +28,6 @@ def on_response(msg):
 
 
 if __name__ == '__main__':
-    rpc_name = 'testrpc'
-
     if len(sys.argv) < 2:
         broker = 'redis'
     else:
@@ -39,27 +37,35 @@ if __name__ == '__main__':
             ConnectionParameters
         )
         conn_params = ConnectionParameters()
-        node = Node(node_name='example-node',
-                    transport_type=TransportType.REDIS,
-                    transport_connection_params=conn_params, debug=True)
+        transport = TransportType.REDIS
     elif broker == 'amqp':
         from commlib.transports.amqp import (
             ConnectionParameters
         )
         conn_params = ConnectionParameters()
-        node = Node(node_name='example-node', transport_type=TransportType.AMQP,
-                    transport_connection_params=conn_params, debug=True)
+        transport = TransportType.AMQP
+    elif broker == 'mqtt':
+        from commlib.transports.mqtt import (
+            ConnectionParameters
+        )
+        conn_params = ConnectionParameters()
+        transport = TransportType.MQTT
     else:
         print('Not a valid broker-type was given!')
         sys.exit(1)
 
-    node.init_heartbeat_thread()
+    node = Node(node_name='example-node',
+                transport_type=transport,
+                transport_connection_params=conn_params,
+                debug=True)
 
     rpc = node.create_rpc(msg_type=AddTwoIntMessage,
-                          rpc_name=rpc_name, on_request=on_request)
+                          rpc_name='testrpc',
+                          on_request=on_request)
     rpc.run()
     time.sleep(1)
-    rpc_c = node.create_rpc_client(msg_type=AddTwoIntMessage, rpc_name=rpc_name)
+    rpc_c = node.create_rpc_client(msg_type=AddTwoIntMessage,
+                                   rpc_name='testrpc')
 
     msg = AddTwoIntMessage.Request(a=1, b=2)
 

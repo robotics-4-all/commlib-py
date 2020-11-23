@@ -37,6 +37,13 @@ class NodeExecutorType(IntEnum):
     ThreadExecutor = 2
 
 
+class NodeState(IntEnum):
+    IDLE = 1
+    RUNNING = 2
+    STOPPED = 4
+    EXITED = 3
+
+
 class HeartbeatThread(threading.Thread):
     def __init__(self, pub_instance=None,
                  interval: int = 10,
@@ -83,7 +90,6 @@ class HeartbeatThread(threading.Thread):
 
 class Node(object):
     def __init__(self, node_name: Text = '',
-                 executor: NodeExecutorType = NodeExecutorType.ThreadExecutor,
                  transport_type: TransportType = TransportType.REDIS,
                  transport_connection_params=None,
                  max_workers: int = 4,
@@ -91,10 +97,6 @@ class Node(object):
                  remote_logger_uri: str = '',
                  debug: bool = False,
                  device_id: str = None):
-        if executor == NodeExecutorType.ThreadExecutor:
-            self._executor = ThreadPoolExecutor(max_workers=max_workers)
-        elif executor == NodeExecutorType.ProcessExecutor:
-            self._executor = ProcessPoolExecutor(max_workers=max_workers)
 
         if node_name == '' or node_name is None:
             node_name = gen_random_id()
@@ -118,7 +120,8 @@ class Node(object):
         self._rpc_bridges = []
         self._topic_bridges = []
 
-        self._global_tranport_type = transport_type
+        self.state = NodeState.IDLE
+
         if transport_type == TransportType.REDIS:
             import commlib.transports.redis as comm
         elif transport_type == TransportType.AMQP:
@@ -143,6 +146,7 @@ class Node(object):
         else:
             self._logger = Logger(self._node_name, debug=debug)
         self._logger.info(f'Created Node <{self._node_name}>')
+
 
     def init_heartbeat_thread(self):
         topic = f'{self._namespace}.heartbeat'
@@ -177,9 +181,19 @@ class Node(object):
     def get_logger(self):
         return self._logger
 
-    def run_forever(self):
+    def run(self, heartbeat_thread: bool = True):
+        for s in self._subscribers:
+            s.run()
+        for r in self._rpc_services:
+            r.run()
+        self.init_heartbeat_thread()
+        self.state = NodeState.RUNNING
+
+    def run_forever(self, sleep_rate: float = 0.001):
+        if self.state != NodeState.RUNNING:
+            self.run()
         while True:
-            time.sleep(0.001)
+            time.sleep(sleep_rate)
 
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.

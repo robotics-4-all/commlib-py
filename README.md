@@ -59,7 +59,7 @@ Furthermore, it implements several features:
 from commlib.node import Node, TransportType
 from commlib.msg import RPCMessage, DataClass
 ## Import the Redis transports
-## Lazy imports are lazy internally
+## Imports are lazy handled internally
 from commlib.transports.redis import ConnectionParameters
 
 class AddTwoIntMessage(RPCMessage):
@@ -96,9 +96,6 @@ if __name__ == '__main__':
                           on_request=on_request)
     # Start the RPC Service.
     rpc.run()
-    # Create the RPC Client.
-    rpc_c = node.create_rpc_client(msg_type=AddTwoIntMessage, rpc_name=rpc_name)
-
     # Wait until an exit signal is catched.
     node.run_forever()
 ```
