@@ -271,7 +271,7 @@ In the context of the current work, communication bridges are implemented for
 PubSub and RPC communication between various message brokers. Currently, MQTT, 
 AMQP and Redis are supported.
 
-![bridges_1](./assets/2020-07-24-025901_713x483_scrot.png)
+![bridges_1](./assets/BrokerMessaging-Bridges.png)
 
 
 **TODO**: Action bridges
