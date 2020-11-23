@@ -60,7 +60,7 @@ class BaseSubscriber(object):
         self._msg_type = msg_type
 
         if topic is None:
-            raise ValueError()
+            raise ValueError('Topic name cannot be None')
 
         self.onmessage = on_message
 

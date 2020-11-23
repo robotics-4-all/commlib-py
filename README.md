@@ -34,6 +34,114 @@ The purpose of this implementation is to provide an application-level communicat
 by providing implementations for Remote-Procedure-Calls (RPCs), Topic-based PubSub, Preemptable Services
 (aka Actions), Events etc.
 
+## Node
+
+The concept **Node** is a software component that follows the Component-Port-Connector model.
+A Node has input and output ports for communicating with the world. Each
+port defines an endpoint and can be of type:
+
+- Input Port:
+  - Subscriber
+  - RPC Service
+  - Action Service
+- Output Port:
+  - Publisher
+  - RPC Client
+  - Action Client
+
+
+Furthermore, it implements several features:
+- Publish Heartbeat messages in the background for as long as the node is active
+- Provide control interfaces, to `start` and `stop` the execution of the Node
+- Provides methods to create ports.
+
+```python
+from commlib.node import Node, TransportType
+from commlib.msg import RPCMessage, DataClass
+## Import the Redis transports
+## Imports are lazy handled internally
+from commlib.transports.redis import ConnectionParameters
+
+class AddTwoIntMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
+def on_request(msg):
+    print(f'On-Request: {msg}')
+    resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
+    return resp
+
+
+if __name__ == '__main__':
+    conn_params = ConnectionParameters()
+    node = Node(node_name='example-node',
+                transport_type=transport,
+                transport_connection_params=conn_params,
+                debug=True)
+
+    # Create  an RPCService endpoint
+    rpc = node.create_rpc(msg_type=AddTwoIntMessage,
+                          rpc_name='testrpc',
+                          on_request=on_request)
+    # Starts the RPCService and wait until an exit signal is catched.
+    node.run_forever()
+```
+
+A Node always binds to a specific broker for implementing the input and
+output ports. Of course you can instantiate and run several Nodes in a single-process 
+application.
+
+## Req/Resp (RPC) Communication
+
+```
+                             +---------------+
+                   +-------->+   RPC Topic   +------+
++--------------+   |         |               |      |        +---------------+
+|              +---+         +---------------+      +------->+               |
+|  RPC Client  |                                             |  RPC Service  |
+|              +<--+         +---------------+      +--------+               |
++--------------+   |         |Temporaty Topic|      |        +---------------+
+                   +---------+               +<-----+
+                             +---------------+
+```
+
+## PubSub Communicaton
+
+```
+                                                    +------------+
+                                                    |            |
+                                            +------>+ Subscriber |
+                                            |       |            |
+                                            |       +------------+
+                                            |
++-----------+             +------------+    |       +------------+
+|           |             |            |    |       |            |
+| Publisher +------------>+   Topic    +----------->+ Subscriber |
+|           |             |            |    |       |            |
++-----------+             +------------+    |       +------------+
+                                            |
+                                            |       +------------+
+                                            |       |            |
+                                            +------>+ Subscriber |
+                                                    |            |
+                                                    +------------+
+```
+
+## Preemptable Services with Feedback (Actions)
+
+Actions are [pre-emptable services](https://en.wikipedia.org/wiki/Preemption_(computing)) 
+with support for asynchronous feedback publishing. This communication pattern
+is used to implement services which can be stopped and can provide feedback data, such 
+as the move command service of a robot.
+
+
 ## Transports
 
 ### AMQP / RabbitMQ
@@ -152,38 +260,21 @@ data model of the request message.
 }
 ```
 
-### NATS
-
-**NOT YET SUPPORTED**
-
-
-## Endpoints
-TODO
-
-### RPCService
-TODO
-
-### RPCClient
-TODO
-
-### Publisher
-TODO
-
-### Subscriber
-TODO
-
-### ActionServer
-TODO
-
-### ActionClient
-TODO
-
-### EventEmitter
-TODO
-
 ## Broker-to-broker (B2B) bridges
 
-![bridges_1](./assets/2020-07-24-025901_713x483_scrot.png)
+In the context of IoT and CPS, it is a common requirement to bridge messages
+between message brokers, based on application-specific rules. An example is to 
+bridge analytics (preprocessed) data from the Edge to the Cloud. And what happens
+if the brokers use different communication protocols?
+
+In the context of the current work, communication bridges are implemented for
+PubSub and RPC communication between various message brokers. Currently, MQTT, 
+AMQP and Redis are supported.
+
+![bridges_1](./assets/BrokerMessaging-Bridges.png)
+
+
+**TODO**: Action bridges
 
 # Examples
 

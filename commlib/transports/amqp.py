@@ -22,6 +22,7 @@ from commlib.action import (
 from commlib.events import BaseEventEmitter, Event
 from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
 from commlib.utils import gen_timestamp
+from commlib.exceptions import *
 
 
 # Reduce log level for pika internal logger
@@ -444,7 +445,7 @@ class AMQPTransport(object):
             self._channel.queue_bind(
                 exchange=exchange_name, queue=queue_name, routing_key=bind_key)
         except Exception as exc:
-            raise exc
+            raise AMQPError('Error while trying to bind queue to exchange')
 
     def set_channel_qos(self, prefetch_count=1, global_qos=False):
         self._channel.basic_qos(prefetch_count=prefetch_count,
@@ -519,7 +520,7 @@ class RPCService(BaseRPCService):
             self.logger.error(exc, exc_info=True)
         except Exception as exc:
             self.logger.error(exc, exc_info=True)
-            raise exc
+            raise AMQPError('Error while trying to consume from queue')
 
     def _rpc_exists(self):
         return self._transport.queue_exists(self._rpc_name)
@@ -933,10 +934,6 @@ class Subscriber(BaseSubscriber):
 
         super(Subscriber, self).__init__(*args, **kwargs)
 
-        # if '*' in self._topic or '#' in self._topic or '?' in self._topic:
-        #     raise ValueError(
-        #         'Use PSubscriber class for pattern-based subscription.')
-
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
@@ -1005,7 +1002,7 @@ class Subscriber(BaseSubscriber):
             self.logger.error(exc, exc_info=False)
         except Exception as exc:
             self.logger.error(exc, exc_info=False)
-            raise exc
+            raise AMQPError('Could not consume from message queue')
 
     def _on_msg_callback_wrapper(self, ch, method, properties, body):
         _data = {}

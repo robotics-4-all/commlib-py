@@ -26,7 +26,7 @@ class BaseRPCService(object):
                  workers: int = 2,
                  serializer=None):
         if rpc_name is None:
-            raise ValueError('rpc_name cannot be None')
+            raise ValueError('RPC Name cannot be None')
         self._rpc_name = rpc_name
         self._msg_type = msg_type
         self._num_workers = workers
@@ -90,7 +90,7 @@ class BaseRPCClient(object):
                  serializer=None,
                  max_workers=5):
         if rpc_name is None:
-            raise ValueError('rpc_name cannot be None')
+            raise ValueError('RPC name cannot be None')
         self._rpc_name = rpc_name
         self._msg_type = msg_type
         self._debug = debug
