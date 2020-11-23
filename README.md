@@ -82,21 +82,15 @@ def on_request(msg):
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
     node = Node(node_name='example-node',
-                transport_type=TransportType.REDIS,
+                transport_type=transport,
                 transport_connection_params=conn_params,
                 debug=True)
-
-    # Start the heartbeat thread. Heartbeat thread runs in the background
-    # and sends heartbeat messages with a rate of 10hz.
-    node.init_heartbeat_thread()
 
     # Create  an RPCService endpoint
     rpc = node.create_rpc(msg_type=AddTwoIntMessage,
                           rpc_name='testrpc',
                           on_request=on_request)
-    # Start the RPC Service.
-    rpc.run()
-    # Wait until an exit signal is catched.
+    # Starts the RPCService and wait until an exit signal is catched.
     node.run_forever()
 ```
 

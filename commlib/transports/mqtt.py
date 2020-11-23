@@ -155,6 +155,8 @@ class Publisher(BasePublisher):
             data = msg.as_dict()
         _msg = self._prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
+        self.logger.debug(
+            f'Publishing Message: <{self._topic}>:{data}')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 

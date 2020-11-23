@@ -126,6 +126,10 @@ class Node(object):
             import commlib.transports.redis as comm
         elif transport_type == TransportType.AMQP:
             import commlib.transports.amqp as comm
+        elif transport_type == TransportType.MQTT:
+            import commlib.transports.mqtt as comm
+        else:
+            raise ValueError('Transport type is not supported!')
         self._commlib = comm
 
         if transport_connection_params is None:
@@ -146,7 +150,6 @@ class Node(object):
         else:
             self._logger = Logger(self._node_name, debug=debug)
         self._logger.info(f'Created Node <{self._node_name}>')
-
 
     def init_heartbeat_thread(self):
         topic = f'{self._namespace}.heartbeat'

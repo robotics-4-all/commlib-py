@@ -62,10 +62,11 @@ if __name__ == '__main__':
     rpc = node.create_rpc(msg_type=AddTwoIntMessage,
                           rpc_name='testrpc',
                           on_request=on_request)
-    rpc.run()
-    time.sleep(1)
     rpc_c = node.create_rpc_client(msg_type=AddTwoIntMessage,
                                    rpc_name='testrpc')
+
+    node.run()
+    time.sleep(1)
 
     msg = AddTwoIntMessage.Request(a=1, b=2)
 
@@ -74,4 +75,5 @@ if __name__ == '__main__':
 
     _f = rpc_c.call_async(msg, on_response=on_response)
 
-    node.run_forever()
+    while True:
+        time.sleep(0.001)
