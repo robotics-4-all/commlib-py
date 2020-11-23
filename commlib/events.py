@@ -32,7 +32,7 @@ class BaseEventEmitter(object):
 
         self._logger = Logger(self.__class__.__name__, debug=debug) if \
             logger is None else logger
-        self.logger.debug(f'Initiated Event Emitter <{self._name}>')
+        self.logger.info(f'Initiated Event Emitter <{self._name}>')
 
     @property
     def debug(self) -> bool:

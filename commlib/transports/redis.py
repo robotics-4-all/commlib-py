@@ -306,10 +306,6 @@ class Subscriber(BaseSubscriber):
         self._queue_size = queue_size
         super(Subscriber, self).__init__(*args, **kwargs)
 
-        # if '*' in self._topic or '#' in self._topic or '?' in self._topic:
-        #     raise ValueError(
-        #         'Use PSubscriber class for pattern-based subscription.')
-
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 

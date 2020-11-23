@@ -55,6 +55,64 @@ Furthermore, it implements several features:
 - Provide control interfaces, to `start` and `stop` the execution of the Node
 - Provides methods to create ports.
 
+```python
+from commlib.node import Node, TransportType
+from commlib.msg import RPCMessage, DataClass
+## Import the Redis transports
+## Lazy imports are lazy internally
+from commlib.transports.redis import ConnectionParameters
+
+class AddTwoIntMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
+def on_request(msg):
+    print(f'On-Request: {msg}')
+    resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
+    return resp
+
+
+def on_response(msg):
+    print(f'On-Response: {msg}')
+
+
+if __name__ == '__main__':
+    rpc_name = 'testrpc'
+
+    conn_params = ConnectionParameters()
+    node = Node(node_name='example-node',
+                transport_type=TransportType.REDIS,
+                transport_connection_params=conn_params,
+                debug=True)
+
+    # Start the heartbeat thread. Heartbeat thread runs in the background
+    # and sends heartbeat messages with a rate of 10hz.
+    node.init_heartbeat_thread()
+
+    # Create  an RPCService endpoint
+    rpc = node.create_rpc(msg_type=AddTwoIntMessage,
+                          rpc_name=rpc_name,
+                          on_request=on_request)
+    # Start the RPC Service.
+    rpc.run()
+    # Create the RPC Client.
+    rpc_c = node.create_rpc_client(msg_type=AddTwoIntMessage, rpc_name=rpc_name)
+
+    # Wait until an exit signal is catched.
+    node.run_forever()
+```
+
+A Node always binds to a specific broker for implementing the input and
+output ports. Of course you can instantiate and run several Nodes in a single-process 
+application.
+
 ## RPCService
 TODO
 

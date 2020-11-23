@@ -95,7 +95,7 @@ class GoalHandler(object):
 
     def set_status(self, status):
         if status not in GoalStatus:
-            raise ValueError()
+            raise ValueError('Wrong status code!')
         status = int(status)
         self.status = status
         msg = _ActionStatusMessage(status=status, goal_id=self.id)
