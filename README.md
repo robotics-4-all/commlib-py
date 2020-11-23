@@ -34,6 +34,49 @@ The purpose of this implementation is to provide an application-level communicat
 by providing implementations for Remote-Procedure-Calls (RPCs), Topic-based PubSub, Preemptable Services
 (aka Actions), Events etc.
 
+## Node
+
+The concept **Node** is a software component that follows the Component-Port-Connector model.
+A Node has input and output ports for communicating with the world. Each
+port defines an endpoint and can be of type:
+
+- Input Port:
+  - Subscriber
+  - RPC Service
+  - Action Service
+- Output Port:
+  - Publisher
+  - RPC Client
+  - Action Client
+
+
+Furthermore, it implements several features:
+- Publish Heartbeat messages in the background for as long as the node is active
+- Provide control interfaces, to `start` and `stop` the execution of the Node
+- Provides methods to create ports.
+
+## RPCService
+TODO
+
+## RPCClient
+TODO
+
+## Publisher
+TODO
+
+## Subscriber
+TODO
+
+## ActionServer
+TODO
+
+## ActionClient
+TODO
+
+## EventEmitter
+TODO
+
+
 ## Transports
 
 ### AMQP / RabbitMQ
@@ -152,38 +195,21 @@ data model of the request message.
 }
 ```
 
-### NATS
-
-**NOT YET SUPPORTED**
-
-
-## Endpoints
-TODO
-
-### RPCService
-TODO
-
-### RPCClient
-TODO
-
-### Publisher
-TODO
-
-### Subscriber
-TODO
-
-### ActionServer
-TODO
-
-### ActionClient
-TODO
-
-### EventEmitter
-TODO
-
 ## Broker-to-broker (B2B) bridges
 
+In the context of IoT and CPS, it is a common requirement to bridge messages
+between message brokers, based on application-specific rules. An example is to 
+bridge analytics (preprocessed) data from the Edge to the Cloud. And what happens
+if the brokers use different communication protocols?
+
+In the context of the current work, communication bridges are implemented for
+PubSub and RPC communication between various message brokers. Currently, MQTT, 
+AMQP and Redis are supported.
+
 ![bridges_1](./assets/2020-07-24-025901_713x483_scrot.png)
+
+
+**TODO**: Action bridges
 
 # Examples
 
