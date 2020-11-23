@@ -80,8 +80,6 @@ def on_request(msg):
 
 
 if __name__ == '__main__':
-    rpc_name = 'testrpc'
-
     conn_params = ConnectionParameters()
     node = Node(node_name='example-node',
                 transport_type=TransportType.REDIS,
@@ -94,7 +92,7 @@ if __name__ == '__main__':
 
     # Create  an RPCService endpoint
     rpc = node.create_rpc(msg_type=AddTwoIntMessage,
-                          rpc_name=rpc_name,
+                          rpc_name='testrpc',
                           on_request=on_request)
     # Start the RPC Service.
     rpc.run()
@@ -109,26 +107,48 @@ A Node always binds to a specific broker for implementing the input and
 output ports. Of course you can instantiate and run several Nodes in a single-process 
 application.
 
-## RPCService
-TODO
+## Req/Resp (RPC) Communication
 
-## RPCClient
-TODO
+```
+                             +---------------+
+                   +-------->+   RPC Topic   +------+
++--------------+   |         |               |      |        +---------------+
+|              +---+         +---------------+      +------->+               |
+|  RPC Client  |                                             |  RPC Service  |
+|              +<--+         +---------------+      +--------+               |
++--------------+   |         |Temporaty Topic|      |        +---------------+
+                   +---------+               +<-----+
+                             +---------------+
+```
 
-## Publisher
-TODO
+## PubSub Communicaton
 
-## Subscriber
-TODO
+```
+                                                    +------------+
+                                                    |            |
+                                            +------>+ Subscriber |
+                                            |       |            |
+                                            |       +------------+
+                                            |
++-----------+             +------------+    |       +------------+
+|           |             |            |    |       |            |
+| Publisher +------------>+   Topic    +----------->+ Subscriber |
+|           |             |            |    |       |            |
++-----------+             +------------+    |       +------------+
+                                            |
+                                            |       +------------+
+                                            |       |            |
+                                            +------>+ Subscriber |
+                                                    |            |
+                                                    +------------+
+```
 
-## ActionServer
-TODO
+## Preemptable Services with Feedback (Actions)
 
-## ActionClient
-TODO
-
-## EventEmitter
-TODO
+Actions are [pre-emptable services](https://en.wikipedia.org/wiki/Preemption_(computing)) 
+with support for asynchronous feedback publishing. This communication pattern
+is used to implement services which can be stopped and can provide feedback data, such 
+as the move command service of a robot.
 
 
 ## Transports
