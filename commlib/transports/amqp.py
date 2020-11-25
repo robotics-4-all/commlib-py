@@ -1127,17 +1127,23 @@ class PSubscriber(Subscriber):
 
 class ActionServer(BaseActionServer):
     def __init__(self,
-                 action_name: str,
-                 msg_type: ActionMessage = None,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            action_name (str): The name (uri) of the Action
+            msg_type (ActionMessage): The type of the Message
+            conn_params (ConnectionParameters): Broker Connection parameters
+            args:
+            kwargs:
+        """
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
         # self._conn = Connection(conn_params)
 
-        super(ActionServer, self).__init__(action_name, msg_type,
-                                           *args, **kwargs)
+        super(ActionServer, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
                                     rpc_name=self._goal_rpc_uri,
@@ -1172,18 +1178,25 @@ class ActionServer(BaseActionServer):
 
 class ActionClient(BaseActionClient):
     def __init__(self,
-                 action_name: str,
-                 msg_type: ActionMessage = None,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
+        """__init__.
+        Action Client constructor.
+
+        Args:
+            action_name (str): The name (uri) of the Action
+            msg_type (ActionMessage): The type of the Message
+            conn_params (ConnectionParameters): Broker Connection parameters
+            args:
+            kwargs:
+        """
         assert isinstance(conn_params, ConnectionParameters)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
         # self._conn = Connection(conn_params)
 
-        super(ActionClient, self).__init__(action_name, msg_type,
-                                           *args, **kwargs)
+        super(ActionClient, self).__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
                                       rpc_name=self._goal_rpc_uri,
