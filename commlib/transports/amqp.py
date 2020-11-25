@@ -1128,7 +1128,7 @@ class PSubscriber(Subscriber):
 class ActionServer(BaseActionServer):
     def __init__(self,
                  action_name: str,
-                 msg_type: ActionMessage,
+                 msg_type: ActionMessage = None,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
         conn_params = ConnectionParameters() if \
@@ -1173,7 +1173,7 @@ class ActionServer(BaseActionServer):
 class ActionClient(BaseActionClient):
     def __init__(self,
                  action_name: str,
-                 msg_type: ActionMessage,
+                 msg_type: ActionMessage = None,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
         assert isinstance(conn_params, ConnectionParameters)

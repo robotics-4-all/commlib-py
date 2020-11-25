@@ -177,7 +177,7 @@ class _ActionFeedbackMessage(PubSubMessage):
 class BaseActionServer(object):
     def __init__(self,
                  action_name: str,
-                 msg_type: ActionMessage,
+                 msg_type: ActionMessage = None,
                  logger: Logger = None,
                  debug: bool = True,
                  workers: int = 4,
@@ -303,7 +303,7 @@ class BaseActionServer(object):
 class BaseActionClient(object):
     def __init__(self,
                  action_name: str,
-                 msg_type: ActionMessage,
+                 msg_type: ActionMessage = None,
                  logger: Logger = None,
                  debug: bool = False,
                  serializer=None,
@@ -371,6 +371,7 @@ class BaseActionClient(object):
                     wait_for_result: bool = False) -> _ActionCancelMessage.Response:
         req = _ActionCancelMessage.Request(goal_id=self._goal_id)
         resp = self._cancel_client.call(req, timeout=timeout)
+        ## TODO Check response status
         res = self.get_result(wait=wait_for_result)
         return res
 

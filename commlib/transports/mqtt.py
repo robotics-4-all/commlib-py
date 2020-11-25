@@ -393,7 +393,7 @@ class RPCClient(BaseRPCClient):
 class ActionServer(BaseActionServer):
     def __init__(self,
                  action_name: str,
-                 msg_type: ActionMessage,
+                 msg_type: ActionMessage = None,
                  conn_params: ConnectionParameters = ConnectionParameters(),
                  *args, **kwargs):
         super(ActionServer, self).__init__(action_name, msg_type,
@@ -432,7 +432,7 @@ class ActionServer(BaseActionServer):
 class ActionClient(BaseActionClient):
     def __init__(self,
                  action_name: str,
-                 msg_type: ActionMessage,
+                 msg_type: ActionMessage = None,
                  conn_params: ConnectionParameters = ConnectionParameters(),
                  *args, **kwargs):
         super(ActionClient, self).__init__(action_name, msg_type,
