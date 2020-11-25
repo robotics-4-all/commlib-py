@@ -112,6 +112,80 @@ application.
                              +---------------+
 ```
 
+
+### Server Side
+
+```python
+from commlib.transports.redis import (
+    RPCService, ConnectionParameters
+)
+from commlib.msg import RPCMessage, DataClass
+
+
+# The RPC Communication Object
+class AddTwoIntMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
+def add_two_int_handler(msg):
+    # This is the implementation of the RPC callback.
+    print(f'Request Message: {msg}')
+    resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
+    return resp
+
+
+if __name__ == '__main__':
+    conn_params = ConnectionParameters()
+    rpc_name = 'example_rpc_service'
+
+    rpc = RPCService(rpc_name=rpc_name,
+                     msg_type=AddTwoIntMessage,
+                     conn_params=conn_params,
+                     on_request=add_two_int_handler)
+    rpc.run_forever()
+```
+
+### Client Side
+
+```python
+from commlib.transports.redis import (
+    RPCClient, ConnectionParameters
+)
+from commlib.msg import RPCMessage, DataClass
+
+
+# The RPC Communication Object
+class AddTwoIntMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
+if __name__ == '__main__':
+    conn_params = ConnectionParameters()
+    rpc_name = 'example_rpc_service'
+
+    client = RPCClient(rpc_name=rpc_name,
+                    msg_type=AddTwoIntMessage,
+                    conn_params=conn_params)
+    msg = AddTwoIntMessage.Request(a=1, b=2)
+    resp = client.call(msg)
+    print(resp)
+```
+
+
 ## PubSub Communicaton
 
 ```
