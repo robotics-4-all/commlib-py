@@ -26,7 +26,9 @@ from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
 
 
 class Credentials(object):
-    def __init__(self, username: str = '', password: str = ''):
+    def __init__(self,
+                 username: str = '',
+                 password: str = ''):
         self.username = username
         self.password = password
 
@@ -47,14 +49,19 @@ class ConnectionParametersBase(object):
 
 
 class TCPConnectionParameters(ConnectionParametersBase):
-    def __init__(self, host='localhost', port=6379, *args, **kwargs):
+    def __init__(self,
+                 host: str = 'localhost',
+                 port: str = 6379,
+                 *args, **kwargs):
         super(TCPConnectionParameters, self).__init__(*args, **kwargs)
         self.host = host
         self.port = port
 
 
 class UnixSocketConnectionParameters(ConnectionParametersBase):
-    def __init__(self, unix_socket: str = '/tmp/redis.sock', *args, **kwargs):
+    def __init__(self,
+                 unix_socket: str = '/tmp/redis.sock',
+                 *args, **kwargs):
         super(UnixSocketConnectionParameters, self).__init__(*args, **kwargs)
         self.unix_socket = unix_socket
 
