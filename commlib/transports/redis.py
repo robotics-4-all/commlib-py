@@ -26,7 +26,9 @@ from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
 
 
 class Credentials(object):
-    def __init__(self, username: str = '', password: str = ''):
+    def __init__(self,
+                 username: str = '',
+                 password: str = ''):
         self.username = username
         self.password = password
 
@@ -47,14 +49,19 @@ class ConnectionParametersBase(object):
 
 
 class TCPConnectionParameters(ConnectionParametersBase):
-    def __init__(self, host='localhost', port=6379, *args, **kwargs):
+    def __init__(self,
+                 host: str = 'localhost',
+                 port: str = 6379,
+                 *args, **kwargs):
         super(TCPConnectionParameters, self).__init__(*args, **kwargs)
         self.host = host
         self.port = port
 
 
 class UnixSocketConnectionParameters(ConnectionParametersBase):
-    def __init__(self, unix_socket: str = '/tmp/redis.sock', *args, **kwargs):
+    def __init__(self,
+                 unix_socket: str = '/tmp/redis.sock',
+                 *args, **kwargs):
         super(UnixSocketConnectionParameters, self).__init__(*args, **kwargs)
         self.unix_socket = unix_socket
 
@@ -368,16 +375,19 @@ class PSubscriber(Subscriber):
 
 class ActionServer(BaseActionServer):
     def __init__(self,
-                 action_name: str,
-                 msg_type: ActionMessage,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
-        assert isinstance(conn_params, ConnectionParametersBase)
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): Broker Connection Parameters
+            args:
+            kwargs:
+        """
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
-        super(ActionServer, self).__init__(action_name, msg_type,
-                                           *args, **kwargs)
+        super(ActionServer, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
                                     rpc_name=self._goal_rpc_uri,
@@ -411,16 +421,20 @@ class ActionServer(BaseActionServer):
 
 class ActionClient(BaseActionClient):
     def __init__(self,
-                 action_name: str,
-                 msg_type: ActionMessage,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): Broker Connection Parameters
+            args:
+            kwargs:
+        """
         assert isinstance(conn_params, ConnectionParametersBase)
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
-        super(ActionClient, self).__init__(action_name, msg_type,
-                                           *args, **kwargs)
+        super(ActionClient, self).__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
                                       rpc_name=self._goal_rpc_uri,
@@ -453,12 +467,27 @@ class EventEmitter(BaseEventEmitter):
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): Broker Connection Parameters
+            args:
+            kwargs:
+        """
         super(EventEmitter, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
     def send_event(self, event: Event) -> None:
+        """send_event.
+
+        Args:
+            event (Event): The Event to send.
+
+        Returns:
+            None:
+        """
         _msg = event.as_dict()
         _msg = self._prepare_msg(_msg)
         _msg = self._serializer.serialize(_msg)

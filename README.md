@@ -112,6 +112,80 @@ application.
                              +---------------+
 ```
 
+
+### Server Side
+
+```python
+from commlib.transports.redis import (
+    RPCService, ConnectionParameters
+)
+from commlib.msg import RPCMessage, DataClass
+
+
+# The RPC Communication Object
+class AddTwoIntMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
+def add_two_int_handler(msg):
+    # This is the implementation of the RPC callback.
+    print(f'Request Message: {msg}')
+    resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
+    return resp
+
+
+if __name__ == '__main__':
+    conn_params = ConnectionParameters()
+    rpc_name = 'example_rpc_service'
+
+    rpc = RPCService(rpc_name=rpc_name,
+                     msg_type=AddTwoIntMessage,
+                     conn_params=conn_params,
+                     on_request=add_two_int_handler)
+    rpc.run_forever()
+```
+
+### Client Side
+
+```python
+from commlib.transports.redis import (
+    RPCClient, ConnectionParameters
+)
+from commlib.msg import RPCMessage, DataClass
+
+
+# The RPC Communication Object
+class AddTwoIntMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
+if __name__ == '__main__':
+    conn_params = ConnectionParameters()
+    rpc_name = 'example_rpc_service'
+
+    client = RPCClient(rpc_name=rpc_name,
+                    msg_type=AddTwoIntMessage,
+                    conn_params=conn_params)
+    msg = AddTwoIntMessage.Request(a=1, b=2)
+    resp = client.call(msg)
+    print(resp)
+```
+
+
 ## PubSub Communicaton
 
 ```
@@ -134,6 +208,67 @@ application.
                                                     +------------+
 ```
 
+### Write a Simple Topic Publisher
+
+```python
+import time
+
+from commlib.msg import PubSubMessage, DataClass
+from commlib.transports.mqtt import (
+    Publisher, ConnectionParameters
+)
+
+
+@DataClass
+class SonarMessage(PubSubMessage):
+    distance: float = 0.001
+    horizontal_fov: float = 30.0
+    vertical_fov: float = 14.0
+
+
+if __name__ == "__main__":
+    conn_params = ConnectionParameters(host='localhost', port=1883)
+    pub = Publisher(topic=topic, msg_type=SonarMessage, conn_params=conn_params)
+    msg = SonarMessage(distance=2.0)
+    while True:
+        time.sleep(0.5)
+        pub.publish(msg)
+        msg.distance += 1
+
+```
+
+### Write a Simple Topic Subscriber
+
+```python
+import time
+
+from commlib.msg import PubSubMessage, DataClass
+from commlib.transports.mqtt import (
+    Subscriber, ConnectionParameters
+)
+
+
+@DataClass
+class SonarMessage(PubSubMessage):
+    distance: float = 0.001
+    horizontal_fov: float = 30.0
+    vertical_fov: float = 14.0
+
+
+def sonar_data_callback(msg):
+    print(f'Message: {msg}')
+
+
+if __name__ == "__main__":
+    conn_params = ConnectionParameters(host='localhost', port=1883)
+    sub = Subscriber(topic=topic,
+                     on_message=sonar_data_callback,
+                     conn_params=conn_params)
+    sub.run()
+    while True:
+        time.sleep(0.001)
+```
+
 ## Preemptable Services with Feedback (Actions)
 
 Actions are [pre-emptable services](https://en.wikipedia.org/wiki/Preemption_(computing)) 
@@ -141,6 +276,105 @@ with support for asynchronous feedback publishing. This communication pattern
 is used to implement services which can be stopped and can provide feedback data, such 
 as the move command service of a robot.
 
+
+### Write an Action Service
+
+```python
+import time
+
+from commlib.action import GoalStatus
+from commlib.msg import ActionMessage, DataClass
+from commlib.transports.redis import (
+    ActionServer, ConnectionParameters
+)
+
+
+class ExampleAction(ActionMessage):
+    @DataClass
+    class Goal(ActionMessage.Goal):
+        target_cm: int = 0
+
+    @DataClass
+    class Result(ActionMessage.Result):
+        dest_cm: int = 0
+
+    @DataClass
+    class Feedback(ActionMessage.Feedback):
+        current_cm: int = 0
+
+
+def on_goal(goal_h):
+    c = 0
+    res = ExampleAction.Result()
+    while c < goal_h.data.target_cm:
+        if goal_h.cancel_event.is_set():
+            break
+        goal_h.send_feedback(ExampleAction.Feedback(current_cm=c))
+        c += 1
+        time.sleep(1)
+    res.dest_cm = c
+    return res
+
+
+if __name__ == '__main__':
+    action_name = 'testaction'
+    conn_params = ConnectionParameters()
+    action = ActionServer(msg_type=ExampleAction,
+                          conn_params=conn_params,
+                          action_name=action_name,
+                          on_goal=on_goal)
+    action.run()
+    while True:
+      time.sleep(0.001)
+```
+
+### Write an Action Client
+
+```python
+import time
+
+from commlib.action import GoalStatus
+from commlib.msg import ActionMessage, DataClass
+from commlib.transports.redis import (
+    ActionClient, ConnectionParameters
+)
+
+
+class ExampleAction(ActionMessage):
+    @DataClass
+    class Goal(ActionMessage.Goal):
+        target_cm: int = 0
+
+    @DataClass
+    class Result(ActionMessage.Result):
+        dest_cm: int = 0
+
+    @DataClass
+    class Feedback(ActionMessage.Feedback):
+        current_cm: int = 0
+
+
+def on_feedback(feedback):
+    print(f'ActionClient <on-feedback> callback: {feedback}')
+
+
+def on_goal_reached(result):
+    print(f'ActionClient <on-goal-reached> callback: {result}')
+
+
+if __name__ == '__main__':
+    action_name = 'testaction'
+    conn_params = ConnectionParameters()
+    action_c = ActionClient(msg_type=ExampleAction,
+                            conn_params=conn_params,
+                            action_name=action_name,
+                            on_feedback=on_feedback,
+                            on_goal_reached=on_goal_reached)
+    goal_msg = ExampleAction.Goal(target_cm=5)
+    action_c.send_goal(goal_msg)
+    resp = action_c.get_result(wait=True)
+    print(resp)
+```
 
 ## Transports
 

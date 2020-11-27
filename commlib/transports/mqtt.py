@@ -392,12 +392,9 @@ class RPCClient(BaseRPCClient):
 
 class ActionServer(BaseActionServer):
     def __init__(self,
-                 action_name: str,
-                 msg_type: ActionMessage,
                  conn_params: ConnectionParameters = ConnectionParameters(),
                  *args, **kwargs):
-        super(ActionServer, self).__init__(action_name, msg_type,
-                                           *args, **kwargs)
+        super(ActionServer, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
                                     rpc_name=self._goal_rpc_uri,
@@ -431,12 +428,16 @@ class ActionServer(BaseActionServer):
 
 class ActionClient(BaseActionClient):
     def __init__(self,
-                 action_name: str,
-                 msg_type: ActionMessage,
                  conn_params: ConnectionParameters = ConnectionParameters(),
                  *args, **kwargs):
-        super(ActionClient, self).__init__(action_name, msg_type,
-                                           *args, **kwargs)
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): Broker Connection Parameters
+            args:
+            kwargs:
+        """
+        super(ActionClient, self).__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
                                       rpc_name=self._goal_rpc_uri,
