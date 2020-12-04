@@ -109,7 +109,6 @@ class ConnectionParameters():
 
         if creds is None:
             creds = Credentials()
-        assert isinstance(creds, Credentials)
         self.creds = creds
 
     @property
@@ -223,10 +222,6 @@ class AMQPTransport(object):
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
-
-        assert isinstance(debug, bool)
-        assert isinstance(conn_params, ConnectionParameters)
-        # assert isinstance(connection, Connection)
 
         self._connection = connection
         self._conn_params = conn_params
@@ -1190,7 +1185,6 @@ class ActionClient(BaseActionClient):
             args:
             kwargs:
         """
-        assert isinstance(conn_params, ConnectionParameters)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 

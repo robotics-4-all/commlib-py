@@ -137,7 +137,6 @@ class RemoteLogger(Logger):
 
     @remote.setter
     def remote(self, val):
-        assert isinstance(val, bool)
         if val:
             self._remote_state = 1
         else:
@@ -149,7 +148,6 @@ class RemoteLogger(Logger):
 
     @std.setter
     def std(self, val):
-        assert isinstance(val, bool)
         if val:
             self._std_state = 1
         else:

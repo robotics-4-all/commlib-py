@@ -93,7 +93,6 @@ class RedisTransport(object):
         self._conn_params = conn_params
         self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
-        assert isinstance(self.logger, Logger)
         self._rsub = self._redis.pubsub()
 
     def delete_queue(self, queue_name):
@@ -430,7 +429,6 @@ class ActionClient(BaseActionClient):
             args:
             kwargs:
         """
-        assert isinstance(conn_params, ConnectionParametersBase)
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 

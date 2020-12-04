@@ -74,8 +74,6 @@ class BaseSubscriber(object):
 
         self._gen_random_id = gen_random_id
 
-        assert isinstance(self._logger, Logger)
-
         self._executor = ThreadPoolExecutor(max_workers=2)
 
         self._main_thread = None
