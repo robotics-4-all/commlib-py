@@ -91,10 +91,18 @@ class ConnectionParameters():
         'channel_max'
     ]
 
-    def __init__(self, host='127.0.0.1', port='5672', creds=None,
-                 secure=False, vhost='/', reconnect_attempts=10,
-                 retry_delay=2.0, timeout=120, blocked_connection_timeout=None,
-                 heartbeat_timeout=60, channel_max=128):
+    def __init__(self,
+                 host: str = '127.0.0.1',
+                 port: int =5672,
+                 vhost: str = '/',
+                 creds: Credentials = None,
+                 secure: bool = False,
+                 reconnect_attempts: int = 10,
+                 retry_delay: float = 2.0,
+                 timeout: float = 120,
+                 blocked_connection_timeout: float = None,
+                 heartbeat_timeout: int = 60,
+                 channel_max: int = 128):
         """Constructor."""
         self.host = host
         self.port = port
@@ -202,7 +210,7 @@ class Credentials(object):
 
     __slots__ = ['username', 'password']
 
-    def __init__(self, username='guest', password='guest'):
+    def __init__(self, username: str = 'guest', password: str = 'guest'):
         """Constructor."""
         self.username = username
         self.password = password
