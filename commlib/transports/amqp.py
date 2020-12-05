@@ -211,7 +211,7 @@ class Connection(pika.BlockingConnection):
         self._transport = transport
 
 
-class ExchangeTypes(object):
+class ExchangeType(object):
     """AMQP Exchange Types."""
     Topic = 'topic'
     Direct = 'direct'
@@ -336,7 +336,9 @@ class AMQPTransport(object):
         self.logger.debug(f'Exchange exists result: {resp}')
         return resp
 
-    def create_exchange(self, exchange_name, exchange_type, internal=None):
+    def create_exchange(self,
+                        exchange_name: str,
+                        exchange_type: ExchangeType, internal=None):
         """
         Create a new exchange.
 
@@ -357,9 +359,13 @@ class AMQPTransport(object):
         self.logger.debug(
             f'Created exchange: [name={exchange_name}, type={exchange_type}]')
 
-    def create_queue(self, queue_name='', exclusive=True, queue_size=10,
-                     message_ttl=60000, overflow_behaviour='drop-head',
-                     expires=600000):
+    def create_queue(self,
+                     queue_name: str= '',
+                     exclusive: str = True,
+                     queue_size: int = 10,
+                     message_ttl: int = 60000,
+                     overflow_behaviour: int = 'drop-head',
+                     expires: int = 600000):
         """
         Create a new queue.
 
@@ -546,7 +552,7 @@ class RPCService(BaseRPCService):
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
             # _ts_broker = properties.timestamp
-        except Exception as exc:
+        except Exception:
             self.logger.error("Exception Thrown in on_request_handle",
                               exc_info=True)
         try:
@@ -663,7 +669,7 @@ class RPCClient(BaseRPCClient):
         self._use_corr_id = use_corr_id
         self._corr_id = None
         self._response = None
-        self._exchange = ExchangeTypes.Default
+        self._exchange = ExchangeType.Default
         self._mean_delay = 0
         self._delay = 0
 
@@ -832,7 +838,7 @@ class Publisher(BasePublisher):
                                         self._logger, connection)
         self._transport.connect()
         self._transport.create_exchange(self._topic_exchange,
-                                        ExchangeTypes.Topic)
+                                        ExchangeType.Topic)
         if connection is None:
             self.run()
 
@@ -957,7 +963,7 @@ class Subscriber(BaseSubscriber):
         _exch_ex = self._transport.exchange_exists(self._topic_exchange)
         if _exch_ex.method.NAME != 'Exchange.DeclareOk':
             self._transport.create_exchange(self._topic_exchange,
-                                            ExchangeTypes.Topic)
+                                            ExchangeType.Topic)
 
         # Create a queue. Set default idle expiration time to 5 mins
         self._queue_name = self._transport.create_queue(
