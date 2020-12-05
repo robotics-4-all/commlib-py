@@ -1,17 +1,17 @@
-from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures.thread
+import datetime
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
-import datetime
+from functools import partial
 from typing import OrderedDict
 
-from .serializer import JSONSerializer, Serializer
 from .logger import Logger
-from .msg import ActionMessage, RPCMessage, PubSubMessage, DataClass, DataField
+from .msg import ActionMessage, DataClass, DataField, PubSubMessage, RPCMessage
+from .serializer import JSONSerializer, Serializer
 from .utils import gen_random_id
-from functools import partial
 
 
 class GoalStatus(IntEnum):
@@ -193,7 +193,7 @@ class GoalHandler(object):
             self.set_status(GoalStatus.CANCELING)
             self._goal_task.cancel()
             self._cancel_event.set()
-            s = self._goal_task.result()
+            _ = self._goal_task.result()
             # self._executor.shutdown(wait=False)
             self._executor._threads.clear()
             concurrent.futures.thread._threads_queues.clear()
@@ -492,7 +492,7 @@ class BaseActionClient(object):
             _ActionCancelMessage.Response:
         """
         req = _ActionCancelMessage.Request(goal_id=self._goal_id)
-        resp = self._cancel_client.call(req, timeout=timeout)
+        _ = self._cancel_client.call(req, timeout=timeout)
         ## TODO Check response status
         res = self.get_result(wait=wait_for_result)
         return res

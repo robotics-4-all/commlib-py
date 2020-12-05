@@ -57,6 +57,26 @@ class MessageProperties(pika.BasicProperties):
         )
 
 
+class Credentials(object):
+    """Connection credentials for authn/authz.
+
+    Args:
+        username (str): The username.
+        password (str): The password (Basic Authentication).
+    """
+
+    __slots__ = ['username', 'password']
+
+    def __init__(self, username: str = 'guest', password: str = 'guest'):
+        """Constructor."""
+        self.username = username
+        self.password = password
+
+    def make_pika(self):
+        return pika.PlainCredentials(username=self.username,
+                                     password=self.password)
+
+
 class ConnectionParameters():
     """AMQP Connection parameters.
 
@@ -154,7 +174,7 @@ class ConnectionParameters():
 
 class Connection(pika.BlockingConnection):
     """Connection. qThin wrapper around pika.BlockingConnection"""
-    def __init__(self, conn_params):
+    def __init__(self, conn_params: ConnectionParameters):
         self._connection_params = conn_params
         self._pika_connection = None
         self._transport = None
@@ -184,8 +204,7 @@ class Connection(pika.BlockingConnection):
                 if self._t_stop_event.is_set():
                     break
         except Exception as exc:
-            self._logger.warning(
-                f'Exception thrown while processing amqp events - {exc}')
+            print(f'Exception thrown while processing amqp events - {exc}')
 
 
     def set_transport_ref(self, transport):
@@ -198,26 +217,6 @@ class ExchangeTypes(object):
     Direct = 'direct'
     Fanout = 'fanout'
     Default = ''
-
-
-class Credentials(object):
-    """Connection credentials for authn/authz.
-
-    Args:
-        username (str): The username.
-        password (str): The password (Basic Authentication).
-    """
-
-    __slots__ = ['username', 'password']
-
-    def __init__(self, username: str = 'guest', password: str = 'guest'):
-        """Constructor."""
-        self.username = username
-        self.password = password
-
-    def make_pika(self):
-        return pika.PlainCredentials(username=self.username,
-                                     password=self.password)
 
 
 class AMQPTransport(object):
@@ -447,7 +446,7 @@ class AMQPTransport(object):
         try:
             self._channel.queue_bind(
                 exchange=exchange_name, queue=queue_name, routing_key=bind_key)
-        except Exception as exc:
+        except Exception:
             raise AMQPError('Error while trying to bind queue to exchange')
 
     def set_channel_qos(self, prefetch_count=1, global_qos=False):
@@ -561,7 +560,7 @@ class RPCService(BaseRPCService):
             self.logger.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
             _data = {}
-            self._send_response(_data)
+            self._send_response(_data, ch, _corr_id, _reply_to, _delivery_tag)
         resp = self._invoke_onrequest_callback(_data)
         self._send_response(resp, ch, _corr_id, _reply_to, _delivery_tag)
 

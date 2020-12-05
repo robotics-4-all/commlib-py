@@ -295,6 +295,8 @@ class RPCService(BaseRPCService):
         self._send_response(resp, reply_to)
 
     def run_forever(self):
+        """run_forever.
+        """
         self._transport.subscribe(self._rpc_name,
                                   self._on_request_wrapper)
         self._transport.start_loop()
@@ -311,9 +313,20 @@ class RPCService(BaseRPCService):
 
 
 class RPCClient(BaseRPCClient):
+    """RPCClient.
+    MQTT RPC Client
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            args:
+            kwargs:
+        """
         self.conn_params = conn_params
         self._response = None
 
@@ -354,6 +367,11 @@ class RPCClient(BaseRPCClient):
         self._response = data
 
     def _wait_for_response(self, timeout: float = 10.0):
+        """_wait_for_response.
+
+        Args:
+            timeout (float): timeout
+        """
         start_t = time.time()
         while self._response is None:
             elapsed_t = time.time() - start_t
@@ -365,6 +383,15 @@ class RPCClient(BaseRPCClient):
 
     def call(self, msg: RPCMessage.Request,
              timeout: float = 30) -> RPCMessage.Response:
+        """call.
+
+        Args:
+            msg (RPCMessage.Request): msg
+            timeout (float): timeout
+
+        Returns:
+            RPCMessage.Response:
+        """
         ## TODO: Evaluate msg type passed here.
         if self._msg_type is None:
             data = msg
@@ -391,9 +418,20 @@ class RPCClient(BaseRPCClient):
 
 
 class ActionServer(BaseActionServer):
+    """ActionServer.
+    MQTT Action Server
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = ConnectionParameters(),
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            args:
+            kwargs:
+        """
         super(ActionServer, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
@@ -464,3 +502,60 @@ class ActionClient(BaseActionClient):
                                         on_message=self._on_feedback)
         self._status_sub.run()
         self._feedback_sub.run()
+
+
+class EventEmitter(BaseEventEmitter):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): Broker Connection Parameters
+            args:
+            kwargs:
+        """
+        super(EventEmitter, self).__init__(*args, **kwargs)
+
+        self._transport = MQTTTransport(conn_params=conn_params,
+                                         logger=self._logger)
+        self._transport.start_loop()
+
+    def send_event(self, event: Event) -> None:
+        """send_event.
+
+        Args:
+            event (Event): The Event to send.
+
+        Returns:
+            None:
+        """
+        _msg = event.as_dict()
+        _msg = self._prepare_msg(_msg)
+        _msg = self._serializer.serialize(_msg)
+        self.logger.debug(
+            'Sending Event: <{}>:{}'.format(event.uri, _msg))
+        self._transport.publish(event.uri, _msg)
+
+    def _prepare_msg(self, data: dict) -> None:
+        """_prepare_msg.
+
+        Args:
+            data (dict): data
+
+        Returns:
+            None:
+        """
+        meta = {
+            'timestamp': int(datetime.datetime.now(
+                datetime.timezone.utc).timestamp() * 1000000),
+            'properties': {
+                'content_type': self._serializer.CONTENT_TYPE,
+                'content_encoding': self._serializer.CONTENT_ENCODING
+            }
+        }
+        _msg = {
+            'data': data,
+            'meta': meta
+        }
+        return _msg
