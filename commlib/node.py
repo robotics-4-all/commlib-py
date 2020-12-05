@@ -91,7 +91,9 @@ class HeartbeatThread(threading.Thread):
 class Node(object):
     def __init__(self, node_name: Text = '',
                  transport_type: TransportType = TransportType.REDIS,
+                 ## DEPRECATED - Used only for backward compatibility
                  transport_connection_params=None,
+                 connection_params=None,
                  max_workers: int = 4,
                  remote_logger: bool = False,
                  remote_logger_uri: str = '',
@@ -141,6 +143,8 @@ class Node(object):
                     ConnectionParameters as conn_params
             transport_connection_params = conn_params()
         self._conn_params = transport_connection_params
+        if connection_params is not None:
+            self._conn_params = connection_params
 
         if remote_logger:
             self._logger = RemoteLogger(self._node_name, transport_type,
