@@ -2,7 +2,12 @@
 Usage
 =====
 
+#############################################
 Create a Node with a simple RPC Service port.
+#############################################
+
+In this example we will create a node with a simple RPC endpoint that
+takes as input two integer numbers and returns their sum.
 
 .. code-block:: python
 
