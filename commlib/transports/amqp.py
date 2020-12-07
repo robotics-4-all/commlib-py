@@ -1235,16 +1235,15 @@ class EventEmitter(BaseEventEmitter):
         self._transport = AMQPTransport(conn_params=conn_params,
                                         logger=self._logger)
         self._exchange = exchange
-        self.run()
-
-    def run(self):
         self._transport.detach_amqp_events_thread()
 
     def send_event(self, event: Event):
         _msg = event.to_dict()
         # self.logger.debug(
         #     'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
-        self._send_data(event.uri, event.to_dict())
+        self._transport.add_threadsafe_callback(
+            functools.partial(self._send_data, _msg)
+        )
 
     def _send_data(self, topic: str, data: dict) -> None:
         _payload = None
@@ -1267,7 +1266,6 @@ class EventEmitter(BaseEventEmitter):
         msg_props = MessageProperties(
             content_type=_type,
             content_encoding=_encoding,
-            message_id=0,
         )
 
         self._transport._channel.basic_publish(
