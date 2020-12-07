@@ -1235,6 +1235,10 @@ class EventEmitter(BaseEventEmitter):
         self._transport = AMQPTransport(conn_params=conn_params,
                                         logger=self._logger)
         self._exchange = exchange
+        self.run()
+
+    def run(self):
+        self._transport.detach_amqp_events_thread()
 
     def send_event(self, event: Event):
         _msg = event.to_dict()
