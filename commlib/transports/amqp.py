@@ -31,7 +31,7 @@ from commlib.events import BaseEventEmitter, Event
 
 
 # Reduce log level for pika internal logger
-logging.getLogger("pika").setLevel(logging.INFO)
+logging.getLogger("pika").setLevel(logging.WARN)
 
 
 class MessageProperties(pika.BasicProperties):
