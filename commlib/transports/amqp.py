@@ -1240,17 +1240,28 @@ class EventEmitter(BaseEventEmitter):
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  exchange: str = 'amq.topic',
+                 connection: Connection = None,
                  *args, **kwargs):
         super(EventEmitter, self).__init__(*args, **kwargs)
 
         self._transport = AMQPTransport(conn_params=conn_params,
+                                        connection=connection,
                                         logger=self._logger)
         self._transport.connect()
         self._exchange = exchange
 
+        if connection is None:
+            self.run()
+
+    def run(self) -> None:
+        self._transport.detach_amqp_events_thread()
+
     def send_event(self, event: Event):
         _data = event.as_dict()
-        self._send_data(event.uri, _data)
+        self._logger.debug(f'Sending Event <{event.uri}>')
+        self._transport.add_threadsafe_callback(
+            functools.partial(self._send_data, event.uri, _data)
+        )
 
     def _send_data(self, topic: str, data: dict) -> None:
         _payload = None
