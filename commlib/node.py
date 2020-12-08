@@ -119,8 +119,6 @@ class Node(object):
         self._action_servers = []
         self._action_clients = []
         self._event_emitters = []
-        self._rpc_bridges = []
-        self._topic_bridges = []
 
         self.state = NodeState.IDLE
 
@@ -155,8 +153,9 @@ class Node(object):
             self._logger = Logger(self._node_name, debug=debug)
         self._logger.info(f'Created Node <{self._node_name}>')
 
-    def init_heartbeat_thread(self):
-        topic = f'{self._namespace}.heartbeat'
+    def init_heartbeat_thread(self, topic: str = None):
+        if topic is None:
+            topic = f'{self._namespace}.heartbeat'
         self._hb_thread = HeartbeatThread(
             self.create_publisher(topic=topic, msg_type=HeartbeatMessage))
         self._hb_thread.start()
