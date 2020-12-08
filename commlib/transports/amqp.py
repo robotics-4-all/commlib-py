@@ -538,7 +538,6 @@ class RPCService(BaseRPCService):
         _ctype = None
         _cencoding = None
         _ts_send = None
-        _ts_broker = None
         _dmode = None
         _corr_id = None
         _reply_to = None
@@ -551,15 +550,9 @@ class RPCService(BaseRPCService):
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
-            # _ts_broker = properties.timestamp
         except Exception:
             self.logger.error("Exception Thrown in on_request_handle",
                               exc_info=True)
-        try:
-            _ts_broker = properties.headers['timestamp_in_ms']
-        except Exception:
-            self.logger.debug("Could not calculate latency", exc_info=False)
-
         try:
             _data = self._serializer.deserialize(body)
         except Exception:
@@ -755,7 +748,6 @@ class RPCClient(BaseRPCClient):
         _ctype = None
         _cencoding = None
         _ts_send = None
-        _ts_broker = 0
         _dmode = None
         _data = None
         try:
@@ -765,13 +757,8 @@ class RPCClient(BaseRPCClient):
                     return
             _ctype = properties.content_type
             _cencoding = properties.content_encoding
-            if hasattr(self, 'headers'):
-                if 'timestamp_in_ms' in properties.headers:
-                    _ts_broker = properties.headers['timestamp_in_ms']
-
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
-
         except Exception:
             self.logger.error("Error parsing response from rpc server.",
                               exc_info=True)
@@ -1017,18 +1004,16 @@ class Subscriber(BaseSubscriber):
         _ctype = None
         _cencoding = None
         _ts_send = None
-        _ts_broker = None
         _dmode = None
 
         try:
             _ctype = properties.content_type
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
-            _ts_broker = properties.headers['timestamp_in_ms']
             _ts_send = properties.timestamp
         except Exception:
-            self.logger.debug("Could not calculate latency", exc_info=False)
-
+            self.logger.debug("Could reading message properties",
+                              exc_info=True)
         try:
             _data = self._serializer.deserialize(body)
         except Exception:
@@ -1091,17 +1076,16 @@ class PSubscriber(Subscriber):
         _ctype = None
         _cencoding = None
         _ts_send = None
-        _ts_broker = None
         _dmode = None
 
         try:
             _ctype = properties.content_type
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
-            _ts_broker = properties.headers['timestamp_in_ms']
             _ts_send = properties.timestamp
         except Exception:
-            self.logger.debug("Could not calculate latency", exc_info=False)
+            self.logger.debug("Error reading message properties",
+                              exc_info=True)
 
         try:
             _data = self._serializer.deserialize(body)

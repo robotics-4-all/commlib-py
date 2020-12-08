@@ -159,6 +159,11 @@ class Node(object):
         self._logger.info(f'Created Node <{self._node_name}>')
 
     def init_heartbeat_thread(self, topic: str = None):
+        """init_heartbeat_thread.
+
+        Args:
+            topic (str): topic
+        """
         if topic is None:
             topic = f'{self._namespace}.heartbeat'
         self._hb_thread = HeartbeatThread(
