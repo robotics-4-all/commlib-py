@@ -62,11 +62,15 @@ class HeartbeatThread(threading.Thread):
         try:
             msg = HeartbeatMessage(ts=self.get_ts())
             while not self._stop_event.isSet():
+                self.logger.info(
+                    f'Sending heartbeat message - {self._heartbeat_pub._topic}')
                 if self._heartbeat_pub._msg_type == None:
                     self._heartbeat_pub.publish(msg.as_dict())
                 else:
                     self._heartbeat_pub.publish(msg)
+                # Wait for n seconds or until stop event is raised
                 self._stop_event.wait(self._rate_secs)
+                msg.ts = self.get_ts()
         except Exception as exc:
             self.logger.info(f'Exception in Heartbeat-Thread: {exc}')
         finally:
@@ -102,6 +106,7 @@ class Node(object):
 
         if node_name == '' or node_name is None:
             node_name = gen_random_id()
+        node_name = node_name.replace('-', '_')
         self._node_name = node_name
 
         self._device_id = device_id
@@ -159,7 +164,8 @@ class Node(object):
         self._hb_thread = HeartbeatThread(
             self.create_publisher(topic=topic, msg_type=HeartbeatMessage))
         self._hb_thread.start()
-        self._logger.info(f'Started Publishing heartbeats: <{topic}>')
+        self._logger.info(
+            f'Started Heartbeat Publisher <{topic}> in background')
 
     @property
     def input_ports(self):
@@ -192,7 +198,8 @@ class Node(object):
             s.run()
         for r in self._rpc_services:
             r.run()
-        self.init_heartbeat_thread()
+        if heartbeat_thread:
+            self.init_heartbeat_thread()
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.001):
