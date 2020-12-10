@@ -227,7 +227,9 @@ class BaseActionServer(object):
                 'error': 'Goal <{}> does not exist'.format(_goal_id)
             }
             return resp
-        if self._current_goal.id != _goal_id:
+        elif _goal_id == '':
+            pass
+        elif self._current_goal.id != _goal_id:
             resp['result'] = {
                 'error': 'Goal <{}> does not exist'.format(_goal_id)
             }
