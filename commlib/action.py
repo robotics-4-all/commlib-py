@@ -366,10 +366,10 @@ class BaseActionServer(object):
         resp = _ActionResultMessage.Response()
         _goal_id = msg.goal_id
         if _goal_id == '':
+            pass
+        elif self._current_goal is None:
             return resp
-        if self._current_goal is None:
-            return resp
-        if self._current_goal.id != _goal_id:
+        elif self._current_goal.id != _goal_id:
             return resp
         resp.status = self._current_goal.status
         ## Set Result data
