@@ -2,6 +2,9 @@ from enum import Enum
 
 
 class EndpointType(Enum):
+    """EndpointType.
+    """
+
     RPCService = 1
     RPCClient = 2
     Publisher = 3
@@ -13,12 +16,21 @@ class EndpointType(Enum):
 
 
 class TransportType(Enum):
+    """TransportType.
+    """
+
     AMQP = 1
     REDIS = 2
     MQTT = 3
 
 
 def endpoint_factory(etype: EndpointType, etransport: TransportType):
+    """endpoint_factory.
+
+    Args:
+        etype (EndpointType): Endpoint type
+        etransport (TransportType): Transport type
+    """
     if etransport == TransportType.AMQP:
         import commlib.transports.amqp as comm
     elif etransport == TransportType.REDIS:

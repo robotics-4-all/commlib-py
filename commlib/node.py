@@ -13,31 +13,61 @@ from commlib.msg import HeartbeatMessage
 
 
 class NodePort(object):
+    """NodePort.
+    """
+
     def __init__(self):
         pass
 
 
 class NodeInputPort(NodePort):
+    """NodeInputPort.
+    """
+
     def __init__(self, *args, **kwargs):
+        """__init__.
+
+        Args:
+            args:
+            kwargs:
+        """
         super(NodeInputPort, self).__init__(*args, **kwargs)
 
 
 class NodeOutputPort(NodePort):
+    """NodeOutputPort.
+    """
+
     def __init__(self, *args, **kwargs):
+        """__init__.
+
+        Args:
+            args:
+            kwargs:
+        """
         super(NodeOutputPort, self).__init__(*args, **kwargs)
 
 
 class NodePortType(IntEnum):
+    """NodePortType.
+    """
+
     Input = 1
     Output = 2
 
 
 class NodeExecutorType(IntEnum):
+    """NodeExecutorType.
+    """
+
     ProcessExecutor = 1
     ThreadExecutor = 2
 
 
 class NodeState(IntEnum):
+    """NodeState.
+    """
+
     IDLE = 1
     RUNNING = 2
     STOPPED = 4
@@ -45,10 +75,22 @@ class NodeState(IntEnum):
 
 
 class HeartbeatThread(threading.Thread):
+    """HeartbeatThread.
+    """
+
     def __init__(self, pub_instance=None,
                  interval: int = 10,
                  logger: Logger = None,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            pub_instance:
+            interval (int): interval
+            logger (Logger): logger
+            args:
+            kwargs:
+        """
         super(HeartbeatThread, self).__init__(*args, **kwargs)
         self._stop_event = threading.Event()
         self._rate_secs = interval
@@ -59,6 +101,8 @@ class HeartbeatThread(threading.Thread):
         self.daemon = True
 
     def run(self):
+        """run.
+        """
         try:
             msg = HeartbeatMessage(ts=self.get_ts())
             while not self._stop_event.isSet():
@@ -76,23 +120,37 @@ class HeartbeatThread(threading.Thread):
         finally:
             self.logger.info('Heartbeat Thread Ended')
 
-    def force_join(self, timeout=None):
-        """ Stop the thread. """
+    def force_join(self, timeout: float = None):
+        """force_join.
+        Sudo stop the thread!
+
+        Args:
+            timeout (float): timeout
+        """
         self._stop_event.set()
         threading.Thread.join(self, timeout)
 
     def stop(self):
+        """stop.
+        """
         self._stop_event.set()
 
     def stopped(self):
+        """stopped.
+        """
         return self._stop_event.is_set()
 
     def get_ts(self):
+        """get_ts.
+        """
         timestamp = (time.time() + 0.5) * 1000000
         return int(timestamp)
 
 
 class Node(object):
+    """Node.
+    """
+
     def __init__(self, node_name: Text = '',
                  transport_type: TransportType = TransportType.REDIS,
                  ## DEPRECATED - Used only for backward compatibility
@@ -100,10 +158,22 @@ class Node(object):
                  connection_params=None,
                  max_workers: int = 4,
                  remote_logger: bool = False,
-                 remote_logger_uri: str = '',
+                 remote_logger_uri: Text = '',
                  debug: bool = False,
-                 device_id: str = None):
+                 device_id: Text = None):
+        """__init__.
 
+        Args:
+            node_name (Text): node_name
+            transport_type (TransportType): transport_type
+            transport_connection_params:
+            connection_params:
+            max_workers (int): max_workers
+            remote_logger (bool): remote_logger
+            remote_logger_uri (Text): remote_logger_uri
+            debug (bool): debug
+            device_id (Text): device_id
+        """
         if node_name == '' or node_name is None:
             node_name = gen_random_id()
         node_name = node_name.replace('-', '_')

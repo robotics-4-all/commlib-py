@@ -10,12 +10,23 @@ from .msg import PubSubMessage
 
 
 class BasePublisher(object):
+    """BasePublisher.
+    """
 
     def __init__(self, topic: str = None,
                  msg_type: PubSubMessage = None,
                  logger: Logger = None,
                  debug: bool = True,
                  serializer=None):
+        """__init__.
+
+        Args:
+            topic (str): topic
+            msg_type (PubSubMessage): msg_type
+            logger (Logger): logger
+            debug (bool): debug
+            serializer:
+        """
         self._debug = debug
         self._topic = topic
         self._msg_type = msg_type
@@ -44,10 +55,20 @@ class BasePublisher(object):
         return self._logger
 
     def publish(self, msg: PubSubMessage) -> None:
+        """publish.
+
+        Args:
+            msg (PubSubMessage): msg
+
+        Returns:
+            None:
+        """
         raise NotImplementedError()
 
 
 class BaseSubscriber(object):
+    """BaseSubscriber.
+    """
 
     def __init__(self, topic: str = None,
                  msg_type: PubSubMessage = None,
@@ -55,6 +76,16 @@ class BaseSubscriber(object):
                  logger: Logger = None,
                  debug: bool = True,
                  serializer=None):
+        """__init__.
+
+        Args:
+            topic (str): topic
+            msg_type (PubSubMessage): msg_type
+            on_message (callable): on_message
+            logger (Logger): logger
+            debug (bool): debug
+            serializer:
+        """
         self._debug = debug
         self._topic = topic
         self._msg_type = msg_type
@@ -93,9 +124,25 @@ class BaseSubscriber(object):
         return self._logger
 
     def run_forever(self) -> None:
+        """run_forever.
+        Start subscriber thread in background and blocks main thread.
+
+        Args:
+
+        Returns:
+            None:
+        """
         raise NotImplementedError()
 
     def on_message(self, data: OrderedDict) -> None:
+        """on_message.
+
+        Args:
+            data (OrderedDict): data
+
+        Returns:
+            None:
+        """
         raise NotImplementedError()
 
     def run(self) -> None:

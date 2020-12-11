@@ -29,21 +29,22 @@ or
 pip install . --user
 ```
 
-# Features
+# Quick Start
 The purpose of this implementation is to provide an application-level communication layer, 
 by providing implementations for Remote-Procedure-Calls (RPCs), Topic-based PubSub, Preemptable Services
 (aka Actions), Events etc.
 
 ## Node
 
-The concept **Node** is a software component that follows the Component-Port-Connector model.
-A Node has input and output ports for communicating with the world. Each
+A **Node** is a software component that follows the Component-Port-Connector model.
+It has input and output ports for communicating with the world. Each
 port defines an endpoint and can be of type:
 
 - Input Port:
   - Subscriber
   - RPC Service
   - Action Service
+
 - Output Port:
   - Publisher
   - RPC Client
@@ -53,7 +54,7 @@ port defines an endpoint and can be of type:
 Furthermore, it implements several features:
 - Publish Heartbeat messages in the background for as long as the node is active
 - Provide control interfaces, to `start` and `stop` the execution of the Node
-- Provides methods to create ports.
+- Provides methods to create endpoints and bind to Node ports.
 
 ```python
 from commlib.node import Node, TransportType
@@ -380,6 +381,31 @@ if __name__ == '__main__':
 
 An EventEmitter can be used to fire multiple events, for event-based systems, over a single connection.
 
+Below is an example of an EventEmitter used to fire the `bedroom.lights.on` and `bedroom.lights.off` events.
+
+```python
+#!/usr/bin/env python
+
+import time
+
+from commlib.events import Event
+from commlib.transports.mqtt import (
+    EventEmitter, ConnectionParameters
+)
+
+
+if __name__ == '__main__':
+    conn_params = ConnectionParameters()
+
+    emitter = EventEmitter(conn_params=conn_params, debug=True)
+
+    eventA = Event(name='TurnOnBedroomLights', uri='bedroom.lights.on')
+    eventB = Event(name='TurnOffBedroomLights', uri='bedroom.lights.off')
+
+    emitter.send_event(eventA)
+    time.sleep(2)
+    emitter.send_event(eventB)
+```
 
 ## Transports
 

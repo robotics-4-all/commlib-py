@@ -6,6 +6,9 @@ from commlib.msg import PubSubMessage, RPCMessage
 
 
 class BridgeType(IntEnum):
+    """BridgeType.
+    """
+
     REDIS_TO_AMQP_RPC = 1
     AMQP_TO_REDIS_RPC = 2
     REDIS_TO_AMQP_TOPIC = 3
@@ -13,6 +16,9 @@ class BridgeType(IntEnum):
 
 
 class RPCBridgeType(IntEnum):
+    """RPCBridgeType.
+    """
+
     REDIS_TO_AMQP = 1
     AMQP_TO_REDIS = 2
     AMQP_TO_AMQP = 3
@@ -25,6 +31,9 @@ class RPCBridgeType(IntEnum):
 
 
 class TopicBridgeType(IntEnum):
+    """TopicBridgeType.
+    """
+
     REDIS_TO_AMQP = 1
     AMQP_TO_REDIS = 2
     AMQP_TO_AMQP = 3
@@ -41,12 +50,13 @@ class Bridge(object):
     Base Bridge Class.
     """
 
-    def __init__(self, btype, logger=None, debug=False):
+    def __init__(self, btype, logger=None, debug: bool = False):
         """__init__.
 
         Args:
             btype:
             logger:
+            debug (bool): debug
         """
         self._btype = btype
         self._logger = Logger(self.__class__.__name__, debug=debug) if \
@@ -147,22 +157,26 @@ class RPCBridge(Bridge):
                 debug=debug
             )
 
-    def on_request(self, msg):
+    def on_request(self, msg: RPCMessage.Request):
         """on_request.
 
         Args:
-            msg:
-            meta:
+            msg (RPCMessage.Request): RPC request message
         """
         resp = self._client.call(msg)
         return resp
 
     def stop(self):
+        """stop.
+        """
         self._server.stop()
 
     def run(self):
+        """run.
+        """
         self._server.run()
-        self.logger.info(f'Started RPC B2B Bridge <{self._from_uri} -> {self._to_uri}')
+        self.logger.info(
+            f'Started RPC B2B Bridge <{self._from_uri} -> {self._to_uri}')
 
 
 class TopicBridge(Bridge):
@@ -182,6 +196,18 @@ class TopicBridge(Bridge):
                  msg_type: PubSubMessage = None,
                  logger: Logger = None,
                  debug: bool = False):
+        """__init__.
+
+        Args:
+            btype (TopicBridgeType): btype
+            from_uri (str): from_uri
+            to_uri (str): to_uri
+            from_broker_params:
+            to_broker_params:
+            msg_type (PubSubMessage): msg_type
+            logger (Logger): logger
+            debug (bool): debug
+        """
         super(TopicBridge, self).__init__(btype, logger, debug)
         self._from_broker_params = from_broker_params
         self._to_broker_params = to_broker_params
@@ -232,13 +258,22 @@ class TopicBridge(Bridge):
             conn_params=self._to_broker_params,
         )
 
-    def on_message(self, msg):
+    def on_message(self, msg: PubSubMessage):
+        """on_message.
+
+        Args:
+            msg (PubSubMessage): Published Message
+        """
         self._pub.publish(msg)
 
     def stop(self):
+        """stop.
+        """
         self._sub.stop()
 
     def run(self):
+        """run.
+        """
         self._sub.run()
         self.logger.info(
             f'Started Topic B2B Bridge ' + \
@@ -265,6 +300,18 @@ class MTopicBridge(Bridge):
                  msg_type: PubSubMessage = None,
                  logger: Logger = None,
                  debug: bool = False):
+        """__init__.
+
+        Args:
+            btype (TopicBridgeType): btype
+            from_uri (str): from_uri
+            to_namespace (str): to_namespace
+            from_broker_params:
+            to_broker_params:
+            msg_type (PubSubMessage): msg_type
+            logger (Logger): logger
+            debug (bool): debug
+        """
         super(MTopicBridge, self).__init__(btype, logger, debug)
         if not '*' in from_uri:
             raise ValueError('from_uri must be defined using topic patterns')
@@ -317,6 +364,12 @@ class MTopicBridge(Bridge):
         )
 
     def on_message(self, msg: PubSubMessage, topic: str):
+        """on_message.
+
+        Args:
+            msg (PubSubMessage): Published Message.
+            topic (str): topic
+        """
         if self._to_namespace != '':
             to_topic = f'{self._to_namespace}.{topic}'
         else:
@@ -324,9 +377,13 @@ class MTopicBridge(Bridge):
         self._pub.publish(msg, to_topic)
 
     def stop(self):
+        """stop.
+        """
         self._sub.stop()
 
     def run(self):
+        """run.
+        """
         self._sub.run()
         self.logger.info(
             f'Started B2B Multi-Topic Bridge ' + \
