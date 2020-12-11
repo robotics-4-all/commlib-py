@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
     pub = rcomm.MPublisher(conn_params=bA_params,
                            msg_type=SonarMessage,
-                           debug=False)
+                           debug=True)
 
     sub = mcomm.PSubscriber(
         conn_params=bB_params,

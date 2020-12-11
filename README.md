@@ -29,6 +29,37 @@ or
 pip install . --user
 ```
 
+## Redis Support
+
+In order to have access to the Redis transport you will have to installed the following dependencies:
+
+- redis
+- hiredis
+
+```bash
+pip install  redis hiredis
+```
+
+## AMQP Support
+
+In order to have access to the AMQP transport you will have to installed the following dependencies:
+
+- pika==1.0.0
+
+```bash
+pip install "pika==1.0.0"
+```
+
+## MQTT Support
+
+In order to have access to the MQTT transport you will have to installed the following dependencies:
+
+- paho-mqtt
+
+```bash
+pip install paho-mqtt
+```
+
 # Quick Start
 The purpose of this implementation is to provide an application-level communication layer, 
 by providing implementations for Remote-Procedure-Calls (RPCs), Topic-based PubSub, Preemptable Services
@@ -701,7 +732,7 @@ if __name__ == '__main__':
 
     pub = rcomm.MPublisher(conn_params=bA_params,
                            msg_type=SonarMessage,
-                           debug=False)
+                           debug=True)
 
     sub = mcomm.PSubscriber(
         conn_params=bB_params,
