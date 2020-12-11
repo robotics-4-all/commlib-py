@@ -513,6 +513,216 @@ if __name__ == '__main__':
     emitter.send_event(eventB)
 ```
 
+
+## Broker-to-broker (B2B) bridges
+
+In the context of IoT and CPS, it is a common requirement to bridge messages
+between message brokers, based on application-specific rules. An example is to 
+bridge analytics (preprocessed) data from the Edge to the Cloud. And what happens
+if the brokers use different communication protocols?
+
+In the context of the current work, communication bridges are implemented for
+PubSub and RPC communication between various message brokers. Currently, MQTT, 
+AMQP and Redis are supported.
+
+![bridges_1](./assets/BrokerMessaging-Bridges.png)
+
+
+Below are examples of an MQTT Redis-to-MQTT Bridge and a Redis-to-MQTT
+Topic Bridge.
+
+```python
+#!/usr/bin/env python
+
+import time
+
+import commlib.transports.amqp as acomm
+import commlib.transports.redis as rcomm
+import commlib.transports.mqtt as mcomm
+from commlib.msg import PubSubMessage, RPCMessage, DataClass
+
+from commlib.bridges import (
+    RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
+)
+
+
+def on_request(msg):
+    print(f'[Broker-B] - RPC Service received request: {msg}')
+    c = msg['a'] + msg['b']
+    resp = {
+        'c': c
+    }
+    return resp
+
+
+def on_message(msg):
+    print(f'[Broker-B] - Data received at topic - {msg}')
+
+
+def redis_to_mqtt_rpc_bridge():
+    """
+    [RPC Client] ----> [Broker A] ------> [Broker B] ---> [RPC Service]
+    """
+    bA_params = rcomm.ConnectionParameters()
+    bB_params = mcomm.ConnectionParameters()
+    bA_uri = 'ops.start_navigation'
+    bB_uri = 'thing.robotA.ops.start_navigation'
+    br = RPCBridge(RPCBridgeType.REDIS_TO_MQTT,
+                   from_uri=bA_uri, to_uri=bB_uri,
+                   from_broker_params=bA_params,
+                   to_broker_params=bB_params,
+                   debug=False)
+    br.run()
+
+
+    ## For Testing Bridge ------------------>
+    ## BrokerA
+    client = rcomm.RPCClient(conn_params=bA_params,
+                             rpc_name=bA_uri,
+                             debug=False)
+
+    ## BrokerB
+    server = mcomm.RPCService(
+        conn_params=bB_params,
+        rpc_name=bB_uri,
+        on_request=on_request,
+        debug=False
+    )
+    server.run()
+    time.sleep(1)
+
+    count = 0
+    req_msg = {
+        'a': 1,
+        'b': 2
+    }
+    while count < 5:
+        req_msg['a'] = count
+        resp = client.call(req_msg)
+        print(f'[Broker-A Client] - Response from AMQP RPC Service: {resp}')
+        time.sleep(1)
+        count += 1
+    server.stop()
+    ## <-------------------------------------
+    br.stop()
+
+
+def redis_to_mqtt_topic_bridge():
+    """
+    [Producer Endpoint] ---> [Broker A] ---> [Broker B] ---> [Consumer Endpoint]
+    """
+    bA_params = rcomm.ConnectionParameters()
+    bB_params = mcomm.ConnectionParameters()
+    bA_uri = 'sonar.front'
+    bB_uri = 'thing.robotA.sensors.sonar.font'
+    br = TopicBridge(TopicBridgeType.REDIS_TO_MQTT,
+                     from_uri=bA_uri, to_uri=bB_uri,
+                     from_broker_params=bA_params,
+                     to_broker_params=bB_params,
+                     debug=False)
+    br.run()
+
+    pub = rcomm.Publisher(conn_params=bA_params,
+                          topic=bA_uri,
+                          debug=False)
+
+    sub = mcomm.Subscriber(
+        conn_params=bB_params,
+        topic=bB_uri,
+        on_message=on_message
+    )
+    sub.run()
+
+    count = 0
+    msg = {
+        'a': 1
+    }
+    while count < 5:
+        msg['a'] = count
+        pub.publish(msg)
+        time.sleep(1)
+        count += 1
+    br.stop()
+    sub.stop()
+
+
+if __name__ == '__main__':
+    redis_to_mqtt_rpc_bridge()
+    redis_to_mqtt_topic_bridge()
+```
+
+A Pattern-based Topic Bridge (MTopicBridge) example is also shown below.
+
+```python
+#!/usr/bin/env python
+
+import time
+
+import commlib.transports.amqp as acomm
+import commlib.transports.redis as rcomm
+from commlib.msg import PubSubMessage, RPCMessage, DataClass
+
+from commlib.bridges import (
+    RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType, MTopicBridge
+)
+
+
+@DataClass
+class SonarMessage(PubSubMessage):
+    distance: float = 0.001
+    horizontal_fov: float = 30.0
+    vertical_fov: float = 14.0
+
+
+def on_message(msg: SonarMessage, topic: str):
+    print(f'[Broker-B] - Data received at topic - {topic}:{msg}')
+
+
+if __name__ == '__main__':
+    """
+    [Broker A] ------------> [Broker B] ---> [Consumer Endpoint]
+    """
+    bA_uri = 'sensors.*'
+    bB_namespace = 'myrobot'
+    p1 = 'sensors.sonar.front'
+    p2 = 'sensors.ir.rear'
+
+    bA_params = rcomm.ConnectionParameters()
+    bB_params = mcomm.ConnectionParameters()
+
+    br = MTopicBridge(TopicBridgeType.REDIS_TO_MQTT,
+                      bA_uri,
+                      bB_namespace,
+                      bA_params,
+                      bB_params,
+                      msg_type=SonarMessage,
+                      debug=True)
+    br.run()
+
+    pub = rcomm.MPublisher(conn_params=bA_params,
+                           msg_type=SonarMessage,
+                           debug=False)
+
+    sub = mcomm.PSubscriber(
+        conn_params=bB_params,
+        topic=f'{bB_namespace}.{bA_uri}',
+        on_message=on_message
+    )
+    sub.run()
+
+    count = 0
+    msg = SonarMessage()
+    while count < 5:
+        pub.publish(msg, p1)
+        pub.publish(msg, p2)
+        time.sleep(1)
+        msg.distance += 1
+    br.stop()
+    sub.stop()
+```
+
+**TODO**: Action bridges
+
 ## Transports
 
 ### AMQP / RabbitMQ
@@ -628,34 +838,22 @@ data model of the request message.
 }
 ```
 
-## Broker-to-broker (B2B) bridges
-
-In the context of IoT and CPS, it is a common requirement to bridge messages
-between message brokers, based on application-specific rules. An example is to 
-bridge analytics (preprocessed) data from the Edge to the Cloud. And what happens
-if the brokers use different communication protocols?
-
-In the context of the current work, communication bridges are implemented for
-PubSub and RPC communication between various message brokers. Currently, MQTT, 
-AMQP and Redis are supported.
-
-![bridges_1](./assets/BrokerMessaging-Bridges.png)
-
-
-**TODO**: Action bridges
-
 # Examples
 
-Examples can be found at the `./examples` directory of this repo
+Examples can be found at the `./examples` directory of this repository.
 
 # Tests
 
-TODO
+**TODO - Currently working on!!**
+
+# Docs
+
+**TODO - Currently working on!!**
 
 # Roadmap
 
-TODO
 
-# Credis
+# Contributions
 
-TODO
+- [klpanagi](https://github.com/klpanagi)
+
