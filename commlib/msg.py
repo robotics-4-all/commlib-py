@@ -24,8 +24,14 @@ class Object:
     def __iter__(self) -> tuple:
         yield from as_tuple(self)
 
-    def as_dict(self) -> dict:
-        return as_dict(self)
+    def as_dict(self, include_header: bool = True) -> dict:
+        if include_header:
+            return as_dict(self)
+        else:
+            _d = as_dict(self)
+            if 'header' in _d:
+                del _d['header']
+            return _d
 
     def from_dict(self, data_dict: dict) -> None:
         """from_dict.
@@ -46,8 +52,8 @@ class Object:
 
 
 @DataClass
-class MetaInfoObject(Object):
-    """MetaInfoObject Class.
+class MessageHeader(Object):
+    """MessageHeader Class.
     Implements the Header data class.
     """
     seq: int = DataField(default=0)
@@ -71,7 +77,7 @@ class RPCMessage:
         RPC Request Message
         """
 
-        meta: MetaInfoObject = MetaInfoObject()
+        header: MessageHeader = MessageHeader()
 
     @DataClass
     class Response(Object):
@@ -79,7 +85,7 @@ class RPCMessage:
         RPC Response Message
         """
 
-        meta: MetaInfoObject = MetaInfoObject()
+        header: MessageHeader = MessageHeader()
 
 
 @DataClass
@@ -87,7 +93,7 @@ class PubSubMessage(Object):
     """PubSubObject Class.
     Implementation of the PubSubObject Base Data class.
     """
-    meta: MetaInfoObject = DataField(default=MetaInfoObject())
+    header: MessageHeader = DataField(default=MessageHeader())
 
 
 class ActionMessage(Object):
@@ -100,7 +106,7 @@ class ActionMessage(Object):
         Action Goal Message
         """
 
-        meta: MetaInfoObject = MetaInfoObject()
+        header: MessageHeader = MessageHeader()
 
     @DataClass
     class Result(Object):
@@ -108,7 +114,7 @@ class ActionMessage(Object):
         Action Result Message
         """
 
-        meta: MetaInfoObject = MetaInfoObject()
+        header: MessageHeader = MessageHeader()
 
     @DataClass
     class Feedback(Object):
@@ -116,7 +122,7 @@ class ActionMessage(Object):
         Action Feedback Message
         """
 
-        meta: MetaInfoObject = MetaInfoObject()
+        header: MessageHeader = MessageHeader()
 
 
 @DataClass
