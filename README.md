@@ -408,7 +408,6 @@ timestamp, etc. Below is an example of the payload for pubsub communication.
   'data': {},
   'meta': {
     'timestamp': <int>,
-    'reply_to': <str>,
     'properties': {
       'content_type': 'application/json',
       'content_encoding': 'utf8'
