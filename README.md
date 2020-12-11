@@ -376,12 +376,16 @@ if __name__ == '__main__':
     print(resp)
 ```
 
+## EventEmitter
+
+An EventEmitter can be used to fire multiple events, for event-based systems, over a single connection.
+
+
 ## Transports
 
 ### AMQP / RabbitMQ
 
-AMQP RPC (request/reply) and PubSub Endpoints are supported by the protocol itself, using
-deticated exchanges.
+RPC (request/reply) and PubSub Endpoints are supported by the protocol itself (AMQP), using deticated exchanges.
 
 For RPC enpoints a `Direct Exchange` is used to route requests and responses,
 optionally using the [Direct Reply-to](https://www.rabbitmq.com/direct-reply-to.html).
@@ -458,7 +462,6 @@ timestamp, etc. Below is an example of the payload for pubsub communication.
   'data': {},
   'meta': {
     'timestamp': <int>,
-    'reply_to': <str>,
     'properties': {
       'content_type': 'application/json',
       'content_encoding': 'utf8'
