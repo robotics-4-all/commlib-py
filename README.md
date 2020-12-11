@@ -381,6 +381,25 @@ if __name__ == '__main__':
 
 An EventEmitter can be used to fire multiple events, for event-based systems, over a single connection.
 
+An Event has the following properties:
+
+```python
+@DataClass
+class Event(Object):
+    """Event.
+    """
+
+    name: Text
+    uri: Text
+    description: Text = ''
+    payload: OrderedDict = DataField(default_factory=OrderedDict)
+```
+
+- name: The name of the Event
+- uri: Broker URI to send the Event
+- description: Optional Description of the Event.
+- payload: Optional payload to attach on the Event.
+
 Below is an example of an EventEmitter used to fire the `bedroom.lights.on` and `bedroom.lights.off` events.
 
 ```python

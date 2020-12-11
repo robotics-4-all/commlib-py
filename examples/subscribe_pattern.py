@@ -32,6 +32,11 @@ if __name__ == '__main__':
             MPublisher, PSubscriber, ConnectionParameters
         )
         topic = 'sensors.*'
+    elif broker == 'mqtt':
+        from commlib.transports.redis import (
+            MPublisher, PSubscriber, ConnectionParameters
+        )
+        topic = 'sensors.*'
 
     sub = PSubscriber(topic=topic,
                      on_message=sensor_data_callback)

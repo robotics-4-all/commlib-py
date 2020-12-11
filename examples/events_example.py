@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+"""
+EventEmitter example. Fire multiple events
+"""
+
 import sys
 import time
 
