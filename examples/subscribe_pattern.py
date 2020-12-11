@@ -38,24 +38,17 @@ if __name__ == '__main__':
         )
         topic = 'sensors.*'
 
-    sub = PSubscriber(topic=topic,
-                     on_message=sensor_data_callback)
+    sub = PSubscriber(topic=topic, msg_type=SonarMessage,
+                      on_message=sensor_data_callback)
     sub.run()
+
+    msg = SonarMessage()
 
     p1_topic = topic.split('*')[0] + 'sonar.front'
     p2_topic = topic.split('*')[0] + 'ir.rear'
-    pub1 = MPublisher()
-    msg1 = {
-        'id': 'sensor',
-        'distance': 0
-    }
-    msg2 = {
-        'id': 'ir',
-        'distance': 0
-    }
+    pub = MPublisher(msg_type=SonarMessage)
     while True:
         time.sleep(1)
-        pub1.publish(msg1, p1_topic)
-        pub1.publish(msg2, p2_topic)
-        msg1['distance'] += 1
-        msg2['distance'] += 1
+        pub.publish(msg, p1_topic)
+        pub.publish(msg, p2_topic)
+        msg.distance += 1

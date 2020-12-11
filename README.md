@@ -81,15 +81,21 @@ def on_request(msg):
 
 
 if __name__ == '__main__':
+    transport = TransportType.MQTT
+    rpc_name = 'thing.device0.ops.add_two_ints'
+
+    # Set broker connection parameters
     conn_params = ConnectionParameters()
+
+    # Create an instance of a Node
     node = Node(node_name='example-node',
                 transport_type=transport,
                 transport_connection_params=conn_params,
                 debug=True)
 
-    # Create  an RPCService endpoint
+    # Create an RPCService endpoint for the Node
     rpc = node.create_rpc(msg_type=AddTwoIntMessage,
-                          rpc_name='testrpc',
+                          rpc_name=rpc_name,
                           on_request=on_request)
     # Starts the RPCService and wait until an exit signal is catched.
     node.run_forever()
@@ -98,6 +104,31 @@ if __name__ == '__main__':
 A Node always binds to a specific broker for implementing the input and
 output ports. Of course you can instantiate and run several Nodes in a single-process 
 application.
+
+Node constuctor:
+
+```python
+def __init__(self, node_name: Text = '',
+             transport_type: TransportType = TransportType.REDIS,
+             connection_params=None,
+             remote_logger: bool = False,
+             remote_logger_uri: Text = '',
+             debug: bool = False,
+             device_id: Text = None):
+```
+
+Node methods to create Endpoints::
+
+```
+▼+Node : class
+   +create_action(self, *args, **kwargs) : member
+   +create_action_client(self, *args, **kwargs) : member
+   +create_event_emitter(self, *args, **kwargs) : member
+   +create_publisher(self, *args, **kwargs) : member
+   +create_rpc(self, *args, **kwargs) : member
+   +create_rpc_client(self, *args, **kwargs) : member
+   +create_subscriber(self, *args, **kwargs) : member
+```
 
 ## Req/Resp (RPC) Communication
 
@@ -146,11 +177,17 @@ if __name__ == '__main__':
     conn_params = ConnectionParameters()
     rpc_name = 'example_rpc_service'
 
-    rpc = RPCService(rpc_name=rpc_name,
-                     msg_type=AddTwoIntMessage,
-                     conn_params=conn_params,
-                     on_request=add_two_int_handler)
-    rpc.run_forever()
+    node = Node(node_name='example_node',
+                transport_type=transport,
+                transport_connection_params=conn_params,
+                debug=True)
+
+    # Create  an RPCService endpoint
+    rpc = node.create_rpc(msg_type=AddTwoIntMessage,
+                          rpc_name='testrpc',
+                          on_request=on_request)
+    # Starts the RPCService and wait until an exit signal is catched.
+    node.run_forever()
 ```
 
 ### Client Side
@@ -268,6 +305,56 @@ if __name__ == "__main__":
     sub.run()
     while True:
         time.sleep(0.001)
+```
+
+## Pattern-based Topic Subscription
+
+For pattern-based topic subscription use the `PSubscriber` class.
+
+```python
+#!/usr/bin/env python
+
+import sys
+import time
+
+from commlib.msg import PubSubMessage, DataClass
+
+
+@DataClass
+class SonarMessage(PubSubMessage):
+    distance: float = 0.001
+    horizontal_fov: float = 30.0
+    vertical_fov: float = 14.0
+
+
+def sensor_data_callback(msg, topic):
+    print(f'Sensor Data Message: {topic}:{msg}')
+
+
+if __name__ == '__main__':
+    topic = 'sensors.*'
+    p1_topic = topic.split('*')[0] + 'sonar.front'
+    p2_topic = topic.split('*')[0] + 'ir.rear'
+
+    # Create an instance of a Patter-based Subscriber (PSubscriber)
+    sub = PSubscriber(topic=topic, msg_type=SonarMessage,
+                      on_message=sensor_data_callback)
+    # Run the PSubscriber in the background.
+    sub.run()
+
+    # Create an instance of the communication message
+    msg = SonarMessage()
+
+    # Create an instalce of a Multi-topic Publisher (MPublisher)
+    pub = MPublisher(msg_type=SonarMessage)
+
+    while True:
+        time.sleep(1)
+        # Publish message to topic A
+        pub.publish(msg, p1_topic)
+        # Publish message to topic B
+        pub.publish(msg, p2_topic)
+        msg.distance += 1
 ```
 
 ## Preemptable Services with Feedback (Actions)

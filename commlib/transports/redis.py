@@ -351,11 +351,11 @@ class Subscriber(BaseSubscriber):
 
 class PSubscriber(Subscriber):
     def _on_message(self, payload: dict):
-        _topic = payload['channel']
-        payload = self._serializer.deserialize(payload['data'])
-        data = payload['data']
-        meta = payload['meta']
         try:
+            _topic = payload['channel']
+            payload = self._serializer.deserialize(payload['data'])
+            data = payload['data']
+            meta = payload['meta']
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
@@ -368,7 +368,6 @@ class PSubscriber(Subscriber):
                 _clb()
         except Exception:
             self.logger.error('Exception caught in _on_message', exc_info=True)
-
 
 class ActionServer(BaseActionServer):
     def __init__(self,
