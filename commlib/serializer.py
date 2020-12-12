@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2020  Panayiotou, Konstantinos <klpanagi@gmail.com>
 # Author: Panayiotou, Konstantinos <klpanagi@gmail.com>
 #
@@ -15,28 +14,38 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Text, OrderedDict, Any
+from typing import Text
 import json
 
 
-class ContentType(object):
+class ContentType:
     """Content Types."""
     json: Text = 'application/json'
     raw_bytes: Text = 'application/octet-stream'
     text: Text = 'plain/text'
 
 
-class Serializer(object):
+class Serializer:
     """Serializer Abstract Class."""
     CONTENT_TYPE: Text = 'None'
     CONTENT_ENCODING: Text = 'None'
 
     @staticmethod
-    def serialize(self, data: Text):
+    def serialize(data: dict):
+        """serialize.
+
+        Args:
+            data (dict): Serialize a dict
+        """
         raise NotImplementedError()
 
     @staticmethod
-    def deserialize(self, data: Text):
+    def deserialize(data: Text):
+        """deserialize.
+
+        Args:
+            data (Text): -
+        """
         raise NotImplementedError()
 
 
@@ -50,10 +59,20 @@ class JSONSerializer(Serializer):
 
     @staticmethod
     def serialize(data: dict):
+        """serialize.
+
+        Args:
+            data (dict): Serialize to json string
+        """
         if not isinstance(data, dict):
             raise TypeError('Data are not of type Dict.')
         return json.dumps(data)
 
     @staticmethod
     def deserialize(data: str):
+        """deserialize.
+
+        Args:
+            data (str): json str to dict
+        """
         return json.loads(data)

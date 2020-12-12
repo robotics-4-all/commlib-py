@@ -56,6 +56,14 @@ class ConnectionParameters(object):
                  port: int = 1883,
                  protocol: MQTTProtocolType = MQTTProtocolType.MQTTv311,
                  creds: Credentials = Credentials()):
+        """__init__.
+
+        Args:
+            host (str): host
+            port (int): port
+            protocol (MQTTProtocolType): protocol
+            creds (Credentials): creds
+        """
         self.host = host
         self.port = port
         self.protocol = protocol
@@ -138,9 +146,20 @@ class MQTTTransport(object):
 
 
 class Publisher(BasePublisher):
+    """Publisher.
+    MQTT Publisher
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = ConnectionParameters(),
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            args: See BasePublisher
+            kwargs: See BasePublisher
+        """
         self._msg_seq = 0
         self.conn_params = conn_params
         super(Publisher, self).__init__(*args, **kwargs)
@@ -149,6 +168,14 @@ class Publisher(BasePublisher):
         self._transport.start_loop()
 
     def publish(self, msg: PubSubMessage) -> None:
+        """publish.
+
+        Args:
+            msg (PubSubMessage): Message to Publish
+
+        Returns:
+            None:
+        """
         if self._msg_type is None:
             data = msg
         else:
@@ -177,10 +204,23 @@ class Publisher(BasePublisher):
 
 
 class MPublisher(Publisher):
+    """MPublisher.
+    Multi-Topic Publisher
+    """
+
     def __init__(self, *args, **kwargs):
         super(MPublisher, self).__init__(topic='*', *args, **kwargs)
 
     def publish(self, msg: PubSubMessage, topic: str) -> None:
+        """publish.
+
+        Args:
+            msg (PubSubMessage): msg
+            topic (str): topic
+
+        Returns:
+            None:
+        """
         if self._msg_type is None:
             data = msg
         else:
@@ -192,9 +232,20 @@ class MPublisher(Publisher):
 
 
 class Subscriber(BaseSubscriber):
+    """Subscriber.
+    MQTT Subscriber
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = ConnectionParameters(),
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            args: See BaseSubscriber
+            kwargs: See BaseSubscriber
+        """
         self.conn_params = conn_params
         super(Subscriber, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
@@ -230,6 +281,9 @@ class Subscriber(BaseSubscriber):
 
 
 class PSubscriber(Subscriber):
+    """PSubscriber.
+    """
+
     def _on_message(self, client, userdata, msg):
         try:
             _topic = msg.topic
@@ -251,9 +305,20 @@ class PSubscriber(Subscriber):
 
 
 class RPCService(BaseRPCService):
+    """RPCService.
+    MQTT RPC Service class.
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            args: See BaseRPCService
+            kwargs: See BaseRPCService
+        """
         self.conn_params = conn_params
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
@@ -324,8 +389,8 @@ class RPCClient(BaseRPCClient):
 
         Args:
             conn_params (ConnectionParameters): conn_params
-            args:
-            kwargs:
+            args: See BaseRPCClient
+            kwargs: See BaseRPCClient
         """
         self.conn_params = conn_params
         self._response = None
@@ -429,6 +494,13 @@ class ActionServer(BaseActionServer):
 
         Args:
             conn_params (ConnectionParameters): conn_params
+            args: See BaseActionServer
+            kwargs: See BaseActionServer
+        """
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
             args:
             kwargs:
         """
@@ -465,6 +537,10 @@ class ActionServer(BaseActionServer):
 
 
 class ActionClient(BaseActionClient):
+    """ActionClient.
+    MQTT Action Client
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = ConnectionParameters(),
                  *args, **kwargs):
@@ -472,8 +548,8 @@ class ActionClient(BaseActionClient):
 
         Args:
             conn_params (ConnectionParameters): Broker Connection Parameters
-            args:
-            kwargs:
+            args: See BaseActionClient
+            kwargs: See BaseActionClient
         """
         super(ActionClient, self).__init__(*args, **kwargs)
 
@@ -505,6 +581,10 @@ class ActionClient(BaseActionClient):
 
 
 class EventEmitter(BaseEventEmitter):
+    """EventEmitter.
+    MQTT Event Emitter class
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
@@ -512,8 +592,8 @@ class EventEmitter(BaseEventEmitter):
 
         Args:
             conn_params (ConnectionParameters): Broker Connection Parameters
-            args:
-            kwargs:
+            args: See BaseEventEmitter
+            kwargs: See BaseEventEmitter
         """
         super(EventEmitter, self).__init__(*args, **kwargs)
 

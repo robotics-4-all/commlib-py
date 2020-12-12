@@ -396,7 +396,6 @@ class MTopicBridge(Bridge):
         else:
             to_topic = topic
         to_topic = self._transform_uri(to_topic)
-        print(to_topic)
         self._pub.publish(msg, to_topic)
 
     def stop(self):

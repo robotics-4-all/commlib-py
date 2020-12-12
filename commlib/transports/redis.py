@@ -47,10 +47,22 @@ class ConnectionParametersBase(object):
 
 
 class TCPConnectionParameters(ConnectionParametersBase):
+    """TCPConnectionParameters.
+    Redis TCP connection parameters
+    """
+
     def __init__(self,
                  host: str = 'localhost',
                  port: str = 6379,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            host (str): host
+            port (str): port
+            args: See ConnectionParametersBase class
+            kwargs: See ConnectionParametersBase class
+        """
         super(TCPConnectionParameters, self).__init__(*args, **kwargs)
         self.host = host
         self.port = port
@@ -60,6 +72,13 @@ class UnixSocketConnectionParameters(ConnectionParametersBase):
     def __init__(self,
                  unix_socket: str = '/tmp/redis.sock',
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            unix_socket (str): unix_socket
+            args: See ConnectionParametersBase class
+            kwargs: See ConnectionParametersBase class
+        """
         super(UnixSocketConnectionParameters, self).__init__(*args, **kwargs)
         self.unix_socket = unix_socket
 
@@ -121,9 +140,20 @@ class RedisTransport(object):
 
 
 class RPCService(BaseRPCService):
+    """RPCService.
+    Redis RPC Service class
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            args: See BaseRPCService class
+            kwargs: See BaseRPCService class
+        """
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
@@ -286,10 +316,29 @@ class Publisher(BasePublisher):
 
 
 class MPublisher(Publisher):
+    """MPublisher.
+    Multi-Topic Redis Publisher
+    """
+
     def __init__(self, *args, **kwargs):
+        """__init__.
+
+        Args:
+            args: See Publisher class
+            kwargs: See Publisher class
+        """
         super(MPublisher, self).__init__(topic='*', *args, **kwargs)
 
     def publish(self, msg: PubSubMessage, topic: str) -> None:
+        """publish.
+
+        Args:
+            msg (PubSubMessage): Message to Publish
+            topic (str): topic
+
+        Returns:
+            None:
+        """
         if self._msg_type is None:
             data = msg
         else:
@@ -303,10 +352,22 @@ class MPublisher(Publisher):
 
 
 class Subscriber(BaseSubscriber):
+    """Subscriber.
+    Redis Subscriber
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  queue_size: int = 1,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            queue_size (int): queue_size
+            args:
+            kwargs:
+        """
         self._queue_size = queue_size
         super(Subscriber, self).__init__(*args, **kwargs)
 
@@ -350,6 +411,10 @@ class Subscriber(BaseSubscriber):
 
 
 class PSubscriber(Subscriber):
+    """PSubscriber.
+    Redis Pattern-based Subscriber.
+    """
+
     def _on_message(self, payload: dict):
         try:
             _topic = payload['channel']
@@ -369,7 +434,12 @@ class PSubscriber(Subscriber):
         except Exception:
             self.logger.error('Exception caught in _on_message', exc_info=True)
 
+
 class ActionServer(BaseActionServer):
+    """ActionServer.
+    Redis Action Server class
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
@@ -377,7 +447,7 @@ class ActionServer(BaseActionServer):
 
         Args:
             conn_params (ConnectionParameters): Broker Connection Parameters
-            args:
+            args: See BaseActionServer class.
             kwargs:
         """
         conn_params = UnixSocketConnectionParameters() if \
@@ -416,6 +486,10 @@ class ActionServer(BaseActionServer):
 
 
 class ActionClient(BaseActionClient):
+    """ActionClient.
+    Redis Action Client class
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
@@ -423,8 +497,8 @@ class ActionClient(BaseActionClient):
 
         Args:
             conn_params (ConnectionParameters): Broker Connection Parameters
-            args:
-            kwargs:
+            args: See BaseActionClient class
+            kwargs: See BaseActionClient class
         """
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
@@ -459,6 +533,10 @@ class ActionClient(BaseActionClient):
 
 
 class EventEmitter(BaseEventEmitter):
+    """EventEmitter.
+    Redis EventEmitter class
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
@@ -466,8 +544,8 @@ class EventEmitter(BaseEventEmitter):
 
         Args:
             conn_params (ConnectionParameters): Broker Connection Parameters
-            args:
-            kwargs:
+            args: See BaseEventEmitter class
+            kwargs: See BaseEventEmitter class
         """
         super(EventEmitter, self).__init__(*args, **kwargs)
 
