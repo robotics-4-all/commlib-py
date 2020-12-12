@@ -363,6 +363,27 @@ class MTopicBridge(Bridge):
             conn_params=self._to_broker_params,
         )
 
+    def _transform_uri(self, uri: str):
+        if self._btype == RPCBridgeType.REDIS_TO_AMQP:
+            uri = uri.replace('/', '.')
+        elif self._btype == RPCBridgeType.AMQP_TO_REDIS:
+            pass
+        elif self._btype == RPCBridgeType.AMQP_TO_AMQP:
+            pass
+        elif self._btype == RPCBridgeType.REDIS_TO_REDIS:
+            pass
+        elif self._btype == RPCBridgeType.MQTT_TO_REDIS:
+            uri = uri.replace('/', '.')
+        elif self._btype == RPCBridgeType.MQTT_TO_AMQP:
+            uri = uri.replace('/', '.')
+        elif self._btype == RPCBridgeType.MQTT_TO_MQTT:
+            pass
+        elif self._btype == RPCBridgeType.REDIS_TO_MQTT:
+            uri = uri.replace('.', '/')
+        elif self._btype == RPCBridgeType.AMQP_TO_MQTT:
+            uri =  uri.replace('.', '/')
+        return uri
+
     def on_message(self, msg: PubSubMessage, topic: str):
         """on_message.
 
@@ -374,6 +395,8 @@ class MTopicBridge(Bridge):
             to_topic = f'{self._to_namespace}.{topic}'
         else:
             to_topic = topic
+        to_topic = self._transform_uri(to_topic)
+        print(to_topic)
         self._pub.publish(msg, to_topic)
 
     def stop(self):
