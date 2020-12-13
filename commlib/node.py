@@ -160,6 +160,8 @@ class Node(object):
                  remote_logger: bool = False,
                  remote_logger_uri: Text = '',
                  debug: bool = False,
+                 heartbeat_thread: bool = True,
+                 heartbeat_uri: str = None,
                  device_id: Text = None):
         """__init__.
 
@@ -178,14 +180,16 @@ class Node(object):
             node_name = gen_random_id()
         node_name = node_name.replace('-', '_')
         self._node_name = node_name
-
+        self._debug = debug
+        self._heartbeat_thread = heartbeat_thread
+        self._heartbeat_uri = heartbeat_uri
+        self._hb_thread = None
+        self.state = NodeState.IDLE
         self._device_id = device_id
         if device_id is None:
             self._namespace = f'{self._node_name}'
         else:
             self._namespace = f'thing.{device_id}.{self._node_name}'
-
-        self._debug = debug
 
         self._publishers = []
         self._subscribers = []
@@ -194,8 +198,6 @@ class Node(object):
         self._action_servers = []
         self._action_clients = []
         self._event_emitters = []
-
-        self.state = NodeState.IDLE
 
         if transport_type == TransportType.REDIS:
             import commlib.transports.redis as comm
@@ -210,11 +212,14 @@ class Node(object):
         if transport_connection_params is None:
             if transport_type == TransportType.REDIS:
                 from commlib.transports.redis import \
-                    UnixSocketConnectionParameters as conn_params
+                    UnixSocketConnectionParameters as ConnParams
             elif transport_type == TransportType.AMQP:
                 from commlib.transports.amqp import \
-                    ConnectionParameters as conn_params
-            transport_connection_params = conn_params()
+                    ConnectionParameters as ConnParams
+            elif transport_type == TransportType.MQTT:
+                from commlib.transports.mqtt import \
+                    ConnectionParameters as ConnParams
+            transport_connection_params = ConnParams()
         self._conn_params = transport_connection_params
         if connection_params is not None:
             self._conn_params = connection_params
@@ -268,16 +273,33 @@ class Node(object):
     def get_logger(self):
         return self._logger
 
-    def run(self, heartbeat_thread: bool = True):
+    def run(self) -> None:
+        """run.
+        Starts Services, Subscribers and ActionServers.
+        Also starts the heartbeat thread (if enabled).
+
+        Args:
+
+        Returns:
+            None:
+        """
         for s in self._subscribers:
             s.run()
         for r in self._rpc_services:
             r.run()
-        if heartbeat_thread:
-            self.init_heartbeat_thread()
+        if self._heartbeat_thread:
+            self.init_heartbeat_thread(self._heartbeat_uri)
         self.state = NodeState.RUNNING
 
-    def run_forever(self, sleep_rate: float = 0.001):
+    def run_forever(self, sleep_rate: float = 0.001) -> None:
+        """run_forever.
+        Starts Services, Subscribers and ActionServers and blocks
+        the main thread from exiting.
+        Also starts the heartbeat thread (if enabled).
+
+        Args:
+            sleep_rate (float): Rate to sleep between wait-state iterations.
+        """
         if self.state != NodeState.RUNNING:
             self.run()
         while True:
