@@ -31,7 +31,7 @@ class NodeInputPort(NodePort):
             args:
             kwargs:
         """
-        super(NodeInputPort, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class NodeOutputPort(NodePort):
@@ -45,7 +45,7 @@ class NodeOutputPort(NodePort):
             args:
             kwargs:
         """
-        super(NodeOutputPort, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class NodePortType(IntEnum):
@@ -91,7 +91,7 @@ class HeartbeatThread(threading.Thread):
             args:
             kwargs:
         """
-        super(HeartbeatThread, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._stop_event = threading.Event()
         self._rate_secs = interval
         self._heartbeat_pub = pub_instance
@@ -242,7 +242,9 @@ class Node(object):
         if topic is None:
             topic = f'{self._namespace}.heartbeat'
         self._hb_thread = HeartbeatThread(
-            self.create_publisher(topic=topic, msg_type=HeartbeatMessage))
+            self.create_publisher(topic=topic, msg_type=HeartbeatMessage),
+            logger=self._logger
+        )
         self._hb_thread.start()
         self._logger.info(
             f'Started Heartbeat Publisher <{topic}> in background')
@@ -286,6 +288,8 @@ class Node(object):
         for s in self._subscribers:
             s.run()
         for r in self._rpc_services:
+            r.run()
+        for r in self._action_servers:
             r.run()
         if self._heartbeat_thread:
             self.init_heartbeat_thread(self._heartbeat_uri)
