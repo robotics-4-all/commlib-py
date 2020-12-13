@@ -1,5 +1,8 @@
 import time
 from enum import IntEnum
+
+from typing import List
+
 from commlib.endpoints import endpoint_factory, EndpointType, TransportType
 from commlib.logger import Logger
 from commlib.msg import PubSubMessage, RPCMessage
@@ -45,7 +48,7 @@ class TopicBridgeType(IntEnum):
     AMQP_TO_MQTT = 9
 
 
-class Bridge(object):
+class Bridge:
     """Bridge.
     Base Bridge Class.
     """
@@ -107,7 +110,7 @@ class RPCBridge(Bridge):
             logger (Logger):
             debug (bool): debug flag
         """
-        super(RPCBridge, self).__init__(btype, logger, debug)
+        super().__init__(btype, logger, debug)
         self._from_broker_params = from_broker_params
         self._to_broker_params = to_broker_params
         self._from_uri = from_uri
@@ -208,7 +211,7 @@ class TopicBridge(Bridge):
             logger (Logger): logger
             debug (bool): debug
         """
-        super(TopicBridge, self).__init__(btype, logger, debug)
+        super().__init__(btype, logger, debug)
         self._from_broker_params = from_broker_params
         self._to_broker_params = to_broker_params
         self._from_uri = from_uri
@@ -284,8 +287,8 @@ class TopicBridge(Bridge):
 
 
 class MTopicBridge(Bridge):
-    """TopicBridge.
-    Bridge implementation for Topic-based/PubSub Communication.
+    """MTopicBridge.
+    Pattern-based Bridge implementation for Topic-based/PubSub Communication.
 
 
     [Broker A] ------------> [Broker B] ---> [Consumer Endpoint]
@@ -298,6 +301,7 @@ class MTopicBridge(Bridge):
                  from_broker_params,
                  to_broker_params,
                  msg_type: PubSubMessage = None,
+                 uri_transform: List = [],
                  logger: Logger = None,
                  debug: bool = False):
         """__init__.
@@ -312,7 +316,7 @@ class MTopicBridge(Bridge):
             logger (Logger): logger
             debug (bool): debug
         """
-        super(MTopicBridge, self).__init__(btype, logger, debug)
+        super().__init__(btype, logger, debug)
         if not '*' in from_uri:
             raise ValueError('from_uri must be defined using topic patterns')
         self._from_broker_params = from_broker_params
@@ -320,6 +324,7 @@ class MTopicBridge(Bridge):
         self._from_uri = from_uri
         self._to_namespace = to_namespace
         self._msg_type = msg_type
+        self._uri_transform = uri_transform
 
         if self._btype == RPCBridgeType.REDIS_TO_AMQP:
             from_transport = TransportType.REDIS
@@ -373,7 +378,8 @@ class MTopicBridge(Bridge):
         elif self._btype == RPCBridgeType.REDIS_TO_REDIS:
             pass
         elif self._btype == RPCBridgeType.MQTT_TO_REDIS:
-            uri = uri.replace('/', '.')
+            pass
+            # uri = uri.replace('/', '.')
         elif self._btype == RPCBridgeType.MQTT_TO_AMQP:
             uri = uri.replace('/', '.')
         elif self._btype == RPCBridgeType.MQTT_TO_MQTT:
@@ -396,6 +402,10 @@ class MTopicBridge(Bridge):
         else:
             to_topic = topic
         to_topic = self._transform_uri(to_topic)
+        for tr in self._uri_transform:
+            _from = tr[0]
+            _to = tr[1]
+            to_topic = to_topic.replace(_from, _to)
         self._pub.publish(msg, to_topic)
 
     def stop(self):

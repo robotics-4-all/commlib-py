@@ -1,7 +1,4 @@
 import time
-import uuid
-import json
-import hashlib
 
 from dataclasses import dataclass as DataClass
 from dataclasses import field as DataField
@@ -9,9 +6,7 @@ from dataclasses import is_dataclass
 from dataclasses import make_dataclass
 from dataclasses import asdict as as_dict
 from dataclasses import astuple as as_tuple
-from typing import List, Dict, Tuple, Sequence, Any, Text
-
-import redis
+from typing import Text
 
 from .serializer import JSONSerializer
 
@@ -24,14 +19,15 @@ class Object:
     def __iter__(self) -> tuple:
         yield from as_tuple(self)
 
-    def as_dict(self, include_header: bool = True) -> dict:
-        if include_header:
-            return as_dict(self)
-        else:
-            _d = as_dict(self)
-            if 'header' in _d:
-                del _d['header']
-            return _d
+    def as_dict(self) -> dict:
+        """as_dict.
+
+        Args:
+
+        Returns:
+            dict:
+        """
+        return as_dict(self)
 
     def from_dict(self, data_dict: dict) -> None:
         """from_dict.
@@ -77,15 +73,11 @@ class RPCMessage:
         RPC Request Message
         """
 
-        header: MessageHeader = MessageHeader()
-
     @DataClass
     class Response(Object):
         """Response.
         RPC Response Message
         """
-
-        header: MessageHeader = MessageHeader()
 
 
 @DataClass
@@ -93,7 +85,6 @@ class PubSubMessage(Object):
     """PubSubObject Class.
     Implementation of the PubSubObject Base Data class.
     """
-    header: MessageHeader = DataField(default=MessageHeader())
 
 
 class ActionMessage(Object):
@@ -106,15 +97,11 @@ class ActionMessage(Object):
         Action Goal Message
         """
 
-        header: MessageHeader = MessageHeader()
-
     @DataClass
     class Result(Object):
         """Result.
         Action Result Message
         """
-
-        header: MessageHeader = MessageHeader()
 
     @DataClass
     class Feedback(Object):
@@ -122,9 +109,10 @@ class ActionMessage(Object):
         Action Feedback Message
         """
 
-        header: MessageHeader = MessageHeader()
-
 
 @DataClass
 class HeartbeatMessage(PubSubMessage):
+    """HeartbeatMessage.
+    """
+
     ts: int = -1
