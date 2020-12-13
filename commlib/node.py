@@ -12,7 +12,7 @@ from commlib.bridges import TopicBridge, RPCBridge
 from commlib.msg import HeartbeatMessage
 
 
-class NodePort(object):
+class NodePort:
     """NodePort.
     """
 
@@ -147,7 +147,7 @@ class HeartbeatThread(threading.Thread):
         return int(timestamp)
 
 
-class Node(object):
+class Node:
     """Node.
     """
 
@@ -156,7 +156,6 @@ class Node(object):
                  ## DEPRECATED - Used only for backward compatibility
                  transport_connection_params=None,
                  connection_params=None,
-                 max_workers: int = 4,
                  remote_logger: bool = False,
                  remote_logger_uri: Text = '',
                  debug: bool = False,
