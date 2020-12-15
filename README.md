@@ -777,13 +777,13 @@ metadata, as specified my AMQP.
 ### Redis
 
 PubSub endpoints uses the out-of-the-box [Redis pubsub channel](https://redis.io/topics/pubsub) to exchange messages. PubSub message payload in Redis includes the
-data of the message and meta-information regarding serialization method used, 
+data of the message and meta-information (header) regarding serialization method used, 
 timestamp, etc. Below is an example of the payload for pubsub communication.
 
 ```
 {
   'data': {},
-  'meta': {
+  'header': {
     'timestamp': <int>,
     'properties': {
       'content_type': 'application/json',
@@ -808,7 +808,7 @@ data model of the request message.
 ```
 {
   'data': {},
-  'meta': {
+  'header': {
     'timestamp': <int>,
     'reply_to': <str>,
     'properties': {
@@ -825,15 +825,14 @@ temporary queues!
 
 ### MQTT
 
-
 PubSub message payload in MQTTT includes the
-data of the message and meta-information regarding serialization method used, 
+data of the message and meta-information (header) regarding serialization method used, 
 timestamp, etc. Below is an example of the payload for pubsub communication.
 
 ```
 {
   'data': {},
-  'meta': {
+  'header': {
     'timestamp': <int>,
     'properties': {
       'content_type': 'application/json',
@@ -858,7 +857,7 @@ data model of the request message.
 ```
 {
   'data': {},
-  'meta': {
+  'header': {
     'timestamp': <int>,
     'reply_to': <str>,
     'properties': {
