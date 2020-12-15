@@ -159,7 +159,7 @@ class RPCService(BaseRPCService):
                                          logger=self._logger)
 
     def _send_response(self, data, reply_to):
-        meta = {
+        header = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -170,12 +170,12 @@ class RPCService(BaseRPCService):
         }
         _resp = {
             'data': data,
-            'meta': meta
+            'header': header
         }
         _resp = self._serializer.serialize(_resp)
         self._transport.push_msg_to_queue(reply_to, _resp)
 
-    def _on_request(self, data: dict, meta: dict):
+    def _on_request(self, data: dict, header: dict):
         try:
             if self._msg_type is None:
                 resp = self.on_request(OrderedDict(data))
@@ -186,7 +186,7 @@ class RPCService(BaseRPCService):
         except Exception as exc:
             self.logger.error(str(exc), exc_info=False)
             resp = {}
-        reply_to = meta['reply_to']
+        reply_to = header['reply_to']
         self._send_response(resp, reply_to)
 
     def run_forever(self):
@@ -209,10 +209,10 @@ class RPCService(BaseRPCService):
     def __detach_request_handler(self, payload):
         payload = self._serializer.deserialize(payload)
         data = payload['data']
-        meta = payload['meta']
+        header = payload['header']
         self.logger.debug(f'RPC Request <{self._rpc_name}>')
         _future = self.__exec_in_thread(
-            functools.partial(self._on_request, data, meta)
+            functools.partial(self._on_request, data, header)
         )
         return _future
 
@@ -234,7 +234,7 @@ class RPCClient(BaseRPCClient):
 
     def __prepare_request(self, data):
         _reply_to = self.__gen_queue_name()
-        meta = {
+        header = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'reply_to': _reply_to,
@@ -245,7 +245,7 @@ class RPCClient(BaseRPCClient):
         }
         _req = {
             'data': data,
-            'meta': meta
+            'header': header
         }
         return _req
 
@@ -258,7 +258,7 @@ class RPCClient(BaseRPCClient):
             data = msg.as_dict()
 
         _msg = self.__prepare_request(data)
-        _reply_to = _msg['meta']['reply_to']
+        _reply_to = _msg['header']['reply_to']
         _msg = self._serializer.serialize(_msg)
         self._transport.push_msg_to_queue(self._rpc_name, _msg)
         msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
@@ -300,7 +300,7 @@ class Publisher(BasePublisher):
         self._msg_seq += 1
 
     def _prepare_msg(self, data):
-        meta = {
+        header = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -310,7 +310,7 @@ class Publisher(BasePublisher):
         }
         _msg = {
             'data': data,
-            'meta': meta
+            'header': header
         }
         return _msg
 
@@ -396,7 +396,7 @@ class Subscriber(BaseSubscriber):
             _topic = payload['channel']
             payload = self._serializer.deserialize(payload['data'])
             data = payload['data']
-            meta = payload['meta']
+            header = payload['header']
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, OrderedDict(data))
@@ -420,7 +420,7 @@ class PSubscriber(Subscriber):
             _topic = payload['channel']
             payload = self._serializer.deserialize(payload['data'])
             data = payload['data']
-            meta = payload['meta']
+            header = payload['header']
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
@@ -569,7 +569,7 @@ class EventEmitter(BaseEventEmitter):
         self._transport.publish(event.uri, _msg)
 
     def _prepare_msg(self, data: dict) -> None:
-        meta = {
+        header = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -579,6 +579,6 @@ class EventEmitter(BaseEventEmitter):
         }
         _msg = {
             'data': data,
-            'meta': meta
+            'header': header
         }
         return _msg

@@ -188,7 +188,7 @@ class Publisher(BasePublisher):
         self._msg_seq += 1
 
     def _prepare_msg(self, data):
-        meta = {
+        header = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -198,7 +198,7 @@ class Publisher(BasePublisher):
         }
         _msg = {
             'data': data,
-            'meta': meta
+            'header': header
         }
         return _msg
 
@@ -268,7 +268,7 @@ class Subscriber(BaseSubscriber):
             _topic = msg.topic
             _payload = json.loads(msg.payload)
             data = _payload['data']
-            meta = _payload['meta']
+            header = _payload['header']
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, OrderedDict(data))
@@ -289,7 +289,7 @@ class PSubscriber(Subscriber):
             _topic = msg.topic
             _payload = json.loads(msg.payload)
             data = _payload['data']
-            meta = _payload['meta']
+            header = _payload['header']
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
@@ -325,7 +325,7 @@ class RPCService(BaseRPCService):
                                         logger=self._logger)
 
     def _send_response(self, data: dict, reply_to: str):
-        meta = {
+        header = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -336,7 +336,7 @@ class RPCService(BaseRPCService):
         }
         _resp = {
             'data': data,
-            'meta': meta
+            'header': header
         }
         _resp = self._serializer.serialize(_resp)
         self._transport.publish(reply_to, _resp)
@@ -346,7 +346,7 @@ class RPCService(BaseRPCService):
             _topic = msg.topic
             _payload = json.loads(msg.payload)
             data = _payload['data']
-            meta = _payload['meta']
+            header = _payload['header']
             if self._msg_type is None:
                 resp = self.on_request(OrderedDict(data))
             else:
@@ -356,7 +356,7 @@ class RPCService(BaseRPCService):
         except Exception as exc:
             self.logger.error(str(exc), exc_info=False)
             resp = {}
-        reply_to = meta['reply_to']
+        reply_to = header['reply_to']
         self._send_response(resp, reply_to)
 
     def run_forever(self):
@@ -405,7 +405,7 @@ class RPCClient(BaseRPCClient):
 
     def __prepare_request(self, data):
         _reply_to = self.__gen_queue_name()
-        meta = {
+        header = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'reply_to': _reply_to,
@@ -416,7 +416,7 @@ class RPCClient(BaseRPCClient):
         }
         _req = {
             'data': data,
-            'meta': meta
+            'header': header
         }
         return _req
 
@@ -425,7 +425,7 @@ class RPCClient(BaseRPCClient):
             _topic = msg.topic
             _payload = json.loads(msg.payload)
             data = _payload['data']
-            meta = _payload['meta']
+            header = _payload['header']
         except Exception as exc:
             self.logger.error(exc, exc_info=True)
             data = {}
@@ -466,7 +466,7 @@ class RPCClient(BaseRPCClient):
         self._response = None
 
         _msg = self.__prepare_request(data)
-        _reply_to = _msg['meta']['reply_to']
+        _reply_to = _msg['header']['reply_to']
         _msg = self._serializer.serialize(_msg)
 
         self._transport.subscribe(_reply_to, callback=self._on_response_wrapper)
@@ -626,7 +626,7 @@ class EventEmitter(BaseEventEmitter):
         Returns:
             None:
         """
-        meta = {
+        header = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -636,6 +636,6 @@ class EventEmitter(BaseEventEmitter):
         }
         _msg = {
             'data': data,
-            'meta': meta
+            'header': header
         }
         return _msg
