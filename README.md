@@ -799,11 +799,15 @@ in the previous example.
 Req/Resp communication (RPC) is not supported out-of-the-box. To support
 RPC communication over Redis, a custom layer implements the pattern for both endpoints 
 using Redis Lists to represent queues. RPC server listens for requests from
-a list, while an RPC client sends request messages to that list. In order for
-the client to be able to receive responses, he must listen to a temporary queue.
+a list (LPOP / BLPOP), while an RPC client sends request messages to that list (RPUSH).
+In order for the client to be able to receive responses, he must listen to a temporary queue.
 To achieve this, the request message must include a `reply_to` property that is 
-used by the RPCServer implementation to send the response message. Below is the 
-data model of the request message.
+used by the RPCServer implementation to send the response message. Furthermore,
+`serialization` and `encoding` properties are defined. Finally, the header
+includes a `timestamp`, that indicates the time that the message was sent to to wire.
+
+
+Below is the  data model of the request message.
 
 ```
 {
@@ -825,7 +829,7 @@ temporary queues!
 
 ### MQTT
 
-PubSub message payload in MQTTT includes the
+PubSub message payload in MQTT includes the
 data of the message and meta-information (header) regarding serialization method used, 
 timestamp, etc. Below is an example of the payload for pubsub communication.
 
@@ -847,14 +851,16 @@ in the previous example.
 
 Though, Req/Resp communication (RPC) is not supported out-of-the-box. To support
 RPC communication over MQTT, a custom layer implements the pattern for both endpoints 
-using MQTT Lists to represent queues. RPC server listens for requests from
-a list, while an RPC client sends request messages to that list. In order for
-the client to be able to receive responses, he must listen to a temporary queue.
-To achieve this, the request message must include a `reply_to` property that is 
-used by the RPCServer implementation to send the response message. Below is the 
-data model of the request message.
+using MQTT topics. RPC server listens for requests at a specific topic,
+while an RPC client listens to a temporary topic for response messages.
+For the server to know where to send the response, the request message must include a `reply_to` property that is 
+used by the RPCServer implementation to send the response message. Furthermore,
+`serialization` and `encoding` properties are defined. Finally, the header
+includes a `timestamp`, that indicates the time that the message was sent to to wire.
 
-```
+Below is the data model of the Request message.
+
+```json
 {
   'data': {},
   'header': {
@@ -870,7 +876,8 @@ data model of the request message.
 
 # Examples
 
-Examples can be found at the `./examples` directory of this repository.
+Examples can be found at the [examples/](./examples) directory of this repository.
+
 
 # Tests
 
