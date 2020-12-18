@@ -11,6 +11,7 @@ from commlib.events import Event
 
 
 if __name__ == '__main__':
+    # Selecting broker type from arguments
     if len(sys.argv) < 2:
         broker = 'redis'
     else:
@@ -34,9 +35,12 @@ if __name__ == '__main__':
     conn_params = ConnectionParameters()
     emitter = EventEmitter(conn_params=conn_params, debug=True)
 
+    # An event is binded to a URI
     eventA = Event(name='TurnOnBedroomLights', uri='bedroom.lights.on')
     eventB = Event(name='TurnOffBedroomLights', uri='bedroom.lights.off')
 
-    emitter.send_event(eventA)
-    time.sleep(2)
-    emitter.send_event(eventB)
+    while True:
+        emitter.send_event(eventA)
+        time.sleep(2)
+        emitter.send_event(eventB)
+        time.sleep(2)

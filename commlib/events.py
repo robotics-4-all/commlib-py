@@ -14,8 +14,8 @@ class Event(Object):
     """
 
     name: Text
-    description: Text
     uri: Text
+    description: Text = ''
     payload: OrderedDict = DataField(default_factory=OrderedDict)
 
 

@@ -1,3 +1,5 @@
+An example is worth hundreds of pages of API documentation and words.
+
 # Developer Exanples
 
 - Simple Publisher/Subscriber example
