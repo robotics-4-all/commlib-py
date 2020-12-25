@@ -60,6 +60,14 @@ In order to have access to the MQTT transport you will have to installed the fol
 pip install paho-mqtt
 ```
 
+## JSON Serialization
+
+It is recommended to use a fast json library, such as [orjson](https://github.com/ijl/orjson) 
+or [ujson](https://github.com/ultrajson/ultrajson).
+
+The framework will load and use the most performance optimal library based
+on installations.
+
 # Quick Start
 The purpose of this implementation is to provide an application-level communication layer, 
 by providing implementations for Remote-Procedure-Calls (RPCs), Topic-based PubSub, Preemptable Services

@@ -14,21 +14,36 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Text
-import json
+import abc
+import enum
+from typing import Any
+
+DEFAULT_JSON_SERIALIZER = 'ujson'
+
+
+if DEFAULT_JSON_SERIALIZER == 'json':
+    import json as json
+elif DEFAULT_JSON_SERIALIZER == 'orjson':
+    import orjson as json
+elif DEFAULT_JSON_SERIALIZER == 'ujson':
+    import ujson as json
+
+
+class SerializationTypes(enum.IntEnum):
+    JSON = 0
 
 
 class ContentType:
     """Content Types."""
-    json: Text = 'application/json'
-    raw_bytes: Text = 'application/octet-stream'
-    text: Text = 'plain/text'
+    json: str = 'application/json'
+    raw_bytes: str = 'application/octet-stream'
+    text: str = 'plain/text'
 
 
-class Serializer:
+class Serializer(abc.ABC):
     """Serializer Abstract Class."""
-    CONTENT_TYPE: Text = 'None'
-    CONTENT_ENCODING: Text = 'None'
+    CONTENT_TYPE: str = 'None'
+    CONTENT_ENCODING: str = 'None'
 
     @staticmethod
     def serialize(data: dict):
@@ -40,11 +55,11 @@ class Serializer:
         raise NotImplementedError()
 
     @staticmethod
-    def deserialize(data: Text):
+    def deserialize(data: str):
         """deserialize.
 
         Args:
-            data (Text): -
+            data (str): -
         """
         raise NotImplementedError()
 
@@ -54,22 +69,20 @@ class JSONSerializer(Serializer):
 
     Static class.
     """
-    CONTENT_TYPE: Text = 'application/json'
-    CONTENT_ENCODING: Text = 'utf8'
+    CONTENT_TYPE: str = 'application/json'
+    CONTENT_ENCODING: str = 'utf8'
 
     @staticmethod
-    def serialize(data: dict):
+    def serialize(data: Any) -> str:
         """serialize.
 
         Args:
             data (dict): Serialize to json string
         """
-        if not isinstance(data, dict):
-            raise TypeError('Data are not of type Dict.')
         return json.dumps(data)
 
     @staticmethod
-    def deserialize(data: str):
+    def deserialize(data: str) -> Any:
         """deserialize.
 
         Args:

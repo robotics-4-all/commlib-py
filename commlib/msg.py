@@ -1,17 +1,14 @@
-import time
 import abc
-
-from typing import (Any, Callable, Dict, List, Optional, Tuple, Type,
-                    TypeVar, Union, Text)
-
+from dataclasses import asdict as as_dict
+from dataclasses import astuple as as_tuple
 from dataclasses import dataclass as DataClass
 from dataclasses import field as DataField
 from dataclasses import fields as DataFields
-from dataclasses import is_dataclass
-from dataclasses import make_dataclass
-from dataclasses import asdict as as_dict
-from dataclasses import astuple as as_tuple
+from dataclasses import is_dataclass, make_dataclass
+from typing import (Any, Dict, Optional, Text, Tuple, Type,
+                    TypeVar, Union)
 
+from commlib.utils import gen_timestamp
 
 Primitives = [str, int, float, bool, bytes]
 
@@ -64,11 +61,11 @@ class MessageHeader(Object):
     agent: Text = DataField(default='commlib-py')
 
     def __post_init__(self):
-        self.timestamp = int(time.time())
+        self.timestamp = gen_timestamp()
 
 
 class RPCMessage(abc.ABC):
-    """RPCObject Class.
+    """RPCMessage.
     RPC Object Class. Defines Request and Response data classes for
         instantiation. Used as a namespace.
     """
@@ -123,12 +120,21 @@ class HeartbeatMessage(PubSubMessage):
 
     ts: int = -1
 
+    def __post_init__(self):
+        self.ts = gen_timestamp()
 
-def object_from_dict(klass: Object, dikt: Dict[str, Any]):
+
+def object_from_dict(klass: Object, dikt: Dict[str, Any]) -> Any:
+    """object_from_dict.
+    Creates an object from a dict
+
+    Args:
+        klass (Object): klass
+        dikt (Dict[str, Any]): dikt
+    """
     try:
         fieldtypes = {f.name:f.type for f in DataFields(klass)}
         return klass(**{f:object_from_dict(fieldtypes[f],dikt[f]) for f in dikt})
     except:
         # Not an object (dataclass) field
         return dikt
-
