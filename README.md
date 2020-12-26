@@ -2,8 +2,8 @@
 Broker-based communication framework written in python 3.
 Implements the most common communication patterns (RPC/ReqResp, PubSub) over a message broker.
 A message broker is a communication middleware responsible for routing messages to the
-proper endpoints. Some examples of message brokers are: AMQP-based brokers (e.g. RabbitMQ),
-Apache Kafka, MQTT brokers (e.g. Mosquito) and Redis.
+proper endpoints. Some examples of message brokers are: AMQP brokers (e.g. RabbitMQ),
+Apache Kafka, MQTT brokers (e.g. Mosquito and EMQX) and Redis.
 
 Yes, Redis can also be used as a message broker for RPC and PubSub communication!!
 
@@ -648,8 +648,6 @@ if __name__ == '__main__':
     """
     bA_uri = 'sensors.*'
     bB_namespace = 'myrobot'
-    p1 = 'sensors.sonar.front'
-    p2 = 'sensors.ir.rear'
 
     bA_params = rcomm.ConnectionParameters()
     bB_params = mcomm.ConnectionParameters()
@@ -670,7 +668,7 @@ if __name__ == '__main__':
 
 ### AMQP / RabbitMQ
 
-RPC (request/reply) and PubSub Endpoints are supported by the protocol itself (AMQP), using deticated exchanges.
+RPC (request/reply) and PubSub Endpoints are supported by the protocol itself (AMQP), using dedicated exchanges.
 
 For RPC enpoints a `Direct Exchange` is used to route requests and responses,
 optionally using the [Direct Reply-to](https://www.rabbitmq.com/direct-reply-to.html).
@@ -793,14 +791,23 @@ Examples can be found at the [examples/](./examples) directory of this repositor
 
 # Tests
 
+Run tests by executing `tox` command under this repo directory:
+
+```bash
+make tests
+```
+
 **TODO - Currently working on!!**
 
 # Docs
 
+Make docs by running:
+
+```bash
+make docs
+```
+
 **TODO - Currently working on!!**
-
-# Roadmap
-
 
 # Contributions
 

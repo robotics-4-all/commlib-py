@@ -1,6 +1,6 @@
 import time
 import datetime
-from typing import Text, OrderedDict, Any
+from typing import Text, Dict, Any
 
 from .serializer import JSONSerializer, Serializer
 from .logger import Logger
@@ -16,7 +16,7 @@ class Event(Object):
     name: Text
     uri: Text
     description: Text = ''
-    payload: OrderedDict = DataField(default_factory=OrderedDict)
+    payload: Dict = DataField(default_factory=Dict)
 
 
 class BaseEventEmitter(object):

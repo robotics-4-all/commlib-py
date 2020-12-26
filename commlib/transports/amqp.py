@@ -1,14 +1,12 @@
 import functools
 import json
 import logging
-import sys
 import time
 import uuid
 from collections import deque
-from inspect import signature
 from threading import Event as ThreadEvent
 from threading import Semaphore, Thread
-from typing import Any, OrderedDict
+from typing import Dict
 
 import pika
 
@@ -19,11 +17,10 @@ from commlib.action import (
 )
 from commlib.events import BaseEventEmitter, Event
 from commlib.exceptions import *
-from commlib.logger import Logger, LoggingLevel
-from commlib.msg import ActionMessage, PubSubMessage, RPCMessage
+from commlib.logger import Logger
+from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCService
-from commlib.serializer import ContentType
 from commlib.utils import gen_timestamp
 
 # Reduce log level for pika internal logger
@@ -74,7 +71,7 @@ class MessageProperties(pika.BasicProperties):
         )
 
 
-class Credentials(object):
+class Credentials:
     """Connection credentials for authn/authz.
 
     Args:
@@ -115,7 +112,7 @@ class ConnectionParameters():
 
     def __init__(self,
                  host: str = '127.0.0.1',
-                 port: int =5672,
+                 port: int = 5672,
                  vhost: str = '/',
                  creds: Credentials = None,
                  secure: bool = False,
@@ -129,8 +126,8 @@ class ConnectionParameters():
 
         Args:
             host (str): Hostname of AMQP broker to connect to.
-            port (int|str): AMQP broker listening port.
-            creds (object): Auth Credentials - Credentials instance.
+            port (int): AMQP broker listening port.
+            creds (Credentials): Auth Credentials - Credentials instance.
             secure (bool): Enable SSL/TLS (AMQPS) - Not supported!!
             reconnect_attempts (int): The reconnection attempts to make before
                 droping and raising an Exception.
@@ -256,7 +253,7 @@ class Connection(pika.BlockingConnection):
         self._transport = transport
 
 
-class ExchangeType(object):
+class ExchangeType:
     """AMQP Exchange Types."""
     Topic = 'topic'
     Direct = 'direct'
@@ -264,7 +261,7 @@ class ExchangeType(object):
     Default = ''
 
 
-class AMQPTransport(object):
+class AMQPTransport:
     """AMQPT Transport implementation.
     """
 
@@ -302,21 +299,6 @@ class AMQPTransport(object):
     @property
     def connection(self):
         return self._connection
-
-    @property
-    def debug(self):
-        """Debug mode flag."""
-        return self._debug
-
-    @debug.setter
-    def debug(self, val):
-        if not isinstance(val, bool):
-            raise TypeError('Value should be boolean')
-        self._debug = val
-        if self._debug is True:
-            self.logger.setLevel(LoggingLevel.DEBUG)
-        else:
-            self.logger.setLevel(LoggingLevel.INFO)
 
     def connect(self):
         self.create_channel()
@@ -896,7 +878,7 @@ class Publisher(BasePublisher):
                                                     self._topic)
 
 
-    def _send_msg(self, data: OrderedDict, topic: str):
+    def _send_msg(self, data: Dict, topic: str):
         _payload = None
         _encoding = None
         _type = None
@@ -1080,7 +1062,7 @@ class Subscriber(BaseSubscriber):
         try:
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, OrderedDict(_data))
+                    _clb = functools.partial(self.onmessage, Dict(_data))
                 else:
                     _clb = functools.partial(self.onmessage,
                                              self._msg_type(**_data))
@@ -1154,7 +1136,7 @@ class PSubscriber(Subscriber):
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
-                                             OrderedDict(_data),
+                                             Dict(_data),
                                              _topic)
                 else:
                     _clb = functools.partial(self.onmessage,

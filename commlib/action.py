@@ -6,7 +6,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
 from functools import partial
-from typing import OrderedDict
+from typing import Dict
 
 from .logger import Logger
 from .msg import ActionMessage, DataClass, DataField, PubSubMessage, RPCMessage
@@ -467,7 +467,7 @@ class BaseActionClient(object):
             _ActionGoalMessage.Response:
         """
         _data = {}
-        if isinstance(goal_msg, dict) or isinstance(goal_msg, OrderedDict):
+        if isinstance(goal_msg, dict) or isinstance(goal_msg, Dict):
             _data = goal_msg
         elif isinstance(goal_msg, ActionMessage.Goal):
             _data = goal_msg.as_dict()

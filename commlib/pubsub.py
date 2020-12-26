@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import uuid
-from typing import OrderedDict, Any
+from typing import Dict, Any
 
 from .serializer import JSONSerializer
 from .logger import Logger
@@ -134,11 +134,11 @@ class BaseSubscriber(object):
         """
         raise NotImplementedError()
 
-    def on_message(self, data: OrderedDict) -> None:
+    def on_message(self, data: Dict) -> None:
         """on_message.
 
         Args:
-            data (OrderedDict): data
+            data (Dict): data
 
         Returns:
             None:

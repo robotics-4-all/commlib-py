@@ -7,12 +7,12 @@ import json
 import uuid
 import hashlib
 import datetime
-from typing import OrderedDict, Any
+from typing import Dict, Any
 from inspect import signature
 
 import redis
 
-from commlib.logger import Logger, LoggingLevel
+from commlib.logger import Logger
 from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.action import (
@@ -178,7 +178,7 @@ class RPCService(BaseRPCService):
     def _on_request(self, data: dict, header: dict):
         try:
             if self._msg_type is None:
-                resp = self.on_request(OrderedDict(data))
+                resp = self.on_request(Dict(data))
             else:
                 resp = self.on_request(self._msg_type.Request(**data))
                 ## RPCMessage.Response object here
@@ -399,7 +399,7 @@ class Subscriber(BaseSubscriber):
             header = payload['header']
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, OrderedDict(data))
+                    _clb = functools.partial(self.onmessage, Dict(data))
                 else:
                     _clb = functools.partial(self.onmessage, self._msg_type(**data))
                 _clb()
@@ -424,7 +424,7 @@ class PSubscriber(Subscriber):
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
-                                             OrderedDict(data),
+                                             Dict(data),
                                              _topic)
                 else:
                     _clb = functools.partial(self.onmessage,
