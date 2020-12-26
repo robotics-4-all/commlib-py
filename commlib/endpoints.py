@@ -9,7 +9,7 @@ class EndpointType(Enum):
     RPCClient = 2
     Publisher = 3
     Subscriber = 4
-    ActionServer = 5
+    ActionService = 5
     ActionClient = 6
     MPublisher = 7
     PSubscriber = 8
@@ -47,8 +47,8 @@ def endpoint_factory(etype: EndpointType, etransport: TransportType):
         return comm.Publisher
     elif etype == EndpointType.Subscriber:
         return comm.Subscriber
-    elif etype == EndpointType.ActionServer:
-        return comm.ActionServer
+    elif etype == EndpointType.ActionService:
+        return comm.ActionService
     elif etype == EndpointType.ActionClient:
         return comm.ActionClient
     elif etype == EndpointType.MPublisher:

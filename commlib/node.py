@@ -194,7 +194,7 @@ class Node:
         self._subscribers = []
         self._rpc_services = []
         self._rpc_clients = []
-        self._action_servers = []
+        self._action_services = []
         self._action_clients = []
         self._event_emitters = []
 
@@ -253,7 +253,7 @@ class Node:
         return {
             'subscriber': self._subscribers,
             'rpc_service': self._rpc_services,
-            'action_server': self._action_servers
+            'action_service': self._action_services
         }
 
     @property
@@ -276,7 +276,7 @@ class Node:
 
     def run(self) -> None:
         """run.
-        Starts Services, Subscribers and ActionServers.
+        Starts Services, Subscribers and ActionServices.
         Also starts the heartbeat thread (if enabled).
 
         Args:
@@ -288,7 +288,7 @@ class Node:
             s.run()
         for r in self._rpc_services:
             r.run()
-        for r in self._action_servers:
+        for r in self._action_services:
             r.run()
         if self._heartbeat_thread:
             self.init_heartbeat_thread(self._heartbeat_uri)
@@ -296,7 +296,7 @@ class Node:
 
     def run_forever(self, sleep_rate: float = 0.001) -> None:
         """run_forever.
-        Starts Services, Subscribers and ActionServers and blocks
+        Starts Services, Subscribers and ActionServices and blocks
         the main thread from exiting.
         Also starts the heartbeat thread (if enabled).
 
@@ -345,12 +345,12 @@ class Node:
         return client
 
     def create_action(self, *args, **kwargs):
-        """Creates a new ActionServer Endpoint.
+        """Creates a new ActionService Endpoint.
         """
-        action =  self._commlib.ActionServer(conn_params=self._conn_params,
+        action =  self._commlib.ActionService(conn_params=self._conn_params,
                                              logger = self._logger,
                                              *args, **kwargs)
-        self._action_servers.append(action)
+        self._action_services.append(action)
         return action
 
     def create_action_client(self, *args, **kwargs):

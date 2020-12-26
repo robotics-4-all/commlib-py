@@ -1,29 +1,30 @@
 import functools
+import json
+import logging
 import sys
 import time
-import json
 import uuid
-import pika
 from collections import deque
-from threading import Semaphore, Thread, Event as ThreadEvent
-import logging
-from typing import OrderedDict, Any
 from inspect import signature
+from threading import Event as ThreadEvent
+from threading import Semaphore, Thread
+from typing import Any, OrderedDict
 
-from commlib.logger import Logger, LoggingLevel
-from commlib.serializer import ContentType
-from commlib.rpc import BaseRPCService, BaseRPCClient
-from commlib.pubsub import BasePublisher, BaseSubscriber
+import pika
+
 from commlib.action import (
-    BaseActionServer, BaseActionClient, _ActionGoalMessage,
-    _ActionResultMessage, _ActionGoalMessage, _ActionCancelMessage,
-    _ActionStatusMessage, _ActionFeedbackMessage
+    BaseActionClient, BaseActionService, _ActionCancelMessage,
+    _ActionFeedbackMessage, _ActionGoalMessage,
+    _ActionResultMessage, _ActionStatusMessage
 )
 from commlib.events import BaseEventEmitter, Event
-from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
-from commlib.utils import gen_timestamp
 from commlib.exceptions import *
-
+from commlib.logger import Logger, LoggingLevel
+from commlib.msg import ActionMessage, PubSubMessage, RPCMessage
+from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.rpc import BaseRPCClient, BaseRPCService
+from commlib.serializer import ContentType
+from commlib.utils import gen_timestamp
 
 # Reduce log level for pika internal logger
 logging.getLogger("pika").setLevel(logging.WARN)
@@ -38,13 +39,29 @@ class MessageProperties(pika.BasicProperties):
         timestamp (str):
 
     """
-    def __init__(self, content_type=None, content_encoding=None,
-                 timestamp=None, correlation_id=None, reply_to=None,
-                 message_id=None, user_id=None, app_id=None):
-        """Constructor."""
+
+    def __init__(self, content_type: str = None,
+                 content_encoding: str = None,
+                 timestamp: float = None,
+                 correlation_id: str = None,
+                 reply_to: str = None,
+                 message_id: str = None,
+                 user_id: str = None,
+                 app_id: str = None):
+        """__init__.
+
+        Args:
+            content_type (str): content_type
+            content_encoding (str): content_encoding
+            timestamp (float): timestamp
+            correlation_id (str): correlation_id
+            reply_to (str): reply_to
+            message_id (str): message_id
+            user_id (str): user_id
+            app_id (str): app_id
+        """
         if timestamp is None:
-            timestamp = (time.time() + 0.5) * 1000
-        timestamp = int(timestamp)
+            timestamp = gen_timestamp()
         super(MessageProperties, self).__init__(
             content_type=content_type,
             content_encoding=content_encoding,
@@ -68,41 +85,26 @@ class Credentials(object):
     __slots__ = ['username', 'password']
 
     def __init__(self, username: str = 'guest', password: str = 'guest'):
-        """Constructor."""
+        """__init__.
+
+        Args:
+            username (str): username
+            password (str): password
+        """
         self.username = username
         self.password = password
 
     def make_pika(self):
+        """make_pika.
+        Create Pika Credentials instance.
+        """
         return pika.PlainCredentials(username=self.username,
                                      password=self.password)
 
 
 class ConnectionParameters():
     """AMQP Connection parameters.
-
-    Args:
-        host (str): Hostname of AMQP broker to connect to.
-        port (int|str): AMQP broker listening port.
-        creds (object): Auth Credentials - Credentials instance.
-        secure (bool): Enable SSL/TLS (AMQPS) - Not supported!!
-        reconnect_attempts (int): The reconnection attempts to make before
-            droping and raising an Exception.
-        retry_delay (float): Time delay between reconnect attempts.
-        timeout (float): Socket Connection timeout value.
-        timeout (float): Blocked Connection timeout value.
-            Set the timeout, in seconds, that the connection may remain blocked
-            (triggered by Connection.Blocked from broker). If the timeout
-            expires before connection becomes unblocked, the connection will
-            be torn down.
-        heartbeat_timeout (int): Controls AMQP heartbeat
-            timeout negotiation during connection tuning. An integer value
-            always overrides the value proposed by broker. Use 0 to deactivate
-            heartbeats and None to always accept the broker's proposal.
-            The value passed for timeout is also used to calculate an interval
-            at which a heartbeat frame is sent to the broker. The interval is
-            equal to the timeout value divided by two.
-        channel_max (int): The max permissible number of channels per
-            connection. Defaults to 128.
+    AMQP connection parameters class
     """
 
     __slots__ = [
@@ -123,7 +125,32 @@ class ConnectionParameters():
                  blocked_connection_timeout: float = None,
                  heartbeat_timeout: int = 60,
                  channel_max: int = 128):
-        """Constructor."""
+        """__init__.
+
+        Args:
+            host (str): Hostname of AMQP broker to connect to.
+            port (int|str): AMQP broker listening port.
+            creds (object): Auth Credentials - Credentials instance.
+            secure (bool): Enable SSL/TLS (AMQPS) - Not supported!!
+            reconnect_attempts (int): The reconnection attempts to make before
+                droping and raising an Exception.
+            retry_delay (float): Time delay between reconnect attempts.
+            timeout (float): Socket Connection timeout value.
+            timeout (float): Blocked Connection timeout value.
+                Set the timeout, in seconds, that the connection may remain blocked
+                (triggered by Connection.Blocked from broker). If the timeout
+                expires before connection becomes unblocked, the connection will
+                be torn down.
+            heartbeat_timeout (int): Controls AMQP heartbeat
+                timeout negotiation during connection tuning. An integer value
+                always overrides the value proposed by broker. Use 0 to deactivate
+                heartbeats and None to always accept the broker's proposal.
+                The value passed for timeout is also used to calculate an interval
+                at which a heartbeat frame is sent to the broker. The interval is
+                equal to the timeout value divided by two.
+            channel_max (int): The max permissible number of channels per
+                connection. Defaults to 128.
+        """
         self.host = host
         self.port = port
         self.secure = secure
@@ -175,6 +202,11 @@ class ConnectionParameters():
 class Connection(pika.BlockingConnection):
     """Connection. qThin wrapper around pika.BlockingConnection"""
     def __init__(self, conn_params: ConnectionParameters):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+        """
         self._connection_params = conn_params
         self._pika_connection = None
         self._transport = None
@@ -184,11 +216,22 @@ class Connection(pika.BlockingConnection):
             parameters=self._connection_params.make_pika())
 
     def stop_amqp_events_thread(self):
+        """stop_amqp_events_thread.
+        Stops the background thead that handles internal amqp events.
+        """
         if self._t_stop_event is not None:
             self._t_stop_event.set()
             self._events_thread = None
 
     def detach_amqp_events_thread(self):
+        """detach_amqp_events_thread.
+        Starts a thread in background to handle with internal amqp events.
+            Useful for use with producers in complex applications where
+            the program might sleep for several seconds. In this case,
+            if the amqp events thread is not started, the main thread
+            will be blocked and messages will not leave to the wire at
+            the expected time.
+        """
         if self._events_thread is not None:
             if self._events_thread.is_alive():
                 return
@@ -198,6 +241,8 @@ class Connection(pika.BlockingConnection):
         self._events_thread.start()
 
     def _ensure_events_processed(self):
+        """_ensure_events_processed.
+        """
         try:
             while True:
                 self.sleep(0.001)
@@ -223,7 +268,10 @@ class AMQPTransport(object):
     """AMQPT Transport implementation.
     """
 
-    def __init__(self, conn_params, debug=False, logger=None, connection=None):
+    def __init__(self, conn_params: ConnectionParameters,
+                 debug: bool = False,
+                 logger: Logger = None,
+                 connection: Connection = None):
         """Constructor."""
         # So that connections do not go zombie
 
@@ -1117,14 +1165,14 @@ class PSubscriber(Subscriber):
             self.logger.error('Error in on_msg_callback', exc_info=True)
 
 
-class ActionServer(BaseActionServer):
+class ActionService(BaseActionService):
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
         """__init__.
 
         Args:
-            action_name (str): The name (uri) of the Action
+            action_uri (str): The name (uri) of the Action
             msg_type (ActionMessage): The type of the Message
             conn_params (ConnectionParameters): Broker Connection parameters
             args:
@@ -1135,7 +1183,7 @@ class ActionServer(BaseActionServer):
 
         # self._conn = Connection(conn_params)
 
-        super(ActionServer, self).__init__(*args, **kwargs)
+        super(ActionService, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
                                     rpc_name=self._goal_rpc_uri,
@@ -1176,7 +1224,7 @@ class ActionClient(BaseActionClient):
         Action Client constructor.
 
         Args:
-            action_name (str): The name (uri) of the Action
+            action_uri (str): The name (uri) of the Action
             msg_type (ActionMessage): The type of the Message
             conn_params (ConnectionParameters): Broker Connection parameters
             args:

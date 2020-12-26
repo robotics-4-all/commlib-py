@@ -412,7 +412,7 @@ import time
 from commlib.action import GoalStatus
 from commlib.msg import ActionMessage, DataClass
 from commlib.transports.redis import (
-    ActionServer, ConnectionParameters
+    ActionService, ConnectionParameters
 )
 
 
@@ -444,11 +444,11 @@ def on_goal(goal_h):
 
 
 if __name__ == '__main__':
-    action_name = 'testaction'
+    action_uri = 'testaction'
     conn_params = ConnectionParameters()
-    action = ActionServer(msg_type=ExampleAction,
+    action = ActionService(msg_type=ExampleAction,
                           conn_params=conn_params,
-                          action_name=action_name,
+                          action_uri=action_uri,
                           on_goal=on_goal)
     action.run()
     while True:
@@ -490,11 +490,11 @@ def on_goal_reached(result):
 
 
 if __name__ == '__main__':
-    action_name = 'testaction'
+    action_uri = 'testaction'
     conn_params = ConnectionParameters()
     action_c = ActionClient(msg_type=ExampleAction,
                             conn_params=conn_params,
-                            action_name=action_name,
+                            action_uri=action_uri,
                             on_feedback=on_feedback,
                             on_goal_reached=on_goal_reached)
     goal_msg = ExampleAction.Goal(target_cm=5)

@@ -16,7 +16,7 @@ from commlib.logger import Logger, LoggingLevel
 from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.action import (
-    BaseActionServer, BaseActionClient, _ActionGoalMessage,
+    BaseActionService, BaseActionClient, _ActionGoalMessage,
     _ActionResultMessage, _ActionGoalMessage, _ActionCancelMessage,
     _ActionStatusMessage, _ActionFeedbackMessage
 )
@@ -435,8 +435,8 @@ class PSubscriber(Subscriber):
             self.logger.error('Exception caught in _on_message', exc_info=True)
 
 
-class ActionServer(BaseActionServer):
-    """ActionServer.
+class ActionService(BaseActionService):
+    """ActionService.
     Redis Action Server class
     """
 
@@ -447,13 +447,13 @@ class ActionServer(BaseActionServer):
 
         Args:
             conn_params (ConnectionParameters): Broker Connection Parameters
-            args: See BaseActionServer class.
+            args: See BaseActionService class.
             kwargs:
         """
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
-        super(ActionServer, self).__init__(*args, **kwargs)
+        super(ActionService, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
                                     rpc_name=self._goal_rpc_uri,

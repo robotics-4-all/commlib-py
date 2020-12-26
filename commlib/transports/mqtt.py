@@ -17,7 +17,7 @@ from commlib.serializer import ContentType
 from commlib.rpc import BaseRPCService, BaseRPCClient
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.action import (
-    BaseActionServer, BaseActionClient, _ActionGoalMessage,
+    BaseActionService, BaseActionClient, _ActionGoalMessage,
     _ActionResultMessage, _ActionGoalMessage, _ActionCancelMessage,
     _ActionStatusMessage, _ActionFeedbackMessage
 )
@@ -482,8 +482,8 @@ class RPCClient(BaseRPCClient):
             return self._msg_type.Response(**_resp)
 
 
-class ActionServer(BaseActionServer):
-    """ActionServer.
+class ActionService(BaseActionService):
+    """ActionService.
     MQTT Action Server
     """
 
@@ -494,8 +494,8 @@ class ActionServer(BaseActionServer):
 
         Args:
             conn_params (ConnectionParameters): conn_params
-            args: See BaseActionServer
-            kwargs: See BaseActionServer
+            args: See BaseActionService
+            kwargs: See BaseActionService
         """
         """__init__.
 
@@ -504,7 +504,7 @@ class ActionServer(BaseActionServer):
             args:
             kwargs:
         """
-        super(ActionServer, self).__init__(*args, **kwargs)
+        super(ActionService, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
                                     rpc_name=self._goal_rpc_uri,

@@ -46,7 +46,7 @@ class Serializer(abc.ABC):
     CONTENT_ENCODING: str = 'None'
 
     @staticmethod
-    def serialize(data: dict):
+    def serialize(data: Any) -> str:
         """serialize.
 
         Args:
@@ -55,7 +55,7 @@ class Serializer(abc.ABC):
         raise NotImplementedError()
 
     @staticmethod
-    def deserialize(data: str):
+    def deserialize(data: str) -> Any:
         """deserialize.
 
         Args:
