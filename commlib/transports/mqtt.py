@@ -1,32 +1,77 @@
-import functools
-import sys
-import time
-import json
-import uuid
+"""
+MQTT Implementation
+"""
+
 import datetime
-
-from collections import deque
-from threading import Semaphore, Thread, Event as ThreadEvent
-import logging
-from typing import OrderedDict, Any
-from inspect import signature
+import functools
+import json
+import time
 from enum import IntEnum
-
-from commlib.logger import Logger, LoggingLevel
-from commlib.serializer import ContentType
-from commlib.rpc import BaseRPCService, BaseRPCClient
-from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.action import (
-    BaseActionService, BaseActionClient, _ActionGoalMessage,
-    _ActionResultMessage, _ActionGoalMessage, _ActionCancelMessage,
-    _ActionStatusMessage, _ActionFeedbackMessage
-)
-from commlib.events import BaseEventEmitter, Event
-from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
-from commlib.utils import gen_timestamp
-from commlib.exceptions import RPCClientTimeoutError
+from typing import Dict, Any, Tuple
 
 import paho.mqtt.client as mqtt
+
+from commlib.action import (BaseActionClient, BaseActionService,
+                            _ActionCancelMessage, _ActionFeedbackMessage,
+                            _ActionGoalMessage, _ActionResultMessage,
+                            _ActionStatusMessage)
+from commlib.events import BaseEventEmitter, Event
+from commlib.exceptions import RPCClientTimeoutError, SubscriberError
+from commlib.logger import Logger
+from commlib.msg import PubSubMessage, RPCMessage, Object, DataField, DataClass
+from commlib.utils import gen_timestamp
+from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.rpc import BaseRPCClient, BaseRPCService
+from commlib.serializer import JSONSerializer
+
+
+@DataClass
+class CommObjectHeaderProps(Object):
+    """CommObjectHeaderProps.
+    """
+
+    content_type: str = DataField(default='application/json')
+    content_encoding: str = DataField(default='utf8')
+
+
+@DataClass
+class CommPubSubHeader(Object):
+    timestamp: int = DataField(default=gen_timestamp())
+    properties: CommObjectHeaderProps = DataField(
+        default_factory=CommObjectHeaderProps)
+
+
+@DataClass
+class CommPubSubObject(Object):
+    header: CommPubSubHeader = DataField(default_factory=CommPubSubHeader)
+    data: Dict[str, Any] = DataField(default_factory=dict)
+
+
+@DataClass
+class CommRPCHeader(Object):
+    timestamp: int = DataField(default=gen_timestamp())
+    reply_to: str = DataField(default='')
+    properties: CommObjectHeaderProps = DataField(
+        default_factory=CommObjectHeaderProps)
+
+
+@DataClass
+class CommRPCObject(Object):
+    header: CommRPCHeader = DataField(default_factory=CommRPCHeader)
+    data: Dict[str, Any] = DataField(default_factory=dict)
+
+
+@DataClass
+class CommEventHeader(Object):
+    timestamp: int = DataField(default=gen_timestamp())
+    properties: CommObjectHeaderProps = DataField(
+        default_factory=CommObjectHeaderProps)
+
+
+@DataClass
+class CommEventObject(Object):
+    header: CommEventHeader = DataField(default_factory=CommEventHeader)
+    data: Dict[str, Any] = DataField(default_factory=dict)
 
 
 class MQTTReturnCode(IntEnum):
@@ -43,13 +88,13 @@ class MQTTProtocolType(IntEnum):
     MQTTv311 = 2
 
 
-class Credentials(object):
+class Credentials:
     def __init__(self, username: str = '', password: str = ''):
         self.username = username
         self.password = password
 
 
-class ConnectionParameters(object):
+class ConnectionParameters:
     __slots__ = ['host', 'port', 'creds', 'protocol']
     def __init__(self,
                  host: str = 'localhost',
@@ -74,10 +119,19 @@ class ConnectionParameters(object):
         return self.creds
 
 
-class MQTTTransport(object):
+class MQTTTransport:
+    """MQTTTransport.
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = ConnectionParameters(),
                  logger: Logger = None):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            logger (Logger): logger
+        """
         self._conn_params = conn_params
         self._logger = logger
         self._connected = False
@@ -121,7 +175,9 @@ class MQTTTransport(object):
         # self.logger.debug(f'MQTT Log: {buf}')
         pass
 
-    def publish(self, topic: str, payload: dict, qos: int = 0,
+    def publish(self, topic: str,
+                payload: Dict[str, Any],
+                qos: int = 0,
                 retain: bool = False,
                 confirm_delivery: bool = False):
         topic = topic.replace('.', '/')
@@ -162,10 +218,15 @@ class Publisher(BasePublisher):
         """
         self._msg_seq = 0
         self.conn_params = conn_params
-        super(Publisher, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
         self._transport.start_loop()
+        self._comm_obj = CommPubSubObject()
+        self._comm_obj.header.properties.content_type = \
+            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
+        self._comm_obj.header.properties.content_encoding = \
+            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def publish(self, msg: PubSubMessage) -> None:
         """publish.
@@ -183,24 +244,20 @@ class Publisher(BasePublisher):
         _msg = self._prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
         self.logger.debug(
-            f'Publishing Message: <{self._topic}>:{data}')
+            f'Publishing Message to topic <{self._topic}>')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
-    def _prepare_msg(self, data):
-        header = {
-            'timestamp': int(datetime.datetime.now(
-                datetime.timezone.utc).timestamp() * 1000000),
-            'properties': {
-                'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING
-            }
-        }
-        _msg = {
-            'data': data,
-            'header': header
-        }
-        return _msg
+    def _prepare_msg(self, data: Dict[str, Any]):
+        """_prepare_msg.
+        Wraps in comm message. Includes header and data payload
+
+        Args:
+            data (Dict[str, Any]): data
+        """
+        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.data = data
+        return self._comm_obj.as_dict()
 
 
 class MPublisher(Publisher):
@@ -250,6 +307,17 @@ class Subscriber(BaseSubscriber):
         super(Subscriber, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
+        self._topic = self._validate_uri(self._topic)
+
+    def _validate_uri(self, uri):
+        # Use PSubscriber for pattern-based subscription
+        if '*' in uri or '#' in uri:
+            raise SubscriberError('URI validation error')
+        elif '.' in uri:
+            self.logger.warn(
+                'Found "." character in topic definition. Replacing with "/"')
+            uri = uri.replace('.', '/')
+        return uri
 
     def run(self):
         self._transport.subscribe(self._topic,
@@ -265,19 +333,25 @@ class Subscriber(BaseSubscriber):
 
     def _on_message(self, client, userdata, msg):
         try:
-            _topic = msg.topic
-            _payload = json.loads(msg.payload)
-            data = _payload['data']
-            header = _payload['header']
+            data, header, uri = self._unpack_comm_msg(msg)
+            if self._topic != uri:
+                raise SubscriberError('Subscribed topic does not match!!')
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, OrderedDict(data))
+                    _clb = functools.partial(self.onmessage, Dict(data))
                 else:
                     _clb = functools.partial(self.onmessage,
                                              self._msg_type(**data))
                 _clb()
         except Exception:
             self.logger.error('Exception caught in _on_message', exc_info=True)
+
+    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+        _uri = msg.topic
+        _payload = JSONSerializer.deserialize(msg.payload)
+        _data = _payload['data']
+        _header = _payload['header']
+        return _data, _header, _uri
 
 
 class PSubscriber(Subscriber):
@@ -286,19 +360,16 @@ class PSubscriber(Subscriber):
 
     def _on_message(self, client, userdata, msg):
         try:
-            _topic = msg.topic
-            _payload = json.loads(msg.payload)
-            data = _payload['data']
-            header = _payload['header']
+            data, header, topic = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
-                                             OrderedDict(data),
-                                             _topic)
+                                             Dict(data),
+                                             topic)
                 else:
                     _clb = functools.partial(self.onmessage,
                                              self._msg_type(**data),
-                                             _topic)
+                                             topic)
                 _clb()
         except Exception:
             self.logger.error('Exception caught in _on_message', exc_info=True)
@@ -323,32 +394,24 @@ class RPCService(BaseRPCService):
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
+        self._comm_obj = CommRPCObject()
+        self._comm_obj.header.properties.content_type = \
+            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
+        self._comm_obj.header.properties.content_encoding = \
+            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def _send_response(self, data: dict, reply_to: str):
-        header = {
-            'timestamp': int(datetime.datetime.now(
-                datetime.timezone.utc).timestamp() * 1000000),
-            'properties': {
-                'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING,
-                'msg_type': ''  ## TODO
-            }
-        }
-        _resp = {
-            'data': data,
-            'header': header
-        }
+        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.data = data
+        _resp = self._comm_obj.as_dict()
         _resp = self._serializer.serialize(_resp)
         self._transport.publish(reply_to, _resp)
 
-    def _on_request_wrapper(self, client, userdata, msg):
+    def _on_request_internal(self, client, userdata, msg):
         try:
-            _topic = msg.topic
-            _payload = json.loads(msg.payload)
-            data = _payload['data']
-            header = _payload['header']
+            data, header, uri = self._unpack_comm_msg(msg)
             if self._msg_type is None:
-                resp = self.on_request(OrderedDict(data))
+                resp = self.on_request(Dict(data))
             else:
                 resp = self.on_request(self._msg_type.Request(**data))
                 ## RPCMessage.Response object here
@@ -359,11 +422,18 @@ class RPCService(BaseRPCService):
         reply_to = header['reply_to']
         self._send_response(resp, reply_to)
 
+    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+        _uri = msg.topic
+        _payload = JSONSerializer.deserialize(msg.payload)
+        _data = _payload['data']
+        _header = _payload['header']
+        return _data, _header, _uri
+
     def run_forever(self):
         """run_forever.
         """
         self._transport.subscribe(self._rpc_name,
-                                  self._on_request_wrapper)
+                                  self._on_request_internal)
         self._transport.start_loop()
         while True:
             if self._t_stop_event is not None:
@@ -399,26 +469,20 @@ class RPCClient(BaseRPCClient):
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
         self._transport.start_loop()
+        self._comm_obj = CommRPCObject()
+        self._comm_obj.header.properties.content_type = \
+            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
+        self._comm_obj.header.properties.content_encoding = \
+            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
-    def __gen_queue_name(self):
+    def _gen_queue_name(self):
         return f'rpc-{self._gen_random_id()}'
 
-    def __prepare_request(self, data):
-        _reply_to = self.__gen_queue_name()
-        header = {
-            'timestamp': int(datetime.datetime.now(
-                datetime.timezone.utc).timestamp() * 1000000),
-            'reply_to': _reply_to,
-            'properties': {
-                'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING
-            }
-        }
-        _req = {
-            'data': data,
-            'header': header
-        }
-        return _req
+    def _prepare_request(self, data):
+        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.header.reply_to = self._gen_queue_name()
+        self._comm_obj.data = data
+        return self._comm_obj.as_dict()
 
     def _on_response_wrapper(self, client, userdata, msg):
         try:
@@ -465,7 +529,7 @@ class RPCClient(BaseRPCClient):
 
         self._response = None
 
-        _msg = self.__prepare_request(data)
+        _msg = self._prepare_request(data)
         _reply_to = _msg['header']['reply_to']
         _msg = self._serializer.serialize(_msg)
 
@@ -600,6 +664,11 @@ class EventEmitter(BaseEventEmitter):
         self._transport = MQTTTransport(conn_params=conn_params,
                                          logger=self._logger)
         self._transport.start_loop()
+        self._comm_obj = CommEventObject()
+        self._comm_obj.header.properties.content_type = \
+            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
+        self._comm_obj.header.properties.content_encoding = \
+            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def send_event(self, event: Event) -> None:
         """send_event.
@@ -617,25 +686,15 @@ class EventEmitter(BaseEventEmitter):
             'Sending Event: <{}>:{}'.format(event.uri, _msg))
         self._transport.publish(event.uri, _msg)
 
-    def _prepare_msg(self, data: dict) -> None:
+    def _prepare_msg(self, data: Dict[str, Any]) -> None:
         """_prepare_msg.
 
         Args:
-            data (dict): data
+            data (Dict[str, Any]): data
 
         Returns:
             None:
         """
-        header = {
-            'timestamp': int(datetime.datetime.now(
-                datetime.timezone.utc).timestamp() * 1000000),
-            'properties': {
-                'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING
-            }
-        }
-        _msg = {
-            'data': data,
-            'header': header
-        }
-        return _msg
+        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.data = data
+        return self._comm_obj.as_dict()
