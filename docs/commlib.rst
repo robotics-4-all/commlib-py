@@ -76,6 +76,14 @@ commlib.node module
    :undoc-members:
    :show-inheritance:
 
+commlib.proxy module
+--------------------
+
+.. automodule:: commlib.proxy
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 commlib.pubsub module
 ---------------------
 
@@ -96,6 +104,14 @@ commlib.serializer module
 -------------------------
 
 .. automodule:: commlib.serializer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+commlib.timer module
+--------------------
+
+.. automodule:: commlib.timer
    :members:
    :undoc-members:
    :show-inheritance:

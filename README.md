@@ -578,24 +578,10 @@ import time
 import commlib.transports.amqp as acomm
 import commlib.transports.redis as rcomm
 import commlib.transports.mqtt as mcomm
-from commlib.msg import PubSubMessage, RPCMessage, DataClass
 
 from commlib.bridges import (
     RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
 )
-
-
-def on_request(msg):
-    print(f'[Broker-B] - RPC Service received request: {msg}')
-    c = msg['a'] + msg['b']
-    resp = {
-        'c': c
-    }
-    return resp
-
-
-def on_message(msg):
-    print(f'[Broker-B] - Data received at topic - {msg}')
 
 
 def redis_to_mqtt_rpc_bridge():
@@ -614,38 +600,6 @@ def redis_to_mqtt_rpc_bridge():
     br.run()
 
 
-    ## For Testing Bridge ------------------>
-    ## BrokerA
-    client = rcomm.RPCClient(conn_params=bA_params,
-                             rpc_name=bA_uri,
-                             debug=False)
-
-    ## BrokerB
-    server = mcomm.RPCService(
-        conn_params=bB_params,
-        rpc_name=bB_uri,
-        on_request=on_request,
-        debug=False
-    )
-    server.run()
-    time.sleep(1)
-
-    count = 0
-    req_msg = {
-        'a': 1,
-        'b': 2
-    }
-    while count < 5:
-        req_msg['a'] = count
-        resp = client.call(req_msg)
-        print(f'[Broker-A Client] - Response from AMQP RPC Service: {resp}')
-        time.sleep(1)
-        count += 1
-    server.stop()
-    ## <-------------------------------------
-    br.stop()
-
-
 def redis_to_mqtt_topic_bridge():
     """
     [Producer Endpoint] ---> [Broker A] ---> [Broker B] ---> [Consumer Endpoint]
@@ -660,29 +614,6 @@ def redis_to_mqtt_topic_bridge():
                      to_broker_params=bB_params,
                      debug=False)
     br.run()
-
-    pub = rcomm.Publisher(conn_params=bA_params,
-                          topic=bA_uri,
-                          debug=False)
-
-    sub = mcomm.Subscriber(
-        conn_params=bB_params,
-        topic=bB_uri,
-        on_message=on_message
-    )
-    sub.run()
-
-    count = 0
-    msg = {
-        'a': 1
-    }
-    while count < 5:
-        msg['a'] = count
-        pub.publish(msg)
-        time.sleep(1)
-        count += 1
-    br.stop()
-    sub.stop()
 
 
 if __name__ == '__main__':
@@ -699,11 +630,9 @@ import time
 
 import commlib.transports.amqp as acomm
 import commlib.transports.redis as rcomm
-from commlib.msg import PubSubMessage, RPCMessage, DataClass
+from commlib.msg import PubSubMessage, DataClass
 
-from commlib.bridges import (
-    RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType, MTopicBridge
-)
+from commlib.bridges import MTopicBridge
 
 
 @DataClass
@@ -711,10 +640,6 @@ class SonarMessage(PubSubMessage):
     distance: float = 0.001
     horizontal_fov: float = 30.0
     vertical_fov: float = 14.0
-
-
-def on_message(msg: SonarMessage, topic: str):
-    print(f'[Broker-B] - Data received at topic - {topic}:{msg}')
 
 
 if __name__ == '__main__':
@@ -736,28 +661,7 @@ if __name__ == '__main__':
                       bB_params,
                       msg_type=SonarMessage,
                       debug=True)
-    br.run()
-
-    pub = rcomm.MPublisher(conn_params=bA_params,
-                           msg_type=SonarMessage,
-                           debug=True)
-
-    sub = mcomm.PSubscriber(
-        conn_params=bB_params,
-        topic=f'{bB_namespace}.{bA_uri}',
-        on_message=on_message
-    )
-    sub.run()
-
-    count = 0
-    msg = SonarMessage()
-    while count < 5:
-        pub.publish(msg, p1)
-        pub.publish(msg, p2)
-        time.sleep(1)
-        msg.distance += 1
-    br.stop()
-    sub.stop()
+    br.run_forever()
 ```
 
 **TODO**: Action bridges

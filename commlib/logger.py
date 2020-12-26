@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2020  Panayiotou, Konstantinos <klpanagi@gmail.com>
 # Author: Panayiotou, Konstantinos <klpanagi@gmail.com>
 #
@@ -15,17 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
-import time
 import logging
 import logging.config
-
-from .endpoints import TransportType
-
-
-class LoggingLevel(object):
-    DEBUG = logging.DEBUG
-    INFO = logging.INFO
 
 
 LOG_FORMAT = ('%(levelname) -10s %(asctime)s %(name) -30s %(funcName) '
@@ -68,19 +58,36 @@ logging.addLevelName(
 )
 
 
-def create_logger(namespace):
-    return logging.getLogger(namespace)
+class Logger:
+    """Logger.
+    Tiny wrapper around python's logging module
+    """
 
+    def __init__(self, namespace: str, debug: bool = False,
+                 log_file: str = None):
+        """__init__.
 
-class Logger(object):
-    """Tiny wrapper around python's logging module"""
-    def __init__(self, namespace, debug=False):
+        Args:
+            namespace (str): namespace
+            debug (bool): debug
+        """
         self.namespace = namespace
-        self.std_logger = create_logger(namespace)
+        self.std_logger = logging.getLogger(namespace)
+        self.log_file = log_file
         self._debug_mode = debug
         self.set_debug(self._debug_mode)
 
-    def set_debug(self, status):
+        if self.log_file is not None:
+            fh = logging.FileHandler(self.log_file)
+            self.std_logger.addHandler(fh)
+
+    def set_debug(self, status: bool):
+        """set_debug.
+        Set debug mode (Enable/Disable)
+
+        Args:
+            status (bool): status
+        """
         if not isinstance(status, bool):
             raise TypeError('Value should be boolean')
         if status:
@@ -89,100 +96,55 @@ class Logger(object):
             self.std_logger.setLevel(logging.INFO)
         self._debug_mode = status
 
-    def debug(self, msg, exc_info=False):
+    def debug(self, msg: str, exc_info: bool = False):
+        """debug.
+        Log debug messages.
+
+        Args:
+            msg (str): msg
+            exc_info (bool): exc_info
+        """
         self.std_logger.debug(msg, exc_info=exc_info)
 
-    def info(self, msg, exc_info=False):
+    def info(self, msg: str, exc_info: bool = False):
+        """info.
+        Log info messages.
+
+        Args:
+            msg (str): msg
+            exc_info (bool): exc_info
+        """
         self.std_logger.info(msg, exc_info=exc_info)
 
-    def warn(self, msg, exc_info=False):
+    def warn(self, msg: str, exc_info: bool = False):
+        """warn.
+        Log warning messages.
+
+        Args:
+            msg (str): msg
+            exc_info (bool): exc_info
+        """
         self.std_logger.warning(msg, exc_info=exc_info)
 
-    def warning(self, msg, exc_info=False):
+    def warning(self, msg: str, exc_info: bool = False):
+        """warning.
+        Same as warn(...)
+
+        Args:
+            msg (str): msg
+            exc_info (bool): exc_info
+        """
         self.warn(msg, exc_info)
 
     def error(self, msg, exc_info=False):
+        """error.
+        Log error messages.
+
+        Args:
+            msg:
+            exc_info:
+        """
         self.std_logger.error(msg, exc_info=exc_info)
 
 
-class RemoteLogger(Logger):
-    """Remote Logger Class."""
-    def __init__(self, namespace, transport_type, conn_params,
-                 remote_topic='', debug=False):
-        if transport_type == TransportType.REDIS:
-            from commlib.transports.redis import Publisher
-        else:
-            from commlib.transports.amqp import Publisher
-        super(RemoteLogger, self).__init__(namespace, debug)
-
-        self.conn_params = conn_params
-
-        if remote_topic == '':
-            self.remote_topic = '{}.logs'.format(namespace)
-        else:
-            self.remote_topic = remote_topic
-
-        self.log_pub = Publisher(conn_params=conn_params,
-                                 topic=self.remote_topic)
-        self._remote_state = 1
-        self._std_state = 1
-
-        self._formatting = '[{timestamp}][{namespace}][{level}] - {msg}'
-
-        self.info(f'Initiated RemoteLogger <{self.remote_topic}>')
-
-    @property
-    def remote(self):
-        return self._remote_state
-
-    @remote.setter
-    def remote(self, val):
-        if val:
-            self._remote_state = 1
-        else:
-            self._remote_state = 0
-
-    @property
-    def std(self):
-        return self._std_state
-
-    @std.setter
-    def std(self, val):
-        if val:
-            self._std_state = 1
-        else:
-            self._std_state = 0
-
-    def format_msg(self, msg, level):
-        fmsg = self._formatting.format(timestamp=self._gen_ts(),
-                                       namespace=self.namespace,
-                                       level=level,
-                                       msg=msg)
-        return {'msg': fmsg}
-
-    def debug(self, msg, exc_info=False):
-        if self._std_state:
-            self.std_logger.debug(msg, exc_info=exc_info)
-        if self._remote_state:
-            self.log_pub.publish(self.format_msg(msg, 'DEBUG'))
-
-    def info(self, msg, exc_info=False):
-        if self._std_state:
-            self.std_logger.info(msg, exc_info=exc_info)
-        if self._remote_state:
-            self.log_pub.publish(self.format_msg(msg, 'INFO'))
-
-    def warn(self, msg, exc_info=False):
-        if self._std_state:
-            self.std_logger.warning(msg, exc_info=exc_info)
-        if self._remote_state:
-            self.log_pub.publish(self.format_msg(msg, 'WARNING'))
-
-    def error(self, msg, exc_info=False):
-        if self._std_state:
-            self.std_logger.error(msg, exc_info=exc_info)
-        if self._remote_state:
-            self.log_pub.publish(self.format_msg(msg, 'ERROR'))
-
-    def _gen_ts(self):
-        return int((time.time() + 0.5) * 1000)
+ROOT_LOGGER = Logger('root')

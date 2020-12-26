@@ -12,27 +12,6 @@ from commlib.msg import MessageHeader, RPCMessage, PubSubMessage, Object
 from commlib.timer import Timer
 
 
-class TestTimer(unittest.TestCase):
-    """Tests for `commlib` package."""
-
-    def setUp(self):
-        """Set up test fixtures, if any."""
-
-    def tearDown(self):
-        """Tear down test fixtures, if any."""
-
-    def test_timer(self):
-        """Test MessageHeader class"""
-        def callback(event):
-            print(event)
-        tmr = Timer(1, callback)
-        tmr.start()
-        count = 0
-        while count < 3:
-            time.sleep(1)
-            count += 1
-
-
 class TestMessages(unittest.TestCase):
     """Tests for `commlib` package."""
 

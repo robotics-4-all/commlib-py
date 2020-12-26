@@ -7,7 +7,7 @@ from typing import Dict, List, Any, Text
 
 from commlib.endpoints import TransportType
 from commlib.utils import gen_random_id
-from commlib.logger import RemoteLogger, Logger
+from commlib.logger import Logger
 from commlib.bridges import TopicBridge, RPCBridge
 from commlib.msg import HeartbeatMessage
 
@@ -223,13 +223,7 @@ class Node:
         if connection_params is not None:
             self._conn_params = connection_params
 
-        if remote_logger:
-            self._logger = RemoteLogger(self._node_name, transport_type,
-                                        self._conn_params,
-                                        remote_topic=remote_logger_uri,
-                                        debug=debug)
-        else:
-            self._logger = Logger(self._node_name, debug=debug)
+        self._logger = Logger(self._node_name, debug=debug)
         self._logger.info(f'Created Node <{self._node_name}>')
 
     def init_heartbeat_thread(self, topic: str = None):
