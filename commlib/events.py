@@ -2,10 +2,10 @@ import time
 import datetime
 from typing import Text, Dict, Any
 
-from .serializer import JSONSerializer, Serializer
-from .logger import Logger
-from .utils import gen_random_id
-from .msg import Object, DataClass, DataField
+from commlib.serializer import JSONSerializer, Serializer
+from commlib.logger import Logger
+from commlib.utils import gen_random_id
+from commlib.msg import Object, DataClass, DataField
 
 
 @DataClass
@@ -16,7 +16,7 @@ class Event(Object):
     name: Text
     uri: Text
     description: Text = ''
-    payload: Dict = DataField(default_factory=Dict)
+    payload: Dict[str, Any] = DataField(default_factory=dict)
 
 
 class BaseEventEmitter(object):

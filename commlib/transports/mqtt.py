@@ -243,8 +243,7 @@ class Publisher(BasePublisher):
             data = msg.as_dict()
         _msg = self._prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
-        self.logger.debug(
-            f'Publishing Message to topic <{self._topic}>')
+        self.logger.debug(f'Publishing Message to topic <{self._topic}>')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
@@ -486,14 +485,18 @@ class RPCClient(BaseRPCClient):
 
     def _on_response_wrapper(self, client, userdata, msg):
         try:
-            _topic = msg.topic
-            _payload = json.loads(msg.payload)
-            data = _payload['data']
-            header = _payload['header']
+            data, header, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.logger.error(exc, exc_info=True)
             data = {}
         self._response = data
+
+    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+        _uri = msg.topic
+        _payload = JSONSerializer.deserialize(msg.payload)
+        _data = _payload['data']
+        _header = _payload['header']
+        return _data, _header, _uri
 
     def _wait_for_response(self, timeout: float = 10.0):
         """_wait_for_response.
@@ -682,8 +685,7 @@ class EventEmitter(BaseEventEmitter):
         _msg = event.as_dict()
         _msg = self._prepare_msg(_msg)
         _msg = self._serializer.serialize(_msg)
-        self.logger.debug(
-            'Sending Event: <{}>:{}'.format(event.uri, _msg))
+        self.logger.debug(f'Firing Event: {event.name}:<{event.uri}>')
         self._transport.publish(event.uri, _msg)
 
     def _prepare_msg(self, data: Dict[str, Any]) -> None:
