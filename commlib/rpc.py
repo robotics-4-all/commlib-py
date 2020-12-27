@@ -25,6 +25,17 @@ class BaseRPCService(object):
                  debug: bool = False,
                  workers: int = 2,
                  serializer=None):
+        """__init__.
+
+        Args:
+            rpc_name (str): rpc_name
+            msg_type (RPCMessage): msg_type
+            on_request (callable): on_request
+            logger (Logger): logger
+            debug (bool): debug
+            workers (int): workers
+            serializer:
+        """
         if rpc_name is None:
             raise ValueError('RPC Name cannot be None')
         self._rpc_name = rpc_name
@@ -57,9 +68,15 @@ class BaseRPCService(object):
         return self._logger
 
     def run_forever(self):
+        """run_forever.
+        Run the RPC service in background and blocks the main thread.
+        """
         raise NotImplementedError()
 
     def run(self):
+        """run.
+        Run the RPC service in background.
+        """
         self._main_thread = threading.Thread(target=self.run_forever)
         self._main_thread.daemon = True
         self._t_stop_event = threading.Event()
@@ -67,6 +84,9 @@ class BaseRPCService(object):
         self.logger.info(f'Started RPC Service <{self._rpc_name}>')
 
     def stop(self):
+        """stop.
+        Stop the RPC Service.
+        """
         if self._t_stop_event is not None:
             self._t_stop_event.set()
 
@@ -74,12 +94,6 @@ class BaseRPCService(object):
 class BaseRPCClient(object):
     """RPCClient Base class.
     Inherit to implement transport-specific RPCClient.
-
-    Args:
-        rpc_name (str): The name of the RPC.
-        logger (Logger): Logger instance.
-        debug (bool): Debug-mode.
-        serializer (): Serializer class.
     """
 
     def __init__(self,
@@ -88,7 +102,15 @@ class BaseRPCClient(object):
                  logger: Logger = None,
                  debug: bool = False,
                  serializer=None,
-                 max_workers=5):
+                 max_workers: int = 5):
+        """__init__.
+
+        Args:
+            rpc_name (str): rpc_name
+            msg_type (RPCMessage): msg_type
+            logger (Logger): logger
+            debug (bool): debug
+        """
         if rpc_name is None:
             raise ValueError('RPC name cannot be None')
         self._rpc_name = rpc_name
@@ -119,11 +141,30 @@ class BaseRPCClient(object):
 
     def call(self, msg: RPCMessage.Request,
              timeout: float = 30) -> RPCMessage.Response:
+        """call.
+        Synchronous RPC Call.
+
+        Args:
+            msg (RPCMessage.Request): msg
+            timeout (float): timeout
+
+        Returns:
+            RPCMessage.Response:
+        """
         raise NotImplementedError()
 
     def call_async(self, msg: RPCMessage.Request,
                    timeout: float = 30.0,
                    on_response: callable = None):
+        """call_async.
+        Asynchrouns RPC Call. The on_response callback is fired when result is
+        received by the client.
+
+        Args:
+            msg (RPCMessage.Request): msg
+            timeout (float): timeout
+            on_response (callable): on_response
+        """
         _future = self._executor.submit(self.call, msg, timeout)
         if on_response is not None:
             _future.add_done_callback(

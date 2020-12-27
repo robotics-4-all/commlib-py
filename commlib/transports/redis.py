@@ -1,35 +1,79 @@
+import datetime
 import functools
 import sys
 import time
-import atexit
-import signal
-import json
-import uuid
-import hashlib
-import datetime
-from typing import OrderedDict, Any
-from inspect import signature
+from typing import Any, Dict, Tuple
 
 import redis
 
-from commlib.logger import Logger, LoggingLevel
-from commlib.rpc import BaseRPCService, BaseRPCClient
-from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.action import (
-    BaseActionServer, BaseActionClient, _ActionGoalMessage,
-    _ActionResultMessage, _ActionGoalMessage, _ActionCancelMessage,
-    _ActionStatusMessage, _ActionFeedbackMessage
-)
-
+from commlib.action import (BaseActionClient, BaseActionService,
+                            _ActionCancelMessage, _ActionFeedbackMessage,
+                            _ActionGoalMessage, _ActionResultMessage,
+                            _ActionStatusMessage)
 from commlib.events import BaseEventEmitter, Event
-from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
+from commlib.exceptions import RPCClientTimeoutError, SubscriberError
+from commlib.logger import Logger
+from commlib.msg import DataClass, DataField, Object, PubSubMessage, RPCMessage
+from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.rpc import BaseRPCClient, BaseRPCService
+from commlib.serializer import JSONSerializer
+from commlib.utils import gen_timestamp
+
+
+@DataClass
+class CommObjectHeaderProps(Object):
+    """CommObjectHeaderProps.
+    """
+
+    content_type: str = DataField(default='application/json')
+    content_encoding: str = DataField(default='utf8')
+
+
+@DataClass
+class CommPubSubHeader(Object):
+    timestamp: int = DataField(default=gen_timestamp())
+    properties: CommObjectHeaderProps = DataField(
+        default_factory=CommObjectHeaderProps)
+
+
+@DataClass
+class CommPubSubObject(Object):
+    header: CommPubSubHeader = DataField(default_factory=CommPubSubHeader)
+    data: Dict[str, Any] = DataField(default_factory=dict)
+
+
+@DataClass
+class CommRPCHeader(Object):
+    timestamp: int = DataField(default=gen_timestamp())
+    reply_to: str = DataField(default='')
+    properties: CommObjectHeaderProps = DataField(
+        default_factory=CommObjectHeaderProps)
+
+
+@DataClass
+class CommRPCObject(Object):
+    header: CommRPCHeader = DataField(default_factory=CommRPCHeader)
+    data: Dict[str, Any] = DataField(default_factory=dict)
+
+
+@DataClass
+class CommEventHeader(Object):
+    timestamp: int = DataField(default=gen_timestamp())
+    properties: CommObjectHeaderProps = DataField(
+        default_factory=CommObjectHeaderProps)
+
+
+@DataClass
+class CommEventObject(Object):
+    header: CommEventHeader = DataField(default_factory=CommEventHeader)
+    data: Dict[str, Any] = DataField(default_factory=dict)
+
 
 
 class Credentials(object):
-    def __init__(self,
-                 username: str = '',
-                 password: str = ''):
+    def __init__(self, username: str = '', password: str = ''):
         self.username = username
+
         self.password = password
 
 
@@ -49,10 +93,22 @@ class ConnectionParametersBase(object):
 
 
 class TCPConnectionParameters(ConnectionParametersBase):
+    """TCPConnectionParameters.
+    Redis TCP connection parameters
+    """
+
     def __init__(self,
                  host: str = 'localhost',
                  port: str = 6379,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            host (str): host
+            port (str): port
+            args: See ConnectionParametersBase class
+            kwargs: See ConnectionParametersBase class
+        """
         super(TCPConnectionParameters, self).__init__(*args, **kwargs)
         self.host = host
         self.port = port
@@ -62,6 +118,13 @@ class UnixSocketConnectionParameters(ConnectionParametersBase):
     def __init__(self,
                  unix_socket: str = '/tmp/redis.sock',
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            unix_socket (str): unix_socket
+            args: See ConnectionParametersBase class
+            kwargs: See ConnectionParametersBase class
+        """
         super(UnixSocketConnectionParameters, self).__init__(*args, **kwargs)
         self.unix_socket = unix_socket
 
@@ -93,7 +156,6 @@ class RedisTransport(object):
         self._conn_params = conn_params
         self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
-        assert isinstance(self.logger, Logger)
         self._rsub = self._redis.pubsub()
 
     def delete_queue(self, queue_name):
@@ -124,15 +186,26 @@ class RedisTransport(object):
 
 
 class RPCService(BaseRPCService):
+    """RPCService.
+    Redis RPC Service class
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            args: See BaseRPCService class
+            kwargs: See BaseRPCService class
+        """
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
 
     def _send_response(self, data, reply_to):
-        meta = {
+        header = {
             'timestamp': int(datetime.datetime.now(
                 datetime.timezone.utc).timestamp() * 1000000),
             'properties': {
@@ -143,15 +216,15 @@ class RPCService(BaseRPCService):
         }
         _resp = {
             'data': data,
-            'meta': meta
+            'header': header
         }
         _resp = self._serializer.serialize(_resp)
         self._transport.push_msg_to_queue(reply_to, _resp)
 
-    def _on_request(self, data: dict, meta: dict):
+    def _on_request(self, data: dict, header: dict):
         try:
             if self._msg_type is None:
-                resp = self.on_request(OrderedDict(data))
+                resp = self.on_request(Dict(data))
             else:
                 resp = self.on_request(self._msg_type.Request(**data))
                 ## RPCMessage.Response object here
@@ -159,7 +232,7 @@ class RPCService(BaseRPCService):
         except Exception as exc:
             self.logger.error(str(exc), exc_info=False)
             resp = {}
-        reply_to = meta['reply_to']
+        reply_to = header['reply_to']
         self._send_response(resp, reply_to)
 
     def run_forever(self):
@@ -168,7 +241,7 @@ class RPCService(BaseRPCService):
             msgq, payload = self._transport.wait_for_msg(self._rpc_name,
                                                          timeout=0)
 
-            self.__detach_request_handler(payload)
+            self._detach_request_handler(payload)
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
                     self.logger.debug('Stop event caught in thread')
@@ -179,15 +252,19 @@ class RPCService(BaseRPCService):
     def stop(self):
         self._t_stop_event.set()
 
-    def __detach_request_handler(self, payload):
-        payload = self._serializer.deserialize(payload)
-        data = payload['data']
-        meta = payload['meta']
+    def _detach_request_handler(self, payload):
+        data, header = self._unpack_comm_msg(payload)
         self.logger.debug(f'RPC Request <{self._rpc_name}>')
         _future = self.__exec_in_thread(
-            functools.partial(self._on_request, data, meta)
+            functools.partial(self._on_request, data, header)
         )
         return _future
+
+    def _unpack_comm_msg(self, payload: Dict[str, Any]) -> Tuple:
+        _payload = JSONSerializer.deserialize(payload)
+        _data = _payload['data']
+        _header = _payload['header']
+        return _data, _header
 
     def __exec_in_thread(self, on_request):
         _future = self._executor.submit(on_request)
@@ -201,26 +278,20 @@ class RPCClient(BaseRPCClient):
         super(RPCClient, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
+        self._comm_obj = CommRPCObject()
+        self._comm_obj.header.properties.content_type = \
+            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
+        self._comm_obj.header.properties.content_encoding = \
+            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
-    def __gen_queue_name(self):
+    def _gen_queue_name(self):
         return f'rpc-{self._gen_random_id()}'
 
-    def __prepare_request(self, data):
-        _reply_to = self.__gen_queue_name()
-        meta = {
-            'timestamp': int(datetime.datetime.now(
-                datetime.timezone.utc).timestamp() * 1000000),
-            'reply_to': _reply_to,
-            'properties': {
-                'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING
-            }
-        }
-        _req = {
-            'data': data,
-            'meta': meta
-        }
-        return _req
+    def _prepare_request(self, data):
+        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.header.reply_to = self._gen_queue_name()
+        self._comm_obj.data = data
+        return self._comm_obj.as_dict()
 
     def call(self, msg: RPCMessage.Request,
              timeout: float = 30) -> RPCMessage.Response:
@@ -230,28 +301,45 @@ class RPCClient(BaseRPCClient):
         else:
             data = msg.as_dict()
 
-        _msg = self.__prepare_request(data)
-        _reply_to = _msg['meta']['reply_to']
+        _msg = self._prepare_request(data)
+        _reply_to = _msg['header']['reply_to']
         _msg = self._serializer.serialize(_msg)
         self._transport.push_msg_to_queue(self._rpc_name, _msg)
         msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
         self._transport.delete_queue(_reply_to)
         if _msg is None:
             return None
-        _msg = self._serializer.deserialize(_msg)
+        data, header = self._unpack_comm_msg(_msg)
         ## TODO: Evaluate response type and raise exception if necessary
-        data = _msg['data']
         if self._msg_type is None:
             return data
         else:
             return self._msg_type.Response(**data)
 
+    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+        _payload = JSONSerializer.deserialize(msg)
+        _data = _payload['data']
+        _header = _payload['header']
+        return _data, _header
+
 
 class Publisher(BasePublisher):
+    """Publisher.
+    MQTT Publisher (Single Topic).
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  queue_size: int = 10,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            queue_size (int): queue_size
+            args:
+            kwargs:
+        """
         self._queue_size = queue_size
         self._msg_seq = 0
 
@@ -259,40 +347,68 @@ class Publisher(BasePublisher):
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
+        self._comm_obj = CommPubSubObject()
+        self._comm_obj.header.properties.content_type = \
+            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
+        self._comm_obj.header.properties.content_encoding = \
+            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def publish(self, msg: PubSubMessage) -> None:
+        """publish.
+        Publish message
+
+        Args:
+            msg (PubSubMessage): msg
+
+        Returns:
+            None:
+        """
         if self._msg_type is None:
             data = msg
         else:
             data = msg.as_dict()
         _msg = self._prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
-        self.logger.debug(
-            f'Publishing Message: <{self._topic}>:{data}')
+        self.logger.debug(f'Publishing Message to topic <{self._topic}>')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
-    def _prepare_msg(self, data):
-        meta = {
-            'timestamp': int(datetime.datetime.now(
-                datetime.timezone.utc).timestamp() * 1000000),
-            'properties': {
-                'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING
-            }
-        }
-        _msg = {
-            'data': data,
-            'meta': meta
-        }
-        return _msg
+    def _prepare_msg(self, data: Dict[str, Any]):
+        """_prepare_msg.
+        Wraps in comm message. Includes header and data payload
+
+        Args:
+            data (Dict[str, Any]): data
+        """
+        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.data = data
+        return self._comm_obj.as_dict()
 
 
 class MPublisher(Publisher):
+    """MPublisher.
+    Multi-Topic Redis Publisher
+    """
+
     def __init__(self, *args, **kwargs):
+        """__init__.
+
+        Args:
+            args: See Publisher class
+            kwargs: See Publisher class
+        """
         super(MPublisher, self).__init__(topic='*', *args, **kwargs)
 
     def publish(self, msg: PubSubMessage, topic: str) -> None:
+        """publish.
+
+        Args:
+            msg (PubSubMessage): Message to publish
+            topic (str): Topic (URI) to send the message
+
+        Returns:
+            None:
+        """
         if self._msg_type is None:
             data = msg
         else:
@@ -306,15 +422,34 @@ class MPublisher(Publisher):
 
 
 class Subscriber(BaseSubscriber):
+    """Subscriber.
+    Redis Subscriber
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  queue_size: int = 1,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            queue_size (int): queue_size
+            args:
+            kwargs:
+        """
         self._queue_size = queue_size
         super(Subscriber, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
+        self._topic = self._validate_uri(self._topic)
+
+    def _validate_uri(self, uri: str) -> str:
+        # Use PSubscriber for pattern-based subscription
+        if '*' in uri or '#' in uri:
+            raise SubscriberError('URI validation error')
+        return uri
 
     def run(self):
         self._subscriber_thread = self._transport.subscribe(self._topic,
@@ -333,47 +468,59 @@ class Subscriber(BaseSubscriber):
         while True:
             time.sleep(0.001)
 
-    def _on_message(self, payload: dict):
+    def _on_message(self, payload: Dict[str, Any]):
         try:
-            _topic = payload['channel']
-            payload = self._serializer.deserialize(payload['data'])
-            data = payload['data']
-            meta = payload['meta']
+            data, header, uri = self._unpack_comm_msg(payload)
+            if self._topic != uri:
+                raise SubscriberError('Subscribed topic does not match!!')
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, OrderedDict(data))
+                    _clb = functools.partial(self.onmessage, Dict(data))
                 else:
-                    _clb = functools.partial(self.onmessage, self._msg_type(**data))
+                    _clb = functools.partial(self.onmessage,
+                                             self._msg_type(**data))
                 _clb()
         except Exception:
             self.logger.error('Exception caught in _on_message', exc_info=True)
+
+    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+        _uri = msg['channel']
+        _payload = JSONSerializer.deserialize(msg['data'])
+        _data = _payload['data']
+        _header = _payload['header']
+        return _data, _header, _uri
 
     def _exit_gracefully(self):
         self._subscriber_thread.stop()
 
 
 class PSubscriber(Subscriber):
-    def _on_message(self, payload: dict):
-        _topic = payload['channel']
-        payload = self._serializer.deserialize(payload['data'])
-        data = payload['data']
-        meta = payload['meta']
+    """PSubscriber.
+    Redis Pattern-based Subscriber.
+    """
+
+    def _on_message(self, payload: Dict[str, Any]) -> None:
         try:
+            data, header, topic = self._unpack_comm_msg(payload)
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
-                                             OrderedDict(data),
-                                             _topic)
+                                             Dict(data),
+                                             topic)
                 else:
                     _clb = functools.partial(self.onmessage,
                                              self._msg_type(**data),
-                                             _topic)
+                                             topic)
                 _clb()
         except Exception:
             self.logger.error('Exception caught in _on_message', exc_info=True)
 
 
-class ActionServer(BaseActionServer):
+class ActionService(BaseActionService):
+    """ActionService.
+    Redis Action Server class
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
@@ -381,13 +528,13 @@ class ActionServer(BaseActionServer):
 
         Args:
             conn_params (ConnectionParameters): Broker Connection Parameters
-            args:
+            args: See BaseActionService class.
             kwargs:
         """
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
-        super(ActionServer, self).__init__(*args, **kwargs)
+        super(ActionService, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
                                     rpc_name=self._goal_rpc_uri,
@@ -420,6 +567,10 @@ class ActionServer(BaseActionServer):
 
 
 class ActionClient(BaseActionClient):
+    """ActionClient.
+    Redis Action Client class
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
@@ -427,10 +578,9 @@ class ActionClient(BaseActionClient):
 
         Args:
             conn_params (ConnectionParameters): Broker Connection Parameters
-            args:
-            kwargs:
+            args: See BaseActionClient class
+            kwargs: See BaseActionClient class
         """
-        assert isinstance(conn_params, ConnectionParametersBase)
         conn_params = UnixSocketConnectionParameters() if \
             conn_params is None else conn_params
 
@@ -464,6 +614,10 @@ class ActionClient(BaseActionClient):
 
 
 class EventEmitter(BaseEventEmitter):
+    """EventEmitter.
+    Redis EventEmitter class
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
@@ -471,13 +625,18 @@ class EventEmitter(BaseEventEmitter):
 
         Args:
             conn_params (ConnectionParameters): Broker Connection Parameters
-            args:
-            kwargs:
+            args: See BaseEventEmitter class
+            kwargs: See BaseEventEmitter class
         """
         super(EventEmitter, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
+        self._comm_obj = CommEventObject()
+        self._comm_obj.header.properties.content_type = \
+            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
+        self._comm_obj.header.properties.content_encoding = \
+            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def send_event(self, event: Event) -> None:
         """send_event.
@@ -491,21 +650,10 @@ class EventEmitter(BaseEventEmitter):
         _msg = event.as_dict()
         _msg = self._prepare_msg(_msg)
         _msg = self._serializer.serialize(_msg)
-        # self.logger.debug(
-        #     'Firing Event: <{}>:{}'.format(event.uri, _msg))
+        self.logger.debug(f'Firing Event: {event.name}:<{event.uri}>')
         self._transport.publish(event.uri, _msg)
 
-    def _prepare_msg(self, data: dict) -> None:
-        meta = {
-            'timestamp': int(datetime.datetime.now(
-                datetime.timezone.utc).timestamp() * 1000000),
-            'properties': {
-                'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING
-            }
-        }
-        _msg = {
-            'data': data,
-            'meta': meta
-        }
-        return _msg
+    def _prepare_msg(self, data: Dict[str, Any]) -> None:
+        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.data = data
+        return self._comm_obj.as_dict()

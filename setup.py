@@ -10,7 +10,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['Click>=7.0', 'pika==1.1.0', 'redis', 'hiredis']
+requirements = ['Click>=7.0']
 
 setup_requirements = [ ]
 
@@ -21,7 +21,7 @@ setup(
     author_email='klpanagi@gmail.com',
     python_requires='>=3.5',
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 2 - Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
@@ -31,7 +31,8 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
     ],
-    description="Communication Lirary for Python implementing the most common communication patterns for CyberPhysical Systems.",
+    description="Communication Lirary for Python implementing the " + \
+        "most common communication patterns for CyberPhysical Systems.",
     entry_points={
         'console_scripts': [],
     },
@@ -45,7 +46,7 @@ setup(
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
-    url='https://github.com/klpanagi/commlib',
-    version='0.2.2',
+    url='https://github.com/robotics-4-all/commlib-py',
+    version='0.4.2',
     zip_safe=False,
 )

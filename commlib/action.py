@@ -1,17 +1,17 @@
-from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures.thread
+import datetime
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
-import datetime
-from typing import OrderedDict
-
-from .serializer import JSONSerializer, Serializer
-from .logger import Logger
-from .msg import ActionMessage, RPCMessage, PubSubMessage, DataClass, DataField
-from .utils import gen_random_id
 from functools import partial
+from typing import Dict
+
+from .logger import Logger
+from .msg import ActionMessage, DataClass, DataField, PubSubMessage, RPCMessage
+from .serializer import JSONSerializer, Serializer
+from .utils import gen_random_id
 
 
 class GoalStatus(IntEnum):
@@ -193,7 +193,7 @@ class GoalHandler(object):
             self.set_status(GoalStatus.CANCELING)
             self._goal_task.cancel()
             self._cancel_event.set()
-            s = self._goal_task.result()
+            _ = self._goal_task.result()
             # self._executor.shutdown(wait=False)
             self._executor._threads.clear()
             concurrent.futures.thread._threads_queues.clear()
@@ -227,9 +227,9 @@ class GoalHandler(object):
         self.result = result
 
 
-class BaseActionServer(object):
+class BaseActionService(object):
     def __init__(self,
-                 action_name: str,
+                 action_uri: str,
                  msg_type: ActionMessage = None,
                  logger: Logger = None,
                  debug: bool = True,
@@ -239,7 +239,7 @@ class BaseActionServer(object):
         """__init__.
 
         Args:
-            action_name (str): The name (uri) of the action
+            action_uri (str): The name (uri) of the action
             msg_type (ActionMessage): The type of the message
             logger (Logger): Logger instance
             debug (bool): Debug mode
@@ -249,16 +249,16 @@ class BaseActionServer(object):
         """
         self._msg_type = msg_type
         self._debug = debug
-        self._action_name = action_name
+        self._action_uri = action_uri
         self._on_goal = on_goal
         self._on_cancel = on_cancel
         self._on_getresult = on_getresult
 
-        self._status_topic = f'{self._action_name}.status'
-        self._feedback_topic = f'{self._action_name}.feedback'
-        self._goal_rpc_uri = f'{self._action_name}.send_goal'
-        self._cancel_rpc_uri = f'{self._action_name}.cancel_goal'
-        self._result_rpc_uri = f'{self._action_name}.get_result'
+        self._status_topic = f'{self._action_uri}.status'
+        self._feedback_topic = f'{self._action_uri}.feedback'
+        self._goal_rpc_uri = f'{self._action_uri}.send_goal'
+        self._cancel_rpc_uri = f'{self._action_uri}.cancel_goal'
+        self._result_rpc_uri = f'{self._action_uri}.get_result'
 
         ## To be instantiated by the child classes
         self._feedback_pub = None
@@ -287,7 +287,7 @@ class BaseActionServer(object):
         self._goal_rpc.run()
         self._cancel_rpc.run()
         self._result_rpc.run()
-        self.logger.info(f'Started Action Server <{self._action_name}>')
+        self.logger.info(f'Started Action Server <{self._action_uri}>')
 
     def stop(self):
         """stop.
@@ -366,10 +366,10 @@ class BaseActionServer(object):
         resp = _ActionResultMessage.Response()
         _goal_id = msg.goal_id
         if _goal_id == '':
+            pass
+        elif self._current_goal is None:
             return resp
-        if self._current_goal is None:
-            return resp
-        if self._current_goal.id != _goal_id:
+        elif self._current_goal.id != _goal_id:
             return resp
         resp.status = self._current_goal.status
         ## Set Result data
@@ -385,7 +385,7 @@ class BaseActionServer(object):
 
 class BaseActionClient(object):
     def __init__(self,
-                 action_name: str,
+                 action_uri: str,
                  msg_type: ActionMessage = None,
                  logger: Logger = None,
                  debug: bool = False,
@@ -395,7 +395,7 @@ class BaseActionClient(object):
         """__init__.
 
         Args:
-            action_name (str): The name (uri) of the action
+            action_uri (str): The name (uri) of the action
             msg_type (ActionMessage): The type of the message
             logger (Logger): Logger instance
             debug (bool): Debug mode
@@ -404,14 +404,14 @@ class BaseActionClient(object):
             on_goal_reached (callable): on_goal_reached
         """
         self._debug = debug
-        self._action_name = action_name
+        self._action_uri = action_uri
         self._msg_type = msg_type
 
-        self._status_topic = f'{self._action_name}.status'
-        self._feedback_topic = f'{self._action_name}.feedback'
-        self._goal_rpc_uri = f'{self._action_name}.send_goal'
-        self._cancel_rpc_uri = f'{self._action_name}.cancel_goal'
-        self._result_rpc_uri = f'{self._action_name}.get_result'
+        self._status_topic = f'{self._action_uri}.status'
+        self._feedback_topic = f'{self._action_uri}.feedback'
+        self._goal_rpc_uri = f'{self._action_uri}.send_goal'
+        self._cancel_rpc_uri = f'{self._action_uri}.cancel_goal'
+        self._result_rpc_uri = f'{self._action_uri}.get_result'
 
         ## To be instantiated by the child classes
         self._goal_client = None
@@ -467,7 +467,7 @@ class BaseActionClient(object):
             _ActionGoalMessage.Response:
         """
         _data = {}
-        if isinstance(goal_msg, dict) or isinstance(goal_msg, OrderedDict):
+        if isinstance(goal_msg, dict) or isinstance(goal_msg, Dict):
             _data = goal_msg
         elif isinstance(goal_msg, ActionMessage.Goal):
             _data = goal_msg.as_dict()
@@ -492,7 +492,7 @@ class BaseActionClient(object):
             _ActionCancelMessage.Response:
         """
         req = _ActionCancelMessage.Request(goal_id=self._goal_id)
-        resp = self._cancel_client.call(req, timeout=timeout)
+        _ = self._cancel_client.call(req, timeout=timeout)
         ## TODO Check response status
         res = self.get_result(wait=wait_for_result)
         return res

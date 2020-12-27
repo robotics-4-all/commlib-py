@@ -1,45 +1,58 @@
-import time
-import uuid
-import json
-import hashlib
-
-from dataclasses import dataclass as DataClass
-from dataclasses import field as DataField
-from dataclasses import is_dataclass
-from dataclasses import make_dataclass
+import abc
 from dataclasses import asdict as as_dict
 from dataclasses import astuple as as_tuple
-from typing import List, Dict, Tuple, Sequence, Any, Text
+from dataclasses import dataclass as DataClass
+from dataclasses import field as DataField
+from dataclasses import fields as DataFields
+from dataclasses import is_dataclass, make_dataclass
+from typing import (Any, Dict, Optional, Text, Tuple, Type,
+                    TypeVar, Union)
 
-import redis
+from commlib.utils import gen_timestamp
 
-from .serializer import JSONSerializer
+Primitives = [str, int, float, bool, bytes]
 
 
 @DataClass
-class Object:
+class Object(abc.ABC):
     """Object Class.
     Base Object Class. Implements base methods to inherit.
     """
-    def __iter__(self) -> tuple:
+    def __iter__(self) -> Tuple[str, Any]:
         yield from as_tuple(self)
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> Dict[str, Any]:
+        """as_dict.
+
+        Args:
+
+        Returns:
+            dict:
+        """
         return as_dict(self)
 
-    def from_dict(self, data_dict: dict) -> None:
-        """Fill message data fields from dict key-value pairs."""
+    def from_dict(self, data_dict: Dict[str, Any]) -> None:
+        """from_dict.
+        Fill message data fields from dict key-value pairs.
+
+        Args:
+            data_dict (dict): data_dict
+
+        Returns:
+            None:
+        """
+        fieldtypes = {f.name:f.type for f in DataFields(self.__class__)}
         for key, val in data_dict.items():
             if hasattr(self, key):
-                setattr(self, key, val)
+                setattr(self, key, object_from_dict(fieldtypes[key], val))
             else:
                 raise AttributeError(
                     f'{self.__class__.__name__} has no attribute {key}')
 
 
 @DataClass
-class MetaInfoObject(Object):
-    """MetaInfoObject Class.
+class MessageHeader(Object):
+    """MessageHeader Class.
     Implements the Header data class.
     """
     seq: int = DataField(default=0)
@@ -48,21 +61,26 @@ class MetaInfoObject(Object):
     agent: Text = DataField(default='commlib-py')
 
     def __post_init__(self):
-        self.timestamp = int(time.time())
+        self.timestamp = gen_timestamp()
 
 
-class RPCMessage:
-    """RPCObject Class.
+class RPCMessage(abc.ABC):
+    """RPCMessage.
     RPC Object Class. Defines Request and Response data classes for
         instantiation. Used as a namespace.
     """
+
     @DataClass
     class Request(Object):
-        meta: MetaInfoObject = MetaInfoObject()
+        """Request.
+        RPC Request Message
+        """
 
     @DataClass
     class Response(Object):
-        meta: MetaInfoObject = MetaInfoObject()
+        """Response.
+        RPC Response Message
+        """
 
 
 @DataClass
@@ -70,23 +88,53 @@ class PubSubMessage(Object):
     """PubSubObject Class.
     Implementation of the PubSubObject Base Data class.
     """
-    meta: MetaInfoObject = DataField(default=MetaInfoObject())
 
 
 class ActionMessage(Object):
+    """ActionMessage.
+    """
+
     @DataClass
     class Goal(Object):
-        meta: MetaInfoObject = MetaInfoObject()
+        """Goal.
+        Action Goal Message
+        """
 
     @DataClass
     class Result(Object):
-        meta: MetaInfoObject = MetaInfoObject()
+        """Result.
+        Action Result Message
+        """
 
     @DataClass
     class Feedback(Object):
-        meta: MetaInfoObject = MetaInfoObject()
+        """Feedback.
+        Action Feedback Message
+        """
 
 
 @DataClass
 class HeartbeatMessage(PubSubMessage):
+    """HeartbeatMessage.
+    """
+
     ts: int = -1
+
+    def __post_init__(self):
+        self.ts = gen_timestamp()
+
+
+def object_from_dict(klass: Object, dikt: Dict[str, Any]) -> Any:
+    """object_from_dict.
+    Creates an object from a dict
+
+    Args:
+        klass (Object): klass
+        dikt (Dict[str, Any]): dikt
+    """
+    try:
+        fieldtypes = {f.name:f.type for f in DataFields(klass)}
+        return klass(**{f:object_from_dict(fieldtypes[f],dikt[f]) for f in dikt})
+    except:
+        # Not an object (dataclass) field
+        return dikt

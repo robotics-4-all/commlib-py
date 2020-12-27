@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2020  Panayiotou, Konstantinos <klpanagi@gmail.com>
 # Author: Panayiotou, Konstantinos <klpanagi@gmail.com>
 #
@@ -15,28 +14,53 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Text, OrderedDict, Any
-import json
+import abc
+import enum
+from typing import Any
+
+DEFAULT_JSON_SERIALIZER = 'ujson'
 
 
-class ContentType(object):
+if DEFAULT_JSON_SERIALIZER == 'json':
+    import json as json
+elif DEFAULT_JSON_SERIALIZER == 'orjson':
+    import orjson as json
+elif DEFAULT_JSON_SERIALIZER == 'ujson':
+    import ujson as json
+
+
+class SerializationTypes(enum.IntEnum):
+    JSON = 0
+
+
+class ContentType:
     """Content Types."""
-    json: Text = 'application/json'
-    raw_bytes: Text = 'application/octet-stream'
-    text: Text = 'plain/text'
+    json: str = 'application/json'
+    raw_bytes: str = 'application/octet-stream'
+    text: str = 'plain/text'
 
 
-class Serializer(object):
+class Serializer(abc.ABC):
     """Serializer Abstract Class."""
-    CONTENT_TYPE: Text = 'None'
-    CONTENT_ENCODING: Text = 'None'
+    CONTENT_TYPE: str = 'None'
+    CONTENT_ENCODING: str = 'None'
 
     @staticmethod
-    def serialize(self, data: Text):
+    def serialize(data: Any) -> str:
+        """serialize.
+
+        Args:
+            data (dict): Serialize a dict
+        """
         raise NotImplementedError()
 
     @staticmethod
-    def deserialize(self, data: Text):
+    def deserialize(data: str) -> Any:
+        """deserialize.
+
+        Args:
+            data (str): -
+        """
         raise NotImplementedError()
 
 
@@ -45,15 +69,23 @@ class JSONSerializer(Serializer):
 
     Static class.
     """
-    CONTENT_TYPE: Text = 'application/json'
-    CONTENT_ENCODING: Text = 'utf8'
+    CONTENT_TYPE: str = 'application/json'
+    CONTENT_ENCODING: str = 'utf8'
 
     @staticmethod
-    def serialize(data: dict):
-        if not isinstance(data, dict):
-            raise TypeError('Data are not of type Dict.')
+    def serialize(data: Any) -> str:
+        """serialize.
+
+        Args:
+            data (dict): Serialize to json string
+        """
         return json.dumps(data)
 
     @staticmethod
-    def deserialize(data: str):
+    def deserialize(data: str) -> Any:
+        """deserialize.
+
+        Args:
+            data (str): json str to dict
+        """
         return json.loads(data)

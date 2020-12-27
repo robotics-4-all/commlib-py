@@ -5,7 +5,7 @@ Credits
 Development Lead
 ----------------
 
-* Konstantinos Panayiotou <klpanagi@gmail.com>
+* Konstantinos Panayiotou (klpanagi) <klpanagi@gmail.com>
 
 Contributors
 ------------

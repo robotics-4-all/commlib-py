@@ -7,37 +7,67 @@ from typing import Dict, List, Any, Text
 
 from commlib.endpoints import TransportType
 from commlib.utils import gen_random_id
-from commlib.logger import RemoteLogger, Logger
+from commlib.logger import Logger
 from commlib.bridges import TopicBridge, RPCBridge
 from commlib.msg import HeartbeatMessage
 
 
-class NodePort(object):
+class NodePort:
+    """NodePort.
+    """
+
     def __init__(self):
         pass
 
 
 class NodeInputPort(NodePort):
+    """NodeInputPort.
+    """
+
     def __init__(self, *args, **kwargs):
-        super(NodeInputPort, self).__init__(*args, **kwargs)
+        """__init__.
+
+        Args:
+            args:
+            kwargs:
+        """
+        super().__init__(*args, **kwargs)
 
 
 class NodeOutputPort(NodePort):
+    """NodeOutputPort.
+    """
+
     def __init__(self, *args, **kwargs):
-        super(NodeOutputPort, self).__init__(*args, **kwargs)
+        """__init__.
+
+        Args:
+            args:
+            kwargs:
+        """
+        super().__init__(*args, **kwargs)
 
 
 class NodePortType(IntEnum):
+    """NodePortType.
+    """
+
     Input = 1
     Output = 2
 
 
 class NodeExecutorType(IntEnum):
+    """NodeExecutorType.
+    """
+
     ProcessExecutor = 1
     ThreadExecutor = 2
 
 
 class NodeState(IntEnum):
+    """NodeState.
+    """
+
     IDLE = 1
     RUNNING = 2
     STOPPED = 4
@@ -45,11 +75,23 @@ class NodeState(IntEnum):
 
 
 class HeartbeatThread(threading.Thread):
+    """HeartbeatThread.
+    """
+
     def __init__(self, pub_instance=None,
                  interval: int = 10,
                  logger: Logger = None,
                  *args, **kwargs):
-        super(HeartbeatThread, self).__init__(*args, **kwargs)
+        """__init__.
+
+        Args:
+            pub_instance:
+            interval (int): interval
+            logger (Logger): logger
+            args:
+            kwargs:
+        """
+        super().__init__(*args, **kwargs)
         self._stop_event = threading.Event()
         self._rate_secs = interval
         self._heartbeat_pub = pub_instance
@@ -59,68 +101,102 @@ class HeartbeatThread(threading.Thread):
         self.daemon = True
 
     def run(self):
+        """run.
+        """
         try:
             msg = HeartbeatMessage(ts=self.get_ts())
             while not self._stop_event.isSet():
+                self.logger.info(
+                    f'Sending heartbeat message - {self._heartbeat_pub._topic}')
                 if self._heartbeat_pub._msg_type == None:
                     self._heartbeat_pub.publish(msg.as_dict())
                 else:
                     self._heartbeat_pub.publish(msg)
+                # Wait for n seconds or until stop event is raised
                 self._stop_event.wait(self._rate_secs)
+                msg.ts = self.get_ts()
         except Exception as exc:
             self.logger.info(f'Exception in Heartbeat-Thread: {exc}')
         finally:
             self.logger.info('Heartbeat Thread Ended')
 
-    def force_join(self, timeout=None):
-        """ Stop the thread. """
+    def force_join(self, timeout: float = None):
+        """force_join.
+        Sudo stop the thread!
+
+        Args:
+            timeout (float): timeout
+        """
         self._stop_event.set()
         threading.Thread.join(self, timeout)
 
     def stop(self):
+        """stop.
+        """
         self._stop_event.set()
 
     def stopped(self):
+        """stopped.
+        """
         return self._stop_event.is_set()
 
     def get_ts(self):
+        """get_ts.
+        """
         timestamp = (time.time() + 0.5) * 1000000
         return int(timestamp)
 
 
-class Node(object):
+class Node:
+    """Node.
+    """
+
     def __init__(self, node_name: Text = '',
                  transport_type: TransportType = TransportType.REDIS,
+                 ## DEPRECATED - Used only for backward compatibility
                  transport_connection_params=None,
-                 max_workers: int = 4,
+                 connection_params=None,
                  remote_logger: bool = False,
-                 remote_logger_uri: str = '',
+                 remote_logger_uri: Text = '',
                  debug: bool = False,
-                 device_id: str = None):
+                 heartbeat_thread: bool = True,
+                 heartbeat_uri: str = None,
+                 device_id: Text = None):
+        """__init__.
 
+        Args:
+            node_name (Text): node_name
+            transport_type (TransportType): transport_type
+            transport_connection_params:
+            connection_params:
+            max_workers (int): max_workers
+            remote_logger (bool): remote_logger
+            remote_logger_uri (Text): remote_logger_uri
+            debug (bool): debug
+            device_id (Text): device_id
+        """
         if node_name == '' or node_name is None:
             node_name = gen_random_id()
+        node_name = node_name.replace('-', '_')
         self._node_name = node_name
-
+        self._debug = debug
+        self._heartbeat_thread = heartbeat_thread
+        self._heartbeat_uri = heartbeat_uri
+        self._hb_thread = None
+        self.state = NodeState.IDLE
         self._device_id = device_id
         if device_id is None:
             self._namespace = f'{self._node_name}'
         else:
             self._namespace = f'thing.{device_id}.{self._node_name}'
 
-        self._debug = debug
-
         self._publishers = []
         self._subscribers = []
         self._rpc_services = []
         self._rpc_clients = []
-        self._action_servers = []
+        self._action_services = []
         self._action_clients = []
         self._event_emitters = []
-        self._rpc_bridges = []
-        self._topic_bridges = []
-
-        self.state = NodeState.IDLE
 
         if transport_type == TransportType.REDIS:
             import commlib.transports.redis as comm
@@ -135,35 +211,43 @@ class Node(object):
         if transport_connection_params is None:
             if transport_type == TransportType.REDIS:
                 from commlib.transports.redis import \
-                    UnixSocketConnectionParameters as conn_params
+                    UnixSocketConnectionParameters as ConnParams
             elif transport_type == TransportType.AMQP:
                 from commlib.transports.amqp import \
-                    ConnectionParameters as conn_params
-            transport_connection_params = conn_params()
+                    ConnectionParameters as ConnParams
+            elif transport_type == TransportType.MQTT:
+                from commlib.transports.mqtt import \
+                    ConnectionParameters as ConnParams
+            transport_connection_params = ConnParams()
         self._conn_params = transport_connection_params
+        if connection_params is not None:
+            self._conn_params = connection_params
 
-        if remote_logger:
-            self._logger = RemoteLogger(self._node_name, transport_type,
-                                        self._conn_params,
-                                        remote_topic=remote_logger_uri,
-                                        debug=debug)
-        else:
-            self._logger = Logger(self._node_name, debug=debug)
+        self._logger = Logger(self._node_name, debug=debug)
         self._logger.info(f'Created Node <{self._node_name}>')
 
-    def init_heartbeat_thread(self):
-        topic = f'{self._namespace}.heartbeat'
+    def init_heartbeat_thread(self, topic: str = None):
+        """init_heartbeat_thread.
+
+        Args:
+            topic (str): topic
+        """
+        if topic is None:
+            topic = f'{self._namespace}.heartbeat'
         self._hb_thread = HeartbeatThread(
-            self.create_publisher(topic=topic, msg_type=HeartbeatMessage))
+            self.create_publisher(topic=topic, msg_type=HeartbeatMessage),
+            logger=self._logger
+        )
         self._hb_thread.start()
-        self._logger.info(f'Started Publishing heartbeats: <{topic}>')
+        self._logger.info(
+            f'Started Heartbeat Publisher <{topic}> in background')
 
     @property
     def input_ports(self):
         return {
             'subscriber': self._subscribers,
             'rpc_service': self._rpc_services,
-            'action_server': self._action_servers
+            'action_service': self._action_services
         }
 
     @property
@@ -184,15 +268,35 @@ class Node(object):
     def get_logger(self):
         return self._logger
 
-    def run(self, heartbeat_thread: bool = True):
+    def run(self) -> None:
+        """run.
+        Starts Services, Subscribers and ActionServices.
+        Also starts the heartbeat thread (if enabled).
+
+        Args:
+
+        Returns:
+            None:
+        """
         for s in self._subscribers:
             s.run()
         for r in self._rpc_services:
             r.run()
-        self.init_heartbeat_thread()
+        for r in self._action_services:
+            r.run()
+        if self._heartbeat_thread:
+            self.init_heartbeat_thread(self._heartbeat_uri)
         self.state = NodeState.RUNNING
 
-    def run_forever(self, sleep_rate: float = 0.001):
+    def run_forever(self, sleep_rate: float = 0.001) -> None:
+        """run_forever.
+        Starts Services, Subscribers and ActionServices and blocks
+        the main thread from exiting.
+        Also starts the heartbeat thread (if enabled).
+
+        Args:
+            sleep_rate (float): Rate to sleep between wait-state iterations.
+        """
         if self.state != NodeState.RUNNING:
             self.run()
         while True:
@@ -235,12 +339,12 @@ class Node(object):
         return client
 
     def create_action(self, *args, **kwargs):
-        """Creates a new ActionServer Endpoint.
+        """Creates a new ActionService Endpoint.
         """
-        action =  self._commlib.ActionServer(conn_params=self._conn_params,
+        action =  self._commlib.ActionService(conn_params=self._conn_params,
                                              logger = self._logger,
                                              *args, **kwargs)
-        self._action_servers.append(action)
+        self._action_services.append(action)
         return action
 
     def create_action_client(self, *args, **kwargs):

@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import uuid
-from typing import OrderedDict, Any
+from typing import Dict, Any
 
 from .serializer import JSONSerializer
 from .logger import Logger
@@ -10,12 +10,23 @@ from .msg import PubSubMessage
 
 
 class BasePublisher(object):
+    """BasePublisher.
+    """
 
     def __init__(self, topic: str = None,
                  msg_type: PubSubMessage = None,
                  logger: Logger = None,
                  debug: bool = True,
                  serializer=None):
+        """__init__.
+
+        Args:
+            topic (str): topic
+            msg_type (PubSubMessage): msg_type
+            logger (Logger): logger
+            debug (bool): debug
+            serializer:
+        """
         self._debug = debug
         self._topic = topic
         self._msg_type = msg_type
@@ -44,10 +55,20 @@ class BasePublisher(object):
         return self._logger
 
     def publish(self, msg: PubSubMessage) -> None:
+        """publish.
+
+        Args:
+            msg (PubSubMessage): msg
+
+        Returns:
+            None:
+        """
         raise NotImplementedError()
 
 
 class BaseSubscriber(object):
+    """BaseSubscriber.
+    """
 
     def __init__(self, topic: str = None,
                  msg_type: PubSubMessage = None,
@@ -55,6 +76,16 @@ class BaseSubscriber(object):
                  logger: Logger = None,
                  debug: bool = True,
                  serializer=None):
+        """__init__.
+
+        Args:
+            topic (str): topic
+            msg_type (PubSubMessage): msg_type
+            on_message (callable): on_message
+            logger (Logger): logger
+            debug (bool): debug
+            serializer:
+        """
         self._debug = debug
         self._topic = topic
         self._msg_type = msg_type
@@ -73,8 +104,6 @@ class BaseSubscriber(object):
             logger is None else logger
 
         self._gen_random_id = gen_random_id
-
-        assert isinstance(self._logger, Logger)
 
         self._executor = ThreadPoolExecutor(max_workers=2)
 
@@ -95,9 +124,25 @@ class BaseSubscriber(object):
         return self._logger
 
     def run_forever(self) -> None:
+        """run_forever.
+        Start subscriber thread in background and blocks main thread.
+
+        Args:
+
+        Returns:
+            None:
+        """
         raise NotImplementedError()
 
-    def on_message(self, data: OrderedDict) -> None:
+    def on_message(self, data: Dict) -> None:
+        """on_message.
+
+        Args:
+            data (Dict): data
+
+        Returns:
+            None:
+        """
         raise NotImplementedError()
 
     def run(self) -> None:

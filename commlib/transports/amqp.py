@@ -1,29 +1,27 @@
 import functools
-import sys
-import time
 import json
-import uuid
-import pika
-from collections import deque
-from threading import Semaphore, Thread, Event as ThreadEvent
 import logging
-from typing import OrderedDict, Any
-from inspect import signature
+import time
+import uuid
+from collections import deque
+from threading import Event as ThreadEvent
+from threading import Semaphore, Thread
+from typing import Dict
 
-from commlib.logger import Logger, LoggingLevel
-from commlib.serializer import ContentType
-from commlib.rpc import BaseRPCService, BaseRPCClient
-from commlib.pubsub import BasePublisher, BaseSubscriber
+import pika
+
 from commlib.action import (
-    BaseActionServer, BaseActionClient, _ActionGoalMessage,
-    _ActionResultMessage, _ActionGoalMessage, _ActionCancelMessage,
-    _ActionStatusMessage, _ActionFeedbackMessage
+    BaseActionClient, BaseActionService, _ActionCancelMessage,
+    _ActionFeedbackMessage, _ActionGoalMessage,
+    _ActionResultMessage, _ActionStatusMessage
 )
 from commlib.events import BaseEventEmitter, Event
-from commlib.msg import RPCMessage, PubSubMessage, ActionMessage
-from commlib.utils import gen_timestamp
 from commlib.exceptions import *
-
+from commlib.logger import Logger
+from commlib.msg import PubSubMessage, RPCMessage
+from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.rpc import BaseRPCClient, BaseRPCService
+from commlib.utils import gen_timestamp
 
 # Reduce log level for pika internal logger
 logging.getLogger("pika").setLevel(logging.WARN)
@@ -38,13 +36,29 @@ class MessageProperties(pika.BasicProperties):
         timestamp (str):
 
     """
-    def __init__(self, content_type=None, content_encoding=None,
-                 timestamp=None, correlation_id=None, reply_to=None,
-                 message_id=None, user_id=None, app_id=None):
-        """Constructor."""
+
+    def __init__(self, content_type: str = None,
+                 content_encoding: str = None,
+                 timestamp: float = None,
+                 correlation_id: str = None,
+                 reply_to: str = None,
+                 message_id: str = None,
+                 user_id: str = None,
+                 app_id: str = None):
+        """__init__.
+
+        Args:
+            content_type (str): content_type
+            content_encoding (str): content_encoding
+            timestamp (float): timestamp
+            correlation_id (str): correlation_id
+            reply_to (str): reply_to
+            message_id (str): message_id
+            user_id (str): user_id
+            app_id (str): app_id
+        """
         if timestamp is None:
-            timestamp = (time.time() + 0.5) * 1000
-        timestamp = int(timestamp)
+            timestamp = gen_timestamp()
         super(MessageProperties, self).__init__(
             content_type=content_type,
             content_encoding=content_encoding,
@@ -57,32 +71,37 @@ class MessageProperties(pika.BasicProperties):
         )
 
 
-class ConnectionParameters():
-    """AMQP Connection parameters.
+class Credentials:
+    """Connection credentials for authn/authz.
 
     Args:
-        host (str): Hostname of AMQP broker to connect to.
-        port (int|str): AMQP broker listening port.
-        creds (object): Auth Credentials - Credentials instance.
-        secure (bool): Enable SSL/TLS (AMQPS) - Not supported!!
-        reconnect_attempts (int): The reconnection attempts to make before
-            droping and raising an Exception.
-        retry_delay (float): Time delay between reconnect attempts.
-        timeout (float): Socket Connection timeout value.
-        timeout (float): Blocked Connection timeout value.
-            Set the timeout, in seconds, that the connection may remain blocked
-            (triggered by Connection.Blocked from broker). If the timeout
-            expires before connection becomes unblocked, the connection will
-            be torn down.
-        heartbeat_timeout (int): Controls AMQP heartbeat
-            timeout negotiation during connection tuning. An integer value
-            always overrides the value proposed by broker. Use 0 to deactivate
-            heartbeats and None to always accept the broker's proposal.
-            The value passed for timeout is also used to calculate an interval
-            at which a heartbeat frame is sent to the broker. The interval is
-            equal to the timeout value divided by two.
-        channel_max (int): The max permissible number of channels per
-            connection. Defaults to 128.
+        username (str): The username.
+        password (str): The password (Basic Authentication).
+    """
+
+    __slots__ = ['username', 'password']
+
+    def __init__(self, username: str = 'guest', password: str = 'guest'):
+        """__init__.
+
+        Args:
+            username (str): username
+            password (str): password
+        """
+        self.username = username
+        self.password = password
+
+    def make_pika(self):
+        """make_pika.
+        Create Pika Credentials instance.
+        """
+        return pika.PlainCredentials(username=self.username,
+                                     password=self.password)
+
+
+class ConnectionParameters():
+    """AMQP Connection parameters.
+    AMQP connection parameters class
     """
 
     __slots__ = [
@@ -91,11 +110,44 @@ class ConnectionParameters():
         'channel_max'
     ]
 
-    def __init__(self, host='127.0.0.1', port='5672', creds=None,
-                 secure=False, vhost='/', reconnect_attempts=10,
-                 retry_delay=2.0, timeout=120, blocked_connection_timeout=None,
-                 heartbeat_timeout=60, channel_max=128):
-        """Constructor."""
+    def __init__(self,
+                 host: str = '127.0.0.1',
+                 port: int = 5672,
+                 vhost: str = '/',
+                 creds: Credentials = None,
+                 secure: bool = False,
+                 reconnect_attempts: int = 10,
+                 retry_delay: float = 2.0,
+                 timeout: float = 120,
+                 blocked_connection_timeout: float = None,
+                 heartbeat_timeout: int = 60,
+                 channel_max: int = 128):
+        """__init__.
+
+        Args:
+            host (str): Hostname of AMQP broker to connect to.
+            port (int): AMQP broker listening port.
+            creds (Credentials): Auth Credentials - Credentials instance.
+            secure (bool): Enable SSL/TLS (AMQPS) - Not supported!!
+            reconnect_attempts (int): The reconnection attempts to make before
+                droping and raising an Exception.
+            retry_delay (float): Time delay between reconnect attempts.
+            timeout (float): Socket Connection timeout value.
+            timeout (float): Blocked Connection timeout value.
+                Set the timeout, in seconds, that the connection may remain blocked
+                (triggered by Connection.Blocked from broker). If the timeout
+                expires before connection becomes unblocked, the connection will
+                be torn down.
+            heartbeat_timeout (int): Controls AMQP heartbeat
+                timeout negotiation during connection tuning. An integer value
+                always overrides the value proposed by broker. Use 0 to deactivate
+                heartbeats and None to always accept the broker's proposal.
+                The value passed for timeout is also used to calculate an interval
+                at which a heartbeat frame is sent to the broker. The interval is
+                equal to the timeout value divided by two.
+            channel_max (int): The max permissible number of channels per
+                connection. Defaults to 128.
+        """
         self.host = host
         self.port = port
         self.secure = secure
@@ -109,7 +161,6 @@ class ConnectionParameters():
 
         if creds is None:
             creds = Credentials()
-        assert isinstance(creds, Credentials)
         self.creds = creds
 
     @property
@@ -147,7 +198,12 @@ class ConnectionParameters():
 
 class Connection(pika.BlockingConnection):
     """Connection. qThin wrapper around pika.BlockingConnection"""
-    def __init__(self, conn_params):
+    def __init__(self, conn_params: ConnectionParameters):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+        """
         self._connection_params = conn_params
         self._pika_connection = None
         self._transport = None
@@ -157,11 +213,22 @@ class Connection(pika.BlockingConnection):
             parameters=self._connection_params.make_pika())
 
     def stop_amqp_events_thread(self):
+        """stop_amqp_events_thread.
+        Stops the background thead that handles internal amqp events.
+        """
         if self._t_stop_event is not None:
             self._t_stop_event.set()
             self._events_thread = None
 
     def detach_amqp_events_thread(self):
+        """detach_amqp_events_thread.
+        Starts a thread in background to handle with internal amqp events.
+            Useful for use with producers in complex applications where
+            the program might sleep for several seconds. In this case,
+            if the amqp events thread is not started, the main thread
+            will be blocked and messages will not leave to the wire at
+            the expected time.
+        """
         if self._events_thread is not None:
             if self._events_thread.is_alive():
                 return
@@ -171,21 +238,22 @@ class Connection(pika.BlockingConnection):
         self._events_thread.start()
 
     def _ensure_events_processed(self):
+        """_ensure_events_processed.
+        """
         try:
             while True:
-                self.sleep(0.001)
+                self.sleep(1)
                 if self._t_stop_event.is_set():
                     break
         except Exception as exc:
-            self._logger.warning(
-                f'Exception thrown while processing amqp events - {exc}')
+            print(f'Exception thrown while processing amqp events - {exc}')
 
 
     def set_transport_ref(self, transport):
         self._transport = transport
 
 
-class ExchangeTypes(object):
+class ExchangeType:
     """AMQP Exchange Types."""
     Topic = 'topic'
     Direct = 'direct'
@@ -193,40 +261,19 @@ class ExchangeTypes(object):
     Default = ''
 
 
-class Credentials(object):
-    """Connection credentials for authn/authz.
-
-    Args:
-        username (str): The username.
-        password (str): The password (Basic Authentication).
-    """
-
-    __slots__ = ['username', 'password']
-
-    def __init__(self, username='guest', password='guest'):
-        """Constructor."""
-        self.username = username
-        self.password = password
-
-    def make_pika(self):
-        return pika.PlainCredentials(username=self.username,
-                                     password=self.password)
-
-
-class AMQPTransport(object):
+class AMQPTransport:
     """AMQPT Transport implementation.
     """
 
-    def __init__(self, conn_params, debug=False, logger=None, connection=None):
+    def __init__(self, conn_params: ConnectionParameters,
+                 debug: bool = False,
+                 logger: Logger = None,
+                 connection: Connection = None):
         """Constructor."""
         # So that connections do not go zombie
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
-
-        assert isinstance(debug, bool)
-        assert isinstance(conn_params, ConnectionParameters)
-        # assert isinstance(connection, Connection)
 
         self._connection = connection
         self._conn_params = conn_params
@@ -252,21 +299,6 @@ class AMQPTransport(object):
     @property
     def connection(self):
         return self._connection
-
-    @property
-    def debug(self):
-        """Debug mode flag."""
-        return self._debug
-
-    @debug.setter
-    def debug(self, val):
-        if not isinstance(val, bool):
-            raise TypeError('Value should be boolean')
-        self._debug = val
-        if self._debug is True:
-            self.logger.setLevel(LoggingLevel.DEBUG)
-        else:
-            self.logger.setLevel(LoggingLevel.INFO)
 
     def connect(self):
         self.create_channel()
@@ -334,7 +366,9 @@ class AMQPTransport(object):
         self.logger.debug(f'Exchange exists result: {resp}')
         return resp
 
-    def create_exchange(self, exchange_name, exchange_type, internal=None):
+    def create_exchange(self,
+                        exchange_name: str,
+                        exchange_type: ExchangeType, internal=None):
         """
         Create a new exchange.
 
@@ -355,9 +389,13 @@ class AMQPTransport(object):
         self.logger.debug(
             f'Created exchange: [name={exchange_name}, type={exchange_type}]')
 
-    def create_queue(self, queue_name='', exclusive=True, queue_size=10,
-                     message_ttl=60000, overflow_behaviour='drop-head',
-                     expires=600000):
+    def create_queue(self,
+                     queue_name: str= '',
+                     exclusive: str = True,
+                     queue_size: int = 10,
+                     message_ttl: int = 60000,
+                     overflow_behaviour: int = 'drop-head',
+                     expires: int = 600000):
         """
         Create a new queue.
 
@@ -444,7 +482,7 @@ class AMQPTransport(object):
         try:
             self._channel.queue_bind(
                 exchange=exchange_name, queue=queue_name, routing_key=bind_key)
-        except Exception as exc:
+        except Exception:
             raise AMQPError('Error while trying to bind queue to exchange')
 
     def set_channel_qos(self, prefetch_count=1, global_qos=False):
@@ -530,7 +568,6 @@ class RPCService(BaseRPCService):
         _ctype = None
         _cencoding = None
         _ts_send = None
-        _ts_broker = None
         _dmode = None
         _corr_id = None
         _reply_to = None
@@ -543,22 +580,16 @@ class RPCService(BaseRPCService):
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
-            # _ts_broker = properties.timestamp
-        except Exception as exc:
+        except Exception:
             self.logger.error("Exception Thrown in on_request_handle",
                               exc_info=True)
-        try:
-            _ts_broker = properties.headers['timestamp_in_ms']
-        except Exception:
-            self.logger.debug("Could not calculate latency", exc_info=False)
-
         try:
             _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
             _data = {}
-            self._send_response(_data)
+            self._send_response(_data, ch, _corr_id, _reply_to, _delivery_tag)
         resp = self._invoke_onrequest_callback(_data)
         self._send_response(resp, ch, _corr_id, _reply_to, _delivery_tag)
 
@@ -661,7 +692,7 @@ class RPCClient(BaseRPCClient):
         self._use_corr_id = use_corr_id
         self._corr_id = None
         self._response = None
-        self._exchange = ExchangeTypes.Default
+        self._exchange = ExchangeType.Default
         self._mean_delay = 0
         self._delay = 0
 
@@ -747,7 +778,6 @@ class RPCClient(BaseRPCClient):
         _ctype = None
         _cencoding = None
         _ts_send = None
-        _ts_broker = 0
         _dmode = None
         _data = None
         try:
@@ -757,13 +787,8 @@ class RPCClient(BaseRPCClient):
                     return
             _ctype = properties.content_type
             _cencoding = properties.content_encoding
-            if hasattr(self, 'headers'):
-                if 'timestamp_in_ms' in properties.headers:
-                    _ts_broker = properties.headers['timestamp_in_ms']
-
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
-
         except Exception:
             self.logger.error("Error parsing response from rpc server.",
                               exc_info=True)
@@ -830,7 +855,7 @@ class Publisher(BasePublisher):
                                         self._logger, connection)
         self._transport.connect()
         self._transport.create_exchange(self._topic_exchange,
-                                        ExchangeTypes.Topic)
+                                        ExchangeType.Topic)
         if connection is None:
             self.run()
 
@@ -853,7 +878,7 @@ class Publisher(BasePublisher):
                                                     self._topic)
 
 
-    def _send_msg(self, data: OrderedDict, topic: str):
+    def _send_msg(self, data: Dict, topic: str):
         _payload = None
         _encoding = None
         _type = None
@@ -955,7 +980,7 @@ class Subscriber(BaseSubscriber):
         _exch_ex = self._transport.exchange_exists(self._topic_exchange)
         if _exch_ex.method.NAME != 'Exchange.DeclareOk':
             self._transport.create_exchange(self._topic_exchange,
-                                            ExchangeTypes.Topic)
+                                            ExchangeType.Topic)
 
         # Create a queue. Set default idle expiration time to 5 mins
         self._queue_name = self._transport.create_queue(
@@ -1009,18 +1034,16 @@ class Subscriber(BaseSubscriber):
         _ctype = None
         _cencoding = None
         _ts_send = None
-        _ts_broker = None
         _dmode = None
 
         try:
             _ctype = properties.content_type
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
-            _ts_broker = properties.headers['timestamp_in_ms']
             _ts_send = properties.timestamp
         except Exception:
-            self.logger.debug("Could not calculate latency", exc_info=False)
-
+            self.logger.debug("Could reading message properties",
+                              exc_info=True)
         try:
             _data = self._serializer.deserialize(body)
         except Exception:
@@ -1039,7 +1062,7 @@ class Subscriber(BaseSubscriber):
         try:
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, OrderedDict(_data))
+                    _clb = functools.partial(self.onmessage, Dict(_data))
                 else:
                     _clb = functools.partial(self.onmessage,
                                              self._msg_type(**_data))
@@ -1083,17 +1106,16 @@ class PSubscriber(Subscriber):
         _ctype = None
         _cencoding = None
         _ts_send = None
-        _ts_broker = None
         _dmode = None
 
         try:
             _ctype = properties.content_type
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
-            _ts_broker = properties.headers['timestamp_in_ms']
             _ts_send = properties.timestamp
         except Exception:
-            self.logger.debug("Could not calculate latency", exc_info=False)
+            self.logger.debug("Error reading message properties",
+                              exc_info=True)
 
         try:
             _data = self._serializer.deserialize(body)
@@ -1114,7 +1136,7 @@ class PSubscriber(Subscriber):
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
-                                             OrderedDict(_data),
+                                             Dict(_data),
                                              _topic)
                 else:
                     _clb = functools.partial(self.onmessage,
@@ -1125,14 +1147,14 @@ class PSubscriber(Subscriber):
             self.logger.error('Error in on_msg_callback', exc_info=True)
 
 
-class ActionServer(BaseActionServer):
+class ActionService(BaseActionService):
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
         """__init__.
 
         Args:
-            action_name (str): The name (uri) of the Action
+            action_uri (str): The name (uri) of the Action
             msg_type (ActionMessage): The type of the Message
             conn_params (ConnectionParameters): Broker Connection parameters
             args:
@@ -1143,7 +1165,7 @@ class ActionServer(BaseActionServer):
 
         # self._conn = Connection(conn_params)
 
-        super(ActionServer, self).__init__(*args, **kwargs)
+        super(ActionService, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
                                     rpc_name=self._goal_rpc_uri,
@@ -1184,13 +1206,12 @@ class ActionClient(BaseActionClient):
         Action Client constructor.
 
         Args:
-            action_name (str): The name (uri) of the Action
+            action_uri (str): The name (uri) of the Action
             msg_type (ActionMessage): The type of the Message
             conn_params (ConnectionParameters): Broker Connection parameters
             args:
             kwargs:
         """
-        assert isinstance(conn_params, ConnectionParameters)
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
@@ -1233,17 +1254,28 @@ class EventEmitter(BaseEventEmitter):
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  exchange: str = 'amq.topic',
+                 connection: Connection = None,
                  *args, **kwargs):
         super(EventEmitter, self).__init__(*args, **kwargs)
 
         self._transport = AMQPTransport(conn_params=conn_params,
+                                        connection=connection,
                                         logger=self._logger)
         self._transport.connect()
         self._exchange = exchange
 
+        if connection is None:
+            self.run()
+
+    def run(self) -> None:
+        self._transport.detach_amqp_events_thread()
+
     def send_event(self, event: Event):
         _data = event.as_dict()
-        self._send_data(event.uri, _data)
+        self._logger.debug(f'Sending Event <{event.uri}>')
+        self._transport.add_threadsafe_callback(
+            functools.partial(self._send_data, event.uri, _data)
+        )
 
     def _send_data(self, topic: str, data: dict) -> None:
         _payload = None
