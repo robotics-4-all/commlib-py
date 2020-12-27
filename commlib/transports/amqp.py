@@ -242,7 +242,7 @@ class Connection(pika.BlockingConnection):
         """
         try:
             while True:
-                self.sleep(0.001)
+                self.sleep(1)
                 if self._t_stop_event.is_set():
                     break
         except Exception as exc:
