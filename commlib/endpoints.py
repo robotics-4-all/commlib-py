@@ -3,6 +3,7 @@ from enum import Enum
 
 class EndpointType(Enum):
     """EndpointType.
+    Types of supported Endpoints.
     """
 
     RPCService = 1
@@ -17,6 +18,7 @@ class EndpointType(Enum):
 
 class TransportType(Enum):
     """TransportType.
+    Types of supported Transports
     """
 
     AMQP = 1
@@ -26,6 +28,8 @@ class TransportType(Enum):
 
 def endpoint_factory(etype: EndpointType, etransport: TransportType):
     """endpoint_factory.
+    Create an instance of an endpoint (RPCClient, RPCService, Publisher, Subscriber etc..),
+        by simply giving its type and transport (MQTT, AMQP, Redis)
 
     Args:
         etype (EndpointType): Endpoint type

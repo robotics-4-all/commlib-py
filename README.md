@@ -144,7 +144,7 @@ A Node always binds to a specific broker for implementing the input and
 output ports. Of course you can instantiate and run several Nodes in a single-process 
 application.
 
-Node constuctor:
+### Node class:
 
 ```python
 def __init__(self, node_name: Text = '',
@@ -169,6 +169,62 @@ Node methods to create Endpoints::
    +create_subscriber(self, *args, **kwargs) : member
 ```
 
+## Endpoint (Low-level API)
+
+It is possible to construct endpoints without binding them to a specific
+Node. This is a feature to support a wider range of applications, where the
+concept Node might not be usable.
+
+One can create endpoint instances by using the following classes of each
+supported transport
+
+- RPCClient
+- RPCServer
+- Publisher
+- Subscriber
+- MPublisher (Multi-topic Publisher)
+- PSubscriber (Pattern-based Subscriber)
+- ActionService (Preemptable Services with feedback)
+- ActionClient
+- EventEmitter
+
+
+```python
+from commlib.transports.redis import RPCService
+from commlib.transports.amqp import Subscriber
+from commlib.transports.mqtt import Publisher, RPCClient
+...
+```
+
+Or use the `endpoint_factory` to construct endpoints.
+
+```python
+import time
+from commlib.endpoints import endpoint_factory, EndpointType, TransportType
+
+
+def callback(data):
+    print(data)
+
+
+if __name__ == '__main__':
+    topic = 'factory_test_topic'
+    mqtt_sub = endpoint_factory(EndpointType.Subscriber, TransportType.MQTT)(
+        topic=topic,
+        on_message=callback
+    )
+    mqtt_sub.run()
+    mqtt_pub = endpoint_factory(EndpointType.Publisher, TransportType.MQTT)(
+        topic=topic,
+        debug=True
+    )
+
+    data = {'a': 1, 'b': 2}
+    while True:
+        mqtt_pub.publish(data)
+        time.sleep(1)
+```
+
 ## Req/Resp (RPC) Communication
 
 ```
@@ -184,12 +240,10 @@ Node methods to create Endpoints::
 ```
 
 
-### Server Side
+### Server Side Example
 
 ```python
-from commlib.transports.redis import (
-    RPCService, ConnectionParameters
-)
+from commlib.node import Node, TransportType
 from commlib.msg import RPCMessage, DataClass
 
 
@@ -229,12 +283,10 @@ if __name__ == '__main__':
     node.run_forever()
 ```
 
-### Client Side
+### Client Side Example
 
 ```python
-from commlib.transports.redis import (
-    RPCClient, ConnectionParameters
-)
+from commlib.node import Node, TransportType
 from commlib.msg import RPCMessage, DataClass
 
 
@@ -252,14 +304,29 @@ class AddTwoIntMessage(RPCMessage):
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
-    rpc_name = 'example_rpc_service'
+    rpc_name = 'add_two_ints_node.add_two_ints'
 
-    client = RPCClient(rpc_name=rpc_name,
-                    msg_type=AddTwoIntMessage,
-                    conn_params=conn_params)
-    msg = AddTwoIntMessage.Request(a=1, b=2)
-    resp = client.call(msg)
-    print(resp)
+    node = Node(node_name='myclient',
+                transport_type=transport,
+                transport_connection_params=conn_params,
+                # heartbeat_uri='nodes.add_two_ints.heartbeat',
+                debug=True)
+
+    rpc = node.create_rpc_client(msg_type=AddTwoIntMessage,
+                                 rpc_name=rpc_name)
+
+    node.run()
+
+    # Create an instance of the request object
+    msg = AddTwoIntMessage.Request()
+
+    while True:
+        # returns AddTwoIntMessage.Response instance
+        resp = rpc.call(msg)
+        print(resp)
+        msg.a += 1
+        msg.b += 1
+        time.sleep(1)
 ```
 
 
