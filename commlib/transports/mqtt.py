@@ -159,7 +159,7 @@ class MQTTTransport:
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == MQTTReturnCode.CONNECTION_SUCCESS:
-            self.logger.debug(
+            self.logger.info(
                 f"Connected to MQTT broker <{self._conn_params.host}:{self._conn_params.port}>")
             self._connected = True
 
@@ -337,7 +337,7 @@ class Subscriber(BaseSubscriber):
                 raise SubscriberError('Subscribed topic does not match!!')
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, Dict(data))
+                    _clb = functools.partial(self.onmessage, dict(data))
                 else:
                     _clb = functools.partial(self.onmessage,
                                              self._msg_type(**data))
