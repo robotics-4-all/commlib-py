@@ -7,7 +7,7 @@ import commlib.transports.redis as rcomm
 from commlib.msg import PubSubMessage, RPCMessage, DataClass
 
 from commlib.bridges import (
-    RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType, MTopicBridge
+    RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType, PTopicBridge
 )
 
 
@@ -34,7 +34,7 @@ if __name__ == '__main__':
     bA_params = rcomm.ConnectionParameters()
     bB_params = mcomm.ConnectionParameters()
 
-    br = MTopicBridge(TopicBridgeType.REDIS_TO_MQTT,
+    br = PTopicBridge(TopicBridgeType.REDIS_TO_MQTT,
                       bA_uri,
                       bB_namespace,
                       bA_params,

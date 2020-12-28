@@ -286,8 +286,8 @@ class TopicBridge(Bridge):
             f'{self._to_broker_params.port}[{self._to_uri}]>')
 
 
-class MTopicBridge(Bridge):
-    """MTopicBridge.
+class PTopicBridge(Bridge):
+    """PTopicBridge.
     Pattern-based Bridge implementation for Topic-based/PubSub Communication.
 
 
