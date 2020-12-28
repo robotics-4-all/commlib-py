@@ -1062,7 +1062,7 @@ class Subscriber(BaseSubscriber):
         try:
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, Dict(_data))
+                    _clb = functools.partial(self.onmessage, _data)
                 else:
                     _clb = functools.partial(self.onmessage,
                                              self._msg_type(**_data))
@@ -1136,7 +1136,7 @@ class PSubscriber(Subscriber):
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
-                                             Dict(_data),
+                                             _data,
                                              _topic)
                 else:
                     _clb = functools.partial(self.onmessage,
