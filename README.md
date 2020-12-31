@@ -674,6 +674,13 @@ between message brokers, based on application-specific rules. An example is to
 bridge analytics (preprocessed) data from the Edge to the Cloud. And what happens
 if the brokers use different communication protocols?
 
+
+```
+                                  {Bridge}
+[Producer] -------> [Broker A] -------------> [Broker B] ------> [Consumer]
+                                  {Bridge}
+```
+
 In the context of the current work, communication bridges are implemented for
 PubSub and RPC communication between various message brokers. Currently, MQTT, 
 AMQP and Redis are supported.
