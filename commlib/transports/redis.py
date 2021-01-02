@@ -150,7 +150,8 @@ class RedisTransport(object):
         if isinstance(conn_params, UnixSocketConnectionParameters):
             self._redis = Connection(
                 unix_socket_path=conn_params.unix_socket,
-                db=conn_params.db, decode_responses=True)
+                db=conn_params.db,
+                decode_responses=True)
         elif isinstance(conn_params, TCPConnectionParameters):
             self._redis = Connection(host=conn_params.host,
                                      port=conn_params.port,
@@ -162,9 +163,12 @@ class RedisTransport(object):
             f'Connected to Redis <{conn_params.host}:{conn_params.port}>')
 
 
-    def delete_queue(self, queue_name):
+    def delete_queue(self, queue_name: str) -> bool:
         # self.logger.debug('Removing message queue: <{}>'.format(queue_name))
-        self._redis.delete(queue_name)
+        return self._redis.delete(queue_name)
+
+    def queue_exists(self, queue_name: str) -> bool:
+        return self._redis.exists(queue_name)
 
     def push_msg_to_queue(self, queue_name, payload):
         self._redis.rpush(queue_name, payload)
@@ -240,7 +244,8 @@ class RPCService(BaseRPCService):
         self._send_response(resp, reply_to)
 
     def run_forever(self):
-        self._transport.delete_queue(self._rpc_name)
+        if self._transport.queue_exists(self._rpc_name):
+            self._transport.delete_queue(self._rpc_name)
         while True:
             msgq, payload = self._transport.wait_for_msg(self._rpc_name,
                                                          timeout=0)
