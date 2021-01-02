@@ -26,28 +26,34 @@ python setup.py install
 or
 
 ```bash
-pip install . --user
+pip install .
 ```
 
 ## Redis Support
 
-In order to have access to the Redis transport you will have to installed the following dependencies:
-
-- redis
-- hiredis
+In order to have access to the Redis transport you will have to install the
+`redis` python package
 
 ```bash
-pip install  redis hiredis
+pip install redis
+```
+
+However, there’s also a C library, Hiredis, that contains a fast parser that can offer significant speedups for some Redis commands such as LRANGE. You can think of Hiredis as an optional accelerator for Redis commands.
+
+It is highly recommended to also install hiredis.
+
+```
+pip install hiredis
 ```
 
 ## AMQP Support
 
 In order to have access to the AMQP transport you will have to installed the following dependencies:
 
-- pika==1.0.0
+- pika==1.1.0
 
 ```bash
-pip install "pika==1.0.0"
+pip install "pika==1.1.0"
 ```
 
 ## MQTT Support
