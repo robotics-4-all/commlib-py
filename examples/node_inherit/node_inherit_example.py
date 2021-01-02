@@ -44,7 +44,8 @@ class SonarNode(Node):
         self.pub = self.create_publisher(msg_type=SonarMessage,
                                          topic=self.topic)
 
-    def run_forever(self):
+    def start(self):
+        self.run()
         rate = Rate(self.pub_freq)
         while True:
             msg = SonarMessage()
@@ -54,4 +55,4 @@ class SonarNode(Node):
 
 if __name__ == '__main__':
     sonar_node = SonarNode()
-    sonar_node.run_forever()
+    sonar_node.start()
