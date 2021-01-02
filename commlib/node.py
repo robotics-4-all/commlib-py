@@ -9,7 +9,7 @@ from commlib.endpoints import TransportType
 from commlib.utils import gen_random_id
 from commlib.logger import Logger
 from commlib.bridges import TopicBridge, RPCBridge
-from commlib.msg import HeartbeatMessage
+from commlib.msg import HeartbeatMessage, RPCMessage, DataClass, DataField
 
 
 class NodePort:
@@ -147,6 +147,29 @@ class HeartbeatThread(threading.Thread):
         return int(timestamp)
 
 
+
+class NodeStartMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        pass
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        status: int = DataField(default=0)
+        error: str = DataField(default='')
+
+
+class NodeStopMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        pass
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        status: int = DataField(default=0)
+        error: str = DataField(default='')
+
+
 class Node:
     """Node.
     """
@@ -161,7 +184,9 @@ class Node:
                  debug: bool = False,
                  heartbeat_thread: bool = True,
                  heartbeat_uri: str = None,
-                 device_id: Text = None):
+                 device_id: Text = None,
+                 has_start_rpc: bool = False,
+                 has_stop_rpc: bool = False):
         """__init__.
 
         Args:
@@ -224,9 +249,13 @@ class Node:
             self._conn_params = connection_params
 
         self._logger = Logger(self._node_name, debug=debug)
+        if has_start_rpc:
+            self.init_start_service()
+        if has_stop_rpc:
+            self.init_stop_service()
         self._logger.info(f'Created Node <{self._node_name}>')
 
-    def init_heartbeat_thread(self, topic: str = None):
+    def init_heartbeat_thread(self, topic: str = None) -> None:
         """init_heartbeat_thread.
 
         Args:
@@ -241,6 +270,43 @@ class Node:
         self._hb_thread.start()
         self._logger.info(
             f'Started Heartbeat Publisher <{topic}> in background')
+
+    def init_stop_service(self, uri: str = None) -> None:
+        if uri is None:
+            uri = f'{self._namespace}.stop'
+        stop_rpc = self.create_rpc(rpc_name=uri,
+                                   msg_type=NodeStopMessage,
+                                   on_request=self._stop_rpc_callback)
+        stop_rpc.run()
+        self._stop_rpc = stop_rpc
+
+    def _stop_rpc_callback(self, msg: NodeStartMessage.Request) -> None:
+        resp = NodeStartMessage.Response()
+        if self.state == NodeState.RUNNING:
+            self.state = NodeState.STOPPED
+            self.stop()
+        else:
+            resp.status = 1
+            resp.error = 'Cannot make the transition from current state!'
+        return resp
+
+    def init_start_service(self, uri: str = None) -> None:
+        if uri is None:
+            uri = f'{self._namespace}.start'
+        start_rpc = self.create_rpc(rpc_name=uri,
+                                    msg_type=NodeStartMessage,
+                                    on_request=self._start_rpc_callback)
+        start_rpc.run()
+        self._start_rpc = start_rpc
+
+    def _start_rpc_callback(self, msg: NodeStartMessage.Request) -> None:
+        resp = NodeStartMessage.Response()
+        if self.state == NodeState.STOPPED:
+            self.run()
+        else:
+            resp.status = 1
+            resp.error = 'Cannot make the transition from current state!'
+        return resp
 
     @property
     def input_ports(self):
@@ -299,8 +365,17 @@ class Node:
         """
         if self.state != NodeState.RUNNING:
             self.run()
-        while True:
+        while self.state != NodeState.EXITED:
             time.sleep(sleep_rate)
+        self.stop()
+
+    def stop(self):
+        for s in self._subscribers:
+            s.stop()
+        for r in self._rpc_services:
+            r.stop()
+        for r in self._action_services:
+            r.stop()
 
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
