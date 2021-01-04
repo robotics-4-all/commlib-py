@@ -310,9 +310,7 @@ class Subscriber(BaseSubscriber):
 
     def _validate_uri(self, uri):
         # Use PSubscriber for pattern-based subscription
-        if '*' in uri or '#' in uri:
-            raise SubscriberError('URI validation error')
-        elif '.' in uri:
+        if '.' in uri:
             self.logger.warn(
                 'Found "." character in topic definition. Replacing with "/"')
             uri = uri.replace('.', '/')
@@ -337,7 +335,7 @@ class Subscriber(BaseSubscriber):
                 raise SubscriberError('Subscribed topic does not match!!')
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, dict(data))
+                    _clb = functools.partial(self.onmessage, data)
                 else:
                     _clb = functools.partial(self.onmessage,
                                              self._msg_type(**data))
@@ -363,7 +361,7 @@ class PSubscriber(Subscriber):
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
-                                             Dict(data),
+                                             data,
                                              topic)
                 else:
                     _clb = functools.partial(self.onmessage,
@@ -410,7 +408,7 @@ class RPCService(BaseRPCService):
         try:
             data, header, uri = self._unpack_comm_msg(msg)
             if self._msg_type is None:
-                resp = self.on_request(Dict(data))
+                resp = self.on_request(data)
             else:
                 resp = self.on_request(self._msg_type.Request(**data))
                 ## RPCMessage.Response object here

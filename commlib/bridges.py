@@ -71,14 +71,15 @@ class Bridge:
         """
         return self._logger
 
+    def run(self):
+        raise NotImplementedError()
+
     def run_forever(self):
         """run_forever.
         """
-        try:
-            while True:
-                time.sleep(0.001)
-        except Exception as exc:
-            self.logger.error(exc)
+        self.run()
+        while True:
+            time.sleep(0.001)
 
 
 class RPCBridge(Bridge):
@@ -286,8 +287,8 @@ class TopicBridge(Bridge):
             f'{self._to_broker_params.port}[{self._to_uri}]>')
 
 
-class MTopicBridge(Bridge):
-    """MTopicBridge.
+class PTopicBridge(Bridge):
+    """PTopicBridge.
     Pattern-based Bridge implementation for Topic-based/PubSub Communication.
 
 

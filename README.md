@@ -26,28 +26,34 @@ python setup.py install
 or
 
 ```bash
-pip install . --user
+pip install .
 ```
 
 ## Redis Support
 
-In order to have access to the Redis transport you will have to installed the following dependencies:
-
-- redis
-- hiredis
+In order to have access to the Redis transport you will have to install the
+`redis` python package
 
 ```bash
-pip install  redis hiredis
+pip install redis
+```
+
+However, there’s also a C library, Hiredis, that contains a fast parser that can offer significant speedups for some Redis commands such as LRANGE. You can think of Hiredis as an optional accelerator for Redis commands.
+
+It is highly recommended to also install hiredis.
+
+```
+pip install hiredis
 ```
 
 ## AMQP Support
 
 In order to have access to the AMQP transport you will have to installed the following dependencies:
 
-- pika==1.0.0
+- pika==1.1.0
 
 ```bash
-pip install "pika==1.0.0"
+pip install "pika==1.1.0"
 ```
 
 ## MQTT Support
@@ -70,24 +76,53 @@ on installations.
 
 # Quick Start
 The purpose of this implementation is to provide an application-level communication layer, 
-by providing implementations for Remote-Procedure-Calls (RPCs), Topic-based PubSub, Preemptable Services
-(aka Actions), Events etc.
+by providing implementations for Remote-Procedure-Calls (RPCs), Topic-based PubSub, Preemptable Services (aka Actions), Events etc.
+
+
+# User Guide
 
 ## Node
 
 A **Node** is a software component that follows the Component-Port-Connector model.
 It has input and output ports for communicating with the world. Each
-port defines an endpoint and can be of type:
+port defines an endpoint and can be of the following types.
 
-- Input Port:
+```
+         +-----------------+
+         |                 |
+InPort  +-+     Node      +-+ OutPort
+        +-+               +-+
+         |                 |
+         +-----------------+
+```
+
+```
+                        +--------+                         
++----------+ OutPort    |        |      InPort +----------+
+|         +-+ --------> |        | ---------> +-+         |
+|         +-+           |        |            +-+         |
+| Node A   |            | Broker |             |   Node B |
+|         +-+ <-------- |        | <--------- +-+         |
+|         +-+           |        |            +-+         |
++----------+ InPort     |        |     OutPort +----------+
+                        +--------+
+```
+
+**Input Port**:
   - Subscriber
   - RPC Service
   - Action Service
 
-- Output Port:
+**Output Port**:
   - Publisher
   - RPC Client
   - Action Client
+  - Event Emitter
+
+**InOut Port**:
+  - RPCBridge: Bridge RPC Communication between two brokers. Directional.
+  - TopicBridge: Bridge PubSub Communication between two brokers. Directional.
+  - PTopicBridge: Bridge PubSub Communication between two brokers, based on a topic pattern. Directional.
 
 
 Furthermore, it implements several features:
@@ -574,6 +609,24 @@ if __name__ == '__main__':
 
 An EventEmitter can be used to fire multiple events, for event-based systems, over a single connection.
 
+```
+                                +---------+
+        +---------------------> | Topic A |
+        |                       +---------+
+        |                                  
+        |                                  
++---------------+                          
+|               |               +---------+
+|  EventEmitter |-------------->| Topic B |
+|               |               +---------+
++---------------+                          
+        |                                  
+        |                                  
+        |                       +---------+
+        +---------------------> | Topic C |
+                                +---------+
+```
+
 An Event has the following properties:
 
 ```python
@@ -626,6 +679,13 @@ In the context of IoT and CPS, it is a common requirement to bridge messages
 between message brokers, based on application-specific rules. An example is to 
 bridge analytics (preprocessed) data from the Edge to the Cloud. And what happens
 if the brokers use different communication protocols?
+
+
+```
+                                  {Bridge}
+[Producer] -------> [Broker A] -------------> [Broker B] ------> [Consumer]
+                                  {Bridge}
+```
 
 In the context of the current work, communication bridges are implemented for
 PubSub and RPC communication between various message brokers. Currently, MQTT, 
@@ -688,7 +748,7 @@ if __name__ == '__main__':
     redis_to_mqtt_topic_bridge()
 ```
 
-A Pattern-based Topic Bridge (MTopicBridge) example is also shown below.
+A Pattern-based Topic Bridge (PTopicBridge) example is also shown below.
 
 ```python
 #!/usr/bin/env python
@@ -699,7 +759,7 @@ import commlib.transports.amqp as acomm
 import commlib.transports.redis as rcomm
 from commlib.msg import PubSubMessage, DataClass
 
-from commlib.bridges import MTopicBridge
+from commlib.bridges import PTopicBridge
 
 
 @DataClass
@@ -719,7 +779,7 @@ if __name__ == '__main__':
     bA_params = rcomm.ConnectionParameters()
     bB_params = mcomm.ConnectionParameters()
 
-    br = MTopicBridge(TopicBridgeType.REDIS_TO_MQTT,
+    br = PTopicBridge(TopicBridgeType.REDIS_TO_MQTT,
                       bA_uri,
                       bB_namespace,
                       bA_params,

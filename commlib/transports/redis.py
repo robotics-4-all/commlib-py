@@ -143,24 +143,32 @@ class RedisTransport(object):
     def __init__(self, conn_params=None, logger=None):
         conn_params = TCPConnectionParameters() if \
             conn_params is None else conn_params
+        self._conn_params = conn_params
+        self.logger = Logger(self.__class__.__name__) if \
+            logger is None else logger
+
         if isinstance(conn_params, UnixSocketConnectionParameters):
             self._redis = Connection(
                 unix_socket_path=conn_params.unix_socket,
-                db=conn_params.db, decode_responses=True)
+                db=conn_params.db,
+                decode_responses=True)
         elif isinstance(conn_params, TCPConnectionParameters):
             self._redis = Connection(host=conn_params.host,
                                      port=conn_params.port,
                                      db=conn_params.db,
                                      decode_responses=True)
 
-        self._conn_params = conn_params
-        self.logger = Logger(self.__class__.__name__) if \
-            logger is None else logger
         self._rsub = self._redis.pubsub()
+        self.logger.info(
+            f'Connected to Redis <{conn_params.host}:{conn_params.port}>')
 
-    def delete_queue(self, queue_name):
+
+    def delete_queue(self, queue_name: str) -> bool:
         # self.logger.debug('Removing message queue: <{}>'.format(queue_name))
-        self._redis.delete(queue_name)
+        return self._redis.delete(queue_name)
+
+    def queue_exists(self, queue_name: str) -> bool:
+        return self._redis.exists(queue_name)
 
     def push_msg_to_queue(self, queue_name, payload):
         self._redis.rpush(queue_name, payload)
@@ -224,7 +232,7 @@ class RPCService(BaseRPCService):
     def _on_request(self, data: dict, header: dict):
         try:
             if self._msg_type is None:
-                resp = self.on_request(Dict(data))
+                resp = self.on_request(data)
             else:
                 resp = self.on_request(self._msg_type.Request(**data))
                 ## RPCMessage.Response object here
@@ -236,7 +244,8 @@ class RPCService(BaseRPCService):
         self._send_response(resp, reply_to)
 
     def run_forever(self):
-        self._transport.delete_queue(self._rpc_name)
+        if self._transport.queue_exists(self._rpc_name):
+            self._transport.delete_queue(self._rpc_name)
         while True:
             msgq, payload = self._transport.wait_for_msg(self._rpc_name,
                                                          timeout=0)
@@ -447,8 +456,6 @@ class Subscriber(BaseSubscriber):
 
     def _validate_uri(self, uri: str) -> str:
         # Use PSubscriber for pattern-based subscription
-        if '*' in uri or '#' in uri:
-            raise SubscriberError('URI validation error')
         return uri
 
     def run(self):
@@ -475,7 +482,7 @@ class Subscriber(BaseSubscriber):
                 raise SubscriberError('Subscribed topic does not match!!')
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, Dict(data))
+                    _clb = functools.partial(self.onmessage, data)
                 else:
                     _clb = functools.partial(self.onmessage,
                                              self._msg_type(**data))
@@ -505,7 +512,7 @@ class PSubscriber(Subscriber):
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
-                                             Dict(data),
+                                             data,
                                              topic)
                 else:
                     _clb = functools.partial(self.onmessage,
