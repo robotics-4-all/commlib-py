@@ -1242,7 +1242,7 @@ class EventEmitter(BaseEventEmitter):
         self.logger.debug(
             'Sending Event: <{}>:{}'.format(event.uri, event.to_dict()))
         self._transport.add_threadsafe_callback(
-            functools.partial(self._send_data, _msg)
+            functools.partial(self._send_data, event.uri, _msg)
         )
 
     def _send_data(self, topic: str, data: dict) -> None:
