@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import concurrent.futures.thread
 import time
 import threading
-from typing import Dict, List, Any, Text
+from typing import Dict, List, Any, Optional
 
 from commlib.endpoints import TransportType
 from commlib.utils import gen_random_id
@@ -174,31 +174,32 @@ class Node:
     """Node.
     """
 
-    def __init__(self, node_name: Text = '',
+    def __init__(self,
+                 node_name: str = '',
                  transport_type: TransportType = TransportType.REDIS,
                  ## DEPRECATED - Used only for backward compatibility
-                 transport_connection_params=None,
-                 connection_params=None,
+                 transport_connection_params: Any = None,
+                 connection_params: Any = None,
                  remote_logger: bool = False,
-                 remote_logger_uri: Text = '',
+                 remote_logger_uri: str = '',
                  debug: bool = False,
                  heartbeat_thread: bool = True,
-                 heartbeat_uri: str = None,
-                 device_id: Text = None,
+                 heartbeat_uri: Optional[str] = None,
+                 device_id: Optional[str] = None,
                  has_start_rpc: bool = False,
                  has_stop_rpc: bool = False):
         """__init__.
 
         Args:
-            node_name (Text): node_name
+            node_name (str): node_name
             transport_type (TransportType): transport_type
             transport_connection_params:
             connection_params:
             max_workers (int): max_workers
             remote_logger (bool): remote_logger
-            remote_logger_uri (Text): remote_logger_uri
+            remote_logger_uri (str): remote_logger_uri
             debug (bool): debug
-            device_id (Text): device_id
+            device_id (str): device_id
         """
         if node_name == '' or node_name is None:
             node_name = gen_random_id()
@@ -309,7 +310,7 @@ class Node:
         return resp
 
     @property
-    def input_ports(self):
+    def input_ports(self) -> dict:
         return {
             'subscriber': self._subscribers,
             'rpc_service': self._rpc_services,
