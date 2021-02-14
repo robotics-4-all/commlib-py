@@ -5,16 +5,16 @@ import sys
 import os
 from setuptools import setup
 
-# this_dir = os.path.abspath(os.path.dirname(__file__))
+this_dir = os.path.abspath(os.path.dirname(__file__))
 
-# VERSIONFILE = os.path.join(this_dir, "goal_gen", "__init__.py")
-# VERSION = None
-# for line in open(VERSIONFILE, "r").readlines():
-#     if line.startswith('__version__'):
-#         VERSION = line.split('"')[1]
+VERSIONFILE = os.path.join(this_dir, "commlib", "__init__.py")
+VERSION = None
+for line in open(VERSIONFILE, "r").readlines():
+    if line.startswith('__version__'):
+        VERSION = line.split('"')[1]
 
-# if not VERSION:
-#     raise RuntimeError('No version defined in goal_gen.__init__.py')
+if not VERSION:
+    raise RuntimeError('No version defined in goal_gen.__init__.py')
 
 
 if sys.argv[-1].startswith('publish'):
@@ -30,8 +30,8 @@ if sys.argv[-1].startswith('publish'):
     else:
         os.system("twine upload dist/*")
         print("You probably want to also tag the version now:")
-        # print("  git tag -a {0} -m 'version {0}'".format(VERSION))
+        print("  git tag -a {0} -m 'version {0}'".format(VERSION))
         print("  git push --tags")
     sys.exit()
 
-setup()
+setup(version=VERSION)
