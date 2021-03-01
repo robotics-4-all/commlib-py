@@ -151,7 +151,9 @@ class MQTTTransport:
         self._client.username_pw_set(self._conn_params.creds.username,
                                      self._conn_params.creds.password)
 
-        self._client.connect(self._conn_params.host, self._conn_params.port, 60)
+        self._client.connect(self._conn_params.host,
+                             int(self._conn_params.port),
+                             60)
 
     @property
     def is_connected(self):
@@ -346,8 +348,18 @@ class Subscriber(BaseSubscriber):
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
         _uri = msg.topic
         _payload = JSONSerializer.deserialize(msg.payload)
-        _data = _payload['data']
-        _header = _payload['header']
+        try:
+            _data = _payload['data']
+        except KeyError as e:
+            self.logger.debug(
+                f'No "data" field in payload... Protocol fallback...')
+            _data = _payload
+        try:
+            _header = _payload['header']
+        except KeyError as e:
+            self.logger.debug(
+                f'No "header" field in payload... Protocol fallback...')
+            _header = {}
         return _data, _header, _uri
 
 
