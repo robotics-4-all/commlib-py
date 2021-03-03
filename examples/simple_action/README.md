@@ -41,7 +41,7 @@ def on_goal(goal_h):
 
 
 if __name__ == '__main__':
-    action_uri = 'action_example'
+    action_name = 'action_example'
     if len(sys.argv) > 1:
         broker_type = str(sys.argv[1])
     else:
@@ -66,7 +66,7 @@ if __name__ == '__main__':
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
     node.create_action(msg_type=ExampleAction,
-                       action_uri=action_uri,
+                       action_name=action_name,
                        on_goal=on_goal)
 
     node.run_forever()
@@ -111,7 +111,7 @@ def on_goal_reached(result):
 
 
 if __name__ == '__main__':
-    action_uri = 'action_example'
+    action_name = 'action_example'
     if len(sys.argv) > 1:
         broker_type = str(sys.argv[1])
     else:
@@ -136,7 +136,7 @@ if __name__ == '__main__':
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
     action_client = node.create_action_client(msg_type=ExampleAction,
-                                              action_uri=action_uri,
+                                              action_name=action_name,
                                               on_goal_reached=on_goal_reached,
                                               on_feedback=on_feedback,
                                               on_result=on_result)

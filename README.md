@@ -546,11 +546,11 @@ def on_goal(goal_h):
 
 
 if __name__ == '__main__':
-    action_uri = 'testaction'
+    action_name = 'testaction'
     conn_params = ConnectionParameters()
     action = ActionService(msg_type=ExampleAction,
                           conn_params=conn_params,
-                          action_uri=action_uri,
+                          action_name=action_name,
                           on_goal=on_goal)
     action.run()
     while True:
@@ -592,11 +592,11 @@ def on_goal_reached(result):
 
 
 if __name__ == '__main__':
-    action_uri = 'testaction'
+    action_name = 'testaction'
     conn_params = ConnectionParameters()
     action_c = ActionClient(msg_type=ExampleAction,
                             conn_params=conn_params,
-                            action_uri=action_uri,
+                            action_name=action_name,
                             on_feedback=on_feedback,
                             on_goal_reached=on_goal_reached)
     goal_msg = ExampleAction.Goal(target_cm=5)

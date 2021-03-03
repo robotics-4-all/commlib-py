@@ -1154,11 +1154,9 @@ class ActionService(BaseActionService):
         """__init__.
 
         Args:
-            action_uri (str): The name (uri) of the Action
-            msg_type (ActionMessage): The type of the Message
             conn_params (ConnectionParameters): Broker Connection parameters
-            args:
-            kwargs:
+            args: See BaseActionService parent class
+            kwargs: See BaseActionService parent class
         """
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -1206,11 +1204,9 @@ class ActionClient(BaseActionClient):
         Action Client constructor.
 
         Args:
-            action_uri (str): The name (uri) of the Action
-            msg_type (ActionMessage): The type of the Message
             conn_params (ConnectionParameters): Broker Connection parameters
-            args:
-            kwargs:
+            args: See BaseActionClient parent class
+            kwargs: See BaseActionClient parent class
         """
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
