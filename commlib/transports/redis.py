@@ -425,7 +425,7 @@ class MPublisher(Publisher):
         _msg = self._prepare_msg(data)
         _msg = self._serializer.serialize(_msg)
         self.logger.debug(
-            f'Publishing Message: <{self._topic}>:{data}')
+            f'Publishing Message: <{topic}>:{data}')
         self._transport.publish(topic, _msg)
         self._msg_seq += 1
 

@@ -387,6 +387,15 @@ class Node:
         self._publishers.append(pub)
         return pub
 
+    def create_mpublisher(self, *args, **kwargs):
+        """Creates a new Publisher Endpoint.
+        """
+        pub = self._commlib.MPublisher(conn_params=self._conn_params,
+                                       logger = self._logger,
+                                       *args, **kwargs)
+        self._publishers.append(pub)
+        return pub
+
     def create_subscriber(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
