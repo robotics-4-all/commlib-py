@@ -29,7 +29,6 @@ if __name__ == '__main__':
     node = Node(node_name='sensors.sonar.front',
                 transport_type=transport,
                 transport_connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
 
     pub = node.create_mpublisher()

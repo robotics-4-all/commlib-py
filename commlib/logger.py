@@ -21,11 +21,12 @@ import logging.config
 LOG_FORMAT = ('%(levelname) -10s %(asctime)s %(name) -30s %(funcName) '
               '-35s %(lineno) -5d: %(message)s')
 
+
 __LOGGING = dict(
     version=1,
     formatters={
         'f': {'format':
-              '[%(asctime)s][%(name)s][%(levelname)s]: %(message)s',
+              '[%(asctime)s][%(levelname)s]-[%(name)s]: %(message)s',
               'datefmt': '%s'
               }
     },
@@ -40,21 +41,25 @@ __LOGGING = dict(
     },
 )
 
+
 logging.config.dictConfig(__LOGGING)
+
 
 logging.addLevelName(
     logging.WARNING,
-    '\033[1;33m%s\033[1;0m' % logging.getLevelName(logging.WARNING)
+    f'\033[1;33m{logging.getLevelName(logging.WARNING)}\033[1;0m'
 )
+
 
 logging.addLevelName(
     logging.ERROR,
-    '\033[1;31m%s\033[1;0m' % logging.getLevelName(logging.ERROR)
+    f'\033[1;31m{logging.getLevelName(logging.ERROR)}\033[1;0m'
 )
+
 
 logging.addLevelName(
     logging.DEBUG,
-    '\033[1;34m%s\033[1;0m' % logging.getLevelName(logging.DEBUG)
+    f'\033[1;34m{logging.getLevelName(logging.DEBUG)}\033[1;0m'
 )
 
 
@@ -147,4 +152,5 @@ class Logger:
         self.std_logger.error(msg, exc_info=exc_info)
 
 
-ROOT_LOGGER = Logger('root')
+__ROOT_LOGGER = Logger('root')
+
