@@ -147,20 +147,36 @@ class RedisTransport(object):
         self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
-        if isinstance(conn_params, UnixSocketConnectionParameters):
+        try:
+            self.connect()
+        except Exception as e:
+            self.logger.info(
+                f'Failed to connect to Redis broker <{self._conn_params.host}' +
+                f'{self._conn_params.port}>')
+            raise e
+        else:
+            self.logger.info(
+                f'Connected to Redis <{self._conn_params.host}:{self._conn_params.port}>')
+
+
+    def connect(self):
+        if isinstance(self._conn_params, UnixSocketConnectionParameters):
             self._redis = Connection(
-                unix_socket_path=conn_params.unix_socket,
-                db=conn_params.db,
+                unix_socket_path=self._conn_params.unix_socket,
+                username=self._conn_params.credentials.username,
+                password=self._conn_params.credentials.password,
+                db=self._conn_params.db,
                 decode_responses=True)
-        elif isinstance(conn_params, TCPConnectionParameters):
-            self._redis = Connection(host=conn_params.host,
-                                     port=conn_params.port,
-                                     db=conn_params.db,
-                                     decode_responses=True)
+        elif isinstance(self._conn_params, TCPConnectionParameters):
+            self._redis = Connection(
+                host=self._conn_params.host,
+                port=self._conn_params.port,
+                username=self._conn_params.credentials.username,
+                password=self._conn_params.credentials.password,
+                db=self._conn_params.db,
+                decode_responses=True)
 
         self._rsub = self._redis.pubsub()
-        self.logger.info(
-            f'Connected to Redis <{conn_params.host}:{conn_params.port}>')
 
 
     def delete_queue(self, queue_name: str) -> bool:
