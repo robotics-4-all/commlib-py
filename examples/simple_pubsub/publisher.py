@@ -33,6 +33,8 @@ if __name__ == '__main__':
         print('Not a valid broker-type was given!')
         sys.exit(1)
     conn_params = ConnectionParameters()
+    conn_params.credentials.username = ''
+    conn_params.credentials.password = ''
 
     node = Node(node_name='sensors.sonar.front',
                 transport_type=transport,
