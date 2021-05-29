@@ -23,10 +23,10 @@ DEFAULT_JSON_SERIALIZER = 'ujson'
 
 if DEFAULT_JSON_SERIALIZER == 'json':
     import json as json
-elif DEFAULT_JSON_SERIALIZER == 'orjson':
-    import orjson as json
 elif DEFAULT_JSON_SERIALIZER == 'ujson':
     import ujson as json
+elif DEFAULT_JSON_SERIALIZER == 'orjson':
+    import orjson as json
 
 
 class SerializationTypes(enum.IntEnum):
