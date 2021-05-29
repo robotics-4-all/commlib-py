@@ -147,7 +147,6 @@ class HeartbeatThread(threading.Thread):
         return int(timestamp)
 
 
-
 class NodeStartMessage(RPCMessage):
     @DataClass
     class Request(RPCMessage.Request):
@@ -211,6 +210,8 @@ class Node:
         self._hb_thread = None
         self.state = NodeState.IDLE
         self._device_id = device_id
+        self._has_start_rpc = has_start_rpc
+        self._has_stop_rpc = has_stop_rpc
         if device_id is None:
             self._namespace = f'{self._node_name}'
         else:
@@ -250,10 +251,6 @@ class Node:
             self._conn_params = connection_params
 
         self._logger = Logger(self._node_name, debug=debug)
-        if has_start_rpc:
-            self.init_start_service()
-        if has_stop_rpc:
-            self.init_stop_service()
         self._logger.info(f'Created Node <{self._node_name}>')
 
     def init_heartbeat_thread(self, topic: str = None) -> None:
@@ -353,6 +350,10 @@ class Node:
             r.run()
         if self._heartbeat_thread:
             self.init_heartbeat_thread(self._heartbeat_uri)
+        if self._has_start_rpc:
+            self.init_start_service()
+        if self._has_stop_rpc:
+            self.init_stop_service()
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.001) -> None:
