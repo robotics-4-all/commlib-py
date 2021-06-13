@@ -35,8 +35,8 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 
 class TCPProxy(ThreadedTCPServer):
-    def __init__(self, host_ep1: str, port_ep1: str,
-                 host_ep2: str, port_ep2: str):
+    def __init__(self, host_ep1: str, port_ep1: int,
+                 host_ep2: str, port_ep2: int):
         self.host_ep1 = host_ep1
         self.host_ep2 = host_ep2
         self.port_ep1 = port_ep1
