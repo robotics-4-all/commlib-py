@@ -495,7 +495,7 @@ class Subscriber(BaseSubscriber):
         try:
             data, header, uri = self._unpack_comm_msg(payload)
             if self._topic != uri:
-                raise SubscriberError('Subscribed topic does not match!!')
+                raise SubscriberError('Subscribed topic does not match!')
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, data)
@@ -509,8 +509,18 @@ class Subscriber(BaseSubscriber):
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
         _uri = msg['channel']
         _payload = JSONSerializer.deserialize(msg['data'])
-        _data = _payload['data']
-        _header = _payload['header']
+        try:
+            _data = _payload['data']
+        except KeyError as e:
+            self.logger.debug(
+                f'No "data" field in payload... Protocol fallback...')
+            _data = _payload
+        try:
+            _header = _payload['header']
+        except KeyError as e:
+            self.logger.debug(
+                f'No "header" field in payload... Protocol fallback...')
+            _header = {}
         return _data, _header, _uri
 
     def _exit_gracefully(self):

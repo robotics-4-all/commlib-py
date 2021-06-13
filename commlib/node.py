@@ -406,6 +406,15 @@ class Node:
         self._subscribers.append(sub)
         return sub
 
+    def create_psubscriber(self, *args, **kwargs):
+        """Creates a new Publisher Endpoint.
+        """
+        sub =  self._commlib.PSubscriber(conn_params=self._conn_params,
+                                         logger = self._logger,
+                                         *args, **kwargs)
+        self._subscribers.append(sub)
+        return sub
+
     def create_rpc(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """

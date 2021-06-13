@@ -7,6 +7,10 @@ from commlib.msg import PubSubMessage, MessageHeader, DataClass
 from commlib.node import Node, TransportType
 
 
+def on_message(msg, topic):
+    print(f'Message at topic <{topic}>: {msg}')
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         broker = 'redis'
@@ -26,17 +30,14 @@ if __name__ == '__main__':
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    node = Node(node_name='example5_publisher',
+    node = Node(node_name='example5_listener',
                 transport_type=transport,
                 transport_connection_params=conn_params,
                 debug=True)
 
-    pub = node.create_mpublisher()
+    sub = node.create_psubscriber(topic='topic.*', on_message=on_message)
 
     topicA = 'topic.a'
     topicB = 'topic.b'
 
-    while True:
-        pub.publish({'a': 1}, topicA)
-        pub.publish({'b': 1}, topicB)
-        time.sleep(1)
+    node.run_forever()

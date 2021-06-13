@@ -21,57 +21,8 @@ from commlib.logger import Logger
 from commlib.msg import PubSubMessage, RPCMessage, Object, DataField, DataClass
 from commlib.utils import gen_timestamp
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import BaseRPCClient, BaseRPCService
+from commlib.rpc import BaseRPCClient, BaseRPCService, CommRPCObject
 from commlib.serializer import JSONSerializer
-
-
-@DataClass
-class CommObjectHeaderProps(Object):
-    """CommObjectHeaderProps.
-    """
-
-    content_type: str = DataField(default='application/json')
-    content_encoding: str = DataField(default='utf8')
-
-
-@DataClass
-class CommPubSubHeader(Object):
-    timestamp: int = DataField(default=gen_timestamp())
-    properties: CommObjectHeaderProps = DataField(
-        default_factory=CommObjectHeaderProps)
-
-
-@DataClass
-class CommPubSubObject(Object):
-    header: CommPubSubHeader = DataField(default_factory=CommPubSubHeader)
-    data: Dict[str, Any] = DataField(default_factory=dict)
-
-
-@DataClass
-class CommRPCHeader(Object):
-    timestamp: int = DataField(default=gen_timestamp())
-    reply_to: str = DataField(default='')
-    properties: CommObjectHeaderProps = DataField(
-        default_factory=CommObjectHeaderProps)
-
-
-@DataClass
-class CommRPCObject(Object):
-    header: CommRPCHeader = DataField(default_factory=CommRPCHeader)
-    data: Dict[str, Any] = DataField(default_factory=dict)
-
-
-@DataClass
-class CommEventHeader(Object):
-    timestamp: int = DataField(default=gen_timestamp())
-    properties: CommObjectHeaderProps = DataField(
-        default_factory=CommObjectHeaderProps)
-
-
-@DataClass
-class CommEventObject(Object):
-    header: CommEventHeader = DataField(default_factory=CommEventHeader)
-    data: Dict[str, Any] = DataField(default_factory=dict)
 
 
 class MQTTReturnCode(IntEnum):
@@ -183,15 +134,17 @@ class MQTTTransport:
                 retain: bool = False,
                 confirm_delivery: bool = False):
         topic = topic.replace('.', '/')
+        self.logger.debug(f'Sending Message at topic <{topic}>')
         ph = self._client.publish(topic, payload, qos=qos, retain=retain)
         if confirm_delivery:
             ph.wait_for_publish()
 
-    def subscribe(self, topic: str, callback: callable, qos: int = 0):
+    def subscribe(self, topic: str, callback: callable, qos: int = 0) -> str:
         ## Adds subtopic specific callback handlers
         topic = topic.replace('.', '/').replace('*', '#')
         self._client.subscribe(topic, qos)
         self._client.message_callback_add(topic, callback)
+        return topic
 
     def start_loop(self):
         self._client.loop_start()
@@ -224,11 +177,6 @@ class Publisher(BasePublisher):
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
         self._transport.start_loop()
-        self._comm_obj = CommPubSubObject()
-        self._comm_obj.header.properties.content_type = \
-            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
-        self._comm_obj.header.properties.content_encoding = \
-            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def publish(self, msg: PubSubMessage) -> None:
         """publish.
@@ -243,22 +191,10 @@ class Publisher(BasePublisher):
             data = msg
         else:
             data = msg.as_dict()
-        _msg = self._prepare_msg(data)
-        _msg = self._serializer.serialize(_msg)
+        _msg = self._serializer.serialize(data)
         self.logger.debug(f'Publishing Message to topic <{self._topic}>')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
-
-    def _prepare_msg(self, data: Dict[str, Any]):
-        """_prepare_msg.
-        Wraps in comm message. Includes header and data payload
-
-        Args:
-            data (Dict[str, Any]): data
-        """
-        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
-        self._comm_obj.data = data
-        return self._comm_obj.as_dict()
 
 
 class MPublisher(Publisher):
@@ -283,8 +219,7 @@ class MPublisher(Publisher):
             data = msg
         else:
             data = msg.as_dict()
-        _msg = self._prepare_msg(data)
-        _msg = self._serializer.serialize(_msg)
+        _msg = self._serializer.serialize(data)
         self._transport.publish(topic, _msg)
         self._msg_seq += 1
 
@@ -308,19 +243,10 @@ class Subscriber(BaseSubscriber):
         super(Subscriber, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
-        self._topic = self._validate_uri(self._topic)
-
-    def _validate_uri(self, uri):
-        # Use PSubscriber for pattern-based subscription
-        if '.' in uri:
-            self.logger.warn(
-                'Found "." character in topic definition. Replacing with "/"')
-            uri = uri.replace('.', '/')
-        return uri
 
     def run(self):
-        self._transport.subscribe(self._topic,
-                                  self._on_message)
+        self._topic = self._transport.subscribe(self._topic,
+                                                self._on_message)
         self._transport.start_loop()
         self.logger.info(f'Started Subscriber: <{self._topic}>')
 
@@ -331,8 +257,9 @@ class Subscriber(BaseSubscriber):
         self._transport.loop_forever()
 
     def _on_message(self, client, userdata, msg):
+        # Received MqttMessage (paho)
         try:
-            data, header, uri = self._unpack_comm_msg(msg)
+            data, uri = self._unpack_comm_msg(msg)
             if self._topic != uri:
                 raise SubscriberError('Subscribed topic does not match!!')
             if self.onmessage is not None:
@@ -347,20 +274,8 @@ class Subscriber(BaseSubscriber):
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
         _uri = msg.topic
-        _payload = JSONSerializer.deserialize(msg.payload)
-        try:
-            _data = _payload['data']
-        except KeyError as e:
-            self.logger.debug(
-                f'No "data" field in payload... Protocol fallback...')
-            _data = _payload
-        try:
-            _header = _payload['header']
-        except KeyError as e:
-            self.logger.debug(
-                f'No "header" field in payload... Protocol fallback...')
-            _header = {}
-        return _data, _header, _uri
+        _data = JSONSerializer.deserialize(msg.payload)
+        return _data, _uri
 
 
 class PSubscriber(Subscriber):
@@ -369,7 +284,7 @@ class PSubscriber(Subscriber):
 
     def _on_message(self, client, userdata, msg):
         try:
-            data, header, topic = self._unpack_comm_msg(msg)
+            data, topic = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
@@ -404,10 +319,6 @@ class RPCService(BaseRPCService):
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
         self._comm_obj = CommRPCObject()
-        self._comm_obj.header.properties.content_type = \
-            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
-        self._comm_obj.header.properties.content_encoding = \
-            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def _send_response(self, data: dict, reply_to: str):
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
@@ -479,10 +390,6 @@ class RPCClient(BaseRPCClient):
                                         logger=self._logger)
         self._transport.start_loop()
         self._comm_obj = CommRPCObject()
-        self._comm_obj.header.properties.content_type = \
-            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
-        self._comm_obj.header.properties.content_encoding = \
-            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def _gen_queue_name(self):
         return f'rpc-{self._gen_random_id()}'
