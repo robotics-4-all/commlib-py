@@ -584,11 +584,6 @@ class EventEmitter(BaseEventEmitter):
         self._transport = MQTTTransport(conn_params=conn_params,
                                          logger=self._logger)
         self._transport.start_loop()
-        self._comm_obj = CommEventObject()
-        self._comm_obj.header.properties.content_type = \
-            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
-        self._comm_obj.header.properties.content_encoding = \
-            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def send_event(self, event: Event) -> None:
         """send_event.
@@ -600,20 +595,6 @@ class EventEmitter(BaseEventEmitter):
             None:
         """
         _msg = event.as_dict()
-        _msg = self._prepare_msg(_msg)
         _msg = self._serializer.serialize(_msg)
         self.logger.debug(f'Firing Event: {event.name}:<{event.uri}>')
         self._transport.publish(event.uri, _msg)
-
-    def _prepare_msg(self, data: Dict[str, Any]) -> None:
-        """_prepare_msg.
-
-        Args:
-            data (Dict[str, Any]): data
-
-        Returns:
-            None:
-        """
-        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
-        self._comm_obj.data = data
-        return self._comm_obj.as_dict()

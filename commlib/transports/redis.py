@@ -20,17 +20,6 @@ from commlib.serializer import JSONSerializer
 from commlib.utils import gen_timestamp
 
 
-@DataClass
-class CommEventHeader(Object):
-    timestamp: int = DataField(default=gen_timestamp())
-
-
-@DataClass
-class CommEventObject(Object):
-    header: CommEventHeader = DataField(default_factory=CommEventHeader)
-    data: Dict[str, Any] = DataField(default_factory=dict)
-
-
 class Credentials(object):
     def __init__(self, username: str = '', password: str = ''):
         self.username = username
@@ -578,11 +567,6 @@ class EventEmitter(BaseEventEmitter):
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
-        self._comm_obj = CommEventObject()
-        self._comm_obj.header.properties.content_type = \
-            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
-        self._comm_obj.header.properties.content_encoding = \
-            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def send_event(self, event: Event) -> None:
         """send_event.
@@ -594,12 +578,6 @@ class EventEmitter(BaseEventEmitter):
             None:
         """
         _msg = event.as_dict()
-        _msg = self._prepare_msg(_msg)
         _msg = self._serializer.serialize(_msg)
         self.logger.debug(f'Firing Event: {event.name}:<{event.uri}>')
         self._transport.publish(event.uri, _msg)
-
-    def _prepare_msg(self, data: Dict[str, Any]) -> None:
-        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
-        self._comm_obj.data = data
-        return self._comm_obj.as_dict()

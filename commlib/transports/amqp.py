@@ -878,14 +878,14 @@ class Publisher(BasePublisher):
                                                     self._topic)
 
 
-    def _send_msg(self, data: Dict, topic: str):
+    def _send_msg(self, msg: Dict, topic: str):
         _payload = None
         _encoding = None
         _type = None
 
         _encoding = self._serializer.CONTENT_ENCODING
         _type = self._serializer.CONTENT_TYPE
-        _payload = self._serializer.serialize(data).encode(_encoding)
+        _payload = self._serializer.serialize(msg).encode(_encoding)
 
         msg_props = MessageProperties(
             content_type=_type,
@@ -1042,7 +1042,7 @@ class Subscriber(BaseSubscriber):
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
         except Exception:
-            self.logger.debug("Could reading message properties",
+            self.logger.debug("Failed to read message properties",
                               exc_info=True)
         try:
             _data = self._serializer.deserialize(body)
