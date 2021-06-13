@@ -15,59 +15,20 @@ from commlib.exceptions import RPCClientTimeoutError, SubscriberError
 from commlib.logger import Logger
 from commlib.msg import DataClass, DataField, Object, PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import BaseRPCClient, BaseRPCService
+from commlib.rpc import BaseRPCClient, BaseRPCService, CommRPCObject
 from commlib.serializer import JSONSerializer
 from commlib.utils import gen_timestamp
 
 
 @DataClass
-class CommObjectHeaderProps(Object):
-    """CommObjectHeaderProps.
-    """
-
-    content_type: str = DataField(default='application/json')
-    content_encoding: str = DataField(default='utf8')
-
-
-@DataClass
-class CommPubSubHeader(Object):
-    timestamp: int = DataField(default=gen_timestamp())
-    properties: CommObjectHeaderProps = DataField(
-        default_factory=CommObjectHeaderProps)
-
-
-@DataClass
-class CommPubSubObject(Object):
-    header: CommPubSubHeader = DataField(default_factory=CommPubSubHeader)
-    data: Dict[str, Any] = DataField(default_factory=dict)
-
-
-@DataClass
-class CommRPCHeader(Object):
-    timestamp: int = DataField(default=gen_timestamp())
-    reply_to: str = DataField(default='')
-    properties: CommObjectHeaderProps = DataField(
-        default_factory=CommObjectHeaderProps)
-
-
-@DataClass
-class CommRPCObject(Object):
-    header: CommRPCHeader = DataField(default_factory=CommRPCHeader)
-    data: Dict[str, Any] = DataField(default_factory=dict)
-
-
-@DataClass
 class CommEventHeader(Object):
     timestamp: int = DataField(default=gen_timestamp())
-    properties: CommObjectHeaderProps = DataField(
-        default_factory=CommObjectHeaderProps)
 
 
 @DataClass
 class CommEventObject(Object):
     header: CommEventHeader = DataField(default_factory=CommEventHeader)
     data: Dict[str, Any] = DataField(default_factory=dict)
-
 
 
 class Credentials(object):
@@ -227,21 +188,12 @@ class RPCService(BaseRPCService):
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
+        self._comm_obj = CommRPCObject()
 
     def _send_response(self, data, reply_to):
-        header = {
-            'timestamp': int(datetime.datetime.now(
-                datetime.timezone.utc).timestamp() * 1000000),
-            'properties': {
-                'content_type': self._serializer.CONTENT_TYPE,
-                'content_encoding': self._serializer.CONTENT_ENCODING,
-                'msg_type': ''  ## TODO
-            }
-        }
-        _resp = {
-            'data': data,
-            'header': header
-        }
+        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.data = data
+        _resp = self._comm_obj.as_dict()
         _resp = self._serializer.serialize(_resp)
         self._transport.push_msg_to_queue(reply_to, _resp)
 
@@ -304,10 +256,6 @@ class RPCClient(BaseRPCClient):
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
         self._comm_obj = CommRPCObject()
-        self._comm_obj.header.properties.content_type = \
-            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
-        self._comm_obj.header.properties.content_encoding = \
-            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def _gen_queue_name(self):
         return f'rpc-{self._gen_random_id()}'
@@ -372,11 +320,6 @@ class Publisher(BasePublisher):
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
-        self._comm_obj = CommPubSubObject()
-        self._comm_obj.header.properties.content_type = \
-            self._serializer.CONTENT_TYPE  #pylint: disable=E1101
-        self._comm_obj.header.properties.content_encoding = \
-            self._serializer.CONTENT_ENCODING  #pylint: disable=E1101
 
     def publish(self, msg: PubSubMessage) -> None:
         """publish.
@@ -392,22 +335,10 @@ class Publisher(BasePublisher):
             data = msg
         else:
             data = msg.as_dict()
-        _msg = self._prepare_msg(data)
-        _msg = self._serializer.serialize(_msg)
+        _msg = self._serializer.serialize(data)
         self.logger.debug(f'Publishing Message to topic <{self._topic}>')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
-
-    def _prepare_msg(self, data: Dict[str, Any]):
-        """_prepare_msg.
-        Wraps in comm message. Includes header and data payload
-
-        Args:
-            data (Dict[str, Any]): data
-        """
-        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
-        self._comm_obj.data = data
-        return self._comm_obj.as_dict()
 
 
 class MPublisher(Publisher):
@@ -438,8 +369,7 @@ class MPublisher(Publisher):
             data = msg
         else:
             data = msg.as_dict()
-        _msg = self._prepare_msg(data)
-        _msg = self._serializer.serialize(_msg)
+        _msg = self._serializer.serialize(data)
         self.logger.debug(
             f'Publishing Message: <{topic}>:{data}')
         self._transport.publish(topic, _msg)
@@ -468,11 +398,6 @@ class Subscriber(BaseSubscriber):
 
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
-        self._topic = self._validate_uri(self._topic)
-
-    def _validate_uri(self, uri: str) -> str:
-        # Use PSubscriber for pattern-based subscription
-        return uri
 
     def run(self):
         self._subscriber_thread = self._transport.subscribe(self._topic,
@@ -493,7 +418,7 @@ class Subscriber(BaseSubscriber):
 
     def _on_message(self, payload: Dict[str, Any]):
         try:
-            data, header, uri = self._unpack_comm_msg(payload)
+            data, uri = self._unpack_comm_msg(payload)
             if self._topic != uri:
                 raise SubscriberError('Subscribed topic does not match!')
             if self.onmessage is not None:
@@ -508,20 +433,8 @@ class Subscriber(BaseSubscriber):
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
         _uri = msg['channel']
-        _payload = JSONSerializer.deserialize(msg['data'])
-        try:
-            _data = _payload['data']
-        except KeyError as e:
-            self.logger.debug(
-                f'No "data" field in payload... Protocol fallback...')
-            _data = _payload
-        try:
-            _header = _payload['header']
-        except KeyError as e:
-            self.logger.debug(
-                f'No "header" field in payload... Protocol fallback...')
-            _header = {}
-        return _data, _header, _uri
+        _data = JSONSerializer.deserialize(msg['data'])
+        return _data, _uri
 
     def _exit_gracefully(self):
         self._subscriber_thread.stop()
@@ -534,7 +447,7 @@ class PSubscriber(Subscriber):
 
     def _on_message(self, payload: Dict[str, Any]) -> None:
         try:
-            data, header, topic = self._unpack_comm_msg(payload)
+            data, topic = self._unpack_comm_msg(payload)
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage,
