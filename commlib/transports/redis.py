@@ -354,9 +354,11 @@ class MPublisher(Publisher):
         Returns:
             None:
         """
-        if self._msg_type is None:
+        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
+            raise ValueError('Argument "msg" must be of type PubSubMessage')
+        elif isinstance(msg, dict):
             data = msg
-        else:
+        elif isinstance(msg, PubSubMessage):
             data = msg.as_dict()
         _msg = self._serializer.serialize(data)
         self.logger.debug(
