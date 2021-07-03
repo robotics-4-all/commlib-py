@@ -134,7 +134,6 @@ class MQTTTransport:
                 retain: bool = False,
                 confirm_delivery: bool = False):
         topic = topic.replace('.', '/')
-        self.logger.debug(f'Sending Message at topic <{topic}>')
         ph = self._client.publish(topic, payload, qos=qos, retain=retain)
         if confirm_delivery:
             ph.wait_for_publish()
@@ -187,12 +186,14 @@ class Publisher(BasePublisher):
         Returns:
             None:
         """
-        if self._msg_type is None:
+        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
+            raise ValueError('Argument "msg" must be of type PubSubMessage')
+        elif isinstance(msg, dict):
             data = msg
-        else:
+        elif isinstance(msg, PubSubMessage):
             data = msg.as_dict()
         _msg = self._serializer.serialize(data)
-        self.logger.debug(f'Publishing Message to topic <{self._topic}>')
+        self.logger.debug(f'Publishing Message on topic <{self._topic}>')
         self._transport.publish(self._topic, _msg)
         self._msg_seq += 1
 
@@ -215,9 +216,11 @@ class MPublisher(Publisher):
         Returns:
             None:
         """
-        if self._msg_type is None:
+        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
+            raise ValueError('Argument "msg" must be of type PubSubMessage')
+        elif isinstance(msg, dict):
             data = msg
-        else:
+        elif isinstance(msg, PubSubMessage):
             data = msg.as_dict()
         _msg = self._serializer.serialize(data)
         self._transport.publish(topic, _msg)

@@ -320,14 +320,19 @@ class Publisher(BasePublisher):
         Returns:
             None:
         """
-        if self._msg_type is None:
+        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
+            raise ValueError('Argument "msg" must be of type PubSubMessage')
+        elif isinstance(msg, dict):
             data = msg
-        else:
+        elif isinstance(msg, PubSubMessage):
             data = msg.as_dict()
-        _msg = self._serializer.serialize(data)
+        _data = self._serializer.serialize(data)
         self.logger.debug(f'Publishing Message to topic <{self._topic}>')
-        self._transport.publish(self._topic, _msg)
+        self._transport.publish(self._topic, _data)
         self._msg_seq += 1
+
+    def _publish(self, data, topic) -> None:
+        pass
 
 
 class MPublisher(Publisher):
@@ -360,10 +365,10 @@ class MPublisher(Publisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.as_dict()
-        _msg = self._serializer.serialize(data)
+        _data = self._serializer.serialize(data)
         self.logger.debug(
             f'Publishing Message: <{topic}>:{data}')
-        self._transport.publish(topic, _msg)
+        self._transport.publish(topic, _data)
         self._msg_seq += 1
 
 

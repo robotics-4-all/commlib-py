@@ -174,19 +174,18 @@ class Node:
     """
 
     def __init__(self,
-                 node_name: str = '',
-                 transport_type: TransportType = TransportType.REDIS,
+                 node_name: Optional[str] = '',
+                 transport_type: Optional[TransportType] = TransportType.REDIS,
                  ## DEPRECATED - Used only for backward compatibility
-                 transport_connection_params: Any = None,
-                 connection_params: Any = None,
-                 remote_logger: bool = False,
-                 remote_logger_uri: str = '',
-                 debug: bool = False,
-                 heartbeat_thread: bool = True,
+                 transport_connection_params: Optional[Any] = None,
+                 connection_params: Optional[Any] = None,
+                 remote_logger: Optional[bool] = False,
+                 remote_logger_uri: Optional[str] = '',
+                 debug: Optional[bool] = False,
+                 heartbeat_thread: Optional[bool] = True,
                  heartbeat_uri: Optional[str] = None,
                  device_id: Optional[str] = None,
-                 has_start_rpc: bool = False,
-                 has_stop_rpc: bool = False):
+                 ctrl_services: Optional[bool] = False):
         """__init__.
 
         Args:
@@ -210,8 +209,7 @@ class Node:
         self._hb_thread = None
         self.state = NodeState.IDLE
         self._device_id = device_id
-        self._has_start_rpc = has_start_rpc
-        self._has_stop_rpc = has_stop_rpc
+        self._has_ctrl_services = ctrl_services
         if device_id is None:
             self._namespace = f'{self._node_name}'
         else:
@@ -350,9 +348,9 @@ class Node:
             r.run()
         if self._heartbeat_thread:
             self.init_heartbeat_thread(self._heartbeat_uri)
-        if self._has_start_rpc:
+        if self._has_ctrl_services:
             self.init_start_service()
-        if self._has_stop_rpc:
+        if self._has_ctrl_services:
             self.init_stop_service()
         self.state = NodeState.RUNNING
 

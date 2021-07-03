@@ -868,15 +868,15 @@ class Publisher(BasePublisher):
         Args:
             msg (PubSubMessage): Message to publish.
         """
+        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
+            raise ValueError('Argument "msg" must be of type PubSubMessage')
+        elif isinstance(msg, dict):
+            data = msg
+        elif isinstance(msg, PubSubMessage):
+            data = msg.as_dict()
         ## Thread Safe solution
-        if self._msg_type is None:
-            self._transport.add_threadsafe_callback(self._send_msg, msg,
-                                                    self._topic)
-        else:
-            self._transport.add_threadsafe_callback(self._send_msg,
-                                                    msg.as_dict(),
-                                                    self._topic)
-
+        self._transport.add_threadsafe_callback(self._send_msg, data,
+                                                self._topic)
 
     def _send_msg(self, msg: Dict, topic: str):
         _payload = None
@@ -913,13 +913,14 @@ class MPublisher(Publisher):
         Args:
             msg (PubSubMessage): Message to publish.
         """
+        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
+            raise ValueError('Argument "msg" must be of type PubSubMessage')
+        elif isinstance(msg, dict):
+            data = msg
+        elif isinstance(msg, PubSubMessage):
+            data = msg.as_dict()
         ## Thread Safe solution
-        if self._msg_type is None:
-            self._transport.add_threadsafe_callback(self._send_msg, msg, topic)
-        else:
-            self._transport.add_threadsafe_callback(self._send_msg,
-                                                    msg.as_dict(),
-                                                    topic)
+        self._transport.add_threadsafe_callback(self._send_msg, data, topic)
 
 
 class Subscriber(BaseSubscriber):
