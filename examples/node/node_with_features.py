@@ -40,10 +40,10 @@ if __name__ == '__main__':
 
     nodeA = Node(node_name='obstacle_avoidance_node',
                  transport_type=transport,
-                 transport_connection_params=conn_params,
+                 connection_params=conn_params,
                  heartbeat_thread=True,
                  # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                 debug=True)
+                 debug=False)
 
     nodeA.create_subscriber(msg_type=SonarMessage,
                             topic='sensors.sonar.front',
@@ -53,12 +53,14 @@ if __name__ == '__main__':
 
     nodeB = Node(node_name='front_sonar_node',
                  transport_type=transport,
-                 transport_connection_params=conn_params,
+                 connection_params=conn_params,
                  heartbeat_thread=True,
                  # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                 debug=True)
+                 ctrl_services=True,  # Create start/stop control services
+                 debug=False)
 
-    pub = nodeB.create_publisher(topic='sensors.sonar.front')
+    pub = nodeB.create_publisher(msg_type=SonarMessage,
+                                 topic='sensors.sonar.front')
 
     nodeB.run()
 
