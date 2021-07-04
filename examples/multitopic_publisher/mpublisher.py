@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     node = Node(node_name='example5_publisher',
                 transport_type=transport,
-                transport_connection_params=conn_params,
+                connection_params=conn_params,
                 debug=True)
 
     pub = node.create_mpublisher()

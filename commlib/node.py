@@ -176,28 +176,27 @@ class Node:
     def __init__(self,
                  node_name: Optional[str] = '',
                  transport_type: Optional[TransportType] = TransportType.REDIS,
-                 ## DEPRECATED - Used only for backward compatibility
-                 transport_connection_params: Optional[Any] = None,
                  connection_params: Optional[Any] = None,
                  remote_logger: Optional[bool] = False,
                  remote_logger_uri: Optional[str] = '',
                  debug: Optional[bool] = False,
                  heartbeat_thread: Optional[bool] = True,
                  heartbeat_uri: Optional[str] = None,
-                 device_id: Optional[str] = None,
+                 thing_id: Optional[str] = None,
                  ctrl_services: Optional[bool] = False):
         """__init__.
 
         Args:
-            node_name (str): node_name
-            transport_type (TransportType): transport_type
-            transport_connection_params:
-            connection_params:
-            max_workers (int): max_workers
-            remote_logger (bool): remote_logger
-            remote_logger_uri (str): remote_logger_uri
-            debug (bool): debug
-            device_id (str): device_id
+            node_name (Optional[str]): node_name
+            transport_type (Optional[TransportType]): transport_type
+            connection_params (Optional[Any]): connection_params
+            remote_logger (Optional[bool]): remote_logger
+            remote_logger_uri (Optional[str]): remote_logger_uri
+            debug (Optional[bool]): debug
+            heartbeat_thread (Optional[bool]): heartbeat_thread
+            heartbeat_uri (Optional[str]): heartbeat_uri
+            thing_id (Optional[str]): thing_id
+            ctrl_services (Optional[bool]): ctrl_services
         """
         if node_name == '' or node_name is None:
             node_name = gen_random_id()
@@ -208,12 +207,12 @@ class Node:
         self._heartbeat_uri = heartbeat_uri
         self._hb_thread = None
         self.state = NodeState.IDLE
-        self._device_id = device_id
+        self._thing_id = thing_id
         self._has_ctrl_services = ctrl_services
-        if device_id is None:
+        if thing_id is None:
             self._namespace = f'{self._node_name}'
         else:
-            self._namespace = f'thing.{device_id}.{self._node_name}'
+            self._namespace = f'thing.{thing_id}.{self._node_name}'
 
         self._publishers = []
         self._subscribers = []
@@ -233,7 +232,7 @@ class Node:
             raise ValueError('Transport type is not supported!')
         self._commlib = comm
 
-        if transport_connection_params is None:
+        if connection_params is None:
             if transport_type == TransportType.REDIS:
                 from commlib.transports.redis import \
                     UnixSocketConnectionParameters as ConnParams
@@ -243,10 +242,8 @@ class Node:
             elif transport_type == TransportType.MQTT:
                 from commlib.transports.mqtt import \
                     ConnectionParameters as ConnParams
-            transport_connection_params = ConnParams()
-        self._conn_params = transport_connection_params
-        if connection_params is not None:
-            self._conn_params = connection_params
+            connection_params = ConnParams()
+        self._conn_params = connection_params
 
         self._logger = Logger(self._node_name, debug=debug)
         self._logger.info(f'Created Node <{self._node_name}>')

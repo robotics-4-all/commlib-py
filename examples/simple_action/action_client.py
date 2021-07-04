@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
     node = Node(node_name='action_client_example_node',
                 transport_type=transport,
-                transport_connection_params=conn_params,
+                connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
     action_client = node.create_action_client(msg_type=ExampleAction,

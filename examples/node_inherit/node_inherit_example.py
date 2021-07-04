@@ -38,7 +38,7 @@ class SonarNode(Node):
         conn_params = ConnectionParameters()
         super().__init__(node_name='sensors.sonar.front',
                          transport_type=self.transport_type,
-                         transport_connection_params=conn_params,
+                         connection_params=conn_params,
                          # heartbeat_uri='nodes.add_two_ints.heartbeat',
                          debug=True)
         self.pub = self.create_publisher(msg_type=SonarMessage,

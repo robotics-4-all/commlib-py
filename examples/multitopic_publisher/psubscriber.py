@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
     node = Node(node_name='example5_listener',
                 transport_type=transport,
-                transport_connection_params=conn_params,
+                connection_params=conn_params,
                 debug=True)
 
     sub = node.create_psubscriber(topic='topic.*', on_message=on_message)
