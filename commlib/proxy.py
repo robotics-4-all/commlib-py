@@ -11,15 +11,15 @@ class TCPProxyRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         # self.request is the TCP socket connected to the client
-        self.data = self.request.recv(1024)
+        data = self.request.recv(1024)
         print("Passing data from: {}".format(self.client_address[0]))
-        print(self.data)
+        print(data)
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             # Try to connect to the server and send data
             try:
                 sock.connect((self.server.host_ep2, self.server.port_ep2))
-                sock.sendall(self.data)
+                sock.sendall(data)
                 # Receive data from the server
                 while 1:
                     received = sock.recv(1024)
