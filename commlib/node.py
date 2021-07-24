@@ -177,6 +177,7 @@ class Node:
                  node_name: Optional[str] = '',
                  transport_type: Optional[TransportType] = TransportType.REDIS,
                  connection_params: Optional[Any] = None,
+                 transport_connection_params: Optional[Any] = None,
                  remote_logger: Optional[bool] = False,
                  remote_logger_uri: Optional[str] = '',
                  debug: Optional[bool] = False,
@@ -190,6 +191,8 @@ class Node:
             node_name (Optional[str]): node_name
             transport_type (Optional[TransportType]): transport_type
             connection_params (Optional[Any]): connection_params
+            transport_connection_params (Optional[Any]): Same with connection_params.
+                Used for backward compatibility
             remote_logger (Optional[bool]): remote_logger
             remote_logger_uri (Optional[str]): remote_logger_uri
             debug (Optional[bool]): debug
@@ -232,7 +235,9 @@ class Node:
             raise ValueError('Transport type is not supported!')
         self._commlib = comm
 
-        if connection_params is None:
+        if transport_connection_params is not None:
+            self._conn_params = transport_connection_params
+        elif connection_params is None:
             if transport_type == TransportType.REDIS:
                 from commlib.transports.redis import \
                     UnixSocketConnectionParameters as ConnParams
@@ -243,7 +248,9 @@ class Node:
                 from commlib.transports.mqtt import \
                     ConnectionParameters as ConnParams
             connection_params = ConnParams()
-        self._conn_params = connection_params
+            self._conn_params = connection_params
+        else:
+            self._conn_params = connection_params
 
         self._logger = Logger(self._node_name, debug=debug)
         self._logger.info(f'Created Node <{self._node_name}>')
