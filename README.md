@@ -56,6 +56,7 @@ In order to have access to the AMQP transport you will have to installed the fol
 pip install "pika==1.1.0"
 ```
 
+
 ## MQTT Support
 
 In order to have access to the MQTT transport you will have to installed the following dependencies:
@@ -66,6 +67,7 @@ In order to have access to the MQTT transport you will have to installed the fol
 pip install paho-mqtt
 ```
 
+
 ## JSON Serialization
 
 It is recommended to use a fast json library, such as [orjson](https://github.com/ijl/orjson) 
@@ -74,7 +76,9 @@ or [ujson](https://github.com/ultrajson/ultrajson).
 The framework will load and use the most performance optimal library based
 on installations.
 
+
 # Quick Start
+
 The purpose of this implementation is to provide an application-level communication layer, 
 by providing implementations for Remote-Procedure-Calls (RPCs), Topic-based PubSub, Preemptable Services (aka Actions), Events etc.
 
@@ -160,6 +164,8 @@ if __name__ == '__main__':
 
     # Set broker connection parameters
     conn_params = ConnectionParameters()
+    conn_params.credentials.username = ''
+    conn_params.credentials.password = ''
 
     # Create an instance of a Node
     node = Node(node_name='example-node',
@@ -199,6 +205,7 @@ Node methods to create Endpoints::
    +create_action_client(self, *args, **kwargs) : member
    +create_event_emitter(self, *args, **kwargs) : member
    +create_publisher(self, *args, **kwargs) : member
+   +create_mpublisher(self, *args, **kwargs) : member
    +create_rpc(self, *args, **kwargs) : member
    +create_rpc_client(self, *args, **kwargs) : member
    +create_subscriber(self, *args, **kwargs) : member
@@ -546,11 +553,11 @@ def on_goal(goal_h):
 
 
 if __name__ == '__main__':
-    action_uri = 'testaction'
+    action_name = 'testaction'
     conn_params = ConnectionParameters()
     action = ActionService(msg_type=ExampleAction,
                           conn_params=conn_params,
-                          action_uri=action_uri,
+                          action_name=action_name,
                           on_goal=on_goal)
     action.run()
     while True:
@@ -592,11 +599,11 @@ def on_goal_reached(result):
 
 
 if __name__ == '__main__':
-    action_uri = 'testaction'
+    action_name = 'testaction'
     conn_params = ConnectionParameters()
     action_c = ActionClient(msg_type=ExampleAction,
                             conn_params=conn_params,
-                            action_uri=action_uri,
+                            action_name=action_name,
                             on_feedback=on_feedback,
                             on_goal_reached=on_goal_reached)
     goal_msg = ExampleAction.Goal(target_cm=5)

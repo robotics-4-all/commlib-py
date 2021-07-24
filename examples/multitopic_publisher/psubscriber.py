@@ -7,12 +7,8 @@ from commlib.msg import PubSubMessage, MessageHeader, DataClass
 from commlib.node import Node, TransportType
 
 
-@DataClass
-class SonarMessage(PubSubMessage):
-    header: MessageHeader = MessageHeader()
-    range: float = -1
-    hfov: float = 30.6
-    vfov: float = 14.2
+def on_message(msg, topic):
+    print(f'Message at topic <{topic}>: {msg}')
 
 
 if __name__ == '__main__':
@@ -33,20 +29,15 @@ if __name__ == '__main__':
         print('Not a valid broker-type was given!')
         sys.exit(1)
     conn_params = ConnectionParameters()
-    # conn_params.credentials.username = ''
-    # conn_params.credentials.password = ''
 
-    node = Node(node_name='sensors.sonar.front',
+    node = Node(node_name='example5_listener',
                 transport_type=transport,
                 connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
 
-    pub = node.create_publisher(msg_type=SonarMessage,
-                                topic='sensors.sonar.front')
+    sub = node.create_psubscriber(topic='topic.*', on_message=on_message)
 
-    msg = SonarMessage()
-    while True:
-        pub.publish(msg)
-        msg.range += 1
-        time.sleep(1)
+    topicA = 'topic.a'
+    topicB = 'topic.b'
+
+    node.run_forever()

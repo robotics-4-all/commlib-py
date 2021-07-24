@@ -3,16 +3,8 @@
 import sys
 import time
 
-from commlib.msg import PubSubMessage, MessageHeader, DataClass
 from commlib.node import Node, TransportType
-
-
-@DataClass
-class SonarMessage(PubSubMessage):
-    header: MessageHeader = MessageHeader()
-    range: float = -1
-    hfov: float = 30.6
-    vfov: float = 14.2
+from commlib.rest import RESTProxyMessage
 
 
 if __name__ == '__main__':
@@ -33,20 +25,25 @@ if __name__ == '__main__':
         print('Not a valid broker-type was given!')
         sys.exit(1)
     conn_params = ConnectionParameters()
-    # conn_params.credentials.username = ''
-    # conn_params.credentials.password = ''
 
-    node = Node(node_name='sensors.sonar.front',
+    node = Node(node_name='rest_proxy_client',
                 transport_type=transport,
                 connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
 
-    pub = node.create_publisher(msg_type=SonarMessage,
-                                topic='sensors.sonar.front')
+    rpc = node.create_rpc_client(msg_type=RESTProxyMessage,
+                                 rpc_name='proxy.rest')
 
-    msg = SonarMessage()
+    node.run()
+
+    # Create an instance of the request object
+    msg = RESTProxyMessage.Request(host='httpbin.org', port=80,
+                                   path='/get', verb='GET',
+                                   query_params={'a': 1, 'b': 2})
+
     while True:
-        pub.publish(msg)
-        msg.range += 1
-        time.sleep(1)
+        # returns AddTwoIntMessage.Response instance
+        resp = rpc.call(msg)
+        print(resp)
+        time.sleep(10)

@@ -868,24 +868,24 @@ class Publisher(BasePublisher):
         Args:
             msg (PubSubMessage): Message to publish.
         """
+        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
+            raise ValueError('Argument "msg" must be of type PubSubMessage')
+        elif isinstance(msg, dict):
+            data = msg
+        elif isinstance(msg, PubSubMessage):
+            data = msg.as_dict()
         ## Thread Safe solution
-        if self._msg_type is None:
-            self._transport.add_threadsafe_callback(self._send_msg, msg,
-                                                    self._topic)
-        else:
-            self._transport.add_threadsafe_callback(self._send_msg,
-                                                    msg.as_dict(),
-                                                    self._topic)
+        self._transport.add_threadsafe_callback(self._send_msg, data,
+                                                self._topic)
 
-
-    def _send_msg(self, data: Dict, topic: str):
+    def _send_msg(self, msg: Dict, topic: str):
         _payload = None
         _encoding = None
         _type = None
 
         _encoding = self._serializer.CONTENT_ENCODING
         _type = self._serializer.CONTENT_TYPE
-        _payload = self._serializer.serialize(data).encode(_encoding)
+        _payload = self._serializer.serialize(msg).encode(_encoding)
 
         msg_props = MessageProperties(
             content_type=_type,
@@ -913,13 +913,14 @@ class MPublisher(Publisher):
         Args:
             msg (PubSubMessage): Message to publish.
         """
+        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
+            raise ValueError('Argument "msg" must be of type PubSubMessage')
+        elif isinstance(msg, dict):
+            data = msg
+        elif isinstance(msg, PubSubMessage):
+            data = msg.as_dict()
         ## Thread Safe solution
-        if self._msg_type is None:
-            self._transport.add_threadsafe_callback(self._send_msg, msg, topic)
-        else:
-            self._transport.add_threadsafe_callback(self._send_msg,
-                                                    msg.as_dict(),
-                                                    topic)
+        self._transport.add_threadsafe_callback(self._send_msg, data, topic)
 
 
 class Subscriber(BaseSubscriber):
@@ -1042,7 +1043,7 @@ class Subscriber(BaseSubscriber):
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
         except Exception:
-            self.logger.debug("Could reading message properties",
+            self.logger.debug("Failed to read message properties",
                               exc_info=True)
         try:
             _data = self._serializer.deserialize(body)
@@ -1154,11 +1155,9 @@ class ActionService(BaseActionService):
         """__init__.
 
         Args:
-            action_uri (str): The name (uri) of the Action
-            msg_type (ActionMessage): The type of the Message
             conn_params (ConnectionParameters): Broker Connection parameters
-            args:
-            kwargs:
+            args: See BaseActionService parent class
+            kwargs: See BaseActionService parent class
         """
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -1206,11 +1205,9 @@ class ActionClient(BaseActionClient):
         Action Client constructor.
 
         Args:
-            action_uri (str): The name (uri) of the Action
-            msg_type (ActionMessage): The type of the Message
             conn_params (ConnectionParameters): Broker Connection parameters
-            args:
-            kwargs:
+            args: See BaseActionClient parent class
+            kwargs: See BaseActionClient parent class
         """
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params

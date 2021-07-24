@@ -147,7 +147,6 @@ class HeartbeatThread(threading.Thread):
         return int(timestamp)
 
 
-
 class NodeStartMessage(RPCMessage):
     @DataClass
     class Request(RPCMessage.Request):
@@ -175,31 +174,32 @@ class Node:
     """
 
     def __init__(self,
-                 node_name: str = '',
-                 transport_type: TransportType = TransportType.REDIS,
-                 ## DEPRECATED - Used only for backward compatibility
-                 transport_connection_params: Any = None,
-                 connection_params: Any = None,
-                 remote_logger: bool = False,
-                 remote_logger_uri: str = '',
-                 debug: bool = False,
-                 heartbeat_thread: bool = True,
+                 node_name: Optional[str] = '',
+                 transport_type: Optional[TransportType] = TransportType.REDIS,
+                 connection_params: Optional[Any] = None,
+                 transport_connection_params: Optional[Any] = None,
+                 remote_logger: Optional[bool] = False,
+                 remote_logger_uri: Optional[str] = '',
+                 debug: Optional[bool] = False,
+                 heartbeat_thread: Optional[bool] = True,
                  heartbeat_uri: Optional[str] = None,
-                 device_id: Optional[str] = None,
-                 has_start_rpc: bool = False,
-                 has_stop_rpc: bool = False):
+                 thing_id: Optional[str] = None,
+                 ctrl_services: Optional[bool] = False):
         """__init__.
 
         Args:
-            node_name (str): node_name
-            transport_type (TransportType): transport_type
-            transport_connection_params:
-            connection_params:
-            max_workers (int): max_workers
-            remote_logger (bool): remote_logger
-            remote_logger_uri (str): remote_logger_uri
-            debug (bool): debug
-            device_id (str): device_id
+            node_name (Optional[str]): node_name
+            transport_type (Optional[TransportType]): transport_type
+            connection_params (Optional[Any]): connection_params
+            transport_connection_params (Optional[Any]): Same with connection_params.
+                Used for backward compatibility
+            remote_logger (Optional[bool]): remote_logger
+            remote_logger_uri (Optional[str]): remote_logger_uri
+            debug (Optional[bool]): debug
+            heartbeat_thread (Optional[bool]): heartbeat_thread
+            heartbeat_uri (Optional[str]): heartbeat_uri
+            thing_id (Optional[str]): thing_id
+            ctrl_services (Optional[bool]): ctrl_services
         """
         if node_name == '' or node_name is None:
             node_name = gen_random_id()
@@ -210,11 +210,12 @@ class Node:
         self._heartbeat_uri = heartbeat_uri
         self._hb_thread = None
         self.state = NodeState.IDLE
-        self._device_id = device_id
-        if device_id is None:
+        self._thing_id = thing_id
+        self._has_ctrl_services = ctrl_services
+        if thing_id is None:
             self._namespace = f'{self._node_name}'
         else:
-            self._namespace = f'thing.{device_id}.{self._node_name}'
+            self._namespace = f'thing.{thing_id}.{self._node_name}'
 
         self._publishers = []
         self._subscribers = []
@@ -234,7 +235,9 @@ class Node:
             raise ValueError('Transport type is not supported!')
         self._commlib = comm
 
-        if transport_connection_params is None:
+        if transport_connection_params is not None:
+            self._conn_params = transport_connection_params
+        elif connection_params is None:
             if transport_type == TransportType.REDIS:
                 from commlib.transports.redis import \
                     UnixSocketConnectionParameters as ConnParams
@@ -244,16 +247,12 @@ class Node:
             elif transport_type == TransportType.MQTT:
                 from commlib.transports.mqtt import \
                     ConnectionParameters as ConnParams
-            transport_connection_params = ConnParams()
-        self._conn_params = transport_connection_params
-        if connection_params is not None:
+            connection_params = ConnParams()
+            self._conn_params = connection_params
+        else:
             self._conn_params = connection_params
 
         self._logger = Logger(self._node_name, debug=debug)
-        if has_start_rpc:
-            self.init_start_service()
-        if has_stop_rpc:
-            self.init_stop_service()
         self._logger.info(f'Created Node <{self._node_name}>')
 
     def init_heartbeat_thread(self, topic: str = None) -> None:
@@ -353,6 +352,10 @@ class Node:
             r.run()
         if self._heartbeat_thread:
             self.init_heartbeat_thread(self._heartbeat_uri)
+        if self._has_ctrl_services:
+            self.init_start_service()
+        if self._has_ctrl_services:
+            self.init_stop_service()
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.001) -> None:
@@ -387,12 +390,30 @@ class Node:
         self._publishers.append(pub)
         return pub
 
+    def create_mpublisher(self, *args, **kwargs):
+        """Creates a new Publisher Endpoint.
+        """
+        pub = self._commlib.MPublisher(conn_params=self._conn_params,
+                                       logger = self._logger,
+                                       *args, **kwargs)
+        self._publishers.append(pub)
+        return pub
+
     def create_subscriber(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
         sub =  self._commlib.Subscriber(conn_params=self._conn_params,
                                         logger = self._logger,
                                         *args, **kwargs)
+        self._subscribers.append(sub)
+        return sub
+
+    def create_psubscriber(self, *args, **kwargs):
+        """Creates a new Publisher Endpoint.
+        """
+        sub =  self._commlib.PSubscriber(conn_params=self._conn_params,
+                                         logger = self._logger,
+                                         *args, **kwargs)
         self._subscribers.append(sub)
         return sub
 

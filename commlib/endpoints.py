@@ -5,7 +5,6 @@ class EndpointType(Enum):
     """EndpointType.
     Types of supported Endpoints.
     """
-
     RPCService = 1
     RPCClient = 2
     Publisher = 3
@@ -20,7 +19,6 @@ class TransportType(Enum):
     """TransportType.
     Types of supported Transports
     """
-
     AMQP = 1
     REDIS = 2
     MQTT = 3
@@ -28,7 +26,8 @@ class TransportType(Enum):
 
 def endpoint_factory(etype: EndpointType, etransport: TransportType):
     """endpoint_factory.
-    Create an instance of an endpoint (RPCClient, RPCService, Publisher, Subscriber etc..),
+    Create an instance of an endpoint
+        (RPCClient, RPCService, Publisher, Subscriber etc..),
         by simply giving its type and transport (MQTT, AMQP, Redis)
 
     Args:

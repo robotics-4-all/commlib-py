@@ -7,14 +7,6 @@ from commlib.msg import PubSubMessage, MessageHeader, DataClass
 from commlib.node import Node, TransportType
 
 
-@DataClass
-class SonarMessage(PubSubMessage):
-    header: MessageHeader = MessageHeader()
-    range: float = -1
-    hfov: float = 30.6
-    vfov: float = 14.2
-
-
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         broker = 'redis'
@@ -33,20 +25,18 @@ if __name__ == '__main__':
         print('Not a valid broker-type was given!')
         sys.exit(1)
     conn_params = ConnectionParameters()
-    # conn_params.credentials.username = ''
-    # conn_params.credentials.password = ''
 
-    node = Node(node_name='sensors.sonar.front',
+    node = Node(node_name='example5_publisher',
                 transport_type=transport,
                 connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
 
-    pub = node.create_publisher(msg_type=SonarMessage,
-                                topic='sensors.sonar.front')
+    pub = node.create_mpublisher()
 
-    msg = SonarMessage()
+    topicA = 'topic.a'
+    topicB = 'topic.b'
+
     while True:
-        pub.publish(msg)
-        msg.range += 1
+        pub.publish({'a': 1}, topicA)
+        pub.publish({'b': 1}, topicB)
         time.sleep(1)

@@ -229,7 +229,7 @@ class GoalHandler(object):
 
 class BaseActionService(object):
     def __init__(self,
-                 action_uri: str,
+                 action_name: str,
                  msg_type: ActionMessage = None,
                  logger: Logger = None,
                  debug: bool = True,
@@ -239,7 +239,7 @@ class BaseActionService(object):
         """__init__.
 
         Args:
-            action_uri (str): The name (uri) of the action
+            action_name (str): The name (uri) of the action
             msg_type (ActionMessage): The type of the message
             logger (Logger): Logger instance
             debug (bool): Debug mode
@@ -249,16 +249,16 @@ class BaseActionService(object):
         """
         self._msg_type = msg_type
         self._debug = debug
-        self._action_uri = action_uri
+        self._action_name = action_name
         self._on_goal = on_goal
         self._on_cancel = on_cancel
         self._on_getresult = on_getresult
 
-        self._status_topic = f'{self._action_uri}.status'
-        self._feedback_topic = f'{self._action_uri}.feedback'
-        self._goal_rpc_uri = f'{self._action_uri}.send_goal'
-        self._cancel_rpc_uri = f'{self._action_uri}.cancel_goal'
-        self._result_rpc_uri = f'{self._action_uri}.get_result'
+        self._status_topic = f'{self._action_name}.status'
+        self._feedback_topic = f'{self._action_name}.feedback'
+        self._goal_rpc_uri = f'{self._action_name}.send_goal'
+        self._cancel_rpc_uri = f'{self._action_name}.cancel_goal'
+        self._result_rpc_uri = f'{self._action_name}.get_result'
 
         ## To be instantiated by the child classes
         self._feedback_pub = None
@@ -287,7 +287,7 @@ class BaseActionService(object):
         self._goal_rpc.run()
         self._cancel_rpc.run()
         self._result_rpc.run()
-        self.logger.info(f'Started Action Server <{self._action_uri}>')
+        self.logger.info(f'Started Action Server <{self._action_name}>')
 
     def stop(self):
         """stop.
@@ -385,7 +385,7 @@ class BaseActionService(object):
 
 class BaseActionClient(object):
     def __init__(self,
-                 action_uri: str,
+                 action_name: str,
                  msg_type: ActionMessage = None,
                  logger: Logger = None,
                  debug: bool = False,
@@ -395,7 +395,7 @@ class BaseActionClient(object):
         """__init__.
 
         Args:
-            action_uri (str): The name (uri) of the action
+            action_name (str): The name (uri) of the action
             msg_type (ActionMessage): The type of the message
             logger (Logger): Logger instance
             debug (bool): Debug mode
@@ -404,14 +404,14 @@ class BaseActionClient(object):
             on_goal_reached (callable): on_goal_reached
         """
         self._debug = debug
-        self._action_uri = action_uri
+        self._action_name = action_name
         self._msg_type = msg_type
 
-        self._status_topic = f'{self._action_uri}.status'
-        self._feedback_topic = f'{self._action_uri}.feedback'
-        self._goal_rpc_uri = f'{self._action_uri}.send_goal'
-        self._cancel_rpc_uri = f'{self._action_uri}.cancel_goal'
-        self._result_rpc_uri = f'{self._action_uri}.get_result'
+        self._status_topic = f'{self._action_name}.status'
+        self._feedback_topic = f'{self._action_name}.feedback'
+        self._goal_rpc_uri = f'{self._action_name}.send_goal'
+        self._cancel_rpc_uri = f'{self._action_name}.cancel_goal'
+        self._result_rpc_uri = f'{self._action_name}.get_result'
 
         ## To be instantiated by the child classes
         self._goal_client = None

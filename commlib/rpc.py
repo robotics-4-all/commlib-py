@@ -3,11 +3,24 @@ import threading
 import uuid
 from concurrent import futures
 from functools import partial
+from typing import Any, Dict, Tuple
 
-from .serializer import JSONSerializer
-from .logger import Logger
-from .utils import gen_random_id
-from .msg import RPCMessage
+from commlib.serializer import JSONSerializer
+from commlib.logger import Logger
+from commlib.utils import gen_random_id, gen_timestamp
+from commlib.msg import DataClass, DataField, Object, PubSubMessage, RPCMessage
+
+
+@DataClass
+class CommRPCHeader(Object):
+    timestamp: int = DataField(default=gen_timestamp())
+    reply_to: str = DataField(default='')
+
+
+@DataClass
+class CommRPCObject(Object):
+    header: CommRPCHeader = DataField(default_factory=CommRPCHeader)
+    data: Dict[str, Any] = DataField(default_factory=dict)
 
 
 class BaseRPCService(object):
