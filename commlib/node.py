@@ -183,7 +183,6 @@ class Node:
                  debug: Optional[bool] = False,
                  heartbeat_thread: Optional[bool] = True,
                  heartbeat_uri: Optional[str] = None,
-                 thing_id: Optional[str] = None,
                  ctrl_services: Optional[bool] = False):
         """__init__.
 
@@ -198,7 +197,6 @@ class Node:
             debug (Optional[bool]): debug
             heartbeat_thread (Optional[bool]): heartbeat_thread
             heartbeat_uri (Optional[str]): heartbeat_uri
-            thing_id (Optional[str]): thing_id
             ctrl_services (Optional[bool]): ctrl_services
         """
         if node_name == '' or node_name is None:
@@ -210,12 +208,8 @@ class Node:
         self._heartbeat_uri = heartbeat_uri
         self._hb_thread = None
         self.state = NodeState.IDLE
-        self._thing_id = thing_id
         self._has_ctrl_services = ctrl_services
-        if thing_id is None:
-            self._namespace = f'{self._node_name}'
-        else:
-            self._namespace = f'thing.{thing_id}.{self._node_name}'
+        self._namespace = f'{self._node_name}'
 
         self._publishers = []
         self._subscribers = []
@@ -235,6 +229,7 @@ class Node:
             raise ValueError('Transport type is not supported!')
         self._commlib = comm
 
+        ## Set default ConnectionParameters ---->
         if transport_connection_params is not None:
             self._conn_params = transport_connection_params
         elif connection_params is None:
@@ -251,12 +246,15 @@ class Node:
             self._conn_params = connection_params
         else:
             self._conn_params = connection_params
+        ## <--------------------------------------
 
         self._logger = Logger(self._node_name, debug=debug)
         self._logger.info(f'Created Node <{self._node_name}>')
 
     def init_heartbeat_thread(self, topic: str = None) -> None:
         """init_heartbeat_thread.
+        Starts the heartbeat thread. Heartbeat messages are sent periodically
+        to inform about correct execution of the node.
 
         Args:
             topic (str): topic
