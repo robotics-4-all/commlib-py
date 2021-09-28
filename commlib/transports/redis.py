@@ -415,8 +415,6 @@ class Subscriber(BaseSubscriber):
     def _on_message(self, payload: Dict[str, Any]):
         try:
             data, uri = self._unpack_comm_msg(payload)
-            if self._topic != uri:
-                raise SubscriberError('Subscribed topic does not match!')
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, data)
