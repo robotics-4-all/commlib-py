@@ -2,7 +2,7 @@ import socket
 import socketserver
 
 
-class TCPProxyRequestHandler(socketserver.BaseRequestHandler):
+class TCPBridgeRequestHandler(socketserver.BaseRequestHandler):
     """
     TCP Proxy Server
     Instantiated once time for each connection, and must
@@ -34,12 +34,12 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 
-class TCPProxy(ThreadedTCPServer):
+class TCPBridge(ThreadedTCPServer):
     def __init__(self, host_ep1: str, port_ep1: int,
                  host_ep2: str, port_ep2: int):
         self.host_ep1 = host_ep1
         self.host_ep2 = host_ep2
         self.port_ep1 = port_ep1
         self.port_ep2 = port_ep2
-        super().__init__((host_ep1, port_ep1), TCPProxyRequestHandler)
+        super().__init__((host_ep1, port_ep1), TCPBridgeRequestHandler)
 

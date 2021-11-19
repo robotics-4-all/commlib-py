@@ -4,7 +4,7 @@ import sys
 import time
 
 from commlib.node import Node, TransportType
-from commlib.rest import RESTProxyMessage
+from commlib.rest_proxy import RESTProxyMessage
 
 
 if __name__ == '__main__':
