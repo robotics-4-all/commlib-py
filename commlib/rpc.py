@@ -38,12 +38,12 @@ class BaseRPCServer(object):
     """
 
     def __init__(self,
-                 svc_map: dict = {},
                  base_uri: str = '',
+                 svc_map: dict = {},
                  logger: Logger = None,
                  debug: bool = False,
                  workers: int = 2,
-                 serializer=None):
+                 serializer: Any = None):
         """__init__.
 
         Args:

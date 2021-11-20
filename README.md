@@ -819,7 +819,7 @@ an http client for calling REST services. An RPC call is transformed into proper
 REST-compliant, http request, based on the input parameters.
 
 
-```
+```python
 class RESTProxyMessage(RPCMessage):
     @DataClass
     class Request(RPCMessage.Request):
@@ -838,7 +838,7 @@ class RESTProxyMessage(RPCMessage):
 ```
 
 Responses from the REST services are returned to clients in the form of a 
-`RPCResponseMessage`
+`RPCMessage.Response` message.
 
 
 ## Transports

@@ -136,7 +136,7 @@ class MQTTTransport:
         if confirm_delivery:
             ph.wait_for_publish()
 
-    def subscribe(self, topic: str, callback: callable, qos: int = 0) -> str:
+    def subscribe(self, topic: str, callback: Any, qos: int = 0) -> str:
         ## Adds subtopic specific callback handlers
         topic = topic.replace('.', '/').replace('*', '#')
         self._client.subscribe(topic, qos)
@@ -380,6 +380,10 @@ class RPCServer(BaseRPCServer):
         super(RPCServer, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
+        for uri in self._svc_map:
+            callback = self._svc_map[uri][0]
+            msg_type = self._svc_map[uri][1]
+            self._register_endpoint(uri, callback, msg_type)
 
     def _send_response(self, data: dict, reply_to: str):
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
@@ -387,6 +391,66 @@ class RPCServer(BaseRPCServer):
         _resp = self._comm_obj.as_dict()
         _resp = self._serializer.serialize(_resp)
         self._transport.publish(reply_to, _resp)
+
+    def _on_request_internal(self, client, userdata, msg):
+        try:
+            data, header, uri = self._unpack_comm_msg(msg)
+            reply_to = header['reply_to']
+            uri = uri.replace('/', '.')
+            svc_uri = uri.replace(self._base_uri, '')
+            if svc_uri[0] == '.':
+                svc_uri = svc_uri[1:]
+            if svc_uri not in self._svc_map:
+                return
+            else:
+                clb = self._svc_map[svc_uri][0]
+                msg_type = self._svc_map[svc_uri][1]
+                if msg_type is None:
+                    print(data)
+                    resp = clb(data)
+                    print(resp)
+                else:
+                    print(data)
+                    resp = clb(msg_type.Request(**data))
+                    print(resp)
+                    resp = resp.as_dict()
+        except Exception as exc:
+            self.logger.error(exc, exc_info=False)
+            resp = {}
+            return
+        self._send_response(resp, reply_to)
+
+    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+        _uri = msg.topic
+        _payload = JSONSerializer.deserialize(msg.payload)
+        _data = _payload['data']
+        _header = _payload['header']
+        return _data, _header, _uri
+
+    def _register_endpoint(self, uri: str, callback: Any,
+                           msg_type: RPCMessage = None):
+        self._svc_map[uri] = (callback, msg_type)
+        if self._base_uri in (None, ''):
+            full_uri = uri
+        else:
+            full_uri = f'{self._base_uri}.{uri}'
+        self.logger.info(f'Registering endpoint <{full_uri}>')
+        self._transport.subscribe(full_uri, self._on_request_internal)
+
+    def run_forever(self):
+        """run_forever.
+        """
+        self._transport.start_loop()
+        while True:
+            if self._t_stop_event is not None:
+                if self._t_stop_event.is_set():
+                    self.logger.debug('Stop event caught in thread')
+                    break
+            time.sleep(0.001)
+        self._transport.stop_loop()
+
+    def stop(self):
+        self._t_stop_event.set()
 
 
 class RPCClient(BaseRPCClient):
