@@ -15,7 +15,7 @@ from commlib.exceptions import RPCClientTimeoutError, SubscriberError
 from commlib.logger import Logger
 from commlib.msg import DataClass, DataField, Object, PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import BaseRPCClient, BaseRPCService, CommRPCObject
+from commlib.rpc import BaseRPCClient, BaseRPCService
 from commlib.serializer import JSONSerializer
 from commlib.utils import gen_timestamp
 
@@ -177,7 +177,6 @@ class RPCService(BaseRPCService):
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
-        self._comm_obj = CommRPCObject()
 
     def _send_response(self, data, reply_to):
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
@@ -244,7 +243,6 @@ class RPCClient(BaseRPCClient):
         super(RPCClient, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
                                          logger=self._logger)
-        self._comm_obj = CommRPCObject()
 
     def _gen_queue_name(self):
         return f'rpc-{self._gen_random_id()}'

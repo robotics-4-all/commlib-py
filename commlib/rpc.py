@@ -8,7 +8,13 @@ from typing import Any, Dict, Tuple
 from commlib.serializer import JSONSerializer
 from commlib.logger import Logger
 from commlib.utils import gen_random_id, gen_timestamp
-from commlib.msg import DataClass, DataField, Object, PubSubMessage, RPCMessage
+from commlib.msg import (
+    DataClass,
+    DataField,
+    Object,
+    PubSubMessage,
+    RPCMessage
+)
 
 
 @DataClass
@@ -21,6 +27,83 @@ class CommRPCHeader(Object):
 class CommRPCObject(Object):
     header: CommRPCHeader = DataField(default_factory=CommRPCHeader)
     data: Dict[str, Any] = DataField(default_factory=dict)
+
+
+class BaseRPCServer(object):
+    """RPCServer Base class.
+    Inherit to implement transport-specific RPCService.
+
+    Args:
+        - rpc_name (str)
+    """
+
+    def __init__(self,
+                 svc_map: dict = {},
+                 base_uri: str = '',
+                 logger: Logger = None,
+                 debug: bool = False,
+                 workers: int = 2,
+                 serializer=None):
+        """__init__.
+
+        Args:
+            logger (Logger): logger
+            debug (bool): debug
+            workers (int): workers
+            serializer:
+        """
+        self._base_uri = base_uri
+        self._svc_map = svc_map
+        self._num_workers = workers
+        self._debug = debug
+
+        if serializer is not None:
+            self._serializer = serializer
+        else:
+            self._serializer = JSONSerializer
+
+        self._logger = Logger(self.__class__.__name__, self._debug) if \
+            logger is None else logger
+
+        self._gen_random_id = gen_random_id
+
+        self._executor = ThreadPoolExecutor(max_workers=self._num_workers)
+
+        self._main_thread = None
+        self._t_stop_event = None
+
+        self._comm_obj = CommRPCObject()
+
+    @property
+    def debug(self):
+        return self._debug
+
+    @property
+    def logger(self):
+        return self._logger
+
+    def run_forever(self):
+        """run_forever.
+        Run the RPC service in background and blocks the main thread.
+        """
+        raise NotImplementedError()
+
+    def run(self):
+        """run.
+        Run the RPC service in background.
+        """
+        self._main_thread = threading.Thread(target=self.run_forever)
+        self._main_thread.daemon = True
+        self._t_stop_event = threading.Event()
+        self._main_thread.start()
+        self.logger.info(f'Started RPC Server <{self._base_uri}>!')
+
+    def stop(self):
+        """stop.
+        Stop the RPC Service.
+        """
+        if self._t_stop_event is not None:
+            self._t_stop_event.set()
 
 
 class BaseRPCService(object):
@@ -71,6 +154,8 @@ class BaseRPCService(object):
 
         self._main_thread = None
         self._t_stop_event = None
+
+        self._comm_obj = CommRPCObject()
 
     @property
     def debug(self):
@@ -141,6 +226,8 @@ class BaseRPCClient(object):
         self._gen_random_id = gen_random_id
 
         self._executor = futures.ThreadPoolExecutor(max_workers=max_workers)
+
+        self._comm_obj = CommRPCObject()
 
         self.logger.debug('Created RPC Client: <{}>'.format(self._rpc_name))
 

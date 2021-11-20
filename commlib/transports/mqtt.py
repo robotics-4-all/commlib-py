@@ -2,12 +2,10 @@
 MQTT Implementation
 """
 
-import datetime
 import functools
-import json
 import time
 from enum import IntEnum
-from typing import Dict, Any, Tuple
+from typing import Any, Dict, Tuple
 
 import paho.mqtt.client as mqtt
 
@@ -16,13 +14,13 @@ from commlib.action import (BaseActionClient, BaseActionService,
                             _ActionGoalMessage, _ActionResultMessage,
                             _ActionStatusMessage)
 from commlib.events import BaseEventEmitter, Event
-from commlib.exceptions import RPCClientTimeoutError, SubscriberError
+from commlib.exceptions import RPCClientTimeoutError
 from commlib.logger import Logger
-from commlib.msg import PubSubMessage, RPCMessage, Object, DataField, DataClass
-from commlib.utils import gen_timestamp
+from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import BaseRPCClient, BaseRPCService, CommRPCObject
+from commlib.rpc import BaseRPCClient, BaseRPCServer, BaseRPCService
 from commlib.serializer import JSONSerializer
+from commlib.utils import gen_timestamp
 
 
 class MQTTReturnCode(IntEnum):
@@ -283,7 +281,7 @@ class PSubscriber(Subscriber):
     """PSubscriber.
     """
 
-    def _on_message(self, client, userdata, msg):
+    def _on_message(self, client: str, userdata: dict, msg: dict):
         try:
             data, topic = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
@@ -319,7 +317,6 @@ class RPCService(BaseRPCService):
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
-        self._comm_obj = CommRPCObject()
 
     def _send_response(self, data: dict, reply_to: str):
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
@@ -368,6 +365,30 @@ class RPCService(BaseRPCService):
         self._t_stop_event.set()
 
 
+class RPCServer(BaseRPCServer):
+    def __init__(self,
+                 conn_params: ConnectionParameters = None,
+                 *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            args: See BaseRPCServer
+            kwargs: See BaseRPCServer
+        """
+        self.conn_params = conn_params
+        super(RPCServer, self).__init__(*args, **kwargs)
+        self._transport = MQTTTransport(conn_params=conn_params,
+                                        logger=self._logger)
+
+    def _send_response(self, data: dict, reply_to: str):
+        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.data = data
+        _resp = self._comm_obj.as_dict()
+        _resp = self._serializer.serialize(_resp)
+        self._transport.publish(reply_to, _resp)
+
+
 class RPCClient(BaseRPCClient):
     """RPCClient.
     MQTT RPC Client
@@ -390,7 +411,6 @@ class RPCClient(BaseRPCClient):
         self._transport = MQTTTransport(conn_params=conn_params,
                                         logger=self._logger)
         self._transport.start_loop()
-        self._comm_obj = CommRPCObject()
 
     def _gen_queue_name(self):
         return f'rpc-{self._gen_random_id()}'
@@ -438,9 +458,6 @@ class RPCClient(BaseRPCClient):
         Args:
             msg (RPCMessage.Request): msg
             timeout (float): timeout
-
-        Returns:
-            RPCMessage.Response:
         """
         ## TODO: Evaluate msg type passed here.
         if self._msg_type is None:
