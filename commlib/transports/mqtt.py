@@ -110,7 +110,7 @@ class MQTTTransport:
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == MQTTReturnCode.CONNECTION_SUCCESS:
-            self.logger.info(
+            self.logger.debug(
                 f"Connected to MQTT broker <{self._conn_params.host}:{self._conn_params.port}>")
             self._connected = True
 
@@ -249,12 +249,12 @@ class Subscriber(BaseSubscriber):
         self._topic = self._transport.subscribe(self._topic,
                                                 self._on_message)
         self._transport.start_loop()
-        self.logger.info(f'Started Subscriber: <{self._topic}>')
+        self.logger.debug(f'Started Subscriber: <{self._topic}>')
 
     def run_forever(self):
         self._transport.subscribe(self._topic,
                                   self._on_message)
-        self.logger.info(f'Started Subscriber: <{self._topic}>')
+        self.logger.debug(f'Started Subscriber: <{self._topic}>')
         self._transport.loop_forever()
 
     def _on_message(self, client, userdata, msg):

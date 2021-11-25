@@ -100,12 +100,12 @@ class RedisTransport(object):
         try:
             self.connect()
         except Exception as e:
-            self.logger.info(
+            self.logger.error(
                 f'Failed to connect to Redis broker <{self._conn_params.host}' +
                 f'{self._conn_params.port}>')
             raise e
         else:
-            self.logger.info(
+            self.logger.debug(
                 f'Connected to Redis <{self._conn_params.host}:{self._conn_params.port}>')
 
 
@@ -396,7 +396,7 @@ class Subscriber(BaseSubscriber):
     def run(self):
         self._subscriber_thread = self._transport.subscribe(self._topic,
                                                             self._on_message)
-        self.logger.info(f'Started Subscriber: <{self._topic}>')
+        self.logger.debug(f'Started Subscriber: <{self._topic}>')
 
     def stop(self):
         """Stop background thread that handle subscribed topic messages"""
