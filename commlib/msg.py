@@ -12,6 +12,9 @@ from commlib.utils import gen_timestamp
 
 Primitives = [str, int, float, bool, bytes]
 
+import base64
+from os import path
+
 
 @DataClass
 class Object(abc.ABC):
