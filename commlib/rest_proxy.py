@@ -76,7 +76,7 @@ class RESTProxy:
             msg (RESTProxyMessage): Request message
         """
         url = f'{msg.base_url}{msg.path}'
-        # -------- > Construct HTTP Request from input message
+        # -------- > Perform HTTP Request from input message
         if msg.verb == 'GET':
             resp = requests.get(url, params=msg.query_params,
                                 headers=msg.headers)
@@ -88,6 +88,7 @@ class RESTProxy:
                                  data=msg.body_params, headers=msg.headers)
         else:
             raise ValueError(f'HTTP Verb [{msg.verb}] is not valid!')
+        # <---------------------------------------------------
         headers = dict(**resp.headers)
         data = resp.text
         if headers.get('Content-Type') == 'application/json':

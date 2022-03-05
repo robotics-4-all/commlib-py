@@ -16,7 +16,7 @@ from commlib.logger import Logger
 from commlib.msg import DataClass, DataField, Object, PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCService
-from commlib.serializer import JSONSerializer
+from commlib.serializer import Serializer, JSONSerializer
 from commlib.utils import gen_timestamp
 
 
@@ -90,10 +90,23 @@ class Connection(redis.Redis):
 
 
 class RedisTransport(object):
-    def __init__(self, conn_params=None, logger=None):
+    def __init__(self,
+                 conn_params: Any = None,
+                 serializer: Serializer = JSONSerializer(),
+                 logger: Any = None):
+        """__init__.
+
+        Args:
+            conn_params (Any): conn_params
+            serializer (Serializer): serializer
+            logger (Any): logger
+        """
         conn_params = TCPConnectionParameters() if \
             conn_params is None else conn_params
         self._conn_params = conn_params
+
+        self._serializer = serializer
+
         self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
 
@@ -131,15 +144,17 @@ class RedisTransport(object):
 
     def delete_queue(self, queue_name: str) -> bool:
         # self.logger.debug('Removing message queue: <{}>'.format(queue_name))
-        return self._redis.delete(queue_name)
+        return True if self._redis.delete(queue_name) else False
 
     def queue_exists(self, queue_name: str) -> bool:
-        return self._redis.exists(queue_name)
+        return True if self._redis.exists(queue_name) else False
 
-    def push_msg_to_queue(self, queue_name, payload):
+    def push_msg_to_queue(self, queue_name: str, data: Dict[str, Any]):
+        payload = self._serializer.serialize(data)
         self._redis.rpush(queue_name, payload)
 
-    def publish(self, queue_name: str, payload: dict):
+    def publish(self, queue_name: str, data: Dict[str, Any]):
+        payload = self._serializer.serialize(data)
         self._redis.publish(queue_name, payload)
 
     def subscribe(self, topic: str, callback: callable):
@@ -182,7 +197,6 @@ class RPCService(BaseRPCService):
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.as_dict()
-        _resp = self._serializer.serialize(_resp)
         self._transport.push_msg_to_queue(reply_to, _resp)
 
     def _on_request(self, data: dict, header: dict):
@@ -225,8 +239,8 @@ class RPCService(BaseRPCService):
         )
         return _future
 
-    def _unpack_comm_msg(self, payload: Dict[str, Any]) -> Tuple:
-        _payload = JSONSerializer.deserialize(payload)
+    def _unpack_comm_msg(self, payload: str) -> Tuple:
+        _payload = self._serializer.deserialize(payload)
         _data = _payload['data']
         _header = _payload['header']
         return _data, _header
@@ -263,9 +277,8 @@ class RPCClient(BaseRPCClient):
 
         _msg = self._prepare_request(data)
         _reply_to = _msg['header']['reply_to']
-        _msg = self._serializer.serialize(_msg)
         self._transport.push_msg_to_queue(self._rpc_name, _msg)
-        msgq, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
+        _, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
         self._transport.delete_queue(_reply_to)
         if _msg is None:
             return None
@@ -276,8 +289,8 @@ class RPCClient(BaseRPCClient):
         else:
             return self._msg_type.Response(**data)
 
-    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
-        _payload = JSONSerializer.deserialize(msg)
+    def _unpack_comm_msg(self, payload: str) -> Tuple:
+        _payload = self._serializer.deserialize(payload)
         _data = _payload['data']
         _header = _payload['header']
         return _data, _header
@@ -324,9 +337,8 @@ class Publisher(BasePublisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.as_dict()
-        _data = self._serializer.serialize(data)
         self.logger.debug(f'Publishing Message to topic <{self._topic}>')
-        self._transport.publish(self._topic, _data)
+        self._transport.publish(self._topic, data)
         self._msg_seq += 1
 
     def _publish(self, data, topic) -> None:
@@ -363,10 +375,9 @@ class MPublisher(Publisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.as_dict()
-        _data = self._serializer.serialize(data)
         self.logger.debug(
             f'Publishing Message: <{topic}>:{data}')
-        self._transport.publish(topic, _data)
+        self._transport.publish(topic, data)
         self._msg_seq += 1
 
 
@@ -425,7 +436,7 @@ class Subscriber(BaseSubscriber):
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
         _uri = msg['channel']
-        _data = JSONSerializer.deserialize(msg['data'])
+        _data = self._serializer.deserialize(msg['data'])
         return _data, _uri
 
     def _exit_gracefully(self):
@@ -581,6 +592,5 @@ class EventEmitter(BaseEventEmitter):
             None:
         """
         _msg = event.as_dict()
-        _msg = self._serializer.serialize(_msg)
         self.logger.debug(f'Firing Event: {event.name}:<{event.uri}>')
         self._transport.publish(event.uri, _msg)

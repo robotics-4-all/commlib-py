@@ -157,6 +157,13 @@ class BaseRPCService(object):
 
         self._comm_obj = CommRPCObject()
 
+    def _serialize_data(self, payload: Dict[str, Any]) -> str:
+        return self._serializer.serialize(payload)
+
+    def _serialize_response(self, message: RPCMessage.Response) -> str:
+        return self._serialize_data(message.as_dict())
+
+
     @property
     def debug(self):
         return self._debug
@@ -285,3 +292,10 @@ class BaseRPCClient(object):
                 result = _future.result()
                 on_response(result)
                 return result
+
+    def _serialize_data(self, payload: Dict[str, Any]) -> str:
+        return self._serializer.serialize(payload)
+
+    def _serialize_request(self, message: RPCMessage.Request) -> str:
+        return self._serialize_data(message.as_dict())
+

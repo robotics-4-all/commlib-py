@@ -74,7 +74,7 @@ class MQTTTransport:
 
     def __init__(self,
                  conn_params: ConnectionParameters = ConnectionParameters(),
-                 message_serializer: Serializer = JSONSerializer(),
+                 serializer: Serializer = JSONSerializer(),
                  logger: Logger = None):
         """__init__.
 
@@ -86,7 +86,7 @@ class MQTTTransport:
         self._logger = logger
         self._connected = False
 
-        self._serializer = message_serializer
+        self._serializer = serializer
 
         self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -236,6 +236,7 @@ class Publisher(BasePublisher):
         self.conn_params = conn_params
         super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
+                                        serializer=self._serializer,
                                         logger=self._logger)
         self._transport.start_loop()
 
@@ -304,6 +305,7 @@ class Subscriber(BaseSubscriber):
         self.conn_params = conn_params
         super(Subscriber, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
+                                        serializer=self._serializer,
                                         logger=self._logger)
 
     def run(self):
@@ -341,7 +343,7 @@ class Subscriber(BaseSubscriber):
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple:
         _uri = msg.topic
-        _data = JSONSerializer.deserialize(msg.payload)
+        _data = self._serializer.deserialize(msg.payload)
         return _data, _uri
 
 
@@ -391,6 +393,7 @@ class RPCService(BaseRPCService):
         self.conn_params = conn_params
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
+                                        serializer=self._serializer,
                                         logger=self._logger)
 
     def _send_response(self, data: dict, reply_to: str):
@@ -445,7 +448,7 @@ class RPCService(BaseRPCService):
             Tuple[Any, Any, Any]:
         """
         _uri = msg.topic
-        _payload = JSONSerializer.deserialize(msg.payload)
+        _payload = self._serializer.deserialize(msg.payload)
         _data = _payload['data']
         _header = _payload['header']
         return _data, _header, _uri
@@ -482,6 +485,7 @@ class RPCServer(BaseRPCServer):
         self.conn_params = conn_params
         super(RPCServer, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
+                                        serializer=self._serializer,
                                         logger=self._logger)
         for uri in self._svc_map:
             callback = self._svc_map[uri][0]
@@ -542,7 +546,7 @@ class RPCServer(BaseRPCServer):
             Tuple[Any, Any, Any]:
         """
         _uri = msg.topic
-        _payload = JSONSerializer.deserialize(msg.payload)
+        _payload = self._serializer.deserialize(msg.payload)
         _data = _payload['data']
         _header = _payload['header']
         return _data, _header, _uri
@@ -593,6 +597,7 @@ class RPCClient(BaseRPCClient):
 
         super(RPCClient, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
+                                        serializer=self._serializer,
                                         logger=self._logger)
         self._transport.start_loop()
 
@@ -630,7 +635,7 @@ class RPCClient(BaseRPCClient):
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
         _uri = msg.topic
-        _payload = JSONSerializer.deserialize(msg.payload)
+        _payload = self._serializer.deserialize(msg.payload)
         _data = _payload['data']
         _header = _payload['header']
         return _data, _header, _uri
@@ -799,7 +804,8 @@ class EventEmitter(BaseEventEmitter):
         super(EventEmitter, self).__init__(*args, **kwargs)
 
         self._transport = MQTTTransport(conn_params=conn_params,
-                                         logger=self._logger)
+                                        serializer=self._serializer,
+                                        logger=self._logger)
         self._transport.start_loop()
 
     def send_event(self, event: Event) -> None:
