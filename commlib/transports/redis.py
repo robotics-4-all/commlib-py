@@ -84,9 +84,9 @@ class ConnectionParameters(TCPConnectionParameters):
         super(ConnectionParameters, self).__init__(*args, **kwargs)
 
 
-class Connection(redis.Redis):
+class RedisConnection(redis.Redis):
     def __init__(self, *args, **kwargs):
-        super(Connection, self).__init__(*args, **kwargs)
+        super(RedisConnection, self).__init__(*args, **kwargs)
 
 
 class RedisTransport(object):
@@ -124,14 +124,14 @@ class RedisTransport(object):
 
     def connect(self):
         if isinstance(self._conn_params, UnixSocketConnectionParameters):
-            self._redis = Connection(
+            self._redis = RedisConnection(
                 unix_socket_path=self._conn_params.unix_socket,
                 username=self._conn_params.credentials.username,
                 password=self._conn_params.credentials.password,
                 db=self._conn_params.db,
                 decode_responses=True)
         elif isinstance(self._conn_params, TCPConnectionParameters):
-            self._redis = Connection(
+            self._redis = RedisConnection(
                 host=self._conn_params.host,
                 port=self._conn_params.port,
                 username=self._conn_params.credentials.username,
