@@ -19,7 +19,7 @@ from commlib.logger import Logger
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCServer, BaseRPCService
-from commlib.serializer import JSONSerializer
+from commlib.serializer import Serializer, JSONSerializer
 from commlib.utils import gen_timestamp
 
 
@@ -74,6 +74,7 @@ class MQTTTransport:
 
     def __init__(self,
                  conn_params: ConnectionParameters = ConnectionParameters(),
+                 message_serializer: Serializer = JSONSerializer(),
                  logger: Logger = None):
         """__init__.
 
@@ -84,6 +85,8 @@ class MQTTTransport:
         self._conn_params = conn_params
         self._logger = logger
         self._connected = False
+
+        self._serializer = message_serializer
 
         self.logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -108,35 +111,84 @@ class MQTTTransport:
     def is_connected(self):
         return self._connected
 
-    def on_connect(self, client, userdata, flags, rc):
+    def on_connect(self, client: Any, userdata: Any,
+                   flags: Dict[str, Any], rc: int):
+        """on_connect.
+
+        Callback for on-connect event.
+
+        Args:
+            client (Any): Internal paho-mqtt
+            userdata (Any): Internal paho-mqtt userdata
+            flags (Dict[str, Any]): Interla paho-mqtt flags
+            rc (int): Return Code - Internal paho-mqtt
+        """
         if rc == MQTTReturnCode.CONNECTION_SUCCESS:
             self.logger.debug(
                 f"Connected to MQTT broker <{self._conn_params.host}:{self._conn_params.port}>")
             self._connected = True
 
-    def on_disconnect(self, client, userdata, rc):
+    def on_disconnect(self, client: Any, userdata: Any,
+                      rc: Dict[str, Any]):
+        """on_disconnect.
+
+        Callback for on-disconnect event.
+
+        Args:
+            client (Any): Internal paho-mqtt
+            userdata (Any): Internal paho-mqtt userdata
+            rc (int): Return Code - Internal paho-mqtt
+        """
         if rc != 0:
             self.logger.warn("Unexpected disconnection from MQTT Broker.")
 
-    def on_message(self, client, userdata, msg):
+    def on_message(self, client: Any, userdata: Any,
+                   msg: Dict[str, Any]):
+        """on_message.
+
+        Callback for on-message event.
+
+        Args:
+            client (Any): Internal paho-mqtt
+            userdata (Any): Internal paho-mqtt userdata
+            msg (Dict[str, Any]): Received message
+        """
         raise NotImplementedError()
 
-    def on_log(self, client, userdata, level, buf):
+    def on_log(self, client: Any, userdata: Any,
+               level, buf):
         ## SPAM output
         # self.logger.debug(f'MQTT Log: {buf}')
         pass
 
-    def publish(self, topic: str,
-                payload: Dict[str, Any],
-                qos: int = 0,
-                retain: bool = False,
-                confirm_delivery: bool = False):
+    def publish(self, topic: str, payload: Dict[str, Any], qos: int = 0,
+                retain: bool = False, confirm_delivery: bool = False):
+        """publish.
+
+        Args:
+            topic (str): topic
+            payload (Dict[str, Any]): payload
+            qos (int): qos
+            retain (bool): retain
+            confirm_delivery (bool): confirm_delivery
+        """
         topic = topic.replace('.', '/')
-        ph = self._client.publish(topic, payload, qos=qos, retain=retain)
+        pl = self._serializer.serialize(payload)
+        ph = self._client.publish(topic, pl, qos=qos, retain=retain)
         if confirm_delivery:
             ph.wait_for_publish()
 
     def subscribe(self, topic: str, callback: Any, qos: int = 0) -> str:
+        """subscribe.
+
+        Args:
+            topic (str): topic
+            callback (Any): callback
+            qos (int): qos
+
+        Returns:
+            str:
+        """
         ## Adds subtopic specific callback handlers
         topic = topic.replace('.', '/').replace('*', '#')
         self._client.subscribe(topic, qos)
@@ -144,12 +196,24 @@ class MQTTTransport:
         return topic
 
     def start_loop(self):
+        """start_loop.
+
+        Start the event loop. Cannot create any more endpoints from here on.
+        """
         self._client.loop_start()
 
     def stop_loop(self):
+        """stop_loop.
+
+        Stops the event loop.
+        """
         self._client.loop_stop(force=True)
 
     def loop_forever(self):
+        """loop_forever.
+
+        Starts the loop and waits until termination. This is synchronous.
+        """
         self._client.loop_forever()
 
 
@@ -190,9 +254,7 @@ class Publisher(BasePublisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.as_dict()
-        _msg = self._serializer.serialize(data)
-        self.logger.debug(f'Publishing Message on topic <{self._topic}>')
-        self._transport.publish(self._topic, _msg)
+        self._transport.publish(self._topic, data)
         self._msg_seq += 1
 
 
@@ -220,8 +282,7 @@ class MPublisher(Publisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.as_dict()
-        _msg = self._serializer.serialize(data)
-        self._transport.publish(topic, _msg)
+        self._transport.publish(topic, data)
         self._msg_seq += 1
 
 
@@ -257,7 +318,14 @@ class Subscriber(BaseSubscriber):
         self.logger.debug(f'Started Subscriber: <{self._topic}>')
         self._transport.loop_forever()
 
-    def _on_message(self, client, userdata, msg):
+    def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+        """_on_message.
+
+        Args:
+            client (Any): client
+            userdata (Any): userdata
+            msg (Dict[str, Any]): msg
+        """
         # Received MqttMessage (paho)
         try:
             data, uri = self._unpack_comm_msg(msg)
@@ -271,7 +339,7 @@ class Subscriber(BaseSubscriber):
         except Exception:
             self.logger.error('Exception caught in _on_message', exc_info=True)
 
-    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+    def _unpack_comm_msg(self, msg: Any) -> Tuple:
         _uri = msg.topic
         _data = JSONSerializer.deserialize(msg.payload)
         return _data, _uri
@@ -281,7 +349,14 @@ class PSubscriber(Subscriber):
     """PSubscriber.
     """
 
-    def _on_message(self, client: str, userdata: dict, msg: dict):
+    def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+        """_on_message.
+
+        Args:
+            client (Any): client
+            userdata (Any): userdata
+            msg (Dict[str, Any]): msg
+        """
         try:
             data, topic = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
@@ -319,15 +394,33 @@ class RPCService(BaseRPCService):
                                         logger=self._logger)
 
     def _send_response(self, data: dict, reply_to: str):
+        """_send_response.
+
+        Args:
+            data (dict): data
+            reply_to (str): reply_to
+        """
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.as_dict()
-        _resp = self._serializer.serialize(_resp)
         self._transport.publish(reply_to, _resp)
 
-    def _on_request_internal(self, client, userdata, msg):
+    def _on_request_internal(self, client: Any, userdata: Any,
+                             msg: Dict[str, Any]):
+        """_on_request_internal.
+
+        Args:
+            client (Any): client
+            userdata (Any): userdata
+            msg (Dict[str, Any]): msg
+        """
         try:
             data, header, uri = self._unpack_comm_msg(msg)
+        except Exception as exc:
+            self.logger.error('Could not unpack message. Dropping message!',
+                              exc_info=False)
+            return
+        try:
             if self._msg_type is None:
                 resp = self.on_request(data)
             else:
@@ -340,7 +433,17 @@ class RPCService(BaseRPCService):
         reply_to = header['reply_to']
         self._send_response(resp, reply_to)
 
-    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+    def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
+        """_unpack_comm_msg.
+
+        Unpack payload, header and uri from communcation message.
+
+        Args:
+            msg (Any): msg
+
+        Returns:
+            Tuple[Any, Any, Any]:
+        """
         _uri = msg.topic
         _payload = JSONSerializer.deserialize(msg.payload)
         _data = _payload['data']
@@ -386,13 +489,26 @@ class RPCServer(BaseRPCServer):
             self._register_endpoint(uri, callback, msg_type)
 
     def _send_response(self, data: dict, reply_to: str):
+        """_send_response.
+
+        Args:
+            data (dict): data
+            reply_to (str): reply_to
+        """
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.as_dict()
-        _resp = self._serializer.serialize(_resp)
         self._transport.publish(reply_to, _resp)
 
-    def _on_request_internal(self, client, userdata, msg):
+    def _on_request_internal(self, client: Any, userdata: Any,
+                             msg: Dict[str, Any]):
+        """_on_request_internal.
+
+        Args:
+            client (Any): client
+            userdata (Any): userdata
+            msg (Dict[str, Any]): msg
+        """
         try:
             data, header, uri = self._unpack_comm_msg(msg)
             reply_to = header['reply_to']
@@ -406,13 +522,9 @@ class RPCServer(BaseRPCServer):
                 clb = self._svc_map[svc_uri][0]
                 msg_type = self._svc_map[svc_uri][1]
                 if msg_type is None:
-                    print(data)
                     resp = clb(data)
-                    print(resp)
                 else:
-                    print(data)
                     resp = clb(msg_type.Request(**data))
-                    print(resp)
                     resp = resp.as_dict()
         except Exception as exc:
             self.logger.error(exc, exc_info=False)
@@ -420,7 +532,15 @@ class RPCServer(BaseRPCServer):
             return
         self._send_response(resp, reply_to)
 
-    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+    def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
+        """_unpack_comm_msg.
+
+        Args:
+            msg (Any): msg
+
+        Returns:
+            Tuple[Any, Any, Any]:
+        """
         _uri = msg.topic
         _payload = JSONSerializer.deserialize(msg.payload)
         _data = _payload['data']
@@ -477,15 +597,30 @@ class RPCClient(BaseRPCClient):
         self._transport.start_loop()
 
     def _gen_queue_name(self):
+        """_gen_queue_name.
+        """
         return f'rpc-{self._gen_random_id()}'
 
     def _prepare_request(self, data):
+        """_prepare_request.
+
+        Args:
+            data:
+        """
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.header.reply_to = self._gen_queue_name()
         self._comm_obj.data = data
         return self._comm_obj.as_dict()
 
-    def _on_response_wrapper(self, client, userdata, msg):
+    def _on_response_wrapper(self, client: Any, userdata: Any,
+                             msg: Dict[str, Any]):
+        """_on_response_wrapper.
+
+        Args:
+            client (Any): client
+            userdata (Any): userdata
+            msg (Dict[str, Any]): msg
+        """
         try:
             data, header, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
@@ -493,7 +628,7 @@ class RPCClient(BaseRPCClient):
             data = {}
         self._response = data
 
-    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+    def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
         _uri = msg.topic
         _payload = JSONSerializer.deserialize(msg.payload)
         _data = _payload['data']
@@ -523,17 +658,17 @@ class RPCClient(BaseRPCClient):
             msg (RPCMessage.Request): msg
             timeout (float): timeout
         """
-        ## TODO: Evaluate msg type passed here.
         if self._msg_type is None:
             data = msg
         else:
+            if not isinstance(msg, self._msg_type.Request):
+                raise ValueError('Message type not valid')
             data = msg.as_dict()
 
         self._response = None
 
         _msg = self._prepare_request(data)
         _reply_to = _msg['header']['reply_to']
-        _msg = self._serializer.serialize(_msg)
 
         self._transport.subscribe(_reply_to, callback=self._on_response_wrapper)
         start_t = time.time()
@@ -677,6 +812,5 @@ class EventEmitter(BaseEventEmitter):
             None:
         """
         _msg = event.as_dict()
-        _msg = self._serializer.serialize(_msg)
         self.logger.debug(f'Firing Event: {event.name}:<{event.uri}>')
         self._transport.publish(event.uri, _msg)
