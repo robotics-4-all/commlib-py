@@ -38,9 +38,13 @@ if __name__ == '__main__':
     node.run()
 
     # Create an instance of the request object
+    # msg = RESTProxyMessage.Request(base_url='https://httpbin.org',
+    #                                path='/get', verb='GET',
+    #                                query_params={'a': 1, 'b': 2})
     msg = RESTProxyMessage.Request(base_url='https://httpbin.org',
-                                   path='/get', verb='GET',
-                                   query_params={'a': 1, 'b': 2})
+                                   path='/put', verb='PUT',
+                                   query_params={'a': 1, 'b': 2},
+                                   body_params={'c': 3, 'd': 4})
 
     while True:
         # returns AddTwoIntMessage.Response instance

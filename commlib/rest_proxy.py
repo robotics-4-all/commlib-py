@@ -38,6 +38,7 @@ class RESTProxyMessage(RPCMessage):
     class Response(RPCMessage.Response):
         data: Any = DataField(default_factory=dict)
         headers: Dict = DataField(default_factory=dict)
+        status_code: int = 200
 
 
 class RESTProxy:
@@ -88,11 +89,11 @@ class RESTProxy:
         else:
             raise ValueError(f'HTTP Verb [{msg.verb}] is not valid!')
         headers = dict(**resp.headers)
-        print(headers)
         data = resp.text
         if headers.get('Content-Type') == 'application/json':
             data = json.loads(data)
-        return RESTProxyMessage.Response(data=data, headers=headers)
+        return RESTProxyMessage.Response(data=data, headers=headers,
+                                         status_code=resp.status_code)
 
     def run(self):
         """run.
