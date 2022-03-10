@@ -3,8 +3,30 @@
 import sys
 import time
 
+from commlib.msg import RPCMessage, DataClass
 from commlib.node import Node, TransportType
-from commlib.rest_proxy import RESTProxyMessage
+
+
+class AddTwoIntMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
+class MultiplyIntMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        c: int = 0
 
 
 if __name__ == '__main__':
@@ -26,28 +48,31 @@ if __name__ == '__main__':
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    node = Node(node_name='rest_proxy_client',
+    node = Node(node_name='myclient',
                 transport_type=transport,
                 connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
 
-    rpc = node.create_rpc_client(msg_type=RESTProxyMessage,
-                                 rpc_name='proxy.rest')
+    rpc_a = node.create_rpc_client(msg_type=AddTwoIntMessage,
+                                   rpc_name='rpcserver.test.add_two_ints')
+    rpc_b = node.create_rpc_client(msg_type=MultiplyIntMessage,
+                                   rpc_name='rpcserver.test.multiply_ints')
 
     node.run()
 
     # Create an instance of the request object
-    # msg = RESTProxyMessage.Request(base_url='https://httpbin.org',
-    #                                path='/get', verb='GET',
-    #                                query_params={'a': 1, 'b': 2})
-    msg = RESTProxyMessage.Request(base_url='https://httpbin.org',
-                                   path='/put', verb='PUT',
-                                   query_params={'a': 1, 'b': 2},
-                                   body_params={'c': 3, 'd': 4})
+    msg_a = AddTwoIntMessage.Request()
+    msg_b = MultiplyIntMessage.Request()
 
     while True:
         # returns AddTwoIntMessage.Response instance
-        resp = rpc.call(msg)
+        resp = rpc_a.call(msg_a)
         print(resp)
-        time.sleep(10)
+        msg_a.a += 1
+        msg_a.b += 1
+        resp = rpc_b.call(msg_b)
+        print(resp)
+        msg_b.a += 1
+        msg_b.b += 1
+        time.sleep(1)

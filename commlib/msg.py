@@ -6,11 +6,14 @@ from dataclasses import field as DataField
 from dataclasses import fields as DataFields
 from dataclasses import is_dataclass, make_dataclass
 from typing import (Any, Dict, Optional, Text, Tuple, Type,
-                    TypeVar, Union)
+                    TypeVar, Union, List)
 
 from commlib.utils import gen_timestamp
 
 Primitives = [str, int, float, bool, bytes]
+
+import base64
+from os import path
 
 
 @DataClass
@@ -122,6 +125,26 @@ class HeartbeatMessage(PubSubMessage):
 
     def __post_init__(self):
         self.ts = gen_timestamp()
+
+
+@DataClass
+class FileObject(Object):
+    """Implementation of the File object."""
+
+    filename: str = ''
+    data: List[bytes] = DataField(default_factory=list)
+    encoding: str = 'base64'
+
+    def load_from_file(self, filepath):
+        """Load raw bytes from file.
+        Args:
+            filepath (str): System Path of the file.
+        """
+        with open(filepath, 'rb') as f:
+            fdata = f.read()
+            b64 = base64.b64encode(fdata)
+            self.data = b64.decode()
+            self.filename = path.basename(filepath)
 
 
 def object_from_dict(klass: Object, dikt: Dict[str, Any]) -> Any:

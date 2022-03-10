@@ -4,7 +4,7 @@ import sys
 import time
 
 from commlib.endpoints import TransportType
-from commlib.rest import RESTProxy
+from commlib.rest_proxy import RESTProxy
 
 
 

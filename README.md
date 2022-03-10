@@ -798,6 +798,49 @@ if __name__ == '__main__':
 
 **TODO**: Action bridges
 
+## TCP Bridge
+
+TCP bridge forwards tcp packages between two endpoints:
+
+```
+
+[Client] -------> [TCPBridge, port=xxxx] ---------> [TCP endpoint, port=xxxx]
+
+```
+
+A one-to-one connection is performed between the bridge and the endpoint. 
+
+
+## REST Proxy
+
+Implements a REST proxy, that enables invocation of REST services via
+broker communication. The proxy uses an RPCService to run the broker endpoint and
+an http client for calling REST services. An RPC call is transformed into proper,
+REST-compliant, http request, based on the input parameters.
+
+
+```python
+class RESTProxyMessage(RPCMessage):
+    @DataClass
+    class Request(RPCMessage.Request):
+        host: str
+        port: int = 80
+        path: str = '/'
+        verb: str = 'GET'
+        query_params: Dict = DataField(default_factory=dict)
+        path_params: Dict = DataField(default_factory=dict)
+        body_params: Dict = DataField(default_factory=dict)
+        headers: Dict = DataField(default_factory=dict)
+
+    @DataClass
+    class Response(RPCMessage.Response):
+        data: Dict = DataField(default_factory=dict)
+```
+
+Responses from the REST services are returned to clients in the form of a 
+`RPCMessage.Response` message.
+
+
 ## Transports
 
 ### AMQP / RabbitMQ

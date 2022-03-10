@@ -590,6 +590,7 @@ class RPCService(BaseRPCService):
             # Return data as is. Let callback handle with encoding...
             _data = {}
             self._send_response(_data, ch, _corr_id, _reply_to, _delivery_tag)
+            return
         resp = self._invoke_onrequest_callback(_data)
         self._send_response(resp, ch, _corr_id, _reply_to, _delivery_tag)
 
