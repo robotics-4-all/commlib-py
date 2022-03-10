@@ -1,3 +1,4 @@
+from functools import wraps
 from enum import IntEnum
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import concurrent.futures.thread
@@ -278,8 +279,9 @@ class Node:
         stop_rpc.run()
         self._stop_rpc = stop_rpc
 
-    def _stop_rpc_callback(self, msg: NodeStartMessage.Request) -> None:
-        resp = NodeStartMessage.Response()
+    def _stop_rpc_callback(self, msg: NodeStopMessage.Request) -> \
+            NodeStopMessage.Response:
+        resp = NodeStopMessage.Response()
         if self.state == NodeState.RUNNING:
             self.state = NodeState.STOPPED
             self.stop()
@@ -297,7 +299,8 @@ class Node:
         start_rpc.run()
         self._start_rpc = start_rpc
 
-    def _start_rpc_callback(self, msg: NodeStartMessage.Request) -> None:
+    def _start_rpc_callback(self, msg: NodeStartMessage.Request) -> \
+            NodeStartMessage.Response:
         resp = NodeStartMessage.Response()
         if self.state == NodeState.STOPPED:
             self.run()
@@ -414,6 +417,12 @@ class Node:
                                          *args, **kwargs)
         self._subscribers.append(sub)
         return sub
+
+    def subscriber_callback(self, fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            return self.create_subscriber(*args, **kwargs)
+        return wrapper
 
     def create_rpc(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
