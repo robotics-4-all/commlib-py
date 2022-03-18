@@ -41,7 +41,7 @@ class BaseRPCServer:
                  debug: bool = False,
                  workers: int = 2,
                  serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION):
+                 compression: CompressionType = CompressionType.NO_COMPRESSION):
         """__init__.
 
         Args:
@@ -116,7 +116,7 @@ class BaseRPCService:
                  debug: bool = False,
                  workers: int = 2,
                  serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION):
+                 compression: CompressionType = CompressionType.NO_COMPRESSION):
         """__init__.
 
         Args:
@@ -200,7 +200,7 @@ class BaseRPCClient:
                  debug: bool = False,
                  max_workers: int = 5,
                  serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION):
+                 compression: CompressionType = CompressionType.NO_COMPRESSION):
         """__init__.
 
         Args:

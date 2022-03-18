@@ -18,7 +18,7 @@ class BasePublisher(object):
                  logger: Logger = None,
                  debug: bool = True,
                  serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION):
+                 compression: CompressionType = CompressionType.NO_COMPRESSION):
         """__init__.
 
         Args:
@@ -74,7 +74,7 @@ class BaseSubscriber(object):
                  logger: Logger = None,
                  debug: bool = True,
                  serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION):
+                 compression: CompressionType = CompressionType.NO_COMPRESSION):
         """__init__.
 
         Args:
