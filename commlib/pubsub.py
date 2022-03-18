@@ -42,7 +42,7 @@ class BasePublisher(object):
 
         self._gen_random_id = gen_random_id
 
-        self.logger.debug('Created Publisher: <{}>'.format(self._topic))
+        self.logger.debug(f'Initiated Publisher <{self._topic}>')
 
     @property
     def debug(self) -> bool:

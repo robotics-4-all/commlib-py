@@ -41,6 +41,8 @@ if __name__ == '__main__':
     pub = node.create_publisher(msg_type=SonarMessage,
                                 topic='sensors.sonar.front')
 
+    node.run()
+
     msg = SonarMessage()
     while True:
         pub.publish(msg)
