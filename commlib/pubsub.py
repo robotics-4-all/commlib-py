@@ -18,7 +18,7 @@ class BasePublisher(object):
                  logger: Logger = None,
                  debug: bool = True,
                  serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.BEST_SPEED):
+                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION):
         """__init__.
 
         Args:

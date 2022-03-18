@@ -146,10 +146,13 @@ class MQTTTransport:
             rc (int): Return Code - Internal paho-mqtt
         """
         if rc == MQTTReturnCode.CONNECTION_SUCCESS:
+            self.log.debug('MQTT Transport initiated:')
             self.log.debug(
-                f'Connected to MQTT broker <mqtt://' + \
-                f'{self._conn_params.host}:{self._conn_params.port}>')
-            self._connected = True
+                f'- Broker: mqtt://' + \
+                f'{self._conn_params.host}:{self._conn_params.port}'
+            )
+            self.log.debug(f'- Data Serialization: {self._serializer}')
+            self.log.debug(f'- Data Compression: {self._compression}')
 
     def on_disconnect(self, client: Any, userdata: Any,
                       rc: Dict[str, Any]):
