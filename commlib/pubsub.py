@@ -1,12 +1,12 @@
 from concurrent.futures import ThreadPoolExecutor
 import threading
-import uuid
-from typing import Dict, Any
+from typing import Dict, Any, Callable
 
-from .serializer import JSONSerializer
+from .serializer import Serializer, JSONSerializer
 from .logger import Logger
 from .utils import gen_random_id
 from .msg import PubSubMessage
+from .compression import CompressionType
 
 
 class BasePublisher(object):
@@ -17,7 +17,8 @@ class BasePublisher(object):
                  msg_type: PubSubMessage = None,
                  logger: Logger = None,
                  debug: bool = True,
-                 serializer=None):
+                 serializer: Serializer = JSONSerializer,
+                 compression: CompressionType = CompressionType.BEST_SPEED):
         """__init__.
 
         Args:
@@ -27,17 +28,14 @@ class BasePublisher(object):
             debug (bool): debug
             serializer:
         """
-        self._debug = debug
-        self._topic = topic
-        self._msg_type = msg_type
-
         if topic is None:
             raise ValueError('Topic Name not defined')
 
-        if serializer is not None:
-            self._serializer = serializer
-        else:
-            self._serializer = JSONSerializer
+        self._debug = debug
+        self._topic = topic
+        self._msg_type = msg_type
+        self._serializer = serializer
+        self._compression = compression
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -72,10 +70,11 @@ class BaseSubscriber(object):
 
     def __init__(self, topic: str = None,
                  msg_type: PubSubMessage = None,
-                 on_message: callable = None,
+                 on_message: Callable = None,
                  logger: Logger = None,
                  debug: bool = True,
-                 serializer=None):
+                 serializer: Serializer = JSONSerializer,
+                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION):
         """__init__.
 
         Args:
@@ -86,19 +85,14 @@ class BaseSubscriber(object):
             debug (bool): debug
             serializer:
         """
+        if topic is None:
+            raise ValueError('Topic name cannot be None')
         self._debug = debug
         self._topic = topic
         self._msg_type = msg_type
-
-        if topic is None:
-            raise ValueError('Topic name cannot be None')
-
+        self._compression = compression
+        self._serializer = serializer
         self.onmessage = on_message
-
-        if serializer is not None:
-            self._serializer = serializer
-        else:
-            self._serializer = JSONSerializer
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
