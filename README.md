@@ -23,10 +23,16 @@ low footprint.
 python setup.py install
 ```
 
-or
+, or via pip
 
 ```bash
 pip install .
+```
+
+, or by giving the git repo url to pip
+
+```bash
+pip install git+https://github.com/robotics-4-all/commlib-py.git@master
 ```
 
 ## Redis Support
