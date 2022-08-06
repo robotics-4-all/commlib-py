@@ -3,20 +3,17 @@
 import sys
 import time
 
-from commlib.msg import ActionMessage, DataClass
+from commlib.msg import ActionMessage
 from commlib.node import Node, TransportType
 
 
 class ExampleAction(ActionMessage):
-    @DataClass
     class Goal(ActionMessage.Goal):
         target_cm: int = 0
 
-    @DataClass
     class Result(ActionMessage.Result):
         dest_cm: int = 0
 
-    @DataClass
     class Feedback(ActionMessage.Feedback):
         current_cm: int = 0
 

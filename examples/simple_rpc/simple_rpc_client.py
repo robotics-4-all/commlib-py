@@ -3,17 +3,15 @@
 import sys
 import time
 
-from commlib.msg import RPCMessage, DataClass
+from commlib.msg import RPCMessage
 from commlib.node import Node, TransportType
 
 
 class AddTwoIntMessage(RPCMessage):
-    @DataClass
     class Request(RPCMessage.Request):
         a: int = 0
         b: int = 0
 
-    @DataClass
     class Response(RPCMessage.Response):
         c: int = 0
 

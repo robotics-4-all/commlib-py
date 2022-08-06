@@ -1,138 +1,91 @@
 import abc
-from dataclasses import asdict as as_dict
-from dataclasses import astuple as as_tuple
-from dataclasses import dataclass as DataClass
-from dataclasses import field as DataField
-from dataclasses import fields as DataFields
-from dataclasses import is_dataclass, make_dataclass
-from typing import (Any, Dict, Optional, Text, Tuple, Type,
-                    TypeVar, Union, List)
-
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from uuid import UUID
 from commlib.utils import gen_timestamp
-
-Primitives = [str, int, float, bool, bytes]
 
 import base64
 from os import path
 
+from pydantic import BaseModel
 
-@DataClass
-class Object(abc.ABC):
-    """Object Class.
-    Base Object Class. Implements base methods to inherit.
-    """
-    def __iter__(self) -> Tuple[str, Any]:
-        yield from as_tuple(self)
-
-    def as_dict(self) -> Dict[str, Any]:
-        """as_dict.
-
-        Args:
-
-        Returns:
-            dict:
-        """
-        return as_dict(self)
-
-    def from_dict(self, data_dict: Dict[str, Any]) -> None:
-        """from_dict.
-        Fill message data fields from dict key-value pairs.
-
-        Args:
-            data_dict (dict): data_dict
-
-        Returns:
-            None:
-        """
-        fieldtypes = {f.name:f.type for f in DataFields(self.__class__)}
-        for key, val in data_dict.items():
-            if hasattr(self, key):
-                setattr(self, key, object_from_dict(fieldtypes[key], val))
-            else:
-                raise AttributeError(
-                    f'{self.__class__.__name__} has no attribute {key}')
+Primitives = [str, int, float, bool, bytes]
 
 
-@DataClass
-class MessageHeader(Object):
+class Message(BaseModel):
+    pass
+
+
+class MessageHeader(BaseModel):
     """MessageHeader Class.
     Implements the Header data class.
     """
-    seq: int = DataField(default=0)
-    timestamp: int = DataField(default=-1)
-    node_id: Text = DataField(default='')
-    agent: Text = DataField(default='commlib-py')
-
-    def __post_init__(self):
-        self.timestamp = gen_timestamp()
+    msg_id: Union[int, str, UUID] = -1
+    node_id: Union[int, str, UUID] = ''
+    agent: str = 'commlib-py'
+    timestamp: int = gen_timestamp()
 
 
-class RPCMessage(abc.ABC):
+class RPCMessage(BaseModel):
     """RPCMessage.
     RPC Object Class. Defines Request and Response data classes for
         instantiation. Used as a namespace.
     """
 
-    @DataClass
-    class Request(Object):
+    class Request(BaseModel):
         """Request.
         RPC Request Message
         """
+        pass
 
-    @DataClass
-    class Response(Object):
+    class Response(BaseModel):
         """Response.
         RPC Response Message
         """
+        pass
 
 
-@DataClass
-class PubSubMessage(Object):
+class PubSubMessage(BaseModel):
     """PubSubObject Class.
     Implementation of the PubSubObject Base Data class.
     """
+    pass
 
 
-class ActionMessage(Object):
+class ActionMessage(BaseModel):
     """ActionMessage.
     """
 
-    @DataClass
-    class Goal(Object):
+    class Goal(BaseModel):
         """Goal.
         Action Goal Message
         """
+        pass
 
-    @DataClass
-    class Result(Object):
+    class Result(BaseModel):
         """Result.
         Action Result Message
         """
+        pass
 
-    @DataClass
-    class Feedback(Object):
+    class Feedback(BaseModel):
         """Feedback.
         Action Feedback Message
         """
+        pass
 
 
-@DataClass
 class HeartbeatMessage(PubSubMessage):
     """HeartbeatMessage.
     """
 
-    ts: int = -1
-
-    def __post_init__(self):
-        self.ts = gen_timestamp()
+    ts: int = gen_timestamp()
 
 
-@DataClass
-class FileObject(Object):
+class FileObject(BaseModel):
     """Implementation of the File object."""
 
+    data: List[bytes] = []
     filename: str = ''
-    data: List[bytes] = DataField(default_factory=list)
     encoding: str = 'base64'
 
     def load_from_file(self, filepath):
@@ -145,19 +98,3 @@ class FileObject(Object):
             b64 = base64.b64encode(fdata)
             self.data = b64.decode()
             self.filename = path.basename(filepath)
-
-
-def object_from_dict(klass: Object, dikt: Dict[str, Any]) -> Any:
-    """object_from_dict.
-    Creates an object from a dict
-
-    Args:
-        klass (Object): klass
-        dikt (Dict[str, Any]): dikt
-    """
-    try:
-        fieldtypes = {f.name:f.type for f in DataFields(klass)}
-        return klass(**{f:object_from_dict(fieldtypes[f],dikt[f]) for f in dikt})
-    except:
-        # Not an object (dataclass) field
-        return dikt

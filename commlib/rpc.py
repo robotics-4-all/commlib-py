@@ -8,28 +8,24 @@ from typing import Any, Dict, Tuple
 from commlib.serializer import JSONSerializer
 from commlib.logger import Logger
 from commlib.utils import gen_random_id, gen_timestamp
+from pydantic import BaseModel
 from commlib.msg import (
-    DataClass,
-    DataField,
-    Object,
     PubSubMessage,
     RPCMessage
 )
 
 
-@DataClass
-class CommRPCHeader(Object):
-    timestamp: int = DataField(default=gen_timestamp())
-    reply_to: str = DataField(default='')
+class CommRPCHeader(BaseModel):
+    reply_to: str = ''
+    timestamp: int = gen_timestamp()
 
 
-@DataClass
-class CommRPCObject(Object):
-    header: CommRPCHeader = DataField(default_factory=CommRPCHeader)
-    data: Dict[str, Any] = DataField(default_factory=dict)
+class CommRPCObject(BaseModel):
+    header: CommRPCHeader = CommRPCHeader()
+    data: Dict[str, Any] = {}
 
 
-class BaseRPCServer(object):
+class BaseRPCServer:
     """RPCServer Base class.
     Inherit to implement transport-specific RPCService.
 
@@ -106,7 +102,7 @@ class BaseRPCServer(object):
             self._t_stop_event.set()
 
 
-class BaseRPCService(object):
+class BaseRPCService:
     """RPCService Base class.
     Inherit to implement transport-specific RPCService.
 
@@ -161,7 +157,7 @@ class BaseRPCService(object):
         return self._serializer.serialize(payload)
 
     def _serialize_response(self, message: RPCMessage.Response) -> str:
-        return self._serialize_data(message.as_dict())
+        return self._serialize_data(message.dict())
 
 
     @property
@@ -196,7 +192,7 @@ class BaseRPCService(object):
             self._t_stop_event.set()
 
 
-class BaseRPCClient(object):
+class BaseRPCClient:
     """RPCClient Base class.
     Inherit to implement transport-specific RPCClient.
     """
@@ -297,5 +293,5 @@ class BaseRPCClient(object):
         return self._serializer.serialize(payload)
 
     def _serialize_request(self, message: RPCMessage.Request) -> str:
-        return self._serialize_data(message.as_dict())
+        return self._serialize_data(message.dict())
 

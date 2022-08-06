@@ -1,38 +1,41 @@
-import time
-import datetime
 from typing import Text, Dict, Any
 
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.logger import Logger
 from commlib.utils import gen_random_id
-from commlib.msg import Object, DataClass, DataField
+from pydantic import BaseModel, NoneIsAllowedError
+
+em_logger = None
 
 
-@DataClass
-class Event(Object):
+class Event(BaseModel):
     """Event.
     """
 
     name: Text
     uri: Text
     description: Text = ''
-    payload: Dict[str, Any] = DataField(default_factory=dict)
+    data: Dict[str, Any] = {}
 
 
 class BaseEventEmitter(object):
     """BaseEventEmitter.
     """
+    @classmethod
+    def logger(cls) -> Logger:
+        global em_logger
+        if em_logger is None:
+            em_logger = Logger('event-emitter')
+        return em_logger
 
     def __init__(self,
                  name: Text = None,
-                 logger: Logger = None,
                  debug: bool = False,
                  serializer: Serializer = None):
         """__init__.
 
         Args:
             name (Text): name
-            logger (Logger): logger
             debug (bool): debug
             serializer (Serializer): serializer
         """
@@ -45,9 +48,7 @@ class BaseEventEmitter(object):
         else:
             self._serializer = JSONSerializer
 
-        self._logger = Logger(self.__class__.__name__, debug=debug) if \
-            logger is None else logger
-        self.logger.info(f'Initiated Event Emitter <{self._name}>')
+        self.log.info(f'Initiated Event Emitter <{self._name}>')
 
     @property
     def debug(self) -> bool:
@@ -61,7 +62,7 @@ class BaseEventEmitter(object):
         return self._debug
 
     @property
-    def logger(self) -> Logger:
+    def log(self) -> Logger:
         """logger.
 
         Args:
@@ -69,7 +70,7 @@ class BaseEventEmitter(object):
         Returns:
             Logger:
         """
-        return self._logger
+        return self.logger()
 
     def send_event(self, event: Event) -> None:
         """send_event.

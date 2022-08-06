@@ -3,11 +3,10 @@
 import sys
 import time
 
-from commlib.msg import PubSubMessage, MessageHeader, DataClass
+from commlib.msg import PubSubMessage, MessageHeader
 from commlib.node import Node, TransportType
 
 
-@DataClass
 class SonarMessage(PubSubMessage):
     header: MessageHeader = MessageHeader()
     range: float = -1

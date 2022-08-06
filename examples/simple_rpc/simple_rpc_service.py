@@ -1,25 +1,22 @@
 #!/usr/bin/env python
 
 import sys
-import time
 
-from commlib.msg import RPCMessage, DataClass
+from commlib.msg import RPCMessage
 from commlib.node import Node, TransportType
 
 
 class AddTwoIntMessage(RPCMessage):
-    @DataClass
     class Request(RPCMessage.Request):
         a: int = 0
         b: int = 0
 
-    @DataClass
     class Response(RPCMessage.Response):
         c: int = 0
 
 
 def add_two_int_handler(msg):
-    print(f'Request Message: {msg}')
+    print(f'Request Message: {msg.__dict__}')
     resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
     return resp
 

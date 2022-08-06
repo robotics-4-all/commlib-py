@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
 import sys
-import time
 
-from commlib.msg import PubSubMessage, MessageHeader, DataClass
 from commlib.node import Node, TransportType
 
 

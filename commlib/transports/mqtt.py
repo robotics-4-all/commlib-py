@@ -21,6 +21,9 @@ from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCServer, BaseRPCService
 from commlib.serializer import Serializer, JSONSerializer
 from commlib.utils import gen_timestamp
+from commlib.connection import ConnectionParametersBase
+
+mqtt_logger = None
 
 
 class MQTTReturnCode(IntEnum):
@@ -37,62 +40,43 @@ class MQTTProtocolType(IntEnum):
     MQTTv311 = 2
 
 
-class Credentials:
-    def __init__(self, username: str = '', password: str = ''):
-        self.username = username
-        self.password = password
-
-
-class ConnectionParameters:
-    __slots__ = ['host', 'port', 'creds', 'protocol']
-    def __init__(self,
-                 host: str = 'localhost',
-                 port: int = 1883,
-                 protocol: MQTTProtocolType = MQTTProtocolType.MQTTv311,
-                 creds: Credentials = Credentials()):
-        """__init__.
-
-        Args:
-            host (str): host
-            port (int): port
-            protocol (MQTTProtocolType): protocol
-            creds (Credentials): creds
-        """
-        self.host = host
-        self.port = port
-        self.protocol = protocol
-        self.creds = creds
-
-    @property
-    def credentials(self):
-        return self.creds
+class ConnectionParameters(ConnectionParametersBase):
+    host: str = 'localhost'
+    port: int = 1883
+    username: str = ''
+    password: str = ''
+    protocol: MQTTProtocolType = MQTTProtocolType.MQTTv311
 
 
 class MQTTTransport:
     """MQTTTransport.
     """
+    @classmethod
+    def logger(cls) -> Logger:
+        global mqtt_logger
+        if mqtt_logger is None:
+            mqtt_logger = Logger('mqtt')
+        return mqtt_logger
+
+    @property
+    def log(self):
+        return self.logger()
 
     def __init__(self,
                  conn_params: ConnectionParameters = ConnectionParameters(),
-                 serializer: Serializer = JSONSerializer(),
-                 logger: Logger = None):
+                 serializer: Serializer = JSONSerializer()):
         """__init__.
 
         Args:
             conn_params (ConnectionParameters): conn_params
-            logger (Logger): logger
         """
         self._conn_params = conn_params
-        self._logger = logger
         self._connected = False
 
         self._serializer = serializer
 
-        self.logger = Logger(self.__class__.__name__) if \
-            logger is None else logger
-
         self._client = mqtt.Client(clean_session=True,
-                                   protocol=mqtt.MQTTv311,
+                                   protocol=conn_params.protocol,
                                    transport='tcp')
 
         self._client.on_connect = self.on_connect
@@ -100,12 +84,10 @@ class MQTTTransport:
         # self._client.on_log = self.on_log
         self._client.on_message = self.on_message
 
-        self._client.username_pw_set(self._conn_params.creds.username,
-                                     self._conn_params.creds.password)
+        self._client.username_pw_set(self._conn_params.username,
+                                     self._conn_params.password)
 
-        self._client.connect(self._conn_params.host,
-                             int(self._conn_params.port),
-                             60)
+        self._client.connect(self._conn_params.host, int(self._conn_params.port), 60)
 
     @property
     def is_connected(self):
@@ -124,7 +106,7 @@ class MQTTTransport:
             rc (int): Return Code - Internal paho-mqtt
         """
         if rc == MQTTReturnCode.CONNECTION_SUCCESS:
-            self.logger.debug(
+            self.log.debug(
                 f"Connected to MQTT broker <{self._conn_params.host}:{self._conn_params.port}>")
             self._connected = True
 
@@ -140,7 +122,7 @@ class MQTTTransport:
             rc (int): Return Code - Internal paho-mqtt
         """
         if rc != 0:
-            self.logger.warn("Unexpected disconnection from MQTT Broker.")
+            self.log.warn("Unexpected disconnection from MQTT Broker.")
 
     def on_message(self, client: Any, userdata: Any,
                    msg: Dict[str, Any]):
@@ -158,7 +140,7 @@ class MQTTTransport:
     def on_log(self, client: Any, userdata: Any,
                level, buf):
         ## SPAM output
-        # self.logger.debug(f'MQTT Log: {buf}')
+        # self.log.debug(f'MQTT Log: {buf}')
         pass
 
     def publish(self, topic: str, payload: Dict[str, Any], qos: int = 0,
@@ -236,8 +218,7 @@ class Publisher(BasePublisher):
         self.conn_params = conn_params
         super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
-                                        serializer=self._serializer,
-                                        logger=self._logger)
+                                        serializer=self._serializer)
         self._transport.start_loop()
 
     def publish(self, msg: PubSubMessage) -> None:
@@ -254,7 +235,7 @@ class Publisher(BasePublisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.as_dict()
+            data = msg.dict()
         self._transport.publish(self._topic, data)
         self._msg_seq += 1
 
@@ -282,7 +263,7 @@ class MPublisher(Publisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.as_dict()
+            data = msg.dict()
         self._transport.publish(topic, data)
         self._msg_seq += 1
 
@@ -305,8 +286,7 @@ class Subscriber(BaseSubscriber):
         self.conn_params = conn_params
         super(Subscriber, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
-                                        serializer=self._serializer,
-                                        logger=self._logger)
+                                        serializer=self._serializer)
 
     def run(self):
         self._topic = self._transport.subscribe(self._topic,
@@ -393,8 +373,7 @@ class RPCService(BaseRPCService):
         self.conn_params = conn_params
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
-                                        serializer=self._serializer,
-                                        logger=self._logger)
+                                        serializer=self._serializer)
 
     def _send_response(self, data: dict, reply_to: str):
         """_send_response.
@@ -405,7 +384,7 @@ class RPCService(BaseRPCService):
         """
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.data = data
-        _resp = self._comm_obj.as_dict()
+        _resp = self._comm_obj.dict()
         self._transport.publish(reply_to, _resp)
 
     def _on_request_internal(self, client: Any, userdata: Any,
@@ -429,7 +408,7 @@ class RPCService(BaseRPCService):
             else:
                 resp = self.on_request(self._msg_type.Request(**data))
                 ## RPCMessage.Response object here
-                resp = resp.as_dict()
+                resp = resp.dict()
         except Exception as exc:
             self.logger.error(str(exc), exc_info=False)
             resp = {}
@@ -485,8 +464,7 @@ class RPCServer(BaseRPCServer):
         self.conn_params = conn_params
         super(RPCServer, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
-                                        serializer=self._serializer,
-                                        logger=self._logger)
+                                        serializer=self._serializer)
         for uri in self._svc_map:
             callback = self._svc_map[uri][0]
             msg_type = self._svc_map[uri][1]
@@ -501,7 +479,7 @@ class RPCServer(BaseRPCServer):
         """
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.data = data
-        _resp = self._comm_obj.as_dict()
+        _resp = self._comm_obj.dict()
         self._transport.publish(reply_to, _resp)
 
     def _on_request_internal(self, client: Any, userdata: Any,
@@ -529,7 +507,7 @@ class RPCServer(BaseRPCServer):
                     resp = clb(data)
                 else:
                     resp = clb(msg_type.Request(**data))
-                    resp = resp.as_dict()
+                    resp = resp.dict()
         except Exception as exc:
             self.logger.error(exc, exc_info=False)
             resp = {}
@@ -597,8 +575,7 @@ class RPCClient(BaseRPCClient):
 
         super(RPCClient, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=conn_params,
-                                        serializer=self._serializer,
-                                        logger=self._logger)
+                                        serializer=self._serializer)
         self._transport.start_loop()
 
     def _gen_queue_name(self):
@@ -615,7 +592,7 @@ class RPCClient(BaseRPCClient):
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.header.reply_to = self._gen_queue_name()
         self._comm_obj.data = data
-        return self._comm_obj.as_dict()
+        return self._comm_obj.dict()
 
     def _on_response_wrapper(self, client: Any, userdata: Any,
                              msg: Dict[str, Any]):
@@ -668,7 +645,7 @@ class RPCClient(BaseRPCClient):
         else:
             if not isinstance(msg, self._msg_type.Request):
                 raise ValueError('Message type not valid')
-            data = msg.as_dict()
+            data = msg.dict()
 
         self._response = None
 
@@ -804,8 +781,7 @@ class EventEmitter(BaseEventEmitter):
         super(EventEmitter, self).__init__(*args, **kwargs)
 
         self._transport = MQTTTransport(conn_params=conn_params,
-                                        serializer=self._serializer,
-                                        logger=self._logger)
+                                        serializer=self._serializer)
         self._transport.start_loop()
 
     def send_event(self, event: Event) -> None:
@@ -817,6 +793,6 @@ class EventEmitter(BaseEventEmitter):
         Returns:
             None:
         """
-        _msg = event.as_dict()
-        self.logger.debug(f'Firing Event: {event.name}:<{event.uri}>')
+        _msg = event.dict()
+        self.log.debug(f'Firing Event: {event.name}:<{event.uri}>')
         self._transport.publish(event.uri, _msg)
