@@ -1,12 +1,9 @@
 #!/usr/bin/env python
 
-import time
-
 from commlib.transports.mqtt import PSubscriber, ConnectionParameters
-from commlib.msg import PubSubMessage, DataClass
+from commlib.msg import PubSubMessage
 
 
-@DataClass
 class SonarMessage(PubSubMessage):
     distance: float = 0.001
     horizontal_fov: float = 30.0
@@ -29,6 +26,7 @@ if __name__ == '__main__':
     sub = PSubscriber(
         conn_params=bB_params,
         topic=f'{bB_namespace}.{bA_uri}',
+        msg_type=SonarMessage,
         on_message=on_message
     )
     sub.run_forever()
