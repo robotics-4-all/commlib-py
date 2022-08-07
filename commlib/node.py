@@ -178,7 +178,6 @@ class Node:
 
     def __init__(self,
                  node_name: Optional[str] = '',
-                 transport_type: Optional[TransportType] = TransportType.REDIS,
                  connection_params: Optional[Any] = None,
                  transport_connection_params: Optional[Any] = None,
                  debug: Optional[bool] = False,
@@ -218,34 +217,22 @@ class Node:
         self._action_clients = []
         self._event_emitters = []
 
-        if transport_type == TransportType.REDIS:
-            import commlib.transports.redis as comm
-        elif transport_type == TransportType.AMQP:
-            import commlib.transports.amqp as comm
-        elif transport_type == TransportType.MQTT:
-            import commlib.transports.mqtt as comm
-        else:
-            raise ValueError('Transport type is not supported!')
-        self._commlib = comm
 
         ## Set default ConnectionParameters ---->
-        if transport_connection_params is not None:
-            self._conn_params = transport_connection_params
-        elif connection_params is None:
-            if transport_type == TransportType.REDIS:
-                from commlib.transports.redis import \
-                    UnixSocketConnectionParameters as ConnParams
-            elif transport_type == TransportType.AMQP:
-                from commlib.transports.amqp import \
-                    ConnectionParameters as ConnParams
-            elif transport_type == TransportType.MQTT:
-                from commlib.transports.mqtt import \
-                    ConnectionParameters as ConnParams
-            connection_params = ConnParams()
-            self._conn_params = connection_params
+        if transport_connection_params is not None and connection_params is None:
+            connection_params = transport_connection_params
+        self._conn_params = connection_params
+        type_str = str(type(self._conn_params)).split('\'')[1]
+
+        if type_str == 'commlib.transports.mqtt.ConnectionParameters':
+            import commlib.transports.mqtt as transport_module
+        elif type_str == 'commlib.transports.redis.ConnectionParameters':
+            import commlib.transports.redis as transport_module
+        elif type_str == 'commlib.transports.amqp.ConnectionParameters':
+            import commlib.transports.amqp as transport_module
         else:
-            self._conn_params = connection_params
-        ## <--------------------------------------
+            raise ValueError('Transport type is not supported!')
+        self._transport_module = transport_module
 
         self.log.info(f'Created Node <{self._node_name}>')
 
@@ -392,36 +379,44 @@ class Node:
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        pub = self._commlib.Publisher(conn_params=self._conn_params,
-                                      logger = self.logger(),
-                                      *args, **kwargs)
+        pub = self._transport_module.Publisher(
+            conn_params=self._conn_params,
+            logger = self.logger(),
+            *args, **kwargs
+        )
         self._publishers.append(pub)
         return pub
 
     def create_mpublisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        pub = self._commlib.MPublisher(conn_params=self._conn_params,
-                                       logger = self.logger(),
-                                       *args, **kwargs)
+        pub = self._transport_module.MPublisher(
+            conn_params=self._conn_params,
+            logger = self.logger(),
+            *args, **kwargs
+        )
         self._publishers.append(pub)
         return pub
 
     def create_subscriber(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        sub =  self._commlib.Subscriber(conn_params=self._conn_params,
-                                        logger = self.logger(),
-                                        *args, **kwargs)
+        sub =  self._transport_module.Subscriber(
+            conn_params=self._conn_params,
+            logger = self.logger(),
+            *args, **kwargs
+        )
         self._subscribers.append(sub)
         return sub
 
     def create_psubscriber(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        sub =  self._commlib.PSubscriber(conn_params=self._conn_params,
-                                         logger = self.logger(),
-                                         *args, **kwargs)
+        sub =  self._transport_module.PSubscriber(
+            conn_params=self._conn_params,
+            logger = self.logger(),
+            *args, **kwargs
+        )
         self._subscribers.append(sub)
         return sub
 
@@ -434,43 +429,52 @@ class Node:
     def create_rpc(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        rpc = self._commlib.RPCService(conn_params=self._conn_params,
-                                       logger = self.logger(),
-                                       *args, **kwargs)
+        rpc = self._transport_module.RPCService(
+            conn_params=self._conn_params,
+            logger = self.logger(),
+            *args, **kwargs
+        )
         self._rpc_services.append(rpc)
         return rpc
 
     def create_rpc_client(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        client = self._commlib.RPCClient(conn_params=self._conn_params,
-                                         logger = self.logger(),
-                                         *args, **kwargs)
+        client = self._transport_module.RPCClient(
+            conn_params=self._conn_params,
+            logger = self.logger(),
+            *args, **kwargs
+        )
         self._rpc_clients.append(client)
         return client
 
     def create_action(self, *args, **kwargs):
         """Creates a new ActionService Endpoint.
         """
-        action =  self._commlib.ActionService(conn_params=self._conn_params,
-                                              logger = self.logger(),
-                                              *args, **kwargs)
+        action =  self._transport_module.ActionService(
+            conn_params=self._conn_params,
+            logger = self.logger(),
+            *args, **kwargs
+        )
         self._action_services.append(action)
         return action
 
     def create_action_client(self, *args, **kwargs):
         """Creates a new ActionClient Endpoint.
         """
-        aclient = self._commlib.ActionClient(conn_params=self._conn_params,
-                                             logger = self.logger(),
-                                             *args, **kwargs)
+        aclient = self._transport_module.ActionClient(
+            conn_params=self._conn_params,
+            logger = self.logger(),
+            *args, **kwargs
+        )
         self._action_clients.append(aclient)
         return aclient
 
     def create_event_emitter(self, *args, **kwargs):
         """Creates a new EventEmitter Endpoint.
         """
-        em = self._commlib.EventEmitter(conn_params=self._conn_params,
-                                        *args, **kwargs)
+        em = self._transport_module.EventEmitter(
+            conn_params=self._conn_params, *args, **kwargs
+        )
         self._event_emitters.append(em)
         return em
