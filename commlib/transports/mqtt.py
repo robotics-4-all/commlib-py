@@ -85,8 +85,7 @@ class MQTTTransport:
         Args:
             conn_params (ConnectionParameters): conn_params
             serializer (Serializer): serializer
-            compression (bool): compression
-            compression_type (CompressionType): compression_type
+            compression (CompressionType): compression_type
             logger (Logger): logger
         """
         self._conn_params = conn_params

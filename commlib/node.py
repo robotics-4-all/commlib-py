@@ -3,6 +3,7 @@ import time
 from enum import IntEnum
 from functools import wraps
 from typing import Any, Dict, List, Optional
+from commlib.compression import CompressionType
 
 from commlib.endpoints import TransportType
 from commlib.logger import Logger
@@ -183,6 +184,7 @@ class Node:
                  debug: Optional[bool] = False,
                  heartbeat_thread: Optional[bool] = True,
                  heartbeat_uri: Optional[str] = None,
+                 compression: CompressionType = CompressionType.NO_COMPRESSION,
                  ctrl_services: Optional[bool] = False):
         """__init__.
 
@@ -204,6 +206,7 @@ class Node:
         self._debug = debug
         self._heartbeat_thread = heartbeat_thread
         self._heartbeat_uri = heartbeat_uri
+        self._compression = compression
         self._hb_thread = None
         self.state = NodeState.IDLE
         self._has_ctrl_services = ctrl_services
@@ -381,7 +384,8 @@ class Node:
         """
         pub = self._transport_module.Publisher(
             conn_params=self._conn_params,
-            logger = self.logger(),
+            logger=self.logger(),
+            compression=self._compression,
             *args, **kwargs
         )
         self._publishers.append(pub)
@@ -392,7 +396,8 @@ class Node:
         """
         pub = self._transport_module.MPublisher(
             conn_params=self._conn_params,
-            logger = self.logger(),
+            logger=self.logger(),
+            compression=self._compression,
             *args, **kwargs
         )
         self._publishers.append(pub)
@@ -403,7 +408,8 @@ class Node:
         """
         sub =  self._transport_module.Subscriber(
             conn_params=self._conn_params,
-            logger = self.logger(),
+            logger=self.logger(),
+            compression=self._compression,
             *args, **kwargs
         )
         self._subscribers.append(sub)
@@ -414,7 +420,8 @@ class Node:
         """
         sub =  self._transport_module.PSubscriber(
             conn_params=self._conn_params,
-            logger = self.logger(),
+            logger=self.logger(),
+            compression=self._compression,
             *args, **kwargs
         )
         self._subscribers.append(sub)
@@ -431,7 +438,8 @@ class Node:
         """
         rpc = self._transport_module.RPCService(
             conn_params=self._conn_params,
-            logger = self.logger(),
+            logger=self.logger(),
+            compression=self._compression,
             *args, **kwargs
         )
         self._rpc_services.append(rpc)
@@ -442,7 +450,8 @@ class Node:
         """
         client = self._transport_module.RPCClient(
             conn_params=self._conn_params,
-            logger = self.logger(),
+            logger=self.logger(),
+            compression=self._compression,
             *args, **kwargs
         )
         self._rpc_clients.append(client)
@@ -453,7 +462,8 @@ class Node:
         """
         action =  self._transport_module.ActionService(
             conn_params=self._conn_params,
-            logger = self.logger(),
+            logger=self.logger(),
+            compression=self._compression,
             *args, **kwargs
         )
         self._action_services.append(action)
@@ -464,7 +474,8 @@ class Node:
         """
         aclient = self._transport_module.ActionClient(
             conn_params=self._conn_params,
-            logger = self.logger(),
+            logger=self.logger(),
+            compression=self._compression,
             *args, **kwargs
         )
         self._action_clients.append(aclient)
@@ -474,7 +485,9 @@ class Node:
         """Creates a new EventEmitter Endpoint.
         """
         em = self._transport_module.EventEmitter(
-            conn_params=self._conn_params, *args, **kwargs
+            conn_params=self._conn_params,
+            compression=self._compression,
+            *args, **kwargs
         )
         self._event_emitters.append(em)
         return em
