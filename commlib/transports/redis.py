@@ -48,8 +48,6 @@ class RedisConnection(redis.Redis):
 
 
 class RedisTransport(object):
-<<<<<<< HEAD
-
     @classmethod
     def logger(cls) -> Logger:
         global redis_logger
