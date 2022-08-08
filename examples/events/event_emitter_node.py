@@ -8,7 +8,7 @@ import sys
 import time
 
 from commlib.events import Event
-from commlib.node import Node, TransportType
+from commlib.node import Node
 
 
 if __name__ == '__main__':
@@ -19,20 +19,16 @@ if __name__ == '__main__':
         broker = str(sys.argv[1])
     if broker == 'redis':
         from commlib.transports.redis import ConnectionParameters
-        transport = TransportType.REDIS
     elif broker == 'amqp':
         from commlib.transports.amqp import ConnectionParameters
-        transport = TransportType.AMQP
     elif broker == 'mqtt':
         from commlib.transports.mqtt import ConnectionParameters
-        transport = TransportType.MQTT
     else:
         print('Not a valid broker-type was given!')
         sys.exit(1)
     conn_params = ConnectionParameters()
 
     node = Node(node_name='simple_event_emitter',
-                transport_type=transport,
                 connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
