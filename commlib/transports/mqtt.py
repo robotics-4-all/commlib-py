@@ -60,6 +60,8 @@ class ConnectionParameters(ConnectionParametersBase):
     username: str = ''
     password: str = ''
     protocol: MQTTProtocolType = MQTTProtocolType.MQTTv311
+    ssl: bool = False
+    transport: str = 'tcp'
 
 
 class MQTTTransport:
@@ -105,7 +107,7 @@ class MQTTTransport:
 
         self._client = mqtt.Client(clean_session=True,
                                    protocol=self._conn_params.protocol,
-                                   transport='tcp')
+                                   transport=self._conn_params.transport)
 
         self._client.on_connect = self.on_connect
         self._client.on_disconnect = self.on_disconnect
@@ -114,6 +116,9 @@ class MQTTTransport:
 
         self._client.username_pw_set(self._conn_params.username,
                                      self._conn_params.password)
+        if self._conn_params.ssl:
+            import ssl
+            self._client.tls_set(cert_reqs=None, certfile=None, keyfile=None)
 
         self._client.connect(
             self._conn_params.host, int(self._conn_params.port),
