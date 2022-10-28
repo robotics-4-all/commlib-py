@@ -82,7 +82,7 @@ class HeartbeatThread(threading.Thread):
     def logger(cls) -> Logger:
         global n_logger
         if n_logger is None:
-            n_logger = Logger('node')
+            n_logger = Logger('MQTTHeartbeatThread')
         return n_logger
 
     def __init__(self, pub_instance=None,
@@ -108,7 +108,7 @@ class HeartbeatThread(threading.Thread):
         try:
             msg = HeartbeatMessage(ts=self.get_ts())
             while not self._stop_event.isSet():
-                self.logger().info(
+                self.logger().debug(
                     f'Sending heartbeat message - {self._heartbeat_pub._topic}')
                 if self._heartbeat_pub._msg_type == None:
                     self._heartbeat_pub.publish(msg.dict())
@@ -118,9 +118,9 @@ class HeartbeatThread(threading.Thread):
                 self._stop_event.wait(self._rate_secs)
                 msg.ts = self.get_ts()
         except Exception as exc:
-            self.logger().info(f'Exception in Heartbeat-Thread: {exc}')
+            self.logger().error(f'Exception in Heartbeat-Thread: {exc}')
         finally:
-            self.logger().info('Heartbeat Thread Ended')
+            self.logger().error('Heartbeat Thread Ended')
 
     def force_join(self, timeout: float = None):
         """force_join.
