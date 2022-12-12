@@ -1,16 +1,16 @@
-from functools import wraps
-from enum import IntEnum
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-import concurrent.futures.thread
-import time
 import threading
-from typing import Dict, List, Any, Optional
+import time
+from enum import IntEnum
+from functools import wraps
+from typing import Any, Dict, List, Optional
+from commlib.compression import CompressionType
 
 from commlib.endpoints import TransportType
-from commlib.utils import gen_random_id
 from commlib.logger import Logger
-from commlib.bridges import TopicBridge, RPCBridge
-from commlib.msg import HeartbeatMessage, RPCMessage, DataClass, DataField
+from commlib.msg import HeartbeatMessage, RPCMessage
+from commlib.utils import gen_random_id
+
+n_logger = None
 
 
 class NodePort:
@@ -78,17 +78,21 @@ class NodeState(IntEnum):
 class HeartbeatThread(threading.Thread):
     """HeartbeatThread.
     """
+    @classmethod
+    def logger(cls) -> Logger:
+        global n_logger
+        if n_logger is None:
+            n_logger = Logger('MQTTHeartbeatThread')
+        return n_logger
 
     def __init__(self, pub_instance=None,
                  interval: int = 10,
-                 logger: Logger = None,
                  *args, **kwargs):
         """__init__.
 
         Args:
             pub_instance:
             interval (int): interval
-            logger (Logger): logger
             args:
             kwargs:
         """
@@ -96,9 +100,6 @@ class HeartbeatThread(threading.Thread):
         self._stop_event = threading.Event()
         self._rate_secs = interval
         self._heartbeat_pub = pub_instance
-        if logger is None:
-            logger = Logger(self.__class__.__name__)
-        self.logger = logger
         self.daemon = True
 
     def run(self):
@@ -107,19 +108,19 @@ class HeartbeatThread(threading.Thread):
         try:
             msg = HeartbeatMessage(ts=self.get_ts())
             while not self._stop_event.isSet():
-                self.logger.info(
+                self.logger().debug(
                     f'Sending heartbeat message - {self._heartbeat_pub._topic}')
                 if self._heartbeat_pub._msg_type == None:
-                    self._heartbeat_pub.publish(msg.as_dict())
+                    self._heartbeat_pub.publish(msg.dict())
                 else:
                     self._heartbeat_pub.publish(msg)
                 # Wait for n seconds or until stop event is raised
                 self._stop_event.wait(self._rate_secs)
                 msg.ts = self.get_ts()
         except Exception as exc:
-            self.logger.info(f'Exception in Heartbeat-Thread: {exc}')
+            self.logger().error(f'Exception in Heartbeat-Thread: {exc}')
         finally:
-            self.logger.info('Heartbeat Thread Ended')
+            self.logger().error('Heartbeat Thread Ended')
 
     def force_join(self, timeout: float = None):
         """force_join.
@@ -148,42 +149,42 @@ class HeartbeatThread(threading.Thread):
         return int(timestamp)
 
 
-class NodeStartMessage(RPCMessage):
-    @DataClass
+class _NodeStartMessage(RPCMessage):
     class Request(RPCMessage.Request):
         pass
 
-    @DataClass
     class Response(RPCMessage.Response):
-        status: int = DataField(default=0)
-        error: str = DataField(default='')
+        status: int = 0
+        error: str = ''
 
 
-class NodeStopMessage(RPCMessage):
-    @DataClass
+class _NodeStopMessage(RPCMessage):
     class Request(RPCMessage.Request):
         pass
 
-    @DataClass
     class Response(RPCMessage.Response):
-        status: int = DataField(default=0)
-        error: str = DataField(default='')
+        status: int = 0
+        error: str = ''
 
 
 class Node:
     """Node.
     """
+    @classmethod
+    def logger(cls) -> Logger:
+        global n_logger
+        if n_logger is None:
+            n_logger = Logger(f'node-{cls.__name__}')
+        return n_logger
 
     def __init__(self,
                  node_name: Optional[str] = '',
-                 transport_type: Optional[TransportType] = TransportType.REDIS,
                  connection_params: Optional[Any] = None,
                  transport_connection_params: Optional[Any] = None,
-                 remote_logger: Optional[bool] = False,
-                 remote_logger_uri: Optional[str] = '',
                  debug: Optional[bool] = False,
                  heartbeat_thread: Optional[bool] = True,
                  heartbeat_uri: Optional[str] = None,
+                 compression: CompressionType = CompressionType.NO_COMPRESSION,
                  ctrl_services: Optional[bool] = False):
         """__init__.
 
@@ -193,8 +194,6 @@ class Node:
             connection_params (Optional[Any]): connection_params
             transport_connection_params (Optional[Any]): Same with connection_params.
                 Used for backward compatibility
-            remote_logger (Optional[bool]): remote_logger
-            remote_logger_uri (Optional[str]): remote_logger_uri
             debug (Optional[bool]): debug
             heartbeat_thread (Optional[bool]): heartbeat_thread
             heartbeat_uri (Optional[str]): heartbeat_uri
@@ -207,6 +206,7 @@ class Node:
         self._debug = debug
         self._heartbeat_thread = heartbeat_thread
         self._heartbeat_uri = heartbeat_uri
+        self._compression = compression
         self._hb_thread = None
         self.state = NodeState.IDLE
         self._has_ctrl_services = ctrl_services
@@ -220,37 +220,35 @@ class Node:
         self._action_clients = []
         self._event_emitters = []
 
-        if transport_type == TransportType.REDIS:
-            import commlib.transports.redis as comm
-        elif transport_type == TransportType.AMQP:
-            import commlib.transports.amqp as comm
-        elif transport_type == TransportType.MQTT:
-            import commlib.transports.mqtt as comm
-        else:
-            raise ValueError('Transport type is not supported!')
-        self._commlib = comm
 
         ## Set default ConnectionParameters ---->
-        if transport_connection_params is not None:
-            self._conn_params = transport_connection_params
-        elif connection_params is None:
-            if transport_type == TransportType.REDIS:
-                from commlib.transports.redis import \
-                    UnixSocketConnectionParameters as ConnParams
-            elif transport_type == TransportType.AMQP:
-                from commlib.transports.amqp import \
-                    ConnectionParameters as ConnParams
-            elif transport_type == TransportType.MQTT:
-                from commlib.transports.mqtt import \
-                    ConnectionParameters as ConnParams
-            connection_params = ConnParams()
-            self._conn_params = connection_params
-        else:
-            self._conn_params = connection_params
-        ## <--------------------------------------
+        if transport_connection_params is not None and connection_params is None:
+            connection_params = transport_connection_params
+        self._conn_params = connection_params
+        type_str = str(type(self._conn_params)).split('\'')[1]
 
-        self._logger = Logger(self._node_name, debug=debug)
-        self._logger.info(f'Created Node <{self._node_name}>')
+        if type_str == 'commlib.transports.mqtt.ConnectionParameters':
+            import commlib.transports.mqtt as transport_module
+        elif type_str == 'commlib.transports.redis.ConnectionParameters':
+            import commlib.transports.redis as transport_module
+        elif type_str == 'commlib.transports.amqp.ConnectionParameters':
+            import commlib.transports.amqp as transport_module
+        else:
+            raise ValueError('Transport type is not supported!')
+        self._transport_module = transport_module
+
+        self.log.info(f'Created Node <{self._node_name}>')
+
+    @property
+    def log(self) -> Logger:
+        """logger.
+
+        Args:
+
+        Returns:
+            Logger:
+        """
+        return self.logger()
 
     def init_heartbeat_thread(self, topic: str = None) -> None:
         """init_heartbeat_thread.
@@ -263,25 +261,24 @@ class Node:
         if topic is None:
             topic = f'{self._namespace}.heartbeat'
         self._hb_thread = HeartbeatThread(
-            self.create_publisher(topic=topic, msg_type=HeartbeatMessage),
-            logger=self._logger
+            self.create_publisher(topic=topic, msg_type=HeartbeatMessage)
         )
         self._hb_thread.start()
-        self._logger.info(
+        self.log.info(
             f'Started Heartbeat Publisher <{topic}> in background')
 
     def init_stop_service(self, uri: str = None) -> None:
         if uri is None:
             uri = f'{self._namespace}.stop'
         stop_rpc = self.create_rpc(rpc_name=uri,
-                                   msg_type=NodeStopMessage,
+                                   msg_type=_NodeStopMessage,
                                    on_request=self._stop_rpc_callback)
         stop_rpc.run()
         self._stop_rpc = stop_rpc
 
-    def _stop_rpc_callback(self, msg: NodeStopMessage.Request) -> \
-            NodeStopMessage.Response:
-        resp = NodeStopMessage.Response()
+    def _stop_rpc_callback(self, msg: _NodeStopMessage.Request) -> \
+            _NodeStopMessage.Response:
+        resp = _NodeStopMessage.Response()
         if self.state == NodeState.RUNNING:
             self.state = NodeState.STOPPED
             self.stop()
@@ -294,14 +291,14 @@ class Node:
         if uri is None:
             uri = f'{self._namespace}.start'
         start_rpc = self.create_rpc(rpc_name=uri,
-                                    msg_type=NodeStartMessage,
+                                    msg_type=_NodeStartMessage,
                                     on_request=self._start_rpc_callback)
         start_rpc.run()
         self._start_rpc = start_rpc
 
-    def _start_rpc_callback(self, msg: NodeStartMessage.Request) -> \
-            NodeStartMessage.Response:
-        resp = NodeStartMessage.Response()
+    def _start_rpc_callback(self, msg: _NodeStartMessage.Request) -> \
+            _NodeStartMessage.Response:
+        resp = _NodeStartMessage.Response()
         if self.state == NodeState.STOPPED:
             self.run()
         else:
@@ -333,7 +330,7 @@ class Node:
         }
 
     def get_logger(self):
-        return self._logger
+        return self.logger()
 
     def run(self) -> None:
         """run.
@@ -385,36 +382,48 @@ class Node:
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        pub = self._commlib.Publisher(conn_params=self._conn_params,
-                                      logger = self._logger,
-                                      *args, **kwargs)
+        pub = self._transport_module.Publisher(
+            conn_params=self._conn_params,
+            logger=self.logger(),
+            compression=self._compression,
+            *args, **kwargs
+        )
         self._publishers.append(pub)
         return pub
 
     def create_mpublisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        pub = self._commlib.MPublisher(conn_params=self._conn_params,
-                                       logger = self._logger,
-                                       *args, **kwargs)
+        pub = self._transport_module.MPublisher(
+            conn_params=self._conn_params,
+            logger=self.logger(),
+            compression=self._compression,
+            *args, **kwargs
+        )
         self._publishers.append(pub)
         return pub
 
     def create_subscriber(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        sub =  self._commlib.Subscriber(conn_params=self._conn_params,
-                                        logger = self._logger,
-                                        *args, **kwargs)
+        sub =  self._transport_module.Subscriber(
+            conn_params=self._conn_params,
+            logger=self.logger(),
+            compression=self._compression,
+            *args, **kwargs
+        )
         self._subscribers.append(sub)
         return sub
 
     def create_psubscriber(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        sub =  self._commlib.PSubscriber(conn_params=self._conn_params,
-                                         logger = self._logger,
-                                         *args, **kwargs)
+        sub =  self._transport_module.PSubscriber(
+            conn_params=self._conn_params,
+            logger=self.logger(),
+            compression=self._compression,
+            *args, **kwargs
+        )
         self._subscribers.append(sub)
         return sub
 
@@ -427,44 +436,58 @@ class Node:
     def create_rpc(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        rpc = self._commlib.RPCService(conn_params=self._conn_params,
-                                       logger = self._logger,
-                                       *args, **kwargs)
+        rpc = self._transport_module.RPCService(
+            conn_params=self._conn_params,
+            logger=self.logger(),
+            compression=self._compression,
+            *args, **kwargs
+        )
         self._rpc_services.append(rpc)
         return rpc
 
     def create_rpc_client(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
-        client = self._commlib.RPCClient(conn_params=self._conn_params,
-                                         logger = self._logger,
-                                         *args, **kwargs)
+        client = self._transport_module.RPCClient(
+            conn_params=self._conn_params,
+            logger=self.logger(),
+            compression=self._compression,
+            *args, **kwargs
+        )
         self._rpc_clients.append(client)
         return client
 
     def create_action(self, *args, **kwargs):
         """Creates a new ActionService Endpoint.
         """
-        action =  self._commlib.ActionService(conn_params=self._conn_params,
-                                             logger = self._logger,
-                                             *args, **kwargs)
+        action =  self._transport_module.ActionService(
+            conn_params=self._conn_params,
+            logger=self.logger(),
+            compression=self._compression,
+            *args, **kwargs
+        )
         self._action_services.append(action)
         return action
 
     def create_action_client(self, *args, **kwargs):
         """Creates a new ActionClient Endpoint.
         """
-        aclient = self._commlib.ActionClient(conn_params=self._conn_params,
-                                             logger = self._logger,
-                                             *args, **kwargs)
+        aclient = self._transport_module.ActionClient(
+            conn_params=self._conn_params,
+            logger=self.logger(),
+            compression=self._compression,
+            *args, **kwargs
+        )
         self._action_clients.append(aclient)
         return aclient
 
     def create_event_emitter(self, *args, **kwargs):
         """Creates a new EventEmitter Endpoint.
         """
-        em = self._commlib.EventEmitter(conn_params=self._conn_params,
-                                        logger = self._logger,
-                                        *args, **kwargs)
+        em = self._transport_module.EventEmitter(
+            conn_params=self._conn_params,
+            compression=self._compression,
+            *args, **kwargs
+        )
         self._event_emitters.append(em)
         return em

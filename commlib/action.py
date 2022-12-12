@@ -1,17 +1,17 @@
 import concurrent.futures.thread
-import datetime
 import threading
 import time
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
 from functools import partial
-from typing import Dict
+from typing import Dict, Any
+
+from commlib.compression import CompressionType
 
 from .logger import Logger
-from .msg import ActionMessage, DataClass, DataField, PubSubMessage, RPCMessage
+from .msg import ActionMessage, Message, PubSubMessage, RPCMessage
 from .serializer import JSONSerializer, Serializer
-from .utils import gen_random_id
+from .utils import gen_random_id, gen_timestamp
 
 
 class GoalStatus(IntEnum):
@@ -30,12 +30,10 @@ class _ActionGoalMessage(RPCMessage):
     Internal Action Goal (RPC) Message
     """
 
-    @DataClass
     class Request(RPCMessage.Request):
         description: str = ''
-        goal_data: dict = DataField(default_factory=dict)
+        goal_data: Dict = {}
 
-    @DataClass
     class Response(RPCMessage.Response):
         status: int = 0
         timestamp: int = -1
@@ -50,15 +48,13 @@ class _ActionResultMessage(RPCMessage):
     Internal Action Result (RPC) Message
     """
 
-    @DataClass
     class Request(RPCMessage.Request):
         goal_id: str = ''
 
-    @DataClass
     class Response(RPCMessage.Response):
         status: int = 0
         timestamp: int = -1
-        result: dict = DataField(default_factory=dict)
+        result: Dict = {}
 
         def __post_init__(self):
             self.timestamp = int(time.time())
@@ -69,25 +65,17 @@ class _ActionCancelMessage(RPCMessage):
     Internal Action Cancel (RPC) Message
     """
 
-    @DataClass
     class Request(RPCMessage.Request):
         goal_id: str = ''
-        timestamp: int = -1  ## Timestamp of when the request was made
+        timestamp: int = gen_timestamp()
 
-        def __post_init__(self):
-            self.timestamp = int(time.time())
 
-    @DataClass
     class Response(RPCMessage.Response):
         status: int = 0
-        timestamp: int = -1  ## Timestamp of when it was canceled
-        result: dict = DataField(default_factory=dict)
-
-        def __post_init__(self):
-            self.timestamp = int(time.time())
+        timestamp: int = gen_timestamp()
+        result: Dict[str, Any]
 
 
-@DataClass
 class _ActionStatusMessage(PubSubMessage):
     """_ActionStatusMessage.
     Internal Action Status Message.
@@ -97,17 +85,16 @@ class _ActionStatusMessage(PubSubMessage):
     status: int = 0
 
 
-@DataClass
 class _ActionFeedbackMessage(PubSubMessage):
     """_ActionFeedbackMessage.
     Internal Action Feedback Message
     """
 
-    feedback_data: dict = DataField(default_factory=dict)
+    feedback_data: Dict[str, Any]
     goal_id: str = ''
 
 
-class GoalHandler(object):
+class GoalHandler:
     def __init__(self, msg_type: ActionMessage,
                  status_publisher: callable,
                  feedback_publisher: callable,
@@ -217,22 +204,21 @@ class GoalHandler(object):
         self._pub_status.publish(msg)
 
     def send_feedback(self, feedback_msg: _ActionFeedbackMessage):
-        _fb = feedback_msg.as_dict() if self._msg_type is not None \
-            else feedback_msg
-        msg = _ActionFeedbackMessage(feedback_data=_fb,
-                                     goal_id=self.id)
+        _fb = feedback_msg.dict() if self._msg_type is not None else feedback_msg
+        msg = _ActionFeedbackMessage(feedback_data=_fb, goal_id=self.id)
         self._pub_feedback.publish(msg)
 
     def set_result(self, result):
         self.result = result
 
 
-class BaseActionService(object):
+class BaseActionService:
     def __init__(self,
                  action_name: str,
                  msg_type: ActionMessage = None,
                  logger: Logger = None,
                  debug: bool = True,
+                 compression: CompressionType = CompressionType.NO_COMPRESSION,
                  on_goal: callable = None,
                  on_cancel: callable = None,
                  on_getresult: callable = None):
@@ -249,6 +235,7 @@ class BaseActionService(object):
         """
         self._msg_type = msg_type
         self._debug = debug
+        self._compression = compression
         self._action_name = action_name
         self._on_goal = on_goal
         self._on_cancel = on_cancel
@@ -374,7 +361,7 @@ class BaseActionService(object):
         resp.status = self._current_goal.status
         ## Set Result data
         if self._msg_type is not None:
-            resp.result = self._current_goal.result.as_dict()
+            resp.result = self._current_goal.result.dict()
         else:
             resp.result = self._current_goal.result
         return resp
@@ -383,12 +370,13 @@ class BaseActionService(object):
         self.stop()
 
 
-class BaseActionClient(object):
+class BaseActionClient:
     def __init__(self,
                  action_name: str,
                  msg_type: ActionMessage = None,
                  logger: Logger = None,
                  debug: bool = False,
+                 compression: CompressionType = CompressionType.NO_COMPRESSION,
                  on_feedback: callable = None,
                  on_result: callable = None,
                  on_goal_reached: callable = None):
@@ -406,6 +394,7 @@ class BaseActionClient(object):
         self._debug = debug
         self._action_name = action_name
         self._msg_type = msg_type
+        self._compression = compression
 
         self._status_topic = f'{self._action_name}.status'
         self._feedback_topic = f'{self._action_name}.feedback'
@@ -470,7 +459,7 @@ class BaseActionClient(object):
         if isinstance(goal_msg, dict) or isinstance(goal_msg, Dict):
             _data = goal_msg
         elif isinstance(goal_msg, ActionMessage.Goal):
-            _data = goal_msg.as_dict()
+            _data = goal_msg.dict()
         req = _ActionGoalMessage.Request(goal_data=_data)
         self._status = _ActionStatusMessage()
         resp = self._goal_client.call(req, timeout=timeout)

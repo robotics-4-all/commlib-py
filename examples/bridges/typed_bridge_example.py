@@ -5,22 +5,19 @@ import commlib.transports.redis as rcomm
 from commlib.bridges import (
     RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
 )
-from commlib.msg import PubSubMessage, RPCMessage, DataClass
+from commlib.msg import PubSubMessage, RPCMessage
 import time
 
 
-@DataClass
 class TopicMessage(PubSubMessage):
     a: int = 0
 
 
 class ExampleRPCMessage(RPCMessage):
-    @DataClass
     class Request(RPCMessage.Request):
         a: int = 0
         b: int = 0
 
-    @DataClass
     class Response(RPCMessage.Response):
         c: int = 0
 

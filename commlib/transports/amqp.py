@@ -10,11 +10,11 @@ from typing import Dict
 
 import pika
 
-from commlib.action import (
-    BaseActionClient, BaseActionService, _ActionCancelMessage,
-    _ActionFeedbackMessage, _ActionGoalMessage,
-    _ActionResultMessage, _ActionStatusMessage
-)
+from commlib.action import (BaseActionClient, BaseActionService,
+                            _ActionCancelMessage, _ActionFeedbackMessage,
+                            _ActionGoalMessage, _ActionResultMessage,
+                            _ActionStatusMessage)
+from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.events import BaseEventEmitter, Event
 from commlib.exceptions import *
 from commlib.logger import Logger
@@ -22,6 +22,7 @@ from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCService
 from commlib.utils import gen_timestamp
+from commlib.connection import ConnectionParametersBase
 
 # Reduce log level for pika internal logger
 logging.getLogger("pika").setLevel(logging.WARN)
@@ -71,107 +72,29 @@ class MessageProperties(pika.BasicProperties):
         )
 
 
-class Credentials:
-    """Connection credentials for authn/authz.
-
-    Args:
-        username (str): The username.
-        password (str): The password (Basic Authentication).
-    """
-
-    __slots__ = ['username', 'password']
-
-    def __init__(self, username: str = 'guest', password: str = 'guest'):
-        """__init__.
-
-        Args:
-            username (str): username
-            password (str): password
-        """
-        self.username = username
-        self.password = password
-
-    def make_pika(self):
-        """make_pika.
-        Create Pika Credentials instance.
-        """
-        return pika.PlainCredentials(username=self.username,
-                                     password=self.password)
-
-
-class ConnectionParameters():
+class ConnectionParameters(ConnectionParametersBase):
     """AMQP Connection parameters.
     AMQP connection parameters class
     """
-
-    __slots__ = [
-        'host', 'port', 'secure', 'vhost', 'reconnect_attempts', 'retry_delay',
-        'timeout', 'heartbeat_timeout', 'blocked_connection_timeout', 'creds',
-        'channel_max'
-    ]
-
-    def __init__(self,
-                 host: str = '127.0.0.1',
-                 port: int = 5672,
-                 vhost: str = '/',
-                 creds: Credentials = None,
-                 secure: bool = False,
-                 reconnect_attempts: int = 10,
-                 retry_delay: float = 2.0,
-                 timeout: float = 120,
-                 blocked_connection_timeout: float = None,
-                 heartbeat_timeout: int = 60,
-                 channel_max: int = 128):
-        """__init__.
-
-        Args:
-            host (str): Hostname of AMQP broker to connect to.
-            port (int): AMQP broker listening port.
-            creds (Credentials): Auth Credentials - Credentials instance.
-            secure (bool): Enable SSL/TLS (AMQPS) - Not supported!!
-            reconnect_attempts (int): The reconnection attempts to make before
-                droping and raising an Exception.
-            retry_delay (float): Time delay between reconnect attempts.
-            timeout (float): Socket Connection timeout value.
-            timeout (float): Blocked Connection timeout value.
-                Set the timeout, in seconds, that the connection may remain blocked
-                (triggered by Connection.Blocked from broker). If the timeout
-                expires before connection becomes unblocked, the connection will
-                be torn down.
-            heartbeat_timeout (int): Controls AMQP heartbeat
-                timeout negotiation during connection tuning. An integer value
-                always overrides the value proposed by broker. Use 0 to deactivate
-                heartbeats and None to always accept the broker's proposal.
-                The value passed for timeout is also used to calculate an interval
-                at which a heartbeat frame is sent to the broker. The interval is
-                equal to the timeout value divided by two.
-            channel_max (int): The max permissible number of channels per
-                connection. Defaults to 128.
-        """
-        self.host = host
-        self.port = port
-        self.secure = secure
-        self.vhost = vhost
-        self.reconnect_attempts = reconnect_attempts
-        self.retry_delay = retry_delay
-        self.timeout = timeout
-        self.blocked_connection_timeout = blocked_connection_timeout
-        self.heartbeat_timeout = heartbeat_timeout
-        self.channel_max = channel_max
-
-        if creds is None:
-            creds = Credentials()
-        self.creds = creds
-
-    @property
-    def credentials(self):
-        return self.creds
+    host: str = '127.0.0.1'
+    port: int = 5672
+    vhost: str = '/'
+    secure: bool = False
+    reconnect_attempts: int = 10
+    retry_delay: float = 2.0
+    timeout: float = 120
+    blocked_connection_timeout: float = None
+    heartbeat_timeout: int = 60
+    channel_max: int = 128
+    username: str = 'guest'
+    password: str = 'guest'
 
     def make_pika(self):
         return pika.ConnectionParameters(
             host=self.host,
             port=str(self.port),
-            credentials=self.creds.make_pika(),
+            credentials=pika.PlainCredentials(username=self.username,
+                                              password=self.password),
             connection_attempts=self.reconnect_attempts,
             retry_delay=self.retry_delay,
             blocked_connection_timeout=self.blocked_connection_timeout,
@@ -314,10 +237,10 @@ class AMQPTransport:
             self._channel = self._connection.channel()
             # self.add_threadsafe_callback(self._on_connect)
             self.logger.debug(
-                    'Connected to AMQP broker @ [{}:{}, vhost={}]'.format(
-                        self._conn_params.host,
-                        self._conn_params.port,
-                        self._conn_params.vhost))
+                f'Connected to AMQP broker <amqp://' + \
+                f'{self._conn_params.host}:{self._conn_params.port}, ' + \
+                f'vhost={self._conn_params.vhost}>'
+            )
         except pika.exceptions.ConnectionClosed:
             self.logger.debug('Connection timed out. Reconnecting...')
             self.connect()
@@ -505,9 +428,6 @@ class AMQPTransport:
     def disconnect(self):
         self._graceful_shutdown()
 
-    # def __del__(self):
-    #     self._graceful_shutdown()
-
 
 class RPCService(BaseRPCService):
     """AMQP RPC Service class.
@@ -584,6 +504,8 @@ class RPCService(BaseRPCService):
             self.logger.error("Exception Thrown in on_request_handle",
                               exc_info=True)
         try:
+            if self._compression != CompressionType.NO_COMPRESSION:
+                body = deflate(body)
             _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data", exc_info=True)
@@ -608,7 +530,7 @@ class RPCService(BaseRPCService):
             except Exception as exc:
                 self.logger.error(str(exc), exc_info=False)
                 resp = self._msg_type.Response()
-            resp = resp.as_dict()
+            resp = resp.dict()
         return resp
 
     def _send_response(self, data: dict, channel, correlation_id: str,
@@ -619,7 +541,11 @@ class RPCService(BaseRPCService):
         try:
             _encoding = self._serializer.CONTENT_ENCODING
             _type = self._serializer.CONTENT_TYPE
-            _payload = self._serializer.serialize(data).encode(_encoding)
+            _payload = self._serializer.serialize(data)
+            if self._compression != CompressionType.NO_COMPRESSION:
+                _payload = inflate_str(_payload)
+            else:
+                _payload = _payload.encode(_encoding)
         except Exception as e:
             self.logger.error("Could not deserialize data",
                               exc_info=True)
@@ -748,7 +674,7 @@ class RPCClient(BaseRPCClient):
         if self._msg_type is None:
             data = msg
         else:
-            data = msg.as_dict()
+            data = msg.dict()
 
         self._response = None
         if self._use_corr_id:
@@ -795,6 +721,8 @@ class RPCClient(BaseRPCClient):
                               exc_info=True)
 
         try:
+            if self._compression != CompressionType.NO_COMPRESSION:
+                body = deflate(body)
             _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data",
@@ -802,14 +730,18 @@ class RPCClient(BaseRPCClient):
             _data = {}
         self._response = _data
 
-    def _send_msg(self, data: dict) -> None:
+    def _send_msg(self, data: Dict) -> None:
         _payload = None
         _encoding = None
         _type = None
 
         _encoding = self._serializer.CONTENT_ENCODING
         _type = self._serializer.CONTENT_TYPE
-        _payload = self._serializer.serialize(data).encode(_encoding)
+        _payload = self._serializer.serialize(data)
+        if self._compression != CompressionType.NO_COMPRESSION:
+            _payload = inflate_str(_payload)
+        else:
+            _payload = _payload.encode(_encoding)
 
         # Direct reply-to implementation
         _rpc_props = MessageProperties(
@@ -874,7 +806,7 @@ class Publisher(BasePublisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.as_dict()
+            data = msg.dict()
         ## Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data,
                                                 self._topic)
@@ -886,7 +818,11 @@ class Publisher(BasePublisher):
 
         _encoding = self._serializer.CONTENT_ENCODING
         _type = self._serializer.CONTENT_TYPE
-        _payload = self._serializer.serialize(msg).encode(_encoding)
+        _payload = self._serializer.serialize(msg)
+        if self._compression != CompressionType.NO_COMPRESSION:
+            _payload = inflate_str(_payload)
+        else:
+            _payload = _payload.encode(_encoding)
 
         msg_props = MessageProperties(
             content_type=_type,
@@ -919,7 +855,7 @@ class MPublisher(Publisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.as_dict()
+            data = msg.dict()
         ## Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data, topic)
 
@@ -1047,6 +983,8 @@ class Subscriber(BaseSubscriber):
             self.logger.debug("Failed to read message properties",
                               exc_info=True)
         try:
+            if self._compression != CompressionType.NO_COMPRESSION:
+                body = deflate(body)
             _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data",
@@ -1098,8 +1036,17 @@ class Subscriber(BaseSubscriber):
 
 
 class PSubscriber(Subscriber):
+    """PSubscriber.
+    """
+
 
     def __init__(self, *args, **kwargs):
+        """__init__.
+
+        Args:
+            args:
+            kwargs:
+        """
         kwargs['topic'] = kwargs['topic'].replace('*', '#')
         super(PSubscriber, self).__init__(*args, **kwargs)
 
@@ -1120,6 +1067,8 @@ class PSubscriber(Subscriber):
                               exc_info=True)
 
         try:
+            if self._compression != CompressionType.NO_COMPRESSION:
+                body = deflate(body)
             _data = self._serializer.deserialize(body)
         except Exception:
             self.logger.error("Could not deserialize data",
@@ -1269,7 +1218,7 @@ class EventEmitter(BaseEventEmitter):
         self._transport.detach_amqp_events_thread()
 
     def send_event(self, event: Event):
-        _data = event.as_dict()
+        _data = event.dict()
         self._logger.debug(f'Sending Event <{event.uri}>')
         self._transport.add_threadsafe_callback(
             functools.partial(self._send_data, event.uri, _data)

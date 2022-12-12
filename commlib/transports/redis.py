@@ -2,7 +2,7 @@ import datetime
 import functools
 import sys
 import time
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Callable
 
 import redis
 
@@ -13,137 +13,112 @@ from commlib.action import (BaseActionClient, BaseActionService,
 from commlib.events import BaseEventEmitter, Event
 from commlib.exceptions import RPCClientTimeoutError, SubscriberError
 from commlib.logger import Logger
-from commlib.msg import DataClass, DataField, Object, PubSubMessage, RPCMessage
+from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCService
 from commlib.serializer import Serializer, JSONSerializer
+from commlib.compression import CompressionType, inflate_str, deflate
 from commlib.utils import gen_timestamp
+from commlib.connection import ConnectionParametersBase
+
+redis_logger = None
 
 
-class Credentials(object):
-    def __init__(self, username: str = '', password: str = ''):
-        self.username = username
-
-        self.password = password
-
-
-class ConnectionParametersBase(object):
-    __slots__ = ['db', 'creds']
-
-    def __init__(self, db: int = 0, creds: Credentials = None):
-        self.db = db
-
-        if creds is None:
-            creds = Credentials()
-        self.creds = creds
-
-    @property
-    def credentials(self):
-        return self.creds
-
-
-class TCPConnectionParameters(ConnectionParametersBase):
-    """TCPConnectionParameters.
-    Redis TCP connection parameters
-    """
-
-    def __init__(self,
-                 host: str = 'localhost',
-                 port: str = 6379,
-                 *args, **kwargs):
-        """__init__.
-
-        Args:
-            host (str): host
-            port (str): port
-            args: See ConnectionParametersBase class
-            kwargs: See ConnectionParametersBase class
-        """
-        super(TCPConnectionParameters, self).__init__(*args, **kwargs)
-        self.host = host
-        self.port = port
-
-
-class UnixSocketConnectionParameters(ConnectionParametersBase):
-    def __init__(self,
-                 unix_socket: str = '/tmp/redis.sock',
-                 *args, **kwargs):
-        """__init__.
-
-        Args:
-            unix_socket (str): unix_socket
-            args: See ConnectionParametersBase class
-            kwargs: See ConnectionParametersBase class
-        """
-        super(UnixSocketConnectionParameters, self).__init__(*args, **kwargs)
-        self.unix_socket = unix_socket
-
-
-class ConnectionParameters(TCPConnectionParameters):
-    def __init__(self, *args, **kwargs):
-        super(ConnectionParameters, self).__init__(*args, **kwargs)
+class ConnectionParameters(ConnectionParametersBase):
+    host: str = 'localhost'
+    port: int = 6379
+    unix_socket: str = ''
+    db: int = 0
+    username: str = ''
+    password: str = ''
 
 
 class RedisConnection(redis.Redis):
+    """RedisConnection.
+    """
+
     def __init__(self, *args, **kwargs):
+        """__init__.
+
+        Args:
+            args:
+            kwargs:
+        """
         super(RedisConnection, self).__init__(*args, **kwargs)
 
 
 class RedisTransport(object):
+    @classmethod
+    def logger(cls) -> Logger:
+        global redis_logger
+        if redis_logger is None:
+            redis_logger = Logger('redis')
+        return redis_logger
+
     def __init__(self,
                  conn_params: Any = None,
-                 serializer: Serializer = JSONSerializer(),
-                 logger: Any = None):
+                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
+                 serializer: Serializer = JSONSerializer()):
         """__init__.
 
         Args:
             conn_params (Any): conn_params
             serializer (Serializer): serializer
-            logger (Any): logger
+            compression (CompressionType): compression
         """
-        conn_params = TCPConnectionParameters() if \
+        conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
         self._conn_params = conn_params
-
         self._serializer = serializer
-
-        self.logger = Logger(self.__class__.__name__) if \
-            logger is None else logger
+        self._compression = compression
 
         try:
             self.connect()
         except Exception as e:
-            self.logger.error(
-                f'Failed to connect to Redis broker <{self._conn_params.host}' +
-                f'{self._conn_params.port}>')
+            self.log.error(
+                f'Failed to connect to Redis <redis://' + \
+                f'{self._conn_params.host}:{self._conn_params.port}>')
             raise e
-        else:
-            self.logger.debug(
-                f'Connected to Redis <{self._conn_params.host}:{self._conn_params.port}>')
+        self.log.debug('Redis Transport initiated:')
+        self.log.debug(
+            f'- Broker: mqtt://' + \
+            f'{self._conn_params.host}:{self._conn_params.port}'
+        )
+        self.log.debug(f'- Data Serialization: {self._serializer}')
+        self.log.debug(f'- Data Compression: {self._compression}')
 
+    @property
+    def log(self) -> Logger:
+        """logger.
+
+        Args:
+
+        Returns:
+            Logger:
+        """
+        return self.logger()
 
     def connect(self):
-        if isinstance(self._conn_params, UnixSocketConnectionParameters):
+        if self._conn_params.unix_socket not in ('', None):
             self._redis = RedisConnection(
                 unix_socket_path=self._conn_params.unix_socket,
-                username=self._conn_params.credentials.username,
-                password=self._conn_params.credentials.password,
+                username=self._conn_params.username,
+                password=self._conn_params.password,
                 db=self._conn_params.db,
                 decode_responses=True)
-        elif isinstance(self._conn_params, TCPConnectionParameters):
+        else:
             self._redis = RedisConnection(
                 host=self._conn_params.host,
                 port=self._conn_params.port,
-                username=self._conn_params.credentials.username,
-                password=self._conn_params.credentials.password,
+                username=self._conn_params.username,
+                password=self._conn_params.password,
                 db=self._conn_params.db,
-                decode_responses=True)
+                decode_responses=False)
 
         self._rsub = self._redis.pubsub()
 
-
     def delete_queue(self, queue_name: str) -> bool:
-        # self.logger.debug('Removing message queue: <{}>'.format(queue_name))
+        # self.log.debug('Removing message queue: <{}>'.format(queue_name))
         return True if self._redis.delete(queue_name) else False
 
     def queue_exists(self, queue_name: str) -> bool:
@@ -151,24 +126,37 @@ class RedisTransport(object):
 
     def push_msg_to_queue(self, queue_name: str, data: Dict[str, Any]):
         payload = self._serializer.serialize(data)
+        if self._compression != CompressionType.NO_COMPRESSION:
+            payload = inflate_str(payload)
         self._redis.rpush(queue_name, payload)
 
     def publish(self, queue_name: str, data: Dict[str, Any]):
         payload = self._serializer.serialize(data)
+        if self._compression != CompressionType.NO_COMPRESSION:
+            payload = inflate_str(payload)
         self._redis.publish(queue_name, payload)
 
-    def subscribe(self, topic: str, callback: callable):
+    def subscribe(self, topic: str, callback: Callable):
+        _clb = functools.partial(self._on_msg_internal, callback)
         self._sub = self._rsub.psubscribe(
-            **{topic: callback})
+            **{topic: _clb})
         self._rsub.get_message()
         t = self._rsub.run_in_thread(0.001, daemon=True)
         return t
 
+    def _on_msg_internal(self, callback: Callable, data: Any):
+        if self._compression != CompressionType.NO_COMPRESSION:
+            # _topic = data['channel']
+            data['data'] = deflate(data['data'])
+        callback(data)
+
     def wait_for_msg(self, queue_name: str, timeout=10):
         try:
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
+            if self._compression != CompressionType.NO_COMPRESSION:
+                payload = deflate(payload)
         except Exception as exc:
-            self.logger.error(exc, exc_info=True)
+            self.log.error(exc, exc_info=True)
             msgq = ''
             payload = None
         return msgq, payload
@@ -191,12 +179,13 @@ class RPCService(BaseRPCService):
         """
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
-                                         logger=self._logger)
+                                         serializer=self._serializer,
+                                         compression=self._compression)
 
     def _send_response(self, data, reply_to):
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.data = data
-        _resp = self._comm_obj.as_dict()
+        _resp = self._comm_obj.dict()
         self._transport.push_msg_to_queue(reply_to, _resp)
 
     def _on_request(self, data: dict, header: dict):
@@ -206,7 +195,7 @@ class RPCService(BaseRPCService):
             else:
                 resp = self.on_request(self._msg_type.Request(**data))
                 ## RPCMessage.Response object here
-                resp = resp.as_dict()
+                resp = resp.dict()
         except Exception as exc:
             self.logger.error(str(exc), exc_info=False)
             resp = {}
@@ -251,12 +240,23 @@ class RPCService(BaseRPCService):
 
 
 class RPCClient(BaseRPCClient):
+    """RPCClient.
+    """
+
     def __init__(self,
                  conn_params: ConnectionParameters = None,
                  *args, **kwargs):
+        """__init__.
+
+        Args:
+            conn_params (ConnectionParameters): conn_params
+            args:
+            kwargs:
+        """
         super(RPCClient, self).__init__(*args, **kwargs)
         self._transport = RedisTransport(conn_params=conn_params,
-                                         logger=self._logger)
+                                         serializer=self._serializer,
+                                         compression=self._compression)
 
     def _gen_queue_name(self):
         return f'rpc-{self._gen_random_id()}'
@@ -265,7 +265,7 @@ class RPCClient(BaseRPCClient):
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.header.reply_to = self._gen_queue_name()
         self._comm_obj.data = data
-        return self._comm_obj.as_dict()
+        return self._comm_obj.dict()
 
     def call(self, msg: RPCMessage.Request,
              timeout: float = 30) -> RPCMessage.Response:
@@ -273,7 +273,7 @@ class RPCClient(BaseRPCClient):
         if self._msg_type is None:
             data = msg
         else:
-            data = msg.as_dict()
+            data = msg.dict()
 
         _msg = self._prepare_request(data)
         _reply_to = _msg['header']['reply_to']
@@ -319,7 +319,8 @@ class Publisher(BasePublisher):
         super(Publisher, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
-                                         logger=self._logger)
+                                         serializer=self._serializer,
+                                         compression=self._compression)
 
     def publish(self, msg: PubSubMessage) -> None:
         """publish.
@@ -336,7 +337,7 @@ class Publisher(BasePublisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.as_dict()
+            data = msg.dict()
         self.logger.debug(f'Publishing Message to topic <{self._topic}>')
         self._transport.publish(self._topic, data)
         self._msg_seq += 1
@@ -374,7 +375,7 @@ class MPublisher(Publisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.as_dict()
+            data = msg.dict()
         self.logger.debug(
             f'Publishing Message: <{topic}>:{data}')
         self._transport.publish(topic, data)
@@ -402,7 +403,8 @@ class Subscriber(BaseSubscriber):
         super(Subscriber, self).__init__(*args, **kwargs)
 
         self._transport = RedisTransport(conn_params=conn_params,
-                                         logger=self._logger)
+                                         serializer=self._serializer,
+                                         compression=self._compression)
 
     def run(self):
         self._subscriber_thread = self._transport.subscribe(self._topic,
@@ -480,7 +482,7 @@ class ActionService(BaseActionService):
             args: See BaseActionService class.
             kwargs:
         """
-        conn_params = UnixSocketConnectionParameters() if \
+        conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
         super(ActionService, self).__init__(*args, **kwargs)
@@ -530,7 +532,7 @@ class ActionClient(BaseActionClient):
             args: See BaseActionClient class
             kwargs: See BaseActionClient class
         """
-        conn_params = UnixSocketConnectionParameters() if \
+        conn_params = gonnectionParameters() if \
             conn_params is None else conn_params
 
         super(ActionClient, self).__init__(*args, **kwargs)
@@ -579,8 +581,7 @@ class EventEmitter(BaseEventEmitter):
         """
         super(EventEmitter, self).__init__(*args, **kwargs)
 
-        self._transport = RedisTransport(conn_params=conn_params,
-                                         logger=self._logger)
+        self._transport = RedisTransport(conn_params=conn_params)
 
     def send_event(self, event: Event) -> None:
         """send_event.
@@ -591,6 +592,6 @@ class EventEmitter(BaseEventEmitter):
         Returns:
             None:
         """
-        _msg = event.as_dict()
-        self.logger.debug(f'Firing Event: {event.name}:<{event.uri}>')
+        _msg = event.dict()
+        self.log.debug(f'Firing Event: {event.name}:<{event.uri}>')
         self._transport.publish(event.uri, _msg)

@@ -16,7 +16,7 @@
 
 import abc
 import enum
-from typing import Any
+from typing import Any, Dict
 
 DEFAULT_JSON_SERIALIZER = 'ujson'
 
@@ -69,20 +69,20 @@ class JSONSerializer(Serializer):
 
     Static class.
     """
-    CONTENT_TYPE: str = 'application/json'
+    CONTENT_TYPE: str = ContentType.json
     CONTENT_ENCODING: str = 'utf8'
 
     @staticmethod
-    def serialize(data: Any) -> str:
+    def serialize(data: Dict[str, Any]) -> str:
         """serialize.
 
         Args:
             data (dict): Serialize to json string
         """
-        return json.dumps(data)
+        return str(json.dumps(data))
 
     @staticmethod
-    def deserialize(data: str) -> Any:
+    def deserialize(data: str) -> Dict[str, Any]:
         """deserialize.
 
         Args:

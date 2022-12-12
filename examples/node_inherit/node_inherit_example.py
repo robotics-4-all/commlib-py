@@ -3,12 +3,12 @@
 import sys
 import time
 
-from commlib.msg import PubSubMessage, MessageHeader, DataClass
-from commlib.node import Node, TransportType
+from commlib.msg import PubSubMessage, MessageHeader
+from commlib.connection import ConnectionParametersBase
+from commlib.node import Node
 from commlib.utils import Rate
 
 
-@DataClass
 class SonarMessage(PubSubMessage):
     header: MessageHeader = MessageHeader()
     range: float = -1
@@ -19,28 +19,18 @@ class SonarMessage(PubSubMessage):
 class SonarNode(Node):
     count = 0
 
-    def __init__(self, transport_type: TransportType = TransportType.REDIS,
-                 sensor_id: str = None, pub_freq: int = 2):
-        if transport_type == TransportType.REDIS:
-            from commlib.transports.redis import ConnectionParameters
-        elif transport_type == TransportType.MQTT:
-            from commlib.transports.mqtt import ConnectionParameters
-        elif transport_type == TransportType.AMQP:
-            from commlib.transports.amqp import ConnectionParameters
+    def __init__(self,
+                 sensor_id: str = None, pub_freq: int = 2,
+                 *args, **kwargs):
         if sensor_id is None:
-            sensor_id = int(SonarNode.count)
+            sensor_id = f'Sonar-{SonarNode.count}'
         self.sensor_id = sensor_id
-        self.transport_type = transport_type
         self.pub_freq = pub_freq
         self.topic = f'sensors.sonar.{self.sensor_id}'
         SonarNode.count += 1
 
-        conn_params = ConnectionParameters()
         super().__init__(node_name='sensors.sonar.front',
-                         transport_type=self.transport_type,
-                         connection_params=conn_params,
-                         # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                         debug=True)
+            *args, **kwargs)
         self.pub = self.create_publisher(msg_type=SonarMessage,
                                          topic=self.topic)
 
@@ -54,5 +44,20 @@ class SonarNode(Node):
 
 
 if __name__ == '__main__':
-    sonar_node = SonarNode()
+    if len(sys.argv) < 2:
+        broker = 'redis'
+    else:
+        broker = str(sys.argv[1])
+    if broker == 'redis':
+        from commlib.transports.redis import ConnectionParameters
+    elif broker == 'amqp':
+        from commlib.transports.amqp import ConnectionParameters
+    elif broker == 'mqtt':
+        from commlib.transports.mqtt import ConnectionParameters
+    else:
+        print('Not a valid broker-type was given!')
+        sys.exit(1)
+    conn_params = ConnectionParameters()
+
+    sonar_node = SonarNode(conn_params=conn_params)
     sonar_node.start()

@@ -154,3 +154,4 @@ class Logger:
 
 __ROOT_LOGGER = Logger('root')
 
+s_logger = None

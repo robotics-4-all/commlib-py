@@ -3,9 +3,8 @@
 import time
 
 from commlib.transports.redis import MPublisher, ConnectionParameters
-from commlib.msg import PubSubMessage, DataClass
+from commlib.msg import PubSubMessage
 
-@DataClass
 class SonarMessage(PubSubMessage):
     distance: float = 0.001
     horizontal_fov: float = 30.0

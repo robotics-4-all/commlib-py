@@ -4,12 +4,11 @@ import time
 
 import commlib.transports.mqtt as mcomm
 import commlib.transports.redis as rcomm
-from commlib.msg import PubSubMessage, DataClass
+from commlib.msg import PubSubMessage
 
 from commlib.bridges import TopicBridgeType, PTopicBridge
 
 
-@DataClass
 class SonarMessage(PubSubMessage):
     distance: float = 0.001
     horizontal_fov: float = 30.0

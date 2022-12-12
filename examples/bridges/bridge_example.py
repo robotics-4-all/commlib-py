@@ -6,7 +6,7 @@ import commlib.transports.mqtt as mcomm
 from commlib.bridges import (
     RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
 )
-from commlib.msg import PubSubMessage, RPCMessage, DataClass
+from commlib.msg import PubSubMessage, RPCMessage
 import time
 
 

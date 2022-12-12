@@ -3,21 +3,17 @@
 import sys
 import time
 
-from commlib.action import GoalStatus
-from commlib.msg import ActionMessage, DataClass
-from commlib.node import Node, TransportType
+from commlib.msg import ActionMessage
+from commlib.node import Node
 
 
 class ExampleAction(ActionMessage):
-    @DataClass
     class Goal(ActionMessage.Goal):
         target_cm: int = 0
 
-    @DataClass
     class Result(ActionMessage.Result):
         dest_cm: int = 0
 
-    @DataClass
     class Feedback(ActionMessage.Feedback):
         current_cm: int = 0
 
@@ -43,20 +39,16 @@ if __name__ == '__main__':
         broker_type = 'redis'
     if broker_type == 'redis':
         from commlib.transports.redis import ConnectionParameters
-        transport = TransportType.REDIS
     elif broker_type == 'amqp':
         from commlib.transports.amqp import ConnectionParameters
-        transport = TransportType.AMQP
     elif broker_type == 'mqtt':
         from commlib.transports.mqtt import ConnectionParameters
-        transport = TransportType.MQTT
     else:
         print('Not a valid broker-type was given!')
         sys.exit(1)
     conn_params = ConnectionParameters()
 
     node = Node(node_name='action_service_example_node',
-                transport_type=transport,
                 connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)

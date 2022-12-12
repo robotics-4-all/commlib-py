@@ -3,10 +3,10 @@ import json
 
 import requests
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 
 from commlib.endpoints import TransportType, EndpointType, endpoint_factory
-from commlib.msg import DataClass, DataField, Object, PubSubMessage, RPCMessage
+from commlib.msg import PubSubMessage, RPCMessage
 
 
 """
@@ -24,20 +24,18 @@ from commlib.msg import DataClass, DataField, Object, PubSubMessage, RPCMessage
 """
 
 class RESTProxyMessage(RPCMessage):
-    @DataClass
     class Request(RPCMessage.Request):
         base_url: str
         path: str = '/'
         verb: str = 'GET'
-        query_params: Dict = DataField(default_factory=dict)
-        path_params: Dict = DataField(default_factory=dict)
-        body_params: Dict = DataField(default_factory=dict)
-        headers: Dict = DataField(default_factory=dict)
+        query_params: Dict = {}
+        path_params: Dict = {}
+        body_params: Dict = {}
+        headers: Dict = {}
 
-    @DataClass
     class Response(RPCMessage.Response):
-        data: Any = DataField(default_factory=dict)
-        headers: Dict = DataField(default_factory=dict)
+        data: Union[str, Dict, int]
+        headers: Dict[str, Any]
         status_code: int = 200
 
 

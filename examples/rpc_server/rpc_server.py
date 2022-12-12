@@ -1,29 +1,24 @@
 #!/usr/bin/env python
 
 import sys
-import time
 
-from commlib.msg import RPCMessage, DataClass
+from commlib.msg import RPCMessage
 
 
 class AddTwoIntMessage(RPCMessage):
-    @DataClass
     class Request(RPCMessage.Request):
         a: int = 0
         b: int = 0
 
-    @DataClass
     class Response(RPCMessage.Response):
         c: int = 0
 
 
 class MultiplyIntMessage(RPCMessage):
-    @DataClass
     class Request(RPCMessage.Request):
         a: int = 0
         b: int = 0
 
-    @DataClass
     class Response(RPCMessage.Response):
         c: int = 0
 
@@ -46,8 +41,10 @@ if __name__ == '__main__':
     else:
         broker = str(sys.argv[1])
     if broker == 'redis':
+        raise ValueError('Not yet supported')
         from commlib.transports.redis import ConnectionParameters
     elif broker == 'amqp':
+        raise ValueError('Not yet supported')
         from commlib.transports.amqp import ConnectionParameters
     elif broker == 'mqtt':
         from commlib.transports.mqtt import ConnectionParameters
