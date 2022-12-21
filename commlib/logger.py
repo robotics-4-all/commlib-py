@@ -18,51 +18,6 @@ import logging
 import logging.config
 
 
-LOG_FORMAT = ('%(levelname) -10s %(asctime)s %(name) -30s %(funcName) '
-              '-35s %(lineno) -5d: %(message)s')
-
-
-__LOGGING = dict(
-    version=1,
-    formatters={
-        'f': {'format':
-              '[%(asctime)s][%(levelname)s]-[%(name)s]: %(message)s',
-              'datefmt': '%s'
-              }
-    },
-    handlers={
-        'h': {'class': 'logging.StreamHandler',
-              'formatter': 'f',
-              'level': logging.DEBUG}
-    },
-    root={
-        'handlers': ['h'],
-        'level': logging.DEBUG,
-    },
-)
-
-
-logging.config.dictConfig(__LOGGING)
-
-
-logging.addLevelName(
-    logging.WARNING,
-    f'\033[1;33m{logging.getLevelName(logging.WARNING)}\033[1;0m'
-)
-
-
-logging.addLevelName(
-    logging.ERROR,
-    f'\033[1;31m{logging.getLevelName(logging.ERROR)}\033[1;0m'
-)
-
-
-logging.addLevelName(
-    logging.DEBUG,
-    f'\033[1;34m{logging.getLevelName(logging.DEBUG)}\033[1;0m'
-)
-
-
 class Logger:
     """Logger.
     Tiny wrapper around python's logging module
@@ -151,7 +106,5 @@ class Logger:
         """
         self.std_logger.error(msg, exc_info=exc_info)
 
-
-# __ROOT_LOGGER = Logger('root')
 
 s_logger = None
