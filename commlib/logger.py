@@ -152,6 +152,6 @@ class Logger:
         self.std_logger.error(msg, exc_info=exc_info)
 
 
-__ROOT_LOGGER = Logger('root')
+# __ROOT_LOGGER = Logger('root')
 
 s_logger = None
