@@ -61,17 +61,17 @@ lint: ## check style with flake8
 	flake8 commlib tests
 
 test: ## run tests quickly with the default Python
-	nosetest
+	coverage run -m nose
+
+coverage: test ## check code coverage quickly with the default Python
+	coverage report -m
+	coverage html
+	$(BROWSER) htmlcov/index.html
+
 
 diff: ## Calculate diff
 	coverage xml
 	diff-cover --compare-branch=origin/devel coverage.xml
-
-coverage: ## check code coverage quickly with the default Python
-	coverage run -m nose
-	coverage report -m
-	coverage html
-	$(BROWSER) htmlcov/index.html
 
 docs: ## generate Sphinx HTML documentation, including API docs
 	rm -f docs/commlib.rst
