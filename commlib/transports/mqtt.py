@@ -16,7 +16,7 @@ from commlib.action import (BaseActionClient, BaseActionService,
                             _ActionGoalMessage, _ActionResultMessage,
                             _ActionStatusMessage)
 from commlib.events import BaseEventEmitter, Event
-from commlib.exceptions import RPCClientTimeoutError
+from commlib.exceptions import RPCClientTimeoutError, MQTTError
 from commlib.logger import Logger
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
@@ -157,9 +157,10 @@ class MQTTTransport:
             )
             self.log.debug(f'- Data Serialization: {self._serializer}')
             self.log.debug(f'- Data Compression: {self._compression}')
+            self._connected = True
 
     def on_disconnect(self, client: Any, userdata: Any,
-                      rc: Dict[str, Any]):
+                      rc: int):
         """on_disconnect.
 
         Callback for on-disconnect event.
@@ -169,8 +170,13 @@ class MQTTTransport:
             userdata (Any): Internal paho-mqtt userdata
             rc (int): Return Code - Internal paho-mqtt
         """
-        if rc != 0:
-            self.log.warn("Unexpected disconnection from MQTT Broker.")
+        self._connected = False
+        self._client.loop_stop()
+        if rc == 5:
+            self.log.debug(f"Authentication error with MQTT broker")
+        elif rc > 0:
+            # raise MQTTError(f"Disconnection from MQTT Broker")
+            self.log.debug(f"Disconnection from MQTT Broker")
 
     def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """on_message.
