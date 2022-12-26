@@ -175,7 +175,6 @@ class MQTTTransport:
         if rc == 5:
             self.log.debug(f"Authentication error with MQTT broker")
         elif rc > 0:
-            # raise MQTTError(f"Disconnection from MQTT Broker")
             self.log.debug(f"Disconnection from MQTT Broker")
 
     def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
