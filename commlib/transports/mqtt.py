@@ -71,7 +71,7 @@ class MQTTTransport:
     def logger(cls) -> Logger:
         global mqtt_logger
         if mqtt_logger is None:
-            mqtt_logger = Logger('mqtt')
+            mqtt_logger = Logger('MQTT-Transport')
         return mqtt_logger
 
     @property
@@ -90,6 +90,8 @@ class MQTTTransport:
             compression (CompressionType): compression_type
             logger (Logger): logger
         """
+        self._connected = False
+        self._client = None
         self._conn_params = conn_params
         self._serializer = serializer
         self._compression= compression
@@ -102,36 +104,7 @@ class MQTTTransport:
         else:
             properties = None
         self._mqtt_properties = properties
-
-        self._connected = False
-
-        self._client = mqtt.Client(clean_session=True,
-                                   protocol=self._conn_params.protocol,
-                                   transport=self._conn_params.transport)
-
-        self._client.on_connect = self.on_connect
-        self._client.on_disconnect = self.on_disconnect
-        # self._client.on_log = self.on_log
-        self._client.on_message = self.on_message
-
-        self._client.username_pw_set(self._conn_params.username,
-                                     self._conn_params.password)
-        if self._conn_params.ssl:
-            import ssl
-            self._client.tls_set(cert_reqs=None, certfile=None, keyfile=None)
-
-        self._client.connect(
-            self._conn_params.host, int(self._conn_params.port),
-            keepalive=60,
-            properties=self._mqtt_properties
-        )
-        self.log.debug('MQTT Transport initiated:')
-        self.log.debug(
-            f'- Broker: mqtt://' + \
-            f'{self._conn_params.host}:{self._conn_params.port}'
-        )
-        self.log.debug(f'- Data Serialization: {self._serializer}')
-        self.log.debug(f'- Data Compression: {self._compression}')
+        self.connect()
 
     @property
     def is_connected(self):
@@ -245,18 +218,45 @@ class MQTTTransport:
         msg.payload = _payload
         callback(client, userdata, msg)
 
-    def start_loop(self):
-        """start_loop.
+    def connect(self):
+        if self._connected:
+            raise Exception('Already connected')
+        self._client = mqtt.Client(clean_session=True,
+                                   protocol=self._conn_params.protocol,
+                                   transport=self._conn_params.transport)
+
+        self._client.on_connect = self.on_connect
+        self._client.on_disconnect = self.on_disconnect
+        # self._client.on_log = self.on_log
+        self._client.on_message = self.on_message
+
+        self._client.username_pw_set(self._conn_params.username,
+                                     self._conn_params.password)
+        self._client.connect(
+            self._conn_params.host, int(self._conn_params.port),
+            keepalive=60,
+            properties=self._mqtt_properties
+        )
+        if self._conn_params.ssl:
+            import ssl
+            self._client.tls_set(cert_reqs=None, certfile=None, keyfile=None)
+
+    def disconnect(self) -> None:
+        self._client.disconnect()
+
+    def start(self) -> None:
+        """start.
 
         Start the event loop. Cannot create any more endpoints from here on.
         """
         self._client.loop_start()
 
-    def stop_loop(self):
-        """stop_loop.
+    def stop(self) -> None:
+        """stop.
 
-        Stops the event loop.
+        Disconnects the client and stops the event loop.
         """
+        self.disconnect()
         self._client.loop_stop(force=True)
 
     def loop_forever(self):
@@ -288,7 +288,6 @@ class Publisher(BasePublisher):
         self._transport = MQTTTransport(conn_params=conn_params,
                                         serializer=self._serializer,
                                         compression=self._compression)
-        self._transport.start_loop()
 
     def publish(self, msg: PubSubMessage) -> None:
         """publish.
@@ -361,7 +360,7 @@ class Subscriber(BaseSubscriber):
     def run(self):
         self._topic = self._transport.subscribe(self._topic,
                                                 self._on_message)
-        self._transport.start_loop()
+        super().run()
         self.logger.debug(f'Started Subscriber: <{self._topic}>')
 
     def run_forever(self):
@@ -509,18 +508,14 @@ class RPCService(BaseRPCService):
         self._transport.subscribe(self._rpc_name,
                                   self._on_request_internal,
                                   qos=MQTTQoS.L1)
-        self._transport.start_loop()
+        self._transport.start()
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
                     self.logger.debug('Stop event caught in thread')
                     break
             time.sleep(0.001)
-        self._transport.stop_loop()
-
-    def stop(self):
-        self._t_stop_event.set()
-
+        self._transport.stop()
 
 class RPCServer(BaseRPCServer):
     def __init__(self,
@@ -616,17 +611,14 @@ class RPCServer(BaseRPCServer):
     def run_forever(self):
         """run_forever.
         """
-        self._transport.start_loop()
+        self._transport.start()
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
                     self.logger.debug('Stop event caught in thread')
                     break
             time.sleep(0.001)
-        self._transport.stop_loop()
-
-    def stop(self):
-        self._t_stop_event.set()
+        self._transport.stop()
 
 
 class RPCClient(BaseRPCClient):
@@ -651,7 +643,6 @@ class RPCClient(BaseRPCClient):
         self._transport = MQTTTransport(conn_params=conn_params,
                                         serializer=self._serializer,
                                         compression=self._compression)
-        self._transport.start_loop()
 
     def _gen_queue_name(self):
         """_gen_queue_name.
@@ -835,8 +826,6 @@ class ActionClient(BaseActionClient):
                                         conn_params=conn_params,
                                         topic=self._feedback_topic,
                                         on_message=self._on_feedback)
-        self._status_sub.run()
-        self._feedback_sub.run()
 
 
 class EventEmitter(BaseEventEmitter):
@@ -858,7 +847,6 @@ class EventEmitter(BaseEventEmitter):
 
         self._transport = MQTTTransport(conn_params=conn_params,
                                         serializer=self._serializer)
-        self._transport.start_loop()
 
     def send_event(self, event: Event) -> None:
         """send_event.

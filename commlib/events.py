@@ -82,3 +82,12 @@ class BaseEventEmitter(object):
             None:
         """
         raise NotImplementedError()
+
+    def run(self):
+        self._transport.start()
+
+    def stop(self) -> None:
+        self._transport.stop()
+
+    def __del__(self):
+        self.stop()

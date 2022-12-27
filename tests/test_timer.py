@@ -23,10 +23,11 @@ class TestTimer(unittest.TestCase):
         tmr = Timer(1, self.callback_0)
         tmr.start()
         count = 0
-        while count < 3:
-            time.sleep(1)
+        iter = 3
+        while count < iter:
+            time.sleep(1.5)
             count += 1
-        assert self.count_0 == count
+        self.assertEqual(self.count_0, iter+1)
 
     def callback_0(self, event):
         self.count_0 += 1

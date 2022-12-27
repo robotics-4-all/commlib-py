@@ -2,9 +2,10 @@ import threading
 import time
 from enum import IntEnum
 from functools import wraps
-from typing import Any, Dict, List, Optional
-from commlib.compression import CompressionType
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from pydantic import BaseModel
 
+from commlib.compression import CompressionType
 from commlib.endpoints import TransportType
 from commlib.logger import Logger
 from commlib.msg import HeartbeatMessage, RPCMessage
@@ -82,7 +83,7 @@ class HeartbeatThread(threading.Thread):
     def logger(cls) -> Logger:
         global n_logger
         if n_logger is None:
-            n_logger = Logger('MQTTHeartbeatThread')
+            n_logger = Logger('NodeHeartbeat')
         return n_logger
 
     def __init__(self, pub_instance=None,
@@ -342,12 +343,18 @@ class Node:
         Returns:
             None:
         """
-        for s in self._subscribers:
-            s.run()
-        for r in self._rpc_services:
-            r.run()
-        for r in self._action_services:
-            r.run()
+        for c in self._subscribers:
+            c.run()
+        for c in self._publishers:
+            c.run()
+        for c in self._rpc_services:
+            c.run()
+        for c in self._rpc_clients:
+            c.run()
+        for c in self._action_services:
+            c.run()
+        for c in self._action_clients:
+            c.run()
         if self._heartbeat_thread:
             self.init_heartbeat_thread(self._heartbeat_uri)
         if self._has_ctrl_services:
@@ -372,12 +379,18 @@ class Node:
         self.stop()
 
     def stop(self):
-        for s in self._subscribers:
-            s.stop()
-        for r in self._rpc_services:
-            r.stop()
-        for r in self._action_services:
-            r.stop()
+        for c in self._subscribers:
+            c.stop()
+        for c in self._publishers:
+            c.stop()
+        for c in self._rpc_services:
+            c.stop()
+        for c in self._rpc_clients:
+            c.stop()
+        for c in self._action_services:
+            c.stop()
+        for c in self._action_clients:
+            c.stop()
 
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.

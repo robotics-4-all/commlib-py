@@ -46,7 +46,7 @@ class TestMessages(unittest.TestCase):
 
         _msg = TestPubSubMessage()
         _msg.b = TestObject(c=2, d=3)
-        assert _msg.dict() == _d
+        self.assertEqual(_msg.dict(), _d)
 
     def test_nested_message_from_dict(self):
         _d = {

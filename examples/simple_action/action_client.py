@@ -60,3 +60,4 @@ if __name__ == '__main__':
     action_client.send_goal(goal_msg)
     resp = action_client.get_result(wait=True)
     print(f'Action Result: {resp}')
+    node.stop()

@@ -7,6 +7,7 @@ from functools import partial
 from typing import Dict, Any
 
 from commlib.compression import CompressionType
+from commlib.pubsub import BasePublisher, BaseSubscriber
 
 from .logger import Logger
 from .msg import ActionMessage, Message, PubSubMessage, RPCMessage
@@ -32,7 +33,7 @@ class _ActionGoalMessage(RPCMessage):
 
     class Request(RPCMessage.Request):
         description: str = ''
-        goal_data: Dict = {}
+        goal_data: Dict[str, Any] = {}
 
     class Response(RPCMessage.Response):
         status: int = 0
@@ -54,7 +55,7 @@ class _ActionResultMessage(RPCMessage):
     class Response(RPCMessage.Response):
         status: int = 0
         timestamp: int = -1
-        result: Dict = {}
+        result: Dict[str, Any] = {}
 
         def __post_init__(self):
             self.timestamp = int(time.time())
@@ -112,12 +113,12 @@ class GoalHandler:
         self._msg_type = msg_type
         self.status = GoalStatus.ACCEPTED
         self.id = gen_random_id()
-        self.data = msg_type.Result() if isinstance(msg_type, ActionMessage) \
-            else {}
+        self.data = msg_type.Result() if \
+            isinstance(msg_type, ActionMessage) else {}
         self._pub_status = status_publisher
         self._pub_feedback = feedback_publisher
-        self.result = msg_type.Result() if isinstance(msg_type, ActionMessage) \
-            else {}
+        self.result = msg_type.Result() if \
+            isinstance(msg_type, ActionMessage) else {}
         self._task = None
         self._on_goal = on_goal
         self._on_cancel = on_cancel
@@ -204,7 +205,8 @@ class GoalHandler:
         self._pub_status.publish(msg)
 
     def send_feedback(self, feedback_msg: _ActionFeedbackMessage):
-        _fb = feedback_msg.dict() if self._msg_type is not None else feedback_msg
+        _fb = feedback_msg.dict() if \
+            self._msg_type is not None else feedback_msg
         msg = _ActionFeedbackMessage(feedback_data=_fb, goal_id=self.id)
         self._pub_feedback.publish(msg)
 
@@ -274,7 +276,7 @@ class BaseActionService:
         self._goal_rpc.run()
         self._cancel_rpc.run()
         self._result_rpc.run()
-        self.logger.info(f'Started Action Server <{self._action_name}>')
+        self.logger.debug(f'Started Action Server <{self._action_name}>')
 
     def stop(self):
         """stop.
@@ -290,7 +292,7 @@ class BaseActionService:
         Args:
             msg (_ActionGoalMessage.Request): Set Goal Request Message
         """
-        self.logger.info(f'Received new goal request!\n--> {msg}')
+        self.logger.debug(f'Received new goal request!\n--> {msg}')
         resp = _ActionGoalMessage.Response()
         if self._current_goal is None:
             self._current_goal = GoalHandler(self._msg_type,
@@ -428,18 +430,6 @@ class BaseActionClient:
     def logger(self) -> Logger:
         return self._logger
 
-    def stop(self) -> None:
-        """stop.
-        Stop action client endpoints.
-
-        Args:
-
-        Returns:
-            None:
-        """
-        self._status_sub.stop()
-        self._feedback_sub.stop()
-
     def send_goal(self,
                   goal_msg: ActionMessage.Goal,
                   timeout: int = 10,
@@ -558,7 +548,8 @@ class BaseActionClient:
         Internal on_feedback event callback.
 
         Args:
-            msg (_ActionFeedbackMessage): Action feedback message (Internal use)
+            msg (_ActionFeedbackMessage): Action feedback Message
+                (Internal use)
 
         Returns:
             None:
@@ -571,6 +562,32 @@ class BaseActionClient:
         if self.on_feedback is not None:
             self.on_feedback(fb)
 
+    def run(self):
+        self._status_sub.run()
+        self._feedback_sub.run()
+        self._goal_client.run()
+        self._cancel_client.run()
+        self._result_client.run()
+
+    def stop(self) -> None:
+        """stop.
+        Stop action client endpoints.
+
+        Args:
+
+        Returns:
+            None:
+        """
+        if self._status_sub is not None:
+            self._status_sub.stop()
+        if self._feedback_sub is not None:
+            self._feedback_sub.stop()
+        if self._goal_client is not None:
+            self._goal_client.stop()
+        if self._cancel_client is not None:
+            self._cancel_client.stop()
+        if self._result_client is not None:
+            self._result_client.stop()
+
     def __del__(self):
         self.stop()
-

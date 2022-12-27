@@ -93,12 +93,8 @@ class BaseRPCServer:
         self._main_thread.start()
         self.logger.info(f'Started RPC Server <{self._base_uri}>!')
 
-    def stop(self):
-        """stop.
-        Stop the RPC Service.
-        """
-        if self._t_stop_event is not None:
-            self._t_stop_event.set()
+    def stop(self) -> None:
+        self._transport.stop()
 
 
 class BaseRPCService:
@@ -186,6 +182,10 @@ class BaseRPCService:
         """
         if self._t_stop_event is not None:
             self._t_stop_event.set()
+        self._transport.stop()
+
+    def __del__(self):
+        self.stop()
 
 
 class BaseRPCClient:
@@ -289,3 +289,11 @@ class BaseRPCClient:
     def _serialize_request(self, message: RPCMessage.Request) -> str:
         return self._serialize_data(message.dict())
 
+    def run(self):
+        self._transport.start()
+
+    def stop(self) -> None:
+        self._transport.stop()
+
+    def __del__(self):
+        self.stop()

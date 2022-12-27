@@ -198,6 +198,7 @@ class AMQPTransport:
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
+        self._connected = False
         self._connection = connection
         self._conn_params = conn_params
         self._debug = debug
@@ -210,6 +211,10 @@ class AMQPTransport:
         # Create a new connection
         if self._connection is None:
             self._connection = Connection(self._conn_params)
+
+    @property
+    def is_connected(self):
+        return self._connected
 
     @property
     def logger(self):
@@ -249,6 +254,7 @@ class AMQPTransport:
         except pika.exceptions.AMQPConnectionError as e:
             self.logger.debug(f'Connection Error ({e}). Reconnecting...')
             self.connect()
+        self._connected = True
 
     def add_threadsafe_callback(self, cb, *args, **kwargs):
         self.connection.add_callback_threadsafe(
@@ -280,6 +286,7 @@ class AMQPTransport:
         if self.channel.is_open:
             self.add_threadsafe_callback(self.channel.close)
         self.logger.debug('Channel closed!')
+        self._connected = False
 
     def exchange_exists(self, exchange_name):
         resp = self._channel.exchange_declare(
@@ -420,13 +427,20 @@ class AMQPTransport:
         self.channel.start_consuming()
 
     def stop_consuming(self):
-        self.channel.stop_consuming()
-
-    def close(self):
-        self._graceful_shutdown()
+        try:
+            self.channel.stop_consuming()
+        except:
+            pass
 
     def disconnect(self):
         self._graceful_shutdown()
+
+    def start(self):
+        self.connect()
+
+    def stop(self):
+        self.stop_consuming()
+        self.disconnect()
 
 
 class RPCService(BaseRPCService):
@@ -465,7 +479,7 @@ class RPCService(BaseRPCService):
         #     raise ValueError(
         #         'RPC <{}> allready registered on broker.'.format(
         #             self._rpc_name))
-        self._transport.connect()
+        self._transport.start()
         self._rpc_queue = self._transport.create_queue(self._rpc_name)
         self._transport.set_channel_qos()
         self._transport.consume_fromm_queue(self._rpc_queue,
@@ -582,10 +596,6 @@ class RPCService(BaseRPCService):
             return False
         self._transport.add_threadsafe_callback(
             self._transport.delete_queue, self._rpc_queue)
-        self._transport.add_threadsafe_callback(
-            self._transport.stop_consuming)
-        self._transport.add_threadsafe_callback(
-            self._transport.close)
         super(RPCService, self).stop()
         return True
 
@@ -623,7 +633,7 @@ class RPCClient(BaseRPCClient):
         self._mean_delay = 0
         self._delay = 0
 
-        super(RPCClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -779,7 +789,7 @@ class Publisher(BasePublisher):
                  *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
-        super(Publisher, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -842,7 +852,7 @@ class Publisher(BasePublisher):
 
 class MPublisher(Publisher):
     def __init__(self, *args, **kwargs):
-        super(MPublisher, self).__init__(topic='*', *args, **kwargs)
+        super().__init__(topic='*', *args, **kwargs)
 
     def publish(self, msg: PubSubMessage, topic: str) -> None:
         """ Publish message once.
@@ -895,7 +905,7 @@ class Subscriber(BaseSubscriber):
         self._closing = False
         self._transport = None
 
-        super(Subscriber, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
@@ -943,13 +953,8 @@ class Subscriber(BaseSubscriber):
             self.logger.warning('Channel was already closed!')
             return False
         self._closing = True
-        super(Subscriber, self).stop()
         self._transport.add_threadsafe_callback(
             self._transport.delete_queue, self._queue_name)
-        self._transport.add_threadsafe_callback(
-            self._transport.stop_consuming)
-        self._transport.add_threadsafe_callback(
-            self._transport.close)
 
     def _consume(self, reliable: bool = False) -> None:
         """Start AMQP consumer."""
@@ -1112,8 +1117,6 @@ class ActionService(BaseActionService):
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
 
-        # self._conn = Connection(conn_params)
-
         super(ActionService, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
@@ -1144,7 +1147,6 @@ class ActionService(BaseActionService):
                                      conn_params=conn_params,
                                      logger=self._logger,
                                      debug=self.debug)
-        # self._conn.detach_amqp_events_thread()
 
 
 class ActionClient(BaseActionClient):
@@ -1193,8 +1195,6 @@ class ActionClient(BaseActionClient):
                                         conn_params=conn_params,
                                         topic=self._feedback_topic,
                                         on_message=self._on_feedback)
-        self._status_sub.run()
-        self._feedback_sub.run()
 
 
 class EventEmitter(BaseEventEmitter):

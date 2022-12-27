@@ -63,6 +63,15 @@ class BasePublisher(object):
         """
         raise NotImplementedError()
 
+    def run(self):
+        self._transport.start()
+
+    def stop(self) -> None:
+        self._transport.stop()
+
+    def __del__(self):
+        self.stop()
+
 
 class BaseSubscriber(object):
     """BaseSubscriber.
@@ -150,3 +159,7 @@ class BaseSubscriber(object):
     def stop(self) -> None:
         if self._t_stop_event is not None:
             self._t_stop_event.set()
+        self._transport.stop()
+
+    def __del__(self):
+        self.stop()

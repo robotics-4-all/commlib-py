@@ -2,7 +2,7 @@ import datetime
 import functools
 import sys
 import time
-from typing import Any, Dict, Tuple, Callable
+from typing import Any, Dict, Tuple, Callable, Optional
 
 import redis
 
@@ -66,39 +66,23 @@ class RedisTransport(object):
             serializer (Serializer): serializer
             compression (CompressionType): compression
         """
+        self._connected = False
         conn_params = ConnectionParameters() if \
             conn_params is None else conn_params
         self._conn_params = conn_params
         self._serializer = serializer
         self._compression = compression
+        self.connect()
 
-        try:
-            self.connect()
-        except Exception as e:
-            self.log.error(
-                f'Failed to connect to Redis <redis://' + \
-                f'{self._conn_params.host}:{self._conn_params.port}>')
-            raise e
-        self.log.debug('Redis Transport initiated:')
-        self.log.debug(
-            f'- Broker: mqtt://' + \
-            f'{self._conn_params.host}:{self._conn_params.port}'
-        )
-        self.log.debug(f'- Data Serialization: {self._serializer}')
-        self.log.debug(f'- Data Compression: {self._compression}')
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
 
     @property
     def log(self) -> Logger:
-        """logger.
-
-        Args:
-
-        Returns:
-            Logger:
-        """
         return self.logger()
 
-    def connect(self):
+    def connect(self) -> None:
         if self._conn_params.unix_socket not in ('', None):
             self._redis = RedisConnection(
                 unix_socket_path=self._conn_params.unix_socket,
@@ -116,6 +100,16 @@ class RedisTransport(object):
                 decode_responses=False)
 
         self._rsub = self._redis.pubsub()
+        self._connected = True
+
+    def start(self) -> None:
+        if not self.is_connected:
+            self.connect()
+
+    def stop(self) -> None:
+        if self.is_connected:
+            self._redis.connection_pool.disconnect()
+            self._connected = False
 
     def delete_queue(self, queue_name: str) -> bool:
         # self.log.debug('Removing message queue: <{}>'.format(queue_name))
@@ -216,9 +210,6 @@ class RPCService(BaseRPCService):
                     self._transport.delete_queue(self._rpc_name)
                     break
             time.sleep(0.001)
-
-    def stop(self):
-        self._t_stop_event.set()
 
     def _detach_request_handler(self, payload):
         data, header = self._unpack_comm_msg(payload)
@@ -388,8 +379,8 @@ class Subscriber(BaseSubscriber):
     """
 
     def __init__(self,
-                 conn_params: ConnectionParameters = None,
-                 queue_size: int = 1,
+                 conn_params: Optional[ConnectionParameters] = None,
+                 queue_size: Optional[int] = 1,
                  *args, **kwargs):
         """__init__.
 
@@ -399,6 +390,7 @@ class Subscriber(BaseSubscriber):
             args:
             kwargs:
         """
+        self._subscriber_thread = None
         self._queue_size = queue_size
         super(Subscriber, self).__init__(*args, **kwargs)
 
@@ -413,10 +405,9 @@ class Subscriber(BaseSubscriber):
 
     def stop(self):
         """Stop background thread that handle subscribed topic messages"""
-        try:
-            self._exit_gracefully()
-        except Exception as exc:
-            self.logger.error(f'Exception thrown in Subscriber.stop(): {exc}')
+        if self._subscriber_thread is not None:
+            self._subscriber_thread.stop()
+        super().stop()
 
     def run_forever(self):
         self.run()
@@ -440,9 +431,6 @@ class Subscriber(BaseSubscriber):
         _uri = msg['channel']
         _data = self._serializer.deserialize(msg['data'])
         return _data, _uri
-
-    def _exit_gracefully(self):
-        self._subscriber_thread.stop()
 
 
 class PSubscriber(Subscriber):
@@ -560,8 +548,6 @@ class ActionClient(BaseActionClient):
                                         conn_params=conn_params,
                                         topic=self._feedback_topic,
                                         on_message=self._on_feedback)
-        self._status_sub.run()
-        self._feedback_sub.run()
 
 
 class EventEmitter(BaseEventEmitter):
