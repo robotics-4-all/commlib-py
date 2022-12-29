@@ -61,13 +61,14 @@ lint: ## check style with flake8
 	flake8 commlib tests
 
 test: ## run tests quickly with the default Python
-	coverage run -m nose
+	coverage run -m unittest discover
 
-coverage: test ## check code coverage quickly with the default Python
+cov: test ## check code coverage quickly with the default Python
 	coverage report -m
-	coverage html
-	$(BROWSER) htmlcov/index.html
+	coverage xml
 
+cov_html: test
+	html
 
 diff: ## Calculate diff
 	coverage xml
