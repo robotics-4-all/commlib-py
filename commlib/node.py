@@ -236,6 +236,8 @@ class Node:
             import commlib.transports.redis as transport_module
         elif type_str == 'commlib.transports.amqp.ConnectionParameters':
             import commlib.transports.amqp as transport_module
+        elif type_str == 'commlib.transports.mock.ConnectionParameters':
+            import commlib.transports.mock as transport_module
         else:
             raise ValueError('Transport type is not supported!')
         self._transport_module = transport_module

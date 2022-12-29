@@ -161,18 +161,15 @@ class RPCService(BaseRPCService):
     Redis RPC Service class
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = None,
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): conn_params
             args: See BaseRPCService class
             kwargs: See BaseRPCService class
         """
         super(RPCService, self).__init__(*args, **kwargs)
-        self._transport = RedisTransport(conn_params=conn_params,
+        self._transport = RedisTransport(conn_params=self._conn_params,
                                          serializer=self._serializer,
                                          compression=self._compression)
 
@@ -234,18 +231,15 @@ class RPCClient(BaseRPCClient):
     """RPCClient.
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = None,
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): conn_params
             args:
             kwargs:
         """
         super(RPCClient, self).__init__(*args, **kwargs)
-        self._transport = RedisTransport(conn_params=conn_params,
+        self._transport = RedisTransport(conn_params=self._conn_params,
                                          serializer=self._serializer,
                                          compression=self._compression)
 
@@ -293,13 +287,11 @@ class Publisher(BasePublisher):
     """
 
     def __init__(self,
-                 conn_params: ConnectionParameters = None,
                  queue_size: int = 10,
                  *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): conn_params
             queue_size (int): queue_size
             args:
             kwargs:
@@ -309,7 +301,7 @@ class Publisher(BasePublisher):
 
         super(Publisher, self).__init__(*args, **kwargs)
 
-        self._transport = RedisTransport(conn_params=conn_params,
+        self._transport = RedisTransport(conn_params=self._conn_params,
                                          serializer=self._serializer,
                                          compression=self._compression)
 
@@ -379,13 +371,11 @@ class Subscriber(BaseSubscriber):
     """
 
     def __init__(self,
-                 conn_params: Optional[ConnectionParameters] = None,
                  queue_size: Optional[int] = 1,
                  *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): conn_params
             queue_size (int): queue_size
             args:
             kwargs:
@@ -394,7 +384,7 @@ class Subscriber(BaseSubscriber):
         self._queue_size = queue_size
         super(Subscriber, self).__init__(*args, **kwargs)
 
-        self._transport = RedisTransport(conn_params=conn_params,
+        self._transport = RedisTransport(conn_params=self._conn_params,
                                          serializer=self._serializer,
                                          compression=self._compression)
 
@@ -460,47 +450,41 @@ class ActionService(BaseActionService):
     Redis Action Server class
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = None,
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): Broker Connection Parameters
             args: See BaseActionService class.
             kwargs:
         """
-        conn_params = ConnectionParameters() if \
-            conn_params is None else conn_params
-
         super(ActionService, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
                                     rpc_name=self._goal_rpc_uri,
-                                    conn_params=conn_params,
+                                    conn_params=self._conn_params,
                                     on_request=self._handle_send_goal,
                                     logger=self._logger,
                                     debug=self.debug)
         self._cancel_rpc = RPCService(msg_type=_ActionCancelMessage,
                                       rpc_name=self._cancel_rpc_uri,
-                                      conn_params=conn_params,
+                                      conn_params=self._conn_params,
                                       on_request=self._handle_cancel_goal,
                                       logger=self._logger,
                                       debug=self.debug)
         self._result_rpc = RPCService(msg_type=_ActionResultMessage,
                                       rpc_name=self._result_rpc_uri,
-                                      conn_params=conn_params,
+                                      conn_params=self._conn_params,
                                       on_request=self._handle_get_result,
                                       logger=self._logger,
                                       debug=self.debug)
         self._feedback_pub = Publisher(msg_type=_ActionFeedbackMessage,
                                        topic=self._feedback_topic,
-                                       conn_params=conn_params,
+                                       conn_params=self._conn_params,
                                        logger=self._logger,
                                        debug=self.debug)
         self._status_pub = Publisher(msg_type=_ActionStatusMessage,
                                      topic=self._status_topic,
-                                     conn_params=conn_params,
+                                     conn_params=self._conn_params,
                                      logger=self._logger,
                                      debug=self.debug)
 
@@ -510,42 +494,36 @@ class ActionClient(BaseActionClient):
     Redis Action Client class
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = None,
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): Broker Connection Parameters
             args: See BaseActionClient class
             kwargs: See BaseActionClient class
         """
-        conn_params = gonnectionParameters() if \
-            conn_params is None else conn_params
-
         super(ActionClient, self).__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
                                       rpc_name=self._goal_rpc_uri,
-                                      conn_params=conn_params,
+                                      conn_params=self._conn_params,
                                       logger=self._logger,
                                       debug=self.debug)
         self._cancel_client = RPCClient(msg_type=_ActionCancelMessage,
                                         rpc_name=self._cancel_rpc_uri,
-                                        conn_params=conn_params,
+                                        conn_params=self._conn_params,
                                         logger=self._logger,
                                         debug=self.debug)
         self._result_client = RPCClient(msg_type=_ActionResultMessage,
                                         rpc_name=self._result_rpc_uri,
-                                        conn_params=conn_params,
+                                        conn_params=self._conn_params,
                                         logger=self._logger,
                                         debug=self.debug)
         self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
-                                      conn_params=conn_params,
+                                      conn_params=self._conn_params,
                                       topic=self._status_topic,
                                       on_message=self._on_status)
         self._feedback_sub = Subscriber(msg_type=_ActionFeedbackMessage,
-                                        conn_params=conn_params,
+                                        conn_params=self._conn_params,
                                         topic=self._feedback_topic,
                                         on_message=self._on_feedback)
 
@@ -555,19 +533,16 @@ class EventEmitter(BaseEventEmitter):
     Redis EventEmitter class
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = None,
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): Broker Connection Parameters
             args: See BaseEventEmitter class
             kwargs: See BaseEventEmitter class
         """
         super(EventEmitter, self).__init__(*args, **kwargs)
 
-        self._transport = RedisTransport(conn_params=conn_params)
+        self._transport = RedisTransport(conn_params=self._conn_params)
 
     def send_event(self, event: Event) -> None:
         """send_event.

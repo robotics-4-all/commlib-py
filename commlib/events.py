@@ -4,6 +4,7 @@ from commlib.serializer import JSONSerializer, Serializer
 from commlib.logger import Logger
 from commlib.utils import gen_random_id
 from pydantic import BaseModel, NoneIsAllowedError
+from commlib.connection import ConnectionParametersBase
 
 em_logger = None
 
@@ -18,19 +19,20 @@ class Event(BaseModel):
     data: Dict[str, Any] = {}
 
 
-class BaseEventEmitter(object):
+class BaseEventEmitter:
     """BaseEventEmitter.
     """
     @classmethod
     def logger(cls) -> Logger:
         global em_logger
         if em_logger is None:
-            em_logger = Logger('event-emitter')
+            em_logger = Logger('EventEmitter')
         return em_logger
 
     def __init__(self,
                  name: Text = None,
                  debug: bool = False,
+                 conn_params: ConnectionParametersBase = None,
                  serializer: Serializer = None):
         """__init__.
 
@@ -39,6 +41,7 @@ class BaseEventEmitter(object):
             debug (bool): debug
             serializer (Serializer): serializer
         """
+        self._conn_params = conn_params
         if name is None:
             name = gen_random_id()
         self._name = name

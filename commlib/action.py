@@ -8,6 +8,7 @@ from typing import Dict, Any
 
 from commlib.compression import CompressionType
 from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.connection import ConnectionParametersBase
 
 from .logger import Logger
 from .msg import ActionMessage, Message, PubSubMessage, RPCMessage
@@ -221,6 +222,7 @@ class BaseActionService:
                  logger: Logger = None,
                  debug: bool = True,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
+                 conn_params: ConnectionParametersBase = None,
                  on_goal: callable = None,
                  on_cancel: callable = None,
                  on_getresult: callable = None):
@@ -242,6 +244,7 @@ class BaseActionService:
         self._on_goal = on_goal
         self._on_cancel = on_cancel
         self._on_getresult = on_getresult
+        self._conn_params = conn_params
 
         self._status_topic = f'{self._action_name}.status'
         self._feedback_topic = f'{self._action_name}.feedback'
@@ -379,6 +382,7 @@ class BaseActionClient:
                  logger: Logger = None,
                  debug: bool = False,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
+                 conn_params: ConnectionParametersBase = None,
                  on_feedback: callable = None,
                  on_result: callable = None,
                  on_goal_reached: callable = None):
@@ -397,6 +401,7 @@ class BaseActionClient:
         self._action_name = action_name
         self._msg_type = msg_type
         self._compression = compression
+        self._conn_params = conn_params
 
         self._status_topic = f'{self._action_name}.status'
         self._feedback_topic = f'{self._action_name}.feedback'

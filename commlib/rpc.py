@@ -7,6 +7,7 @@ from typing import Any, Dict, Callable
 
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.compression import CompressionType
+from commlib.connection import ConnectionParametersBase
 from commlib.logger import Logger
 from commlib.utils import gen_random_id, gen_timestamp
 from pydantic import BaseModel
@@ -41,6 +42,7 @@ class BaseRPCServer:
                  debug: bool = False,
                  workers: int = 2,
                  serializer: Serializer = JSONSerializer,
+                 conn_params: ConnectionParametersBase = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION):
         """__init__.
 
@@ -56,6 +58,7 @@ class BaseRPCServer:
         self._debug = debug
         self._serializer = serializer
         self._compression = compression
+        self._transport = None
 
         self._logger = Logger(self.__class__.__name__, self._debug) if \
             logger is None else logger
@@ -105,13 +108,15 @@ class BaseRPCService:
         - rpc_name (str)
     """
 
-    def __init__(self, rpc_name: str = None,
+    def __init__(self,
+                 rpc_name: str = None,
                  msg_type: RPCMessage = None,
                  on_request: Callable = None,
                  logger: Logger = None,
                  debug: bool = False,
                  workers: int = 2,
                  serializer: Serializer = JSONSerializer,
+                 conn_params: ConnectionParametersBase = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION):
         """__init__.
 
@@ -124,6 +129,7 @@ class BaseRPCService:
             workers (int): workers
             serializer:
         """
+        self._transport = None
         if rpc_name is None:
             raise ValueError('RPC Name cannot be None')
         self._rpc_name = rpc_name
@@ -133,6 +139,7 @@ class BaseRPCService:
         self.on_request = on_request
         self._serializer = serializer
         self._compression = compression
+        self._conn_params = conn_params
 
         self._logger = Logger(self.__class__.__name__, self._debug) if \
             logger is None else logger
@@ -200,6 +207,7 @@ class BaseRPCClient:
                  debug: bool = False,
                  max_workers: int = 5,
                  serializer: Serializer = JSONSerializer,
+                 conn_params: ConnectionParametersBase = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION):
         """__init__.
 
@@ -209,6 +217,7 @@ class BaseRPCClient:
             logger (Logger): logger
             debug (bool): debug
         """
+        self._transport = None
         if rpc_name is None:
             raise ValueError('RPC name cannot be None')
         self._rpc_name = rpc_name
@@ -216,6 +225,7 @@ class BaseRPCClient:
         self._debug = debug
         self._serializer = serializer
         self._compression = compression
+        self._conn_params = conn_params
 
         self._logger = Logger(self.__class__.__name__, debug=self._debug) if \
             logger is None else logger

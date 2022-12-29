@@ -7,9 +7,10 @@ from .logger import Logger
 from .utils import gen_random_id
 from .msg import PubSubMessage
 from .compression import CompressionType
+from commlib.connection import ConnectionParametersBase
 
 
-class BasePublisher(object):
+class BasePublisher:
     """BasePublisher.
     """
 
@@ -19,6 +20,7 @@ class BasePublisher(object):
                  logger: Logger = None,
                  debug: bool = True,
                  serializer: Serializer = JSONSerializer,
+                 conn_params: ConnectionParametersBase = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION):
         """__init__.
 
@@ -32,11 +34,13 @@ class BasePublisher(object):
         if topic is None:
             raise ValueError('Topic Name not defined')
 
+        self._transport = None
         self._debug = debug
         self._topic = topic
         self._msg_type = msg_type
         self._serializer = serializer
         self._compression = compression
+        self._conn_params = conn_params
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
@@ -65,10 +69,12 @@ class BasePublisher(object):
         raise NotImplementedError()
 
     def run(self):
-        self._transport.start()
+        if self._transport is not None:
+            self._transport.start()
 
     def stop(self) -> None:
-        self._transport.stop()
+        if self._transport is not None:
+            self._transport.stop()
 
     def __del__(self):
         self.stop()
@@ -84,6 +90,7 @@ class BaseSubscriber(object):
                  logger: Logger = None,
                  debug: bool = True,
                  serializer: Serializer = JSONSerializer,
+                 conn_params: ConnectionParametersBase = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION):
         """__init__.
 
@@ -95,6 +102,7 @@ class BaseSubscriber(object):
             debug (bool): debug
             serializer:
         """
+        self._transport = None
         if topic is None:
             raise ValueError('Topic name cannot be None')
         self._debug = debug
@@ -103,6 +111,7 @@ class BaseSubscriber(object):
         self._compression = compression
         self._serializer = serializer
         self.onmessage = on_message
+        self._conn_params = conn_params
 
         self._logger = Logger(self.__class__.__name__) if \
             logger is None else logger
