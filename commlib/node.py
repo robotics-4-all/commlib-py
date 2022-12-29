@@ -9,6 +9,7 @@ from commlib.compression import CompressionType
 from commlib.endpoints import TransportType
 from commlib.logger import Logger
 from commlib.msg import HeartbeatMessage, RPCMessage
+from commlib.pubsub import BasePublisher
 from commlib.utils import gen_random_id
 
 n_logger = None
@@ -86,8 +87,9 @@ class HeartbeatThread(threading.Thread):
             n_logger = Logger('NodeHeartbeat')
         return n_logger
 
-    def __init__(self, pub_instance=None,
-                 interval: int = 10,
+    def __init__(self,
+                 pub_instance: BasePublisher,
+                 interval: Optional[int] = 10,
                  *args, **kwargs):
         """__init__.
 
@@ -118,10 +120,9 @@ class HeartbeatThread(threading.Thread):
                 # Wait for n seconds or until stop event is raised
                 self._stop_event.wait(self._rate_secs)
                 msg.ts = self.get_ts()
+            self.logger().error('Heartbeat Thread Ended')
         except Exception as exc:
             self.logger().error(f'Exception in Heartbeat-Thread: {exc}')
-        finally:
-            self.logger().error('Heartbeat Thread Ended')
 
     def force_join(self, timeout: float = None):
         """force_join.
@@ -183,7 +184,7 @@ class Node:
                  connection_params: Optional[Any] = None,
                  transport_connection_params: Optional[Any] = None,
                  debug: Optional[bool] = False,
-                 heartbeat_thread: Optional[bool] = True,
+                 heartbeats: Optional[bool] = True,
                  heartbeat_uri: Optional[str] = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
                  ctrl_services: Optional[bool] = False):
@@ -196,7 +197,7 @@ class Node:
             transport_connection_params (Optional[Any]): Same with connection_params.
                 Used for backward compatibility
             debug (Optional[bool]): debug
-            heartbeat_thread (Optional[bool]): heartbeat_thread
+            heartbeats (Optional[bool]): heartbeat_thread
             heartbeat_uri (Optional[str]): heartbeat_uri
             ctrl_services (Optional[bool]): ctrl_services
         """
@@ -205,13 +206,14 @@ class Node:
         node_name = node_name.replace('-', '_')
         self._node_name = node_name
         self._debug = debug
-        self._heartbeat_thread = heartbeat_thread
-        self._heartbeat_uri = heartbeat_uri
-        self._compression = compression
         self._hb_thread = None
-        self.state = NodeState.IDLE
-        self._has_ctrl_services = ctrl_services
         self._namespace = f'{self._node_name}'
+        self._has_ctrl_services = ctrl_services
+        self._heartbeats = heartbeats
+        self._heartbeat_uri = heartbeat_uri if heartbeat_uri is not None else \
+            f'{self._namespace}.heartbeat'
+        self._compression = compression
+        self.state = NodeState.IDLE
 
         self._publishers = []
         self._subscribers = []
@@ -239,6 +241,11 @@ class Node:
         self._transport_module = transport_module
 
         self.log.info(f'Created Node <{self._node_name}>')
+        if self._heartbeats:
+            self.create_heartbeat_thread()
+        if self._has_ctrl_services:
+            self.create_start_service()
+            self.create_stop_service()
 
     @property
     def log(self) -> Logger:
@@ -251,31 +258,30 @@ class Node:
         """
         return self.logger()
 
-    def init_heartbeat_thread(self, topic: str = None) -> None:
-        """init_heartbeat_thread.
+    def create_heartbeat_thread(self) -> None:
+        """create_heartbeat_thread.
         Starts the heartbeat thread. Heartbeat messages are sent periodically
         to inform about correct execution of the node.
 
         Args:
             topic (str): topic
         """
-        if topic is None:
-            topic = f'{self._namespace}.heartbeat'
         self._hb_thread = HeartbeatThread(
-            self.create_publisher(topic=topic, msg_type=HeartbeatMessage)
+            self.create_publisher(topic=self._heartbeat_uri,
+                                  msg_type=HeartbeatMessage)
         )
-        self._hb_thread.start()
-        self.log.info(
-            f'Started Heartbeat Publisher <{topic}> in background')
 
-    def init_stop_service(self, uri: str = None) -> None:
+    def start_heartbeat_thread(self):
+        self._hb_thread.start()
+        self.log.debug(
+            f'Started Heartbeat Publisher <{self._heartbeat_uri}>')
+
+    def create_stop_service(self, uri: str = None) -> None:
         if uri is None:
             uri = f'{self._namespace}.stop'
-        stop_rpc = self.create_rpc(rpc_name=uri,
-                                   msg_type=_NodeStopMessage,
-                                   on_request=self._stop_rpc_callback)
-        stop_rpc.run()
-        self._stop_rpc = stop_rpc
+        self.create_rpc(rpc_name=uri,
+                        msg_type=_NodeStopMessage,
+                        on_request=self._stop_rpc_callback)
 
     def _stop_rpc_callback(self, msg: _NodeStopMessage.Request) -> \
             _NodeStopMessage.Response:
@@ -288,14 +294,12 @@ class Node:
             resp.error = 'Cannot make the transition from current state!'
         return resp
 
-    def init_start_service(self, uri: str = None) -> None:
+    def create_start_service(self, uri: str = None) -> None:
         if uri is None:
             uri = f'{self._namespace}.start'
-        start_rpc = self.create_rpc(rpc_name=uri,
-                                    msg_type=_NodeStartMessage,
-                                    on_request=self._start_rpc_callback)
-        start_rpc.run()
-        self._start_rpc = start_rpc
+        self.create_rpc(rpc_name=uri,
+                        msg_type=_NodeStartMessage,
+                        on_request=self._start_rpc_callback)
 
     def _start_rpc_callback(self, msg: _NodeStartMessage.Request) -> \
             _NodeStartMessage.Response:
@@ -355,12 +359,8 @@ class Node:
             c.run()
         for c in self._action_clients:
             c.run()
-        if self._heartbeat_thread:
-            self.init_heartbeat_thread(self._heartbeat_uri)
-        if self._has_ctrl_services:
-            self.init_start_service()
-        if self._has_ctrl_services:
-            self.init_stop_service()
+        if self._heartbeats:
+            self.start_heartbeat_thread()
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.001) -> None:

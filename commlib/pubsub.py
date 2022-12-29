@@ -13,7 +13,8 @@ class BasePublisher(object):
     """BasePublisher.
     """
 
-    def __init__(self, topic: str = None,
+    def __init__(self,
+                 topic: str,
                  msg_type: PubSubMessage = None,
                  logger: Logger = None,
                  debug: bool = True,
