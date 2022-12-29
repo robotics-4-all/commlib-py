@@ -241,11 +241,6 @@ class Node:
         self._transport_module = transport_module
 
         self.log.info(f'Created Node <{self._node_name}>')
-        if self._heartbeats:
-            self.create_heartbeat_thread()
-        if self._has_ctrl_services:
-            self.create_start_service()
-            self.create_stop_service()
 
     @property
     def log(self) -> Logger:
@@ -347,6 +342,11 @@ class Node:
         Returns:
             None:
         """
+        if self._heartbeats:
+            self.create_heartbeat_thread()
+        if self._has_ctrl_services:
+            self.create_start_service()
+            self.create_stop_service()
         for c in self._subscribers:
             c.run()
         for c in self._publishers:
