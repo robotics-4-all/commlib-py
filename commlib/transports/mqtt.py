@@ -24,9 +24,10 @@ from commlib.rpc import BaseRPCClient, BaseRPCServer, BaseRPCService
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.utils import gen_timestamp
 from commlib.connection import ConnectionParametersBase
+from commlib.compression import CompressionType, inflate_str, deflate
+from commlib.transports import BaseTransport
 
 mqtt_logger = None
-from commlib.compression import CompressionType, inflate_str, deflate
 
 
 class MQTTReturnCode(IntEnum):
@@ -64,7 +65,7 @@ class ConnectionParameters(ConnectionParametersBase):
     transport: str = 'tcp'
 
 
-class MQTTTransport:
+class MQTTTransport(BaseTransport):
     """MQTTTransport.
     """
     @classmethod
