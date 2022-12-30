@@ -189,7 +189,8 @@ class BaseRPCService:
         """
         if self._t_stop_event is not None:
             self._t_stop_event.set()
-        self._transport.stop()
+        if self._transport is not None:
+            self._transport.stop()
 
     def __del__(self):
         self.stop()
@@ -300,10 +301,12 @@ class BaseRPCClient:
         return self._serialize_data(message.dict())
 
     def run(self):
-        self._transport.start()
+        if self._transport is not None:
+            self._transport.start()
 
     def stop(self) -> None:
-        self._transport.stop()
+        if self._transport is not None:
+            self._transport.stop()
 
     def __del__(self):
         self.stop()

@@ -276,18 +276,24 @@ class BaseActionService:
         """run.
         Start the Action Service.
         """
-        self._goal_rpc.run()
-        self._cancel_rpc.run()
-        self._result_rpc.run()
+        if self._goal_rpc is not None:
+            self._goal_rpc.run()
+        if self._cancel_rpc is not None:
+            self._cancel_rpc.run()
+        if self._result_rpc is not None:
+            self._result_rpc.run()
         self.logger.debug(f'Started Action Server <{self._action_name}>')
 
     def stop(self):
         """stop.
         Stop the execution of the Action Service.
         """
-        self._goal_rpc.stop()
-        self._cancel_rpc.stop()
-        self._result_rpc.stop()
+        if self._goal_rpc is not None:
+            self._goal_rpc.stop()
+        if self._cancel_rpc is not None:
+            self._cancel_rpc.stop()
+        if self._result_rpc is not None:
+            self._result_rpc.stop()
 
     def _handle_send_goal(self, msg: _ActionGoalMessage.Request):
         """_handle_send_goal.

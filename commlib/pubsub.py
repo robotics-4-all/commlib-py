@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import threading
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Optional
 
 from .serializer import Serializer, JSONSerializer
 from .logger import Logger
@@ -8,11 +8,13 @@ from .utils import gen_random_id
 from .msg import PubSubMessage
 from .compression import CompressionType
 from commlib.connection import ConnectionParametersBase
+from commlib.transports import BaseTransport
 
 
 class BasePublisher:
     """BasePublisher.
     """
+    _transport: BaseTransport = None
 
     def __init__(self,
                  topic: str,
@@ -34,7 +36,6 @@ class BasePublisher:
         if topic is None:
             raise ValueError('Topic Name not defined')
 
-        self._transport = None
         self._debug = debug
         self._topic = topic
         self._msg_type = msg_type
@@ -83,15 +84,17 @@ class BasePublisher:
 class BaseSubscriber(object):
     """BaseSubscriber.
     """
+    _transport: BaseTransport = None
 
-    def __init__(self, topic: str = None,
-                 msg_type: PubSubMessage = None,
-                 on_message: Callable = None,
-                 logger: Logger = None,
-                 debug: bool = True,
-                 serializer: Serializer = JSONSerializer,
-                 conn_params: ConnectionParametersBase = None,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION):
+    def __init__(self,
+                 topic: str,
+                 msg_type: Optional[PubSubMessage] = None,
+                 on_message: Optional[Callable] = None,
+                 logger: Optional[Logger] = None,
+                 debug: Optional[bool] = True,
+                 serializer: Optional[Serializer] = JSONSerializer,
+                 conn_params: Optional[ConnectionParametersBase] = None,
+                 compression: Optional[CompressionType] = CompressionType.NO_COMPRESSION):
         """__init__.
 
         Args:
@@ -102,7 +105,6 @@ class BaseSubscriber(object):
             debug (bool): debug
             serializer:
         """
-        self._transport = None
         if topic is None:
             raise ValueError('Topic name cannot be None')
         self._debug = debug
