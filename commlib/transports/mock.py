@@ -8,13 +8,16 @@ class ConnectionParameters(ConnectionParametersBase):
 
 
 class MockTransport(BaseTransport):
-    pass
+    def start(self):
+        self._connected = True
 
+    def stop(self):
+        self._connected = False
 
 class Publisher(BasePublisher):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport()
+        self._transport = MockTransport(self._conn_params)
 
 
 class Subscriber(BaseSubscriber):
