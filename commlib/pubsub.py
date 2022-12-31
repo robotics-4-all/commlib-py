@@ -6,7 +6,7 @@ from commlib.serializer import Serializer, JSONSerializer
 from commlib.logger import Logger
 from commlib.utils import gen_random_id
 from commlib.msg import PubSubMessage
-from commlib.connection import ConnectionParametersBase
+from commlib.connection import BaseConnectionParameters
 from commlib.endpoints import BaseEndpoint
 
 

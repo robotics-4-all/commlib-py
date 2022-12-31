@@ -18,7 +18,7 @@ from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCServer, BaseRPCService
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.utils import gen_timestamp
-from commlib.connection import ConnectionParametersBase
+from commlib.connection import BaseConnectionParameters
 from commlib.compression import CompressionType, inflate_str, deflate
 from commlib.transports import BaseTransport
 from commlib.action import (
@@ -57,7 +57,7 @@ class MQTTQoS(IntEnum):
     L2 = 2  # Exactly Once
 
 
-class ConnectionParameters(ConnectionParametersBase):
+class ConnectionParameters(BaseConnectionParameters):
     host: str = 'localhost'
     port: int = 1883
     username: str = ''

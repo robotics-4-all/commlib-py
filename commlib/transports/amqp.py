@@ -21,7 +21,7 @@ from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCService
 from commlib.utils import gen_timestamp
-from commlib.connection import ConnectionParametersBase
+from commlib.connection import BaseConnectionParameters
 
 # Reduce log level for pika internal logger
 logging.getLogger("pika").setLevel(logging.WARN)
@@ -71,7 +71,7 @@ class MessageProperties(pika.BasicProperties):
         )
 
 
-class ConnectionParameters(ConnectionParametersBase):
+class ConnectionParameters(BaseConnectionParameters):
     """AMQP Connection parameters.
     AMQP connection parameters class
     """

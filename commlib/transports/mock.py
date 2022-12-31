@@ -1,9 +1,9 @@
-from commlib.connection import ConnectionParametersBase
+from commlib.connection import BaseConnectionParameters
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.transports import BaseTransport
 
 
-class ConnectionParameters(ConnectionParametersBase):
+class ConnectionParameters(BaseConnectionParameters):
     pass
 
 

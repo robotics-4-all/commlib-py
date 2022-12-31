@@ -5,7 +5,7 @@ from typing import Any, Dict, Callable
 from pydantic import BaseModel
 
 from commlib.serializer import JSONSerializer, Serializer
-from commlib.connection import ConnectionParametersBase
+from commlib.connection import BaseConnectionParameters
 from commlib.logger import Logger
 from commlib.endpoints import BaseEndpoint
 from commlib.utils import gen_random_id, gen_timestamp

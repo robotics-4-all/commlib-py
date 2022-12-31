@@ -19,12 +19,12 @@ from commlib.rpc import BaseRPCClient, BaseRPCService
 from commlib.serializer import Serializer, JSONSerializer
 from commlib.compression import CompressionType, inflate_str, deflate
 from commlib.utils import gen_timestamp
-from commlib.connection import ConnectionParametersBase
+from commlib.connection import BaseConnectionParameters
 
 redis_logger = None
 
 
-class ConnectionParameters(ConnectionParametersBase):
+class ConnectionParameters(BaseConnectionParameters):
     host: str = 'localhost'
     port: int = 6379
     unix_socket: str = ''

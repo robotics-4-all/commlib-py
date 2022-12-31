@@ -1,4 +1,4 @@
-from commlib.connection import ConnectionParametersBase
+from commlib.connection import BaseConnectionParameters
 from commlib.logger import Logger
 
 
@@ -16,7 +16,7 @@ class BaseTransport:
         return transport_logger
 
     def __init__(self,
-                 conn_params: ConnectionParametersBase
+                 conn_params: BaseConnectionParameters
                  ):
         self._conn_params = conn_params
 

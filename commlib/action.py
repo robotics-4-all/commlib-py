@@ -8,7 +8,7 @@ from typing import Dict, Any
 
 from commlib.compression import CompressionType
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.connection import ConnectionParametersBase
+from commlib.connection import BaseConnectionParameters
 
 from commlib.logger import Logger
 from commlib.msg import ActionMessage, Message, PubSubMessage, RPCMessage
@@ -237,7 +237,7 @@ class BaseActionService:
                  msg_type: ActionMessage = None,
                  debug: bool = True,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
-                 conn_params: ConnectionParametersBase = None,
+                 conn_params: BaseConnectionParameters = None,
                  on_goal: callable = None,
                  on_cancel: callable = None,
                  on_getresult: callable = None):
@@ -402,7 +402,7 @@ class BaseActionClient:
                  msg_type: ActionMessage = None,
                  debug: bool = False,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
-                 conn_params: ConnectionParametersBase = None,
+                 conn_params: BaseConnectionParameters = None,
                  on_feedback: callable = None,
                  on_result: callable = None,
                  on_goal_reached: callable = None):

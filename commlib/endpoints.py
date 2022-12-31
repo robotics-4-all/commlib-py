@@ -1,6 +1,6 @@
 from enum import Enum
 from commlib.logger import Logger
-from commlib.connection import ConnectionParametersBase
+from commlib.connection import BaseConnectionParameters
 from commlib.transports import BaseTransport
 from commlib.serializer import Serializer, JSONSerializer
 from commlib.compression import CompressionType
@@ -21,7 +21,7 @@ class BaseEndpoint:
     def __init__(self,
                  debug: bool = False,
                  serializer: Serializer = JSONSerializer,
-                 conn_params: ConnectionParametersBase = None,
+                 conn_params: BaseConnectionParameters = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION
                  ):
         self._debug = debug
