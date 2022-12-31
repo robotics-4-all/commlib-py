@@ -6,19 +6,16 @@ from commlib.serializer import Serializer, JSONSerializer
 from commlib.logger import Logger
 from commlib.utils import gen_random_id
 from commlib.msg import PubSubMessage
-from commlib.compression import CompressionType
 from commlib.connection import ConnectionParametersBase
-from commlib.transports import BaseTransport
+from commlib.endpoints import BaseEndpoint
 
 
 pubsub_logger = None
 
 
-class BasePublisher:
+class BasePublisher(BaseEndpoint):
     """BasePublisher.
     """
-    _transport: BaseTransport = None
-
     @classmethod
     def logger(cls) -> Logger:
         global pubsub_logger
@@ -29,29 +26,22 @@ class BasePublisher:
     def __init__(self,
                  topic: str,
                  msg_type: PubSubMessage = None,
-                 debug: bool = True,
-                 serializer: Serializer = JSONSerializer,
-                 conn_params: ConnectionParametersBase = None,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION):
+                 *args, **kwargs):
         """__init__.
 
         Args:
             topic (str): topic
             msg_type (PubSubMessage): msg_type
-            debug (bool): debug
-            serializer:
         """
-        self._debug = debug
+        super().__init__(*args, **kwargs)
         self._topic = topic
         self._msg_type = msg_type
-        self._serializer = serializer
-        self._compression = compression
-        self._conn_params = conn_params
         self._gen_random_id = gen_random_id
 
     @property
-    def log(self):
-        return self.logger()
+    def topic(self) -> str:
+        """topic"""
+        return self._topic
 
     def publish(self, msg: PubSubMessage) -> None:
         """publish.
@@ -76,11 +66,9 @@ class BasePublisher:
         self.stop()
 
 
-class BaseSubscriber(object):
+class BaseSubscriber(BaseEndpoint):
     """BaseSubscriber.
     """
-    _transport: BaseTransport = None
-
     @classmethod
     def logger(cls) -> Logger:
         global pubsub_logger
@@ -92,35 +80,23 @@ class BaseSubscriber(object):
                  topic: str,
                  msg_type: Optional[PubSubMessage] = None,
                  on_message: Optional[Callable] = None,
-                 debug: Optional[bool] = True,
-                 serializer: Optional[Serializer] = JSONSerializer,
-                 conn_params: Optional[ConnectionParametersBase] = None,
-                 compression: Optional[CompressionType] = CompressionType.NO_COMPRESSION):
+                 *args, **kwargs):
         """__init__.
 
         Args:
             topic (str): topic
             msg_type (PubSubMessage): msg_type
             on_message (callable): on_message
-            debug (bool): debug
-            serializer:
         """
-        self._debug = debug
+        super().__init__(*args, **kwargs)
         self._topic = topic
         self._msg_type = msg_type
-        self._compression = compression
-        self._serializer = serializer
         self.onmessage = on_message
-        self._conn_params = conn_params
         self._gen_random_id = gen_random_id
 
         self._executor = ThreadPoolExecutor(max_workers=2)
         self._main_thread = None
         self._t_stop_event = None
-
-    @property
-    def log(self):
-        return self.logger()
 
     @property
     def topic(self) -> str:

@@ -1,4 +1,41 @@
 from enum import Enum
+from commlib.logger import Logger
+from commlib.connection import ConnectionParametersBase
+from commlib.transports import BaseTransport
+from commlib.serializer import Serializer, JSONSerializer
+from commlib.compression import CompressionType
+
+e_logger = None
+
+
+class BaseEndpoint:
+    _transport: BaseTransport = None
+
+    @classmethod
+    def logger(cls) -> Logger:
+        global e_logger
+        if e_logger is None:
+            e_logger = Logger(__name__)
+        return e_logger
+
+    def __init__(self,
+                 debug: bool = False,
+                 serializer: Serializer = JSONSerializer,
+                 conn_params: ConnectionParametersBase = None,
+                 compression: CompressionType = CompressionType.NO_COMPRESSION
+                 ):
+        self._debug = debug
+        self._serializer = serializer
+        self._compression = compression
+        self._conn_params = conn_params
+
+    @property
+    def log(self):
+        return self.logger()
+
+    @property
+    def debug(self):
+        return self._debug
 
 
 class EndpointType(Enum):
