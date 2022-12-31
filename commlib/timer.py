@@ -40,7 +40,7 @@ class Timer(threading.Thread):
         self._callback = callback
         self._oneshot = oneshot
         self._shutdown = False
-        self.setDaemon(True)
+        self.daemon = True
 
     def shutdown(self):
         """
