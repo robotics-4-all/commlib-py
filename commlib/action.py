@@ -10,10 +10,12 @@ from commlib.compression import CompressionType
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.connection import ConnectionParametersBase
 
-from .logger import Logger
-from .msg import ActionMessage, Message, PubSubMessage, RPCMessage
-from .serializer import JSONSerializer, Serializer
-from .utils import gen_random_id, gen_timestamp
+from commlib.logger import Logger
+from commlib.msg import ActionMessage, Message, PubSubMessage, RPCMessage
+from commlib.serializer import JSONSerializer, Serializer
+from commlib.utils import gen_random_id, gen_timestamp
+
+actions_logger = None
 
 
 class GoalStatus(IntEnum):
@@ -97,6 +99,13 @@ class _ActionFeedbackMessage(PubSubMessage):
 
 
 class GoalHandler:
+    @classmethod
+    def logger(cls) -> Logger:
+        global actions_logger
+        if actions_logger is None:
+            actions_logger = Logger(__name__)
+        return actions_logger
+
     def __init__(self, msg_type: ActionMessage,
                  status_publisher: callable,
                  feedback_publisher: callable,
@@ -216,10 +225,16 @@ class GoalHandler:
 
 
 class BaseActionService:
+    @classmethod
+    def logger(cls) -> Logger:
+        global actions_logger
+        if actions_logger is None:
+            actions_logger = Logger(__name__)
+        return actions_logger
+
     def __init__(self,
                  action_name: str,
                  msg_type: ActionMessage = None,
-                 logger: Logger = None,
                  debug: bool = True,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
                  conn_params: ConnectionParametersBase = None,
@@ -231,7 +246,6 @@ class BaseActionService:
         Args:
             action_name (str): The name (uri) of the action
             msg_type (ActionMessage): The type of the message
-            logger (Logger): Logger instance
             debug (bool): Debug mode
             on_goal (callable): on_goal callback function
             on_cancel (callable): on_cancel callback function
@@ -258,19 +272,15 @@ class BaseActionService:
         self._goal_rpc = None
         self._cancel_rpc = None
         self._result_rpc = None
-
         self._current_goal = None
-
-        self._logger = Logger(self.__class__.__name__) if \
-            logger is None else logger
 
     @property
     def debug(self):
         return self._debug
 
     @property
-    def logger(self):
-        return self._logger
+    def log(self):
+        return self.logger()
 
     def run(self):
         """run.
@@ -282,7 +292,6 @@ class BaseActionService:
             self._cancel_rpc.run()
         if self._result_rpc is not None:
             self._result_rpc.run()
-        self.logger.debug(f'Started Action Server <{self._action_name}>')
 
     def stop(self):
         """stop.
@@ -301,7 +310,6 @@ class BaseActionService:
         Args:
             msg (_ActionGoalMessage.Request): Set Goal Request Message
         """
-        self.logger.debug(f'Received new goal request!\n--> {msg}')
         resp = _ActionGoalMessage.Response()
         if self._current_goal is None:
             self._current_goal = GoalHandler(self._msg_type,
@@ -382,10 +390,16 @@ class BaseActionService:
 
 
 class BaseActionClient:
+    @classmethod
+    def logger(cls) -> Logger:
+        global actions_logger
+        if actions_logger is None:
+            actions_logger = Logger(__name__)
+        return actions_logger
+
     def __init__(self,
                  action_name: str,
                  msg_type: ActionMessage = None,
-                 logger: Logger = None,
                  debug: bool = False,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
                  conn_params: ConnectionParametersBase = None,
@@ -397,7 +411,6 @@ class BaseActionClient:
         Args:
             action_name (str): The name (uri) of the action
             msg_type (ActionMessage): The type of the message
-            logger (Logger): Logger instance
             debug (bool): Debug mode
             on_feedback (callable): on_feedback
             on_result (callable): on_result
@@ -421,7 +434,6 @@ class BaseActionClient:
         self._result_client = None
         self._status_sub = None
         self._feedback_sub = None
-
         self._goal_id = None
 
         self._status = _ActionStatusMessage()
@@ -430,16 +442,13 @@ class BaseActionClient:
         self.on_result = on_result
         self.on_goal_reached = on_goal_reached
 
-        self._logger = Logger(self.__class__.__name__) if \
-            logger is None else logger
-
     @property
     def debug(self) -> bool:
         return self._debug
 
     @property
-    def logger(self) -> Logger:
-        return self._logger
+    def log(self):
+        return self.logger()
 
     def send_goal(self,
                   goal_msg: ActionMessage.Goal,

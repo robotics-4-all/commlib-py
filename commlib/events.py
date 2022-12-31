@@ -26,7 +26,7 @@ class BaseEventEmitter:
     def logger(cls) -> Logger:
         global em_logger
         if em_logger is None:
-            em_logger = Logger('EventEmitter')
+            em_logger = Logger(__name__)
         return em_logger
 
     def __init__(self,

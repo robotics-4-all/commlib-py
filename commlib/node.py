@@ -84,7 +84,7 @@ class HeartbeatThread(threading.Thread):
     def logger(cls) -> Logger:
         global n_logger
         if n_logger is None:
-            n_logger = Logger('NodeHeartbeat')
+            n_logger = Logger(__name__)
         return n_logger
 
     def __init__(self,
@@ -176,7 +176,7 @@ class Node:
     def logger(cls) -> Logger:
         global n_logger
         if n_logger is None:
-            n_logger = Logger(f'node-{cls.__name__}')
+            n_logger = Logger(__name__)
         return n_logger
 
     def __init__(self,
@@ -210,9 +210,9 @@ class Node:
         self._namespace = f'{self._node_name}'
         self._has_ctrl_services = ctrl_services
         self._heartbeats = heartbeats
+        self._compression = compression
         self._heartbeat_uri = heartbeat_uri if heartbeat_uri is not None else \
             f'{self._namespace}.heartbeat'
-        self._compression = compression
         self.state = NodeState.IDLE
 
         self._publishers = []
@@ -222,7 +222,6 @@ class Node:
         self._action_services = []
         self._action_clients = []
         self._event_emitters = []
-
 
         ## Set default ConnectionParameters ---->
         if transport_connection_params is not None and connection_params is None:
@@ -246,13 +245,6 @@ class Node:
 
     @property
     def log(self) -> Logger:
-        """logger.
-
-        Args:
-
-        Returns:
-            Logger:
-        """
         return self.logger()
 
     def create_heartbeat_thread(self) -> None:
@@ -331,9 +323,6 @@ class Node:
             'output': self.output_ports
         }
 
-    def get_logger(self):
-        return self.logger()
-
     def run(self) -> None:
         """run.
         Starts Services, Subscribers and ActionServices.
@@ -399,7 +388,6 @@ class Node:
         """
         pub = self._transport_module.Publisher(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -411,7 +399,6 @@ class Node:
         """
         pub = self._transport_module.MPublisher(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -423,7 +410,6 @@ class Node:
         """
         sub =  self._transport_module.Subscriber(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -435,7 +421,6 @@ class Node:
         """
         sub =  self._transport_module.PSubscriber(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -453,7 +438,6 @@ class Node:
         """
         rpc = self._transport_module.RPCService(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -465,7 +449,6 @@ class Node:
         """
         client = self._transport_module.RPCClient(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -477,7 +460,6 @@ class Node:
         """
         action =  self._transport_module.ActionService(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -489,7 +471,6 @@ class Node:
         """
         aclient = self._transport_module.ActionClient(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )

@@ -11,13 +11,8 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.properties import Properties
 from paho.mqtt.packettypes import PacketTypes
 
-from commlib.action import (BaseActionClient, BaseActionService,
-                            _ActionCancelMessage, _ActionFeedbackMessage,
-                            _ActionGoalMessage, _ActionResultMessage,
-                            _ActionStatusMessage)
 from commlib.events import BaseEventEmitter, Event
 from commlib.exceptions import RPCClientTimeoutError, MQTTError
-from commlib.logger import Logger
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCServer, BaseRPCService
@@ -26,8 +21,15 @@ from commlib.utils import gen_timestamp
 from commlib.connection import ConnectionParametersBase
 from commlib.compression import CompressionType, inflate_str, deflate
 from commlib.transports import BaseTransport
-
-mqtt_logger = None
+from commlib.action import (
+    BaseActionClient,
+    BaseActionService,
+    _ActionCancelMessage,
+    _ActionFeedbackMessage,
+    _ActionGoalMessage,
+    _ActionResultMessage,
+    _ActionStatusMessage
+)
 
 
 class MQTTReturnCode(IntEnum):
@@ -68,36 +70,24 @@ class ConnectionParameters(ConnectionParametersBase):
 class MQTTTransport(BaseTransport):
     """MQTTTransport.
     """
-    @classmethod
-    def logger(cls) -> Logger:
-        global mqtt_logger
-        if mqtt_logger is None:
-            mqtt_logger = Logger('MQTT-Transport')
-        return mqtt_logger
-
-    @property
-    def log(self):
-        return self.logger()
-
     def __init__(self,
-                 conn_params: ConnectionParameters = ConnectionParameters(),
                  serializer: Serializer = JSONSerializer(),
-                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION):
+                 compression: CompressionType =
+                 CompressionType.DEFAULT_COMPRESSION,
+                 *args, **kwargs):
         """__init__.
 
         Args:
             conn_params (ConnectionParameters): conn_params
             serializer (Serializer): serializer
             compression (CompressionType): compression_type
-            logger (Logger): logger
         """
-        self._connected = False
+        super().__init__(*args, **kwargs)
         self._client = None
-        self._conn_params = conn_params
         self._serializer = serializer
         self._compression= compression
 
-        ## Workaround for bith v3 and v5 support
+        ## Workaround for both v3 and v5 support
         # http://www.steves-internet-guide.com/python-mqtt-client-changes/
         if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
             properties = Properties(PacketTypes.CONNECT)
@@ -106,10 +96,6 @@ class MQTTTransport(BaseTransport):
             properties = None
         self._mqtt_properties = properties
         self.connect()
-
-    @property
-    def is_connected(self):
-        return self._connected
 
     def on_connect(self, client: Any, userdata: Any,
                    flags: Dict[str, Any], rc: int, properties=None):
@@ -168,8 +154,6 @@ class MQTTTransport(BaseTransport):
 
     def on_log(self, client: Any, userdata: Any,
                level, buf):
-        ## SPAM output
-        # self.log.debug(f'MQTT Log: {buf}')
         pass
 
     def publish(self, topic: str, payload: Dict[str, Any],
@@ -357,12 +341,12 @@ class Subscriber(BaseSubscriber):
         self._topic = self._transport.subscribe(self._topic,
                                                 self._on_message)
         super().run()
-        self.logger.debug(f'Started Subscriber: <{self._topic}>')
+        self.log.debug(f'Started Subscriber: <{self._topic}>')
 
     def run_forever(self):
         self._transport.subscribe(self._topic,
                                   self._on_message)
-        self.logger.debug(f'Started Subscriber: <{self._topic}>')
+        self.log.debug(f'Started Subscriber: <{self._topic}>')
         self._transport.loop_forever()
 
     def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -384,7 +368,7 @@ class Subscriber(BaseSubscriber):
                                              self._msg_type(**data))
                 _clb()
         except Exception:
-            self.logger.error('Exception caught in _on_message', exc_info=True)
+            self.log.error('Exception caught in _on_message', exc_info=True)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple:
         _uri = msg.topic
@@ -417,7 +401,7 @@ class PSubscriber(Subscriber):
                                              topic)
                 _clb()
         except Exception:
-            self.logger.error('Exception caught in _on_message', exc_info=True)
+            self.log.error('Exception caught in _on_message', exc_info=True)
 
 
 class RPCService(BaseRPCService):
@@ -461,7 +445,7 @@ class RPCService(BaseRPCService):
         try:
             data, header, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
-            self.logger.error('Could not unpack message. Dropping message!',
+            self.log.error('Could not unpack message. Dropping message!',
                               exc_info=False)
             return
         try:
@@ -472,7 +456,7 @@ class RPCService(BaseRPCService):
                 ## RPCMessage.Response object here
                 resp = resp.dict()
         except Exception as exc:
-            self.logger.error(str(exc), exc_info=False)
+            self.log.error(str(exc), exc_info=False)
             resp = {}
         reply_to = header['reply_to']
         self._send_response(resp, reply_to)
@@ -504,7 +488,7 @@ class RPCService(BaseRPCService):
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
-                    self.logger.debug('Stop event caught in thread')
+                    self.log.debug('Stop event caught in thread')
                     break
             time.sleep(0.001)
         self._transport.stop()
@@ -565,7 +549,7 @@ class RPCServer(BaseRPCServer):
                     resp = clb(msg_type.Request(**data))
                     resp = resp.dict()
         except Exception as exc:
-            self.logger.error(exc, exc_info=False)
+            self.log.error(exc, exc_info=False)
             resp = {}
             return
         self._send_response(resp, reply_to)
@@ -592,7 +576,7 @@ class RPCServer(BaseRPCServer):
             full_uri = uri
         else:
             full_uri = f'{self._base_uri}.{uri}'
-        self.logger.info(f'Registering endpoint <{full_uri}>')
+        self.log.info(f'Registering endpoint <{full_uri}>')
         self._transport.subscribe(full_uri, self._on_request_internal,
                                   qos=MQTTQoS.L1)
 
@@ -603,7 +587,7 @@ class RPCServer(BaseRPCServer):
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
-                    self.logger.debug('Stop event caught in thread')
+                    self.log.debug('Stop event caught in thread')
                     break
             time.sleep(0.001)
         self._transport.stop()
@@ -656,7 +640,7 @@ class RPCClient(BaseRPCClient):
         try:
             data, header, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
-            self.logger.error(exc, exc_info=True)
+            self.log.error(exc, exc_info=True)
             data = {}
         self._response = data
 
@@ -734,29 +718,24 @@ class ActionService(BaseActionService):
                                     rpc_name=self._goal_rpc_uri,
                                     conn_params=self._conn_params,
                                     on_request=self._handle_send_goal,
-                                    logger=self._logger,
                                     debug=self.debug)
         self._cancel_rpc = RPCService(msg_type=_ActionCancelMessage,
                                       rpc_name=self._cancel_rpc_uri,
                                       conn_params=self._conn_params,
                                       on_request=self._handle_cancel_goal,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._result_rpc = RPCService(msg_type=_ActionResultMessage,
                                       rpc_name=self._result_rpc_uri,
                                       conn_params=self._conn_params,
                                       on_request=self._handle_get_result,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._feedback_pub = Publisher(msg_type=_ActionFeedbackMessage,
                                        topic=self._feedback_topic,
                                        conn_params=self._conn_params,
-                                       logger=self._logger,
                                        debug=self.debug)
         self._status_pub = Publisher(msg_type=_ActionStatusMessage,
                                      topic=self._status_topic,
                                      conn_params=self._conn_params,
-                                     logger=self._logger,
                                      debug=self.debug)
 
 
@@ -777,26 +756,25 @@ class ActionClient(BaseActionClient):
         self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
                                       rpc_name=self._goal_rpc_uri,
                                       conn_params=self._conn_params,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._cancel_client = RPCClient(msg_type=_ActionCancelMessage,
                                         rpc_name=self._cancel_rpc_uri,
                                         conn_params=self._conn_params,
-                                        logger=self._logger,
                                         debug=self.debug)
         self._result_client = RPCClient(msg_type=_ActionResultMessage,
                                         rpc_name=self._result_rpc_uri,
                                         conn_params=self._conn_params,
-                                        logger=self._logger,
                                         debug=self.debug)
         self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
                                       conn_params=self._conn_params,
                                       topic=self._status_topic,
-                                      on_message=self._on_status)
+                                      on_message=self._on_status,
+                                      debug=self.debug)
         self._feedback_sub = Subscriber(msg_type=_ActionFeedbackMessage,
                                         conn_params=self._conn_params,
                                         topic=self._feedback_topic,
-                                        on_message=self._on_feedback)
+                                        on_message=self._on_feedback,
+                                        debug=self.debug)
 
 
 class EventEmitter(BaseEventEmitter):
