@@ -1,27 +1,18 @@
 import time
 from enum import IntEnum
-
-from typing import List
+from typing import List, Union
 
 from commlib.endpoints import endpoint_factory, EndpointType, TransportType
 from commlib.logger import Logger
 from commlib.msg import PubSubMessage, RPCMessage
+from commlib.connection import BaseConnectionParameters
 
-
-class BridgeType(IntEnum):
-    """BridgeType.
-    """
-
-    REDIS_TO_AMQP_RPC = 1
-    AMQP_TO_REDIS_RPC = 2
-    REDIS_TO_AMQP_TOPIC = 3
-    AMQP_TO_REDIS_TOPIC = 4
+br_logger = None
 
 
 class RPCBridgeType(IntEnum):
     """RPCBridgeType.
     """
-
     REDIS_TO_AMQP = 1
     AMQP_TO_REDIS = 2
     AMQP_TO_AMQP = 3
@@ -36,7 +27,6 @@ class RPCBridgeType(IntEnum):
 class TopicBridgeType(IntEnum):
     """TopicBridgeType.
     """
-
     REDIS_TO_AMQP = 1
     AMQP_TO_REDIS = 2
     AMQP_TO_AMQP = 3
@@ -52,24 +42,40 @@ class Bridge:
     """Bridge.
     Base Bridge Class.
     """
+    @classmethod
+    def logger(cls) -> Logger:
+        global br_logger
+        if br_logger is None:
+            br_logger = Logger(__name__)
+        return br_logger
 
-    def __init__(self, btype, logger=None, debug: bool = False):
+    def __init__(self,
+                 btype: Union[TopicBridgeType, RPCBridgeType],
+                 from_uri: str,
+                 to_uri: str,
+                 from_broker_params: BaseConnectionParameters,
+                 to_broker_params: BaseConnectionParameters,
+                 debug: bool = False):
         """__init__.
 
         Args:
             btype:
-            logger:
             debug (bool): debug
         """
         self._btype = btype
-        self._logger = Logger(self.__class__.__name__, debug=debug) if \
-            logger is None else logger
+        self._from_broker_params = from_broker_params
+        self._to_broker_params = to_broker_params
+        self._from_uri = from_uri
+        self._to_uri = to_uri
+        self._debug = debug
 
     @property
-    def logger(self):
-        """logger.
-        """
-        return self._logger
+    def debug(self) -> bool:
+        return self._debug
+
+    @property
+    def log(self) -> Logger:
+        return self.logger()
 
     def run(self):
         raise NotImplementedError()
@@ -93,29 +99,14 @@ class RPCBridge(Bridge):
 
     def __init__(self,
                  btype: RPCBridgeType,
-                 from_uri: str,
-                 to_uri: str,
-                 from_broker_params,
-                 to_broker_params,
                  msg_type: RPCMessage = None,
-                 logger: Logger = None,
-                 debug: bool = False):
+                 *args, **kwargs):
         """__init__.
 
         Args:
             btype (RPCBridgeType): RPC Bridge Type
-            from_uri (str):
-            to_uri (str):
-            from_broker_params:
-            to_broker_params:
-            logger (Logger):
-            debug (bool): debug flag
         """
-        super().__init__(btype, logger, debug)
-        self._from_broker_params = from_broker_params
-        self._to_broker_params = to_broker_params
-        self._from_uri = from_uri
-        self._to_uri = to_uri
+        super().__init__(btype, *args, **kwargs)
         self._msg_type = msg_type
 
         if self._btype == RPCBridgeType.REDIS_TO_AMQP:
@@ -151,14 +142,14 @@ class RPCBridge(Bridge):
                 msg_type=self._msg_type,
                 rpc_name=self._from_uri,
                 on_request=self.on_request,
-                debug=debug
+                debug=self.debug
             )
         self._client = endpoint_factory(
             EndpointType.RPCClient, to_transport)(
                 rpc_name=self._to_uri,
                 msg_type=self._msg_type,
                 conn_params=self._to_broker_params,
-                debug=debug
+                debug=self.debug
             )
 
     def on_request(self, msg: RPCMessage.Request):
@@ -179,7 +170,7 @@ class RPCBridge(Bridge):
         """run.
         """
         self._server.run()
-        self.logger.info(
+        self.log.info(
             f'Started RPC B2B Bridge <{self._from_uri} -> {self._to_uri}')
 
 
@@ -193,30 +184,15 @@ class TopicBridge(Bridge):
     """
     def __init__(self,
                  btype: TopicBridgeType,
-                 from_uri: str,
-                 to_uri: str,
-                 from_broker_params,
-                 to_broker_params,
                  msg_type: PubSubMessage = None,
-                 logger: Logger = None,
-                 debug: bool = False):
+                 *args, **kwargs):
         """__init__.
 
         Args:
             btype (TopicBridgeType): btype
-            from_uri (str): from_uri
-            to_uri (str): to_uri
-            from_broker_params:
-            to_broker_params:
             msg_type (PubSubMessage): msg_type
-            logger (Logger): logger
-            debug (bool): debug
         """
-        super().__init__(btype, logger, debug)
-        self._from_broker_params = from_broker_params
-        self._to_broker_params = to_broker_params
-        self._from_uri = from_uri
-        self._to_uri = to_uri
+        super().__init__(btype, *args, **kwargs)
         self._msg_type = msg_type
 
         if self._btype == RPCBridgeType.REDIS_TO_AMQP:
@@ -279,7 +255,7 @@ class TopicBridge(Bridge):
         """run.
         """
         self._sub.run()
-        self.logger.info(
+        self.log.info(
             f'Started Topic B2B Bridge ' + \
             f'<{self._from_broker_params.host}:' + \
             f'{self._from_broker_params.port}[{self._from_uri}] ' + \
@@ -297,33 +273,27 @@ class PTopicBridge(Bridge):
     """
     def __init__(self,
                  btype: TopicBridgeType,
-                 from_uri: str,
-                 to_namespace: str,
-                 from_broker_params,
-                 to_broker_params,
                  msg_type: PubSubMessage = None,
                  uri_transform: List = [],
-                 logger: Logger = None,
-                 debug: bool = False):
+                 *args, **kwargs):
         """__init__.
 
         Args:
             btype (TopicBridgeType): btype
             from_uri (str): from_uri
-            to_namespace (str): to_namespace
+            to_uri (str): to_uri
             from_broker_params:
             to_broker_params:
             msg_type (PubSubMessage): msg_type
-            logger (Logger): logger
             debug (bool): debug
         """
-        super().__init__(btype, logger, debug)
+        super().__init__(btype, *args, **kwargs)
         if not '*' in from_uri:
             raise ValueError('from_uri must be defined using topic patterns')
         self._from_broker_params = from_broker_params
         self._to_broker_params = to_broker_params
         self._from_uri = from_uri
-        self._to_namespace = to_namespace
+        self._to_uri = to_uri
         self._msg_type = msg_type
         self._uri_transform = uri_transform
 
@@ -398,8 +368,8 @@ class PTopicBridge(Bridge):
             msg (PubSubMessage): Published Message.
             topic (str): topic
         """
-        if self._to_namespace != '':
-            to_topic = f'{self._to_namespace}.{topic}'
+        if self._to_uri != '':
+            to_topic = f'{self._to_uri}.{topic}'
         else:
             to_topic = topic
         to_topic = self._transform_uri(to_topic)
@@ -418,9 +388,9 @@ class PTopicBridge(Bridge):
         """run.
         """
         self._sub.run()
-        self.logger.info(
+        self.log.info(
             f'Started B2B Multi-Topic Bridge ' + \
             f'<{self._from_broker_params.host}:' + \
             f'{self._from_broker_params.port}[{self._from_uri}] ' + \
             f'-> {self._to_broker_params.host}:' + \
-            f'{self._to_broker_params.port}[{self._to_namespace}.*]>')
+            f'{self._to_broker_params.port}[{self._to_uri}.*]>')

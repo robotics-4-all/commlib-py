@@ -76,9 +76,13 @@ def redis_to_amqp_rpc_bridge():
     bB_params = acomm.ConnectionParameters()
     bA_uri = 'rpc.bridge.testA'
     bB_uri = 'rpc.bridge.testB'
-    br = RPCBridge(RPCBridgeType.REDIS_TO_AMQP,
-                   ExampleRPCMessage, bA_uri, bB_uri,
-                   bA_params, bB_params, debug=False)
+    br = RPCBridge(btype=RPCBridgeType.REDIS_TO_AMQP,
+                   msg_type=ExampleRPCMessage,
+                   from_uri=bA_uri,
+                   to_uri=bB_uri,
+                   from_broker_params=bA_params,
+                   to_broker_params=bB_params,
+                   debug=False)
     br.run()
 
 
