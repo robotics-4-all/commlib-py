@@ -16,13 +16,19 @@ class BaseTransport:
         return transport_logger
 
     def __init__(self,
-                 conn_params: BaseConnectionParameters
+                 conn_params: BaseConnectionParameters,
+                 debug: bool = False
                  ):
         self._conn_params = conn_params
+        self._debug = debug
 
     @property
     def log(self):
         return self.logger()
+
+    @property
+    def debug(self):
+        return self._debug
 
     @property
     def is_connected(self) -> bool:

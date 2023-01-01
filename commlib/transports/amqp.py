@@ -10,10 +10,6 @@ from typing import Dict
 
 import pika
 
-from commlib.action import (BaseActionClient, BaseActionService,
-                            _ActionCancelMessage, _ActionFeedbackMessage,
-                            _ActionGoalMessage, _ActionResultMessage,
-                            _ActionStatusMessage)
 from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.events import BaseEventEmitter, Event
 from commlib.exceptions import *
@@ -22,6 +18,16 @@ from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCService
 from commlib.utils import gen_timestamp
 from commlib.connection import BaseConnectionParameters
+from commlib.transports import BaseTransport
+from commlib.action import (
+    BaseActionClient,
+    BaseActionService,
+    _ActionCancelMessage,
+    _ActionFeedbackMessage,
+    _ActionGoalMessage,
+    _ActionResultMessage,
+    _ActionStatusMessage
+)
 
 # Reduce log level for pika internal logger
 logging.getLogger("pika").setLevel(logging.WARN)
@@ -187,12 +193,10 @@ class AMQPTransport(BaseTransport):
     """AMQPT Transport implementation.
     """
     def __init__(self,
-                 debug: bool = False,
-                 connection: Connection = None
-                 ):
-        """Constructor."""
+                 connection: Connection = None,
+                 *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._connection = connection
-        self._debug = debug
         self._channel = None
         self._closing = False
         # Create a new connection
@@ -433,6 +437,7 @@ class RPCService(BaseRPCService):
     """
     def __init__(self,
                  exchange: str = '',
+                 connection: Connection = None,
                  *args, **kwargs):
         """__init__.
 
@@ -445,7 +450,9 @@ class RPCService(BaseRPCService):
         self._closing = False
         super(RPCService, self).__init__(*args, **kwargs)
 
-        self._transport = AMQPTransport(self._conn_params, self.debug, self.log)
+        self._transport = AMQPTransport(conn_params=self._conn_params,
+                                        connection=connection,
+                                        debug=self.debug)
 
     def run_forever(self, raise_if_exists: bool = False):
         """Run RPC Service in normal mode. Blocking operation."""
@@ -591,8 +598,8 @@ class RPCClient(BaseRPCClient):
             (BaseRPCClient).
     """
     def __init__(self,
-                 connection: Connection = None,
                  use_corr_id=False,
+                 connection: Connection = None,
                  *args, **kwargs):
         """Constructor."""
         self._use_corr_id = use_corr_id
@@ -604,8 +611,9 @@ class RPCClient(BaseRPCClient):
 
         super().__init__(*args, **kwargs)
 
-        self._transport = AMQPTransport(self._conn_params, self._debug,
-                                        self._logger, connection)
+        self._transport = AMQPTransport(conn_params=self._conn_params,
+                                        connection=connection,
+                                        debug=self.debug)
         self._transport.connect()
 
         ## Register on_request cabblack handle
@@ -749,15 +757,16 @@ class Publisher(BasePublisher):
     """
 
     def __init__(self,
-                 connection: Connection = None,
                  exchange: str = 'amq.topic',
+                 connection: Connection = None,
                  *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
         super().__init__(*args, **kwargs)
 
-        self._transport = AMQPTransport(self._conn_params, self._debug,
-                                        self._logger, connection)
+        self._transport = AMQPTransport(conn_params=self._conn_params,
+                                        connection=connection,
+                                        debug=self.debug)
         self._transport.connect()
         self._transport.create_exchange(self._topic_exchange,
                                         ExchangeType.Topic)
@@ -855,6 +864,7 @@ class Subscriber(BaseSubscriber):
                  queue_size: int = 10,
                  message_ttl: int = 60000,
                  overflow: str = 'drop-head',
+                 connection: Connection = None,
                  *args, **kwargs):
         """Constructor."""
         self._topic_exchange = exchange
@@ -867,8 +877,9 @@ class Subscriber(BaseSubscriber):
 
         super().__init__(*args, **kwargs)
 
-        self._transport = AMQPTransport(self._conn_params, self.debug,
-                                        self.log)
+        self._transport = AMQPTransport(conn_params=self._conn_params,
+                                        connection=connection,
+                                        debug=self.debug)
 
         self._last_msg_ts = None
         self._msg_freq_fifo = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
@@ -1060,29 +1071,24 @@ class ActionService(BaseActionService):
                                     rpc_name=self._goal_rpc_uri,
                                     conn_params=self._conn_params,
                                     on_request=self._handle_send_goal,
-                                    logger=self._logger,
                                     debug=self.debug)
         self._cancel_rpc = RPCService(msg_type=_ActionCancelMessage,
                                       rpc_name=self._cancel_rpc_uri,
                                       conn_params=self._conn_params,
                                       on_request=self._handle_cancel_goal,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._result_rpc = RPCService(msg_type=_ActionResultMessage,
                                       rpc_name=self._result_rpc_uri,
                                       conn_params=self._conn_params,
                                       on_request=self._handle_get_result,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._feedback_pub = Publisher(msg_type=_ActionFeedbackMessage,
                                        topic=self._feedback_topic,
                                        conn_params=self._conn_params,
-                                       logger=self._logger,
                                        debug=self.debug)
         self._status_pub = Publisher(msg_type=_ActionStatusMessage,
                                      topic=self._status_topic,
                                      conn_params=self._conn_params,
-                                     logger=self._logger,
                                      debug=self.debug)
 
 
@@ -1101,17 +1107,14 @@ class ActionClient(BaseActionClient):
         self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
                                       rpc_name=self._goal_rpc_uri,
                                       conn_params=self._conn_params,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._cancel_client = RPCClient(msg_type=_ActionCancelMessage,
                                         rpc_name=self._cancel_rpc_uri,
                                         conn_params=self._conn_params,
-                                        logger=self._logger,
                                         debug=self.debug)
         self._result_client = RPCClient(msg_type=_ActionResultMessage,
                                         rpc_name=self._result_rpc_uri,
                                         conn_params=self._conn_params,
-                                        logger=self._logger,
                                         debug=self.debug)
         self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
                                       conn_params=self._conn_params,
@@ -1136,7 +1139,7 @@ class EventEmitter(BaseEventEmitter):
 
         self._transport = AMQPTransport(conn_params=self._conn_params,
                                         connection=connection,
-                                        logger=self._logger)
+                                        debug=self.debug)
         self._transport.connect()
         self._exchange = exchange
 
@@ -1148,7 +1151,6 @@ class EventEmitter(BaseEventEmitter):
 
     def send_event(self, event: Event):
         _data = event.dict()
-        self._logger.debug(f'Sending Event <{event.uri}>')
         self._transport.add_threadsafe_callback(
             functools.partial(self._send_data, event.uri, _data)
         )

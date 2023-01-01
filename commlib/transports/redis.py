@@ -6,10 +6,6 @@ from typing import Any, Dict, Tuple, Callable, Optional
 
 import redis
 
-from commlib.action import (BaseActionClient, BaseActionService,
-                            _ActionCancelMessage, _ActionFeedbackMessage,
-                            _ActionGoalMessage, _ActionResultMessage,
-                            _ActionStatusMessage)
 from commlib.events import BaseEventEmitter, Event
 from commlib.exceptions import RPCClientTimeoutError, SubscriberError
 from commlib.logger import Logger
@@ -20,6 +16,16 @@ from commlib.serializer import Serializer, JSONSerializer
 from commlib.compression import CompressionType, inflate_str, deflate
 from commlib.utils import gen_timestamp
 from commlib.connection import BaseConnectionParameters
+from commlib.transports import BaseTransport
+from commlib.action import (
+    BaseActionClient,
+    BaseActionService,
+    _ActionCancelMessage,
+    _ActionFeedbackMessage,
+    _ActionGoalMessage,
+    _ActionResultMessage,
+    _ActionStatusMessage
+)
 
 redis_logger = None
 
@@ -47,29 +53,25 @@ class RedisConnection(redis.Redis):
         super(RedisConnection, self).__init__(*args, **kwargs)
 
 
-class RedisTransport(object):
+class RedisTransport(BaseTransport):
     @classmethod
     def logger(cls) -> Logger:
         global redis_logger
         if redis_logger is None:
-            redis_logger = Logger('redis')
+            redis_logger = Logger(__name__)
         return redis_logger
 
     def __init__(self,
-                 conn_params: Any = None,
                  compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
-                 serializer: Serializer = JSONSerializer()):
+                 serializer: Serializer = JSONSerializer(),
+                 *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (Any): conn_params
             serializer (Serializer): serializer
             compression (CompressionType): compression
         """
-        self._connected = False
-        conn_params = ConnectionParameters() if \
-            conn_params is None else conn_params
-        self._conn_params = conn_params
+        super().__init__(*args, **kwargs)
         self._serializer = serializer
         self._compression = compression
         self.connect()
@@ -160,7 +162,6 @@ class RPCService(BaseRPCService):
     """RPCService.
     Redis RPC Service class
     """
-
     def __init__(self, *args, **kwargs):
         """__init__.
 
@@ -188,7 +189,7 @@ class RPCService(BaseRPCService):
                 ## RPCMessage.Response object here
                 resp = resp.dict()
         except Exception as exc:
-            self.logger.error(str(exc), exc_info=False)
+            self.log.error(str(exc), exc_info=False)
             resp = {}
         reply_to = header['reply_to']
         self._send_response(resp, reply_to)
@@ -203,14 +204,14 @@ class RPCService(BaseRPCService):
             self._detach_request_handler(payload)
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
-                    self.logger.debug('Stop event caught in thread')
+                    self.log.debug('Stop event caught in thread')
                     self._transport.delete_queue(self._rpc_name)
                     break
             time.sleep(0.001)
 
     def _detach_request_handler(self, payload):
         data, header = self._unpack_comm_msg(payload)
-        self.logger.debug(f'RPC Request <{self._rpc_name}>')
+        self.log.debug(f'RPC Request <{self._rpc_name}>')
         _future = self.__exec_in_thread(
             functools.partial(self._on_request, data, header)
         )
@@ -230,7 +231,6 @@ class RPCService(BaseRPCService):
 class RPCClient(BaseRPCClient):
     """RPCClient.
     """
-
     def __init__(self, *args, **kwargs):
         """__init__.
 
@@ -321,7 +321,7 @@ class Publisher(BasePublisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.dict()
-        self.logger.debug(f'Publishing Message to topic <{self._topic}>')
+        self.log.debug(f'Publishing Message to topic <{self._topic}>')
         self._transport.publish(self._topic, data)
         self._msg_seq += 1
 
@@ -359,7 +359,7 @@ class MPublisher(Publisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.dict()
-        self.logger.debug(
+        self.log.debug(
             f'Publishing Message: <{topic}>:{data}')
         self._transport.publish(topic, data)
         self._msg_seq += 1
@@ -391,7 +391,7 @@ class Subscriber(BaseSubscriber):
     def run(self):
         self._subscriber_thread = self._transport.subscribe(self._topic,
                                                             self._on_message)
-        self.logger.debug(f'Started Subscriber: <{self._topic}>')
+        self.log.debug(f'Started Subscriber: <{self._topic}>')
 
     def stop(self):
         """Stop background thread that handle subscribed topic messages"""
@@ -415,7 +415,7 @@ class Subscriber(BaseSubscriber):
                                              self._msg_type(**data))
                 _clb()
         except Exception:
-            self.logger.error('Exception caught in _on_message', exc_info=True)
+            self.log.error('Exception caught in _on_message', exc_info=True)
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
         _uri = msg['channel']
@@ -442,7 +442,7 @@ class PSubscriber(Subscriber):
                                              topic)
                 _clb()
         except Exception:
-            self.logger.error('Exception caught in _on_message', exc_info=True)
+            self.log.error('Exception caught in _on_message', exc_info=True)
 
 
 class ActionService(BaseActionService):
@@ -463,29 +463,24 @@ class ActionService(BaseActionService):
                                     rpc_name=self._goal_rpc_uri,
                                     conn_params=self._conn_params,
                                     on_request=self._handle_send_goal,
-                                    logger=self._logger,
                                     debug=self.debug)
         self._cancel_rpc = RPCService(msg_type=_ActionCancelMessage,
                                       rpc_name=self._cancel_rpc_uri,
                                       conn_params=self._conn_params,
                                       on_request=self._handle_cancel_goal,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._result_rpc = RPCService(msg_type=_ActionResultMessage,
                                       rpc_name=self._result_rpc_uri,
                                       conn_params=self._conn_params,
                                       on_request=self._handle_get_result,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._feedback_pub = Publisher(msg_type=_ActionFeedbackMessage,
                                        topic=self._feedback_topic,
                                        conn_params=self._conn_params,
-                                       logger=self._logger,
                                        debug=self.debug)
         self._status_pub = Publisher(msg_type=_ActionStatusMessage,
                                      topic=self._status_topic,
                                      conn_params=self._conn_params,
-                                     logger=self._logger,
                                      debug=self.debug)
 
 
@@ -506,17 +501,14 @@ class ActionClient(BaseActionClient):
         self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
                                       rpc_name=self._goal_rpc_uri,
                                       conn_params=self._conn_params,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._cancel_client = RPCClient(msg_type=_ActionCancelMessage,
                                         rpc_name=self._cancel_rpc_uri,
                                         conn_params=self._conn_params,
-                                        logger=self._logger,
                                         debug=self.debug)
         self._result_client = RPCClient(msg_type=_ActionResultMessage,
                                         rpc_name=self._result_rpc_uri,
                                         conn_params=self._conn_params,
-                                        logger=self._logger,
                                         debug=self.debug)
         self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
                                       conn_params=self._conn_params,
