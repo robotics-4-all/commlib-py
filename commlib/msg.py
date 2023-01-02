@@ -23,6 +23,7 @@ class MessageHeader(BaseModel):
     node_id: Union[int, str, UUID] = ''
     agent: str = 'commlib-py'
     timestamp: int = gen_timestamp()
+    properties: Dict[str, Any] = {}
 
 
 class RPCMessage(BaseModel):

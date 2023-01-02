@@ -1,56 +1,47 @@
 from concurrent.futures import ThreadPoolExecutor
 import threading
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Optional
 
-from .serializer import Serializer, JSONSerializer
-from .logger import Logger
-from .utils import gen_random_id
-from .msg import PubSubMessage
-from .compression import CompressionType
+from commlib.serializer import Serializer, JSONSerializer
+from commlib.logger import Logger
+from commlib.utils import gen_random_id
+from commlib.msg import PubSubMessage
+from commlib.connection import BaseConnectionParameters
+from commlib.endpoints import BaseEndpoint
 
 
-class BasePublisher(object):
+pubsub_logger = None
+
+
+class BasePublisher(BaseEndpoint):
     """BasePublisher.
     """
+    @classmethod
+    def logger(cls) -> Logger:
+        global pubsub_logger
+        if pubsub_logger is None:
+            pubsub_logger = Logger(__name__)
+        return pubsub_logger
 
-    def __init__(self, topic: str = None,
+    def __init__(self,
+                 topic: str,
                  msg_type: PubSubMessage = None,
-                 logger: Logger = None,
-                 debug: bool = True,
-                 serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION):
+                 *args, **kwargs):
         """__init__.
 
         Args:
             topic (str): topic
             msg_type (PubSubMessage): msg_type
-            logger (Logger): logger
-            debug (bool): debug
-            serializer:
         """
-        if topic is None:
-            raise ValueError('Topic Name not defined')
-
-        self._debug = debug
+        super().__init__(*args, **kwargs)
         self._topic = topic
         self._msg_type = msg_type
-        self._serializer = serializer
-        self._compression = compression
-
-        self._logger = Logger(self.__class__.__name__) if \
-            logger is None else logger
-
         self._gen_random_id = gen_random_id
 
-        self.logger.debug(f'Initiated Publisher <{self._topic}>')
-
     @property
-    def debug(self) -> bool:
-        return self._debug
-
-    @property
-    def logger(self) -> Logger:
-        return self._logger
+    def topic(self) -> str:
+        """topic"""
+        return self._topic
 
     def publish(self, msg: PubSubMessage) -> None:
         """publish.
@@ -63,44 +54,47 @@ class BasePublisher(object):
         """
         raise NotImplementedError()
 
+    def run(self):
+        if self._transport is not None:
+            self._transport.start()
 
-class BaseSubscriber(object):
+    def stop(self) -> None:
+        if self._transport is not None:
+            self._transport.stop()
+
+    def __del__(self):
+        self.stop()
+
+
+class BaseSubscriber(BaseEndpoint):
     """BaseSubscriber.
     """
+    @classmethod
+    def logger(cls) -> Logger:
+        global pubsub_logger
+        if pubsub_logger is None:
+            pubsub_logger = Logger(__name__)
+        return pubsub_logger
 
-    def __init__(self, topic: str = None,
-                 msg_type: PubSubMessage = None,
-                 on_message: Callable = None,
-                 logger: Logger = None,
-                 debug: bool = True,
-                 serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION):
+    def __init__(self,
+                 topic: str,
+                 msg_type: Optional[PubSubMessage] = None,
+                 on_message: Optional[Callable] = None,
+                 *args, **kwargs):
         """__init__.
 
         Args:
             topic (str): topic
             msg_type (PubSubMessage): msg_type
             on_message (callable): on_message
-            logger (Logger): logger
-            debug (bool): debug
-            serializer:
         """
-        if topic is None:
-            raise ValueError('Topic name cannot be None')
-        self._debug = debug
+        super().__init__(*args, **kwargs)
         self._topic = topic
         self._msg_type = msg_type
-        self._compression = compression
-        self._serializer = serializer
         self.onmessage = on_message
-
-        self._logger = Logger(self.__class__.__name__) if \
-            logger is None else logger
-
         self._gen_random_id = gen_random_id
 
         self._executor = ThreadPoolExecutor(max_workers=2)
-
         self._main_thread = None
         self._t_stop_event = None
 
@@ -108,14 +102,6 @@ class BaseSubscriber(object):
     def topic(self) -> str:
         """topic"""
         return self._topic
-
-    @property
-    def debug(self) -> bool:
-        return self._debug
-
-    @property
-    def logger(self) -> Logger:
-        return self._logger
 
     def run_forever(self) -> None:
         """run_forever.
@@ -145,8 +131,11 @@ class BaseSubscriber(object):
         self._main_thread.daemon = True
         self._t_stop_event = threading.Event()
         self._main_thread.start()
-        self.logger.info(f'Started Subscriber: <{self._topic}>')
 
     def stop(self) -> None:
         if self._t_stop_event is not None:
             self._t_stop_event.set()
+        self._transport.stop()
+
+    def __del__(self):
+        self.stop()

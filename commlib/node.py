@@ -2,12 +2,14 @@ import threading
 import time
 from enum import IntEnum
 from functools import wraps
-from typing import Any, Dict, List, Optional
-from commlib.compression import CompressionType
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from pydantic import BaseModel
 
+from commlib.compression import CompressionType
 from commlib.endpoints import TransportType
 from commlib.logger import Logger
 from commlib.msg import HeartbeatMessage, RPCMessage
+from commlib.pubsub import BasePublisher
 from commlib.utils import gen_random_id
 
 n_logger = None
@@ -82,11 +84,12 @@ class HeartbeatThread(threading.Thread):
     def logger(cls) -> Logger:
         global n_logger
         if n_logger is None:
-            n_logger = Logger('MQTTHeartbeatThread')
+            n_logger = Logger(__name__)
         return n_logger
 
-    def __init__(self, pub_instance=None,
-                 interval: int = 10,
+    def __init__(self,
+                 pub_instance: BasePublisher,
+                 interval: Optional[int] = 10,
                  *args, **kwargs):
         """__init__.
 
@@ -117,10 +120,9 @@ class HeartbeatThread(threading.Thread):
                 # Wait for n seconds or until stop event is raised
                 self._stop_event.wait(self._rate_secs)
                 msg.ts = self.get_ts()
+            self.logger().error('Heartbeat Thread Ended')
         except Exception as exc:
             self.logger().error(f'Exception in Heartbeat-Thread: {exc}')
-        finally:
-            self.logger().error('Heartbeat Thread Ended')
 
     def force_join(self, timeout: float = None):
         """force_join.
@@ -174,7 +176,7 @@ class Node:
     def logger(cls) -> Logger:
         global n_logger
         if n_logger is None:
-            n_logger = Logger(f'node-{cls.__name__}')
+            n_logger = Logger(__name__)
         return n_logger
 
     def __init__(self,
@@ -182,7 +184,7 @@ class Node:
                  connection_params: Optional[Any] = None,
                  transport_connection_params: Optional[Any] = None,
                  debug: Optional[bool] = False,
-                 heartbeat_thread: Optional[bool] = True,
+                 heartbeats: Optional[bool] = True,
                  heartbeat_uri: Optional[str] = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
                  ctrl_services: Optional[bool] = False):
@@ -195,7 +197,7 @@ class Node:
             transport_connection_params (Optional[Any]): Same with connection_params.
                 Used for backward compatibility
             debug (Optional[bool]): debug
-            heartbeat_thread (Optional[bool]): heartbeat_thread
+            heartbeats (Optional[bool]): heartbeat_thread
             heartbeat_uri (Optional[str]): heartbeat_uri
             ctrl_services (Optional[bool]): ctrl_services
         """
@@ -204,13 +206,14 @@ class Node:
         node_name = node_name.replace('-', '_')
         self._node_name = node_name
         self._debug = debug
-        self._heartbeat_thread = heartbeat_thread
-        self._heartbeat_uri = heartbeat_uri
-        self._compression = compression
         self._hb_thread = None
-        self.state = NodeState.IDLE
-        self._has_ctrl_services = ctrl_services
         self._namespace = f'{self._node_name}'
+        self._has_ctrl_services = ctrl_services
+        self._heartbeats = heartbeats
+        self._compression = compression
+        self._heartbeat_uri = heartbeat_uri if heartbeat_uri is not None else \
+            f'{self._namespace}.heartbeat'
+        self.state = NodeState.IDLE
 
         self._publishers = []
         self._subscribers = []
@@ -219,7 +222,6 @@ class Node:
         self._action_services = []
         self._action_clients = []
         self._event_emitters = []
-
 
         ## Set default ConnectionParameters ---->
         if transport_connection_params is not None and connection_params is None:
@@ -233,6 +235,8 @@ class Node:
             import commlib.transports.redis as transport_module
         elif type_str == 'commlib.transports.amqp.ConnectionParameters':
             import commlib.transports.amqp as transport_module
+        elif type_str == 'commlib.transports.mock.ConnectionParameters':
+            import commlib.transports.mock as transport_module
         else:
             raise ValueError('Transport type is not supported!')
         self._transport_module = transport_module
@@ -241,40 +245,32 @@ class Node:
 
     @property
     def log(self) -> Logger:
-        """logger.
-
-        Args:
-
-        Returns:
-            Logger:
-        """
         return self.logger()
 
-    def init_heartbeat_thread(self, topic: str = None) -> None:
-        """init_heartbeat_thread.
+    def create_heartbeat_thread(self) -> None:
+        """create_heartbeat_thread.
         Starts the heartbeat thread. Heartbeat messages are sent periodically
         to inform about correct execution of the node.
 
         Args:
             topic (str): topic
         """
-        if topic is None:
-            topic = f'{self._namespace}.heartbeat'
         self._hb_thread = HeartbeatThread(
-            self.create_publisher(topic=topic, msg_type=HeartbeatMessage)
+            self.create_publisher(topic=self._heartbeat_uri,
+                                  msg_type=HeartbeatMessage)
         )
-        self._hb_thread.start()
-        self.log.info(
-            f'Started Heartbeat Publisher <{topic}> in background')
 
-    def init_stop_service(self, uri: str = None) -> None:
+    def start_heartbeat_thread(self):
+        self._hb_thread.start()
+        self.log.debug(
+            f'Started Heartbeat Publisher <{self._heartbeat_uri}>')
+
+    def create_stop_service(self, uri: str = None) -> None:
         if uri is None:
             uri = f'{self._namespace}.stop'
-        stop_rpc = self.create_rpc(rpc_name=uri,
-                                   msg_type=_NodeStopMessage,
-                                   on_request=self._stop_rpc_callback)
-        stop_rpc.run()
-        self._stop_rpc = stop_rpc
+        self.create_rpc(rpc_name=uri,
+                        msg_type=_NodeStopMessage,
+                        on_request=self._stop_rpc_callback)
 
     def _stop_rpc_callback(self, msg: _NodeStopMessage.Request) -> \
             _NodeStopMessage.Response:
@@ -287,14 +283,12 @@ class Node:
             resp.error = 'Cannot make the transition from current state!'
         return resp
 
-    def init_start_service(self, uri: str = None) -> None:
+    def create_start_service(self, uri: str = None) -> None:
         if uri is None:
             uri = f'{self._namespace}.start'
-        start_rpc = self.create_rpc(rpc_name=uri,
-                                    msg_type=_NodeStartMessage,
-                                    on_request=self._start_rpc_callback)
-        start_rpc.run()
-        self._start_rpc = start_rpc
+        self.create_rpc(rpc_name=uri,
+                        msg_type=_NodeStartMessage,
+                        on_request=self._start_rpc_callback)
 
     def _start_rpc_callback(self, msg: _NodeStartMessage.Request) -> \
             _NodeStartMessage.Response:
@@ -329,9 +323,6 @@ class Node:
             'output': self.output_ports
         }
 
-    def get_logger(self):
-        return self.logger()
-
     def run(self) -> None:
         """run.
         Starts Services, Subscribers and ActionServices.
@@ -342,18 +333,25 @@ class Node:
         Returns:
             None:
         """
-        for s in self._subscribers:
-            s.run()
-        for r in self._rpc_services:
-            r.run()
-        for r in self._action_services:
-            r.run()
-        if self._heartbeat_thread:
-            self.init_heartbeat_thread(self._heartbeat_uri)
+        if self._heartbeats:
+            self.create_heartbeat_thread()
         if self._has_ctrl_services:
-            self.init_start_service()
-        if self._has_ctrl_services:
-            self.init_stop_service()
+            self.create_start_service()
+            self.create_stop_service()
+        for c in self._subscribers:
+            c.run()
+        for c in self._publishers:
+            c.run()
+        for c in self._rpc_services:
+            c.run()
+        for c in self._rpc_clients:
+            c.run()
+        for c in self._action_services:
+            c.run()
+        for c in self._action_clients:
+            c.run()
+        if self._heartbeats:
+            self.start_heartbeat_thread()
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.001) -> None:
@@ -372,19 +370,24 @@ class Node:
         self.stop()
 
     def stop(self):
-        for s in self._subscribers:
-            s.stop()
-        for r in self._rpc_services:
-            r.stop()
-        for r in self._action_services:
-            r.stop()
+        for c in self._subscribers:
+            c.stop()
+        for c in self._publishers:
+            c.stop()
+        for c in self._rpc_services:
+            c.stop()
+        for c in self._rpc_clients:
+            c.stop()
+        for c in self._action_services:
+            c.stop()
+        for c in self._action_clients:
+            c.stop()
 
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint.
         """
         pub = self._transport_module.Publisher(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -396,7 +399,6 @@ class Node:
         """
         pub = self._transport_module.MPublisher(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -408,7 +410,6 @@ class Node:
         """
         sub =  self._transport_module.Subscriber(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -420,7 +421,6 @@ class Node:
         """
         sub =  self._transport_module.PSubscriber(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -438,7 +438,6 @@ class Node:
         """
         rpc = self._transport_module.RPCService(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -450,7 +449,6 @@ class Node:
         """
         client = self._transport_module.RPCClient(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -462,7 +460,6 @@ class Node:
         """
         action =  self._transport_module.ActionService(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )
@@ -474,7 +471,6 @@ class Node:
         """
         aclient = self._transport_module.ActionClient(
             conn_params=self._conn_params,
-            logger=self.logger(),
             compression=self._compression,
             *args, **kwargs
         )

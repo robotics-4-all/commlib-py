@@ -1,19 +1,17 @@
 from concurrent.futures import ThreadPoolExecutor
 import threading
-import uuid
-from concurrent import futures
 from functools import partial
 from typing import Any, Dict, Callable
+from pydantic import BaseModel
 
 from commlib.serializer import JSONSerializer, Serializer
-from commlib.compression import CompressionType
+from commlib.connection import BaseConnectionParameters
 from commlib.logger import Logger
+from commlib.endpoints import BaseEndpoint
 from commlib.utils import gen_random_id, gen_timestamp
-from pydantic import BaseModel
-from commlib.msg import (
-    PubSubMessage,
-    RPCMessage
-)
+from commlib.msg import RPCMessage
+
+rpc_logger = None
 
 
 class CommRPCHeader(BaseModel):
@@ -26,56 +24,39 @@ class CommRPCObject(BaseModel):
     data: Dict[str, Any] = {}
 
 
-class BaseRPCServer:
+class BaseRPCServer(BaseEndpoint):
     """RPCServer Base class.
     Inherit to implement transport-specific RPCService.
 
     Args:
         - rpc_name (str)
     """
+    @classmethod
+    def logger(cls) -> Logger:
+        global rpc_logger
+        if rpc_logger is None:
+            rpc_logger = Logger(__name__)
+        return rpc_logger
 
     def __init__(self,
                  base_uri: str = '',
                  svc_map: dict = {},
-                 logger: Logger = None,
-                 debug: bool = False,
                  workers: int = 2,
-                 serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION):
+                 *args, **kwargs):
         """__init__.
 
         Args:
-            logger (Logger): logger
-            debug (bool): debug
-            workers (int): workers
-            serializer:
+            workers (int): Number of workers to start listening
         """
+        super().__init__(*args, **kwargs)
         self._base_uri = base_uri
         self._svc_map = svc_map
         self._num_workers = workers
-        self._debug = debug
-        self._serializer = serializer
-        self._compression = compression
-
-        self._logger = Logger(self.__class__.__name__, self._debug) if \
-            logger is None else logger
-
         self._gen_random_id = gen_random_id
-
         self._executor = ThreadPoolExecutor(max_workers=self._num_workers)
-
         self._main_thread = None
         self._t_stop_event = None
-
         self._comm_obj = CommRPCObject()
-
-    @property
-    def debug(self):
-        return self._debug
-
-    @property
-    def logger(self):
-        return self._logger
 
     def run_forever(self):
         """run_forever.
@@ -91,63 +72,48 @@ class BaseRPCServer:
         self._main_thread.daemon = True
         self._t_stop_event = threading.Event()
         self._main_thread.start()
-        self.logger.info(f'Started RPC Server <{self._base_uri}>!')
 
-    def stop(self):
-        """stop.
-        Stop the RPC Service.
-        """
-        if self._t_stop_event is not None:
-            self._t_stop_event.set()
+    def stop(self) -> None:
+        self._transport.stop()
 
 
-class BaseRPCService:
+class BaseRPCService(BaseEndpoint):
     """RPCService Base class.
     Inherit to implement transport-specific RPCService.
 
     Args:
         - rpc_name (str)
     """
+    @classmethod
+    def logger(cls) -> Logger:
+        global rpc_logger
+        if rpc_logger is None:
+            rpc_logger = Logger(__name__)
+        return rpc_logger
 
-    def __init__(self, rpc_name: str = None,
+    def __init__(self,
+                 rpc_name: str,
                  msg_type: RPCMessage = None,
                  on_request: Callable = None,
-                 logger: Logger = None,
-                 debug: bool = False,
                  workers: int = 2,
-                 serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION):
+                 *args, **kwargs):
         """__init__.
 
         Args:
             rpc_name (str): rpc_name
             msg_type (RPCMessage): msg_type
             on_request (callable): on_request
-            logger (Logger): logger
-            debug (bool): debug
             workers (int): workers
-            serializer:
         """
-        if rpc_name is None:
-            raise ValueError('RPC Name cannot be None')
+        super().__init__(*args, **kwargs)
         self._rpc_name = rpc_name
         self._msg_type = msg_type
         self._num_workers = workers
-        self._debug = debug
         self.on_request = on_request
-        self._serializer = serializer
-        self._compression = compression
-
-        self._logger = Logger(self.__class__.__name__, self._debug) if \
-            logger is None else logger
-
         self._gen_random_id = gen_random_id
-
         self._executor = ThreadPoolExecutor(max_workers=2)
-
         self._main_thread = None
         self._t_stop_event = None
-
         self._comm_obj = CommRPCObject()
 
     def _serialize_data(self, payload: Dict[str, Any]) -> str:
@@ -156,14 +122,6 @@ class BaseRPCService:
     def _serialize_response(self, message: RPCMessage.Response) -> str:
         return self._serialize_data(message.dict())
 
-    @property
-    def debug(self):
-        return self._debug
-
-    @property
-    def logger(self):
-        return self._logger
-
     def run_forever(self):
         """run_forever.
         Run the RPC service in background and blocks the main thread.
@@ -178,7 +136,6 @@ class BaseRPCService:
         self._main_thread.daemon = True
         self._t_stop_event = threading.Event()
         self._main_thread.start()
-        self.logger.info(f'Started RPC Service <{self._rpc_name}>')
 
     def stop(self):
         """stop.
@@ -186,55 +143,35 @@ class BaseRPCService:
         """
         if self._t_stop_event is not None:
             self._t_stop_event.set()
+        if self._transport is not None:
+            self._transport.stop()
+
+    def __del__(self):
+        self.stop()
 
 
-class BaseRPCClient:
+class BaseRPCClient(BaseEndpoint):
     """RPCClient Base class.
     Inherit to implement transport-specific RPCClient.
     """
 
     def __init__(self,
-                 rpc_name: str = None,
+                 rpc_name: str,
                  msg_type: RPCMessage = None,
-                 logger: Logger = None,
-                 debug: bool = False,
                  max_workers: int = 5,
-                 serializer: Serializer = JSONSerializer,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION):
+                 *args, **kwargs):
         """__init__.
 
         Args:
             rpc_name (str): rpc_name
             msg_type (RPCMessage): msg_type
-            logger (Logger): logger
-            debug (bool): debug
         """
-        if rpc_name is None:
-            raise ValueError('RPC name cannot be None')
+        super().__init__(*args, **kwargs)
         self._rpc_name = rpc_name
         self._msg_type = msg_type
-        self._debug = debug
-        self._serializer = serializer
-        self._compression = compression
-
-        self._logger = Logger(self.__class__.__name__, debug=self._debug) if \
-            logger is None else logger
-
         self._gen_random_id = gen_random_id
-
-        self._executor = futures.ThreadPoolExecutor(max_workers=max_workers)
-
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._comm_obj = CommRPCObject()
-
-        self.logger.debug('Created RPC Client: <{}>'.format(self._rpc_name))
-
-    @property
-    def debug(self):
-        return self._debug
-
-    @property
-    def logger(self):
-        return self._logger
 
     def call(self, msg: RPCMessage.Request,
              timeout: float = 30) -> RPCMessage.Response:
@@ -271,12 +208,12 @@ class BaseRPCClient:
 
     def _done_callback(self, on_response: callable, _future):
         if _future.cancelled():
-            self.logger.debug('Future object was cancelled')
+            pass
             ## TODO: Implement Calcellation logic
         elif _future.done():
             error = _future.exception()
             if error:
-                self.logger.debug('Future threw exception')
+                pass
                 ## TODO: Implement Exception logic
             else:
                 result = _future.result()
@@ -289,3 +226,13 @@ class BaseRPCClient:
     def _serialize_request(self, message: RPCMessage.Request) -> str:
         return self._serialize_data(message.dict())
 
+    def run(self):
+        if self._transport is not None:
+            self._transport.start()
+
+    def stop(self) -> None:
+        if self._transport is not None:
+            self._transport.stop()
+
+    def __del__(self):
+        self.stop()

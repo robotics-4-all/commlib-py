@@ -11,22 +11,25 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.properties import Properties
 from paho.mqtt.packettypes import PacketTypes
 
-from commlib.action import (BaseActionClient, BaseActionService,
-                            _ActionCancelMessage, _ActionFeedbackMessage,
-                            _ActionGoalMessage, _ActionResultMessage,
-                            _ActionStatusMessage)
 from commlib.events import BaseEventEmitter, Event
-from commlib.exceptions import RPCClientTimeoutError
-from commlib.logger import Logger
+from commlib.exceptions import RPCClientTimeoutError, MQTTError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCServer, BaseRPCService
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.utils import gen_timestamp
-from commlib.connection import ConnectionParametersBase
-
-mqtt_logger = None
+from commlib.connection import BaseConnectionParameters
 from commlib.compression import CompressionType, inflate_str, deflate
+from commlib.transports import BaseTransport
+from commlib.action import (
+    BaseActionClient,
+    BaseActionService,
+    _ActionCancelMessage,
+    _ActionFeedbackMessage,
+    _ActionGoalMessage,
+    _ActionResultMessage,
+    _ActionStatusMessage
+)
 
 
 class MQTTReturnCode(IntEnum):
@@ -54,7 +57,7 @@ class MQTTQoS(IntEnum):
     L2 = 2  # Exactly Once
 
 
-class ConnectionParameters(ConnectionParametersBase):
+class ConnectionParameters(BaseConnectionParameters):
     host: str = 'localhost'
     port: int = 1883
     username: str = ''
@@ -64,37 +67,27 @@ class ConnectionParameters(ConnectionParametersBase):
     transport: str = 'tcp'
 
 
-class MQTTTransport:
+class MQTTTransport(BaseTransport):
     """MQTTTransport.
     """
-    @classmethod
-    def logger(cls) -> Logger:
-        global mqtt_logger
-        if mqtt_logger is None:
-            mqtt_logger = Logger('mqtt')
-        return mqtt_logger
-
-    @property
-    def log(self):
-        return self.logger()
-
     def __init__(self,
-                 conn_params: ConnectionParameters = ConnectionParameters(),
                  serializer: Serializer = JSONSerializer(),
-                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION):
+                 compression: CompressionType =
+                 CompressionType.DEFAULT_COMPRESSION,
+                 *args, **kwargs):
         """__init__.
 
         Args:
             conn_params (ConnectionParameters): conn_params
             serializer (Serializer): serializer
             compression (CompressionType): compression_type
-            logger (Logger): logger
         """
-        self._conn_params = conn_params
+        super().__init__(*args, **kwargs)
+        self._client = None
         self._serializer = serializer
         self._compression= compression
 
-        ## Workaround for bith v3 and v5 support
+        ## Workaround for both v3 and v5 support
         # http://www.steves-internet-guide.com/python-mqtt-client-changes/
         if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
             properties = Properties(PacketTypes.CONNECT)
@@ -102,40 +95,7 @@ class MQTTTransport:
         else:
             properties = None
         self._mqtt_properties = properties
-
-        self._connected = False
-
-        self._client = mqtt.Client(clean_session=True,
-                                   protocol=self._conn_params.protocol,
-                                   transport=self._conn_params.transport)
-
-        self._client.on_connect = self.on_connect
-        self._client.on_disconnect = self.on_disconnect
-        # self._client.on_log = self.on_log
-        self._client.on_message = self.on_message
-
-        self._client.username_pw_set(self._conn_params.username,
-                                     self._conn_params.password)
-        if self._conn_params.ssl:
-            import ssl
-            self._client.tls_set(cert_reqs=None, certfile=None, keyfile=None)
-
-        self._client.connect(
-            self._conn_params.host, int(self._conn_params.port),
-            keepalive=60,
-            properties=self._mqtt_properties
-        )
-        self.log.debug('MQTT Transport initiated:')
-        self.log.debug(
-            f'- Broker: mqtt://' + \
-            f'{self._conn_params.host}:{self._conn_params.port}'
-        )
-        self.log.debug(f'- Data Serialization: {self._serializer}')
-        self.log.debug(f'- Data Compression: {self._compression}')
-
-    @property
-    def is_connected(self):
-        return self._connected
+        self.connect()
 
     def on_connect(self, client: Any, userdata: Any,
                    flags: Dict[str, Any], rc: int, properties=None):
@@ -150,16 +110,20 @@ class MQTTTransport:
             rc (int): Return Code - Internal paho-mqtt
         """
         if rc == MQTTReturnCode.CONNECTION_SUCCESS:
-            self.log.debug('MQTT Transport initiated:')
-            self.log.debug(
-                f'- Broker: mqtt://' + \
-                f'{self._conn_params.host}:{self._conn_params.port}'
-            )
-            self.log.debug(f'- Data Serialization: {self._serializer}')
-            self.log.debug(f'- Data Compression: {self._compression}')
+            self._connected = True
+            self._report_on_connect()
+
+    def _report_on_connect(self):
+        self.log.debug('MQTT Transport initiated:')
+        self.log.debug(
+            f'- Broker: mqtt://' + \
+            f'{self._conn_params.host}:{self._conn_params.port}'
+        )
+        self.log.debug(f'- Data Serialization: {self._serializer}')
+        self.log.debug(f'- Data Compression: {self._compression}')
 
     def on_disconnect(self, client: Any, userdata: Any,
-                      rc: Dict[str, Any]):
+                      rc: int):
         """on_disconnect.
 
         Callback for on-disconnect event.
@@ -169,8 +133,12 @@ class MQTTTransport:
             userdata (Any): Internal paho-mqtt userdata
             rc (int): Return Code - Internal paho-mqtt
         """
-        if rc != 0:
-            self.log.warn("Unexpected disconnection from MQTT Broker.")
+        self._connected = False
+        self._client.loop_stop()
+        if rc == 5:
+            self.log.debug(f"Authentication error with MQTT broker")
+        elif rc > 0:
+            self.log.debug(f"Disconnection from MQTT Broker")
 
     def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """on_message.
@@ -186,8 +154,6 @@ class MQTTTransport:
 
     def on_log(self, client: Any, userdata: Any,
                level, buf):
-        ## SPAM output
-        # self.log.debug(f'MQTT Log: {buf}')
         pass
 
     def publish(self, topic: str, payload: Dict[str, Any],
@@ -240,18 +206,45 @@ class MQTTTransport:
         msg.payload = _payload
         callback(client, userdata, msg)
 
-    def start_loop(self):
-        """start_loop.
+    def connect(self):
+        if self._connected:
+            raise Exception('Already connected')
+        self._client = mqtt.Client(clean_session=True,
+                                   protocol=self._conn_params.protocol,
+                                   transport=self._conn_params.transport)
+
+        self._client.on_connect = self.on_connect
+        self._client.on_disconnect = self.on_disconnect
+        # self._client.on_log = self.on_log
+        self._client.on_message = self.on_message
+
+        self._client.username_pw_set(self._conn_params.username,
+                                     self._conn_params.password)
+        self._client.connect(
+            self._conn_params.host, int(self._conn_params.port),
+            keepalive=60,
+            properties=self._mqtt_properties
+        )
+        if self._conn_params.ssl:
+            import ssl
+            self._client.tls_set(cert_reqs=None, certfile=None, keyfile=None)
+
+    def disconnect(self) -> None:
+        self._client.disconnect()
+
+    def start(self) -> None:
+        """start.
 
         Start the event loop. Cannot create any more endpoints from here on.
         """
         self._client.loop_start()
 
-    def stop_loop(self):
-        """stop_loop.
+    def stop(self) -> None:
+        """stop.
 
-        Stops the event loop.
+        Disconnects the client and stops the event loop.
         """
+        self.disconnect()
         self._client.loop_stop(force=True)
 
     def loop_forever(self):
@@ -267,23 +260,18 @@ class Publisher(BasePublisher):
     MQTT Publisher
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = ConnectionParameters(),
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): conn_params
             args: See BasePublisher
             kwargs: See BasePublisher
         """
         self._msg_seq = 0
-        self.conn_params = conn_params
         super().__init__(*args, **kwargs)
-        self._transport = MQTTTransport(conn_params=conn_params,
+        self._transport = MQTTTransport(conn_params=self._conn_params,
                                         serializer=self._serializer,
                                         compression=self._compression)
-        self._transport.start_loop()
 
     def publish(self, msg: PubSubMessage) -> None:
         """publish.
@@ -337,32 +325,28 @@ class Subscriber(BaseSubscriber):
     MQTT Subscriber
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = ConnectionParameters(),
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): conn_params
             args: See BaseSubscriber
             kwargs: See BaseSubscriber
         """
-        self.conn_params = conn_params
         super(Subscriber, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(conn_params=conn_params,
+        self._transport = MQTTTransport(conn_params=self._conn_params,
                                         serializer=self._serializer,
                                         compression=self._compression)
 
     def run(self):
         self._topic = self._transport.subscribe(self._topic,
                                                 self._on_message)
-        self._transport.start_loop()
-        self.logger.debug(f'Started Subscriber: <{self._topic}>')
+        super().run()
+        self.log.debug(f'Started Subscriber: <{self._topic}>')
 
     def run_forever(self):
         self._transport.subscribe(self._topic,
                                   self._on_message)
-        self.logger.debug(f'Started Subscriber: <{self._topic}>')
+        self.log.debug(f'Started Subscriber: <{self._topic}>')
         self._transport.loop_forever()
 
     def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -384,7 +368,7 @@ class Subscriber(BaseSubscriber):
                                              self._msg_type(**data))
                 _clb()
         except Exception:
-            self.logger.error('Exception caught in _on_message', exc_info=True)
+            self.log.error('Exception caught in _on_message', exc_info=True)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple:
         _uri = msg.topic
@@ -417,7 +401,7 @@ class PSubscriber(Subscriber):
                                              topic)
                 _clb()
         except Exception:
-            self.logger.error('Exception caught in _on_message', exc_info=True)
+            self.log.error('Exception caught in _on_message', exc_info=True)
 
 
 class RPCService(BaseRPCService):
@@ -425,19 +409,15 @@ class RPCService(BaseRPCService):
     MQTT RPC Service class.
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = None,
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): conn_params
             args: See BaseRPCService
             kwargs: See BaseRPCService
         """
-        self.conn_params = conn_params
         super(RPCService, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(conn_params=conn_params,
+        self._transport = MQTTTransport(conn_params=self._conn_params,
                                         serializer=self._serializer,
                                         compression=self._compression)
 
@@ -465,7 +445,7 @@ class RPCService(BaseRPCService):
         try:
             data, header, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
-            self.logger.error('Could not unpack message. Dropping message!',
+            self.log.error('Could not unpack message. Dropping message!',
                               exc_info=False)
             return
         try:
@@ -476,7 +456,7 @@ class RPCService(BaseRPCService):
                 ## RPCMessage.Response object here
                 resp = resp.dict()
         except Exception as exc:
-            self.logger.error(str(exc), exc_info=False)
+            self.log.error(str(exc), exc_info=False)
             resp = {}
         reply_to = header['reply_to']
         self._send_response(resp, reply_to)
@@ -504,33 +484,25 @@ class RPCService(BaseRPCService):
         self._transport.subscribe(self._rpc_name,
                                   self._on_request_internal,
                                   qos=MQTTQoS.L1)
-        self._transport.start_loop()
+        self._transport.start()
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
-                    self.logger.debug('Stop event caught in thread')
+                    self.log.debug('Stop event caught in thread')
                     break
             time.sleep(0.001)
-        self._transport.stop_loop()
-
-    def stop(self):
-        self._t_stop_event.set()
-
+        self._transport.stop()
 
 class RPCServer(BaseRPCServer):
-    def __init__(self,
-                 conn_params: ConnectionParameters = None,
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): conn_params
             args: See BaseRPCServer
             kwargs: See BaseRPCServer
         """
-        self.conn_params = conn_params
         super(RPCServer, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(conn_params=conn_params,
+        self._transport = MQTTTransport(conn_params=self._conn_params,
                                         serializer=self._serializer,
                                         compression=self._compression)
         for uri in self._svc_map:
@@ -577,7 +549,7 @@ class RPCServer(BaseRPCServer):
                     resp = clb(msg_type.Request(**data))
                     resp = resp.dict()
         except Exception as exc:
-            self.logger.error(exc, exc_info=False)
+            self.log.error(exc, exc_info=False)
             resp = {}
             return
         self._send_response(resp, reply_to)
@@ -604,24 +576,21 @@ class RPCServer(BaseRPCServer):
             full_uri = uri
         else:
             full_uri = f'{self._base_uri}.{uri}'
-        self.logger.info(f'Registering endpoint <{full_uri}>')
+        self.log.info(f'Registering endpoint <{full_uri}>')
         self._transport.subscribe(full_uri, self._on_request_internal,
                                   qos=MQTTQoS.L1)
 
     def run_forever(self):
         """run_forever.
         """
-        self._transport.start_loop()
+        self._transport.start()
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
-                    self.logger.debug('Stop event caught in thread')
+                    self.log.debug('Stop event caught in thread')
                     break
             time.sleep(0.001)
-        self._transport.stop_loop()
-
-    def stop(self):
-        self._t_stop_event.set()
+        self._transport.stop()
 
 
 class RPCClient(BaseRPCClient):
@@ -629,24 +598,19 @@ class RPCClient(BaseRPCClient):
     MQTT RPC Client
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = None,
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): conn_params
             args: See BaseRPCClient
             kwargs: See BaseRPCClient
         """
-        self.conn_params = conn_params
         self._response = None
 
         super(RPCClient, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(conn_params=conn_params,
+        self._transport = MQTTTransport(conn_params=self._conn_params,
                                         serializer=self._serializer,
                                         compression=self._compression)
-        self._transport.start_loop()
 
     def _gen_queue_name(self):
         """_gen_queue_name.
@@ -676,7 +640,7 @@ class RPCClient(BaseRPCClient):
         try:
             data, header, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
-            self.logger.error(exc, exc_info=True)
+            self.log.error(exc, exc_info=True)
             data = {}
         self._response = data
 
@@ -741,52 +705,37 @@ class ActionService(BaseActionService):
     MQTT Action Server
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = ConnectionParameters(),
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): conn_params
             args: See BaseActionService
             kwargs: See BaseActionService
-        """
-        """__init__.
-
-        Args:
-            conn_params (ConnectionParameters): conn_params
-            args:
-            kwargs:
         """
         super(ActionService, self).__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
                                     rpc_name=self._goal_rpc_uri,
-                                    conn_params=conn_params,
+                                    conn_params=self._conn_params,
                                     on_request=self._handle_send_goal,
-                                    logger=self._logger,
                                     debug=self.debug)
         self._cancel_rpc = RPCService(msg_type=_ActionCancelMessage,
                                       rpc_name=self._cancel_rpc_uri,
-                                      conn_params=conn_params,
+                                      conn_params=self._conn_params,
                                       on_request=self._handle_cancel_goal,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._result_rpc = RPCService(msg_type=_ActionResultMessage,
                                       rpc_name=self._result_rpc_uri,
-                                      conn_params=conn_params,
+                                      conn_params=self._conn_params,
                                       on_request=self._handle_get_result,
-                                      logger=self._logger,
                                       debug=self.debug)
         self._feedback_pub = Publisher(msg_type=_ActionFeedbackMessage,
                                        topic=self._feedback_topic,
-                                       conn_params=conn_params,
-                                       logger=self._logger,
+                                       conn_params=self._conn_params,
                                        debug=self.debug)
         self._status_pub = Publisher(msg_type=_ActionStatusMessage,
                                      topic=self._status_topic,
-                                     conn_params=conn_params,
-                                     logger=self._logger,
+                                     conn_params=self._conn_params,
                                      debug=self.debug)
 
 
@@ -795,13 +744,10 @@ class ActionClient(BaseActionClient):
     MQTT Action Client
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = ConnectionParameters(),
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): Broker Connection Parameters
             args: See BaseActionClient
             kwargs: See BaseActionClient
         """
@@ -809,29 +755,26 @@ class ActionClient(BaseActionClient):
 
         self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
                                       rpc_name=self._goal_rpc_uri,
-                                      conn_params=conn_params,
-                                      logger=self._logger,
+                                      conn_params=self._conn_params,
                                       debug=self.debug)
         self._cancel_client = RPCClient(msg_type=_ActionCancelMessage,
                                         rpc_name=self._cancel_rpc_uri,
-                                        conn_params=conn_params,
-                                        logger=self._logger,
+                                        conn_params=self._conn_params,
                                         debug=self.debug)
         self._result_client = RPCClient(msg_type=_ActionResultMessage,
                                         rpc_name=self._result_rpc_uri,
-                                        conn_params=conn_params,
-                                        logger=self._logger,
+                                        conn_params=self._conn_params,
                                         debug=self.debug)
         self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
-                                      conn_params=conn_params,
+                                      conn_params=self._conn_params,
                                       topic=self._status_topic,
-                                      on_message=self._on_status)
+                                      on_message=self._on_status,
+                                      debug=self.debug)
         self._feedback_sub = Subscriber(msg_type=_ActionFeedbackMessage,
-                                        conn_params=conn_params,
+                                        conn_params=self._conn_params,
                                         topic=self._feedback_topic,
-                                        on_message=self._on_feedback)
-        self._status_sub.run()
-        self._feedback_sub.run()
+                                        on_message=self._on_feedback,
+                                        debug=self.debug)
 
 
 class EventEmitter(BaseEventEmitter):
@@ -839,21 +782,17 @@ class EventEmitter(BaseEventEmitter):
     MQTT Event Emitter class
     """
 
-    def __init__(self,
-                 conn_params: ConnectionParameters = None,
-                 *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            conn_params (ConnectionParameters): Broker Connection Parameters
             args: See BaseEventEmitter
             kwargs: See BaseEventEmitter
         """
         super(EventEmitter, self).__init__(*args, **kwargs)
 
-        self._transport = MQTTTransport(conn_params=conn_params,
+        self._transport = MQTTTransport(conn_params=self._conn_params,
                                         serializer=self._serializer)
-        self._transport.start_loop()
 
     def send_event(self, event: Event) -> None:
         """send_event.

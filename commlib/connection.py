@@ -10,6 +10,6 @@ class AuthPlain(AuthBase):
     password: str
 
 
-class ConnectionParametersBase(BaseModel):
+class BaseConnectionParameters(BaseModel):
     host: str
     port: int
