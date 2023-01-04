@@ -35,6 +35,9 @@ pip install .
 pip install git+https://github.com/robotics-4-all/commlib-py.git@master
 ```
 
+In order to keep minimal footprint of the implementation, the backend
+communication transports (AMQP, MQTT, Redis etc) are not installed by default.
+
 ## Redis Support
 
 In order to have access to the Redis transport you will have to install the
@@ -142,18 +145,16 @@ Furthermore, it implements several features:
 
 ```python
 from commlib.node import Node, TransportType
-from commlib.msg import RPCMessage, DataClass
+from commlib.msg import RPCMessage
 ## Import the Redis transports
 ## Imports are lazy handled internally
 from commlib.transports.redis import ConnectionParameters
 
 class AddTwoIntMessage(RPCMessage):
-    @DataClass
     class Request(RPCMessage.Request):
         a: int = 0
         b: int = 0
 
-    @DataClass
     class Response(RPCMessage.Response):
         c: int = 0
 
@@ -165,26 +166,15 @@ def on_request(msg):
 
 
 if __name__ == '__main__':
-    transport = TransportType.MQTT
-    rpc_name = 'thing.device0.ops.add_two_ints'
-
-    # Set broker connection parameters
     conn_params = ConnectionParameters()
-    conn_params.credentials.username = ''
-    conn_params.credentials.password = ''
-
-    # Create an instance of a Node
-    node = Node(node_name='example-node',
-                transport_type=transport,
-                transport_connection_params=conn_params,
+    node = Node(node_name='add_two_ints_node',
+                connection_params=conn_params,
+                # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
-
-    # Create an RPCService endpoint for the Node
     rpc = node.create_rpc(msg_type=AddTwoIntMessage,
-                          rpc_name=rpc_name,
-                          on_request=on_request)
-    # Starts the RPCService and wait until an exit signal is catched.
-    node.run_forever()
+                          # rpc_name='add_two_ints_node.add_two_ints',
+                          on_request=add_two_int_handler)
+    node.run_forever(sleep_rate=1)
 ```
 
 A Node always binds to a specific broker for implementing the input and
@@ -194,27 +184,37 @@ application.
 ### Node class:
 
 ```python
-def __init__(self, node_name: Text = '',
-             transport_type: TransportType = TransportType.REDIS,
-             connection_params=None,
-             remote_logger: bool = False,
-             remote_logger_uri: Text = '',
-             debug: bool = False,
-             device_id: Text = None):
+class Node:
+    def __init__(self,
+                 node_name: Optional[str] = '',
+                 connection_params: Optional[Any] = None,
+                 transport_connection_params: Optional[Any] = None,
+                 debug: Optional[bool] = False,
+                 heartbeats: Optional[bool] = True,
+                 heartbeat_uri: Optional[str] = None,
+                 compression: CompressionType = CompressionType.NO_COMPRESSION,
+                 ctrl_services: Optional[bool] = False):
 ```
 
-Node methods to create Endpoints::
+Node methods to create and run Endpoints::
 
 ```
-▼+Node : class
+▾+Node : class
    +create_action(self, *args, **kwargs) : member
    +create_action_client(self, *args, **kwargs) : member
    +create_event_emitter(self, *args, **kwargs) : member
-   +create_publisher(self, *args, **kwargs) : member
+   +create_heartbeat_thread(self) : member
    +create_mpublisher(self, *args, **kwargs) : member
+   +create_psubscriber(self, *args, **kwargs) : member
+   +create_publisher(self, *args, **kwargs) : member
    +create_rpc(self, *args, **kwargs) : member
    +create_rpc_client(self, *args, **kwargs) : member
+   +create_start_service(self, uri: str = None) : member
+   +create_stop_service(self, uri: str = None) : member
    +create_subscriber(self, *args, **kwargs) : member
+   +run(self) : member
+   +run_forever(self, sleep_rate: float = 0.001) : member
+   +stop(self) : member
 ```
 
 ## Endpoint (Low-level API)
@@ -291,83 +291,69 @@ if __name__ == '__main__':
 ### Server Side Example
 
 ```python
-from commlib.node import Node, TransportType
-from commlib.msg import RPCMessage, DataClass
+from commlib.msg import RPCMessage
+from commlib.node import Node
+from commlib.transports.mqtt import ConnectionParameters
 
 
-# The RPC Communication Object
 class AddTwoIntMessage(RPCMessage):
-    @DataClass
     class Request(RPCMessage.Request):
         a: int = 0
         b: int = 0
 
-    @DataClass
     class Response(RPCMessage.Response):
         c: int = 0
 
 
 def add_two_int_handler(msg):
-    # This is the implementation of the RPC callback.
-    print(f'Request Message: {msg}')
+    print(f'Request Message: {msg.__dict__}')
     resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
     return resp
 
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
-    rpc_name = 'example_rpc_service'
-
-    node = Node(node_name='example_node',
-                transport_type=transport,
-                transport_connection_params=conn_params,
+    node = Node(node_name='add_two_ints_node',
+                connection_params=conn_params,
+                # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
-
-    # Create  an RPCService endpoint
     rpc = node.create_rpc(msg_type=AddTwoIntMessage,
-                          rpc_name='testrpc',
-                          on_request=on_request)
-    # Starts the RPCService and wait until an exit signal is catched.
-    node.run_forever()
+                          rpc_name='add_two_ints_node.add_two_ints',
+                          on_request=add_two_int_handler)
+    node.run_forever(sleep_rate=1)
 ```
 
 ### Client Side Example
 
 ```python
-from commlib.node import Node, TransportType
-from commlib.msg import RPCMessage, DataClass
+import time
+
+from commlib.msg import RPCMessage
+from commlib.node import Node
+from commlib.transports.mqtt import ConnectionParameters
 
 
-# The RPC Communication Object
 class AddTwoIntMessage(RPCMessage):
-    @DataClass
     class Request(RPCMessage.Request):
         a: int = 0
         b: int = 0
 
-    @DataClass
     class Response(RPCMessage.Response):
         c: int = 0
 
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
-    rpc_name = 'add_two_ints_node.add_two_ints'
-
     node = Node(node_name='myclient',
-                transport_type=transport,
-                transport_connection_params=conn_params,
+                connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
-
     rpc = node.create_rpc_client(msg_type=AddTwoIntMessage,
-                                 rpc_name=rpc_name)
-
+                                 rpc_name='add_two_ints_node.add_two_ints')
     node.run()
 
     # Create an instance of the request object
     msg = AddTwoIntMessage.Request()
-
     while True:
         # returns AddTwoIntMessage.Response instance
         resp = rpc.call(msg)
@@ -405,13 +391,10 @@ if __name__ == '__main__':
 ```python
 import time
 
-from commlib.msg import PubSubMessage, DataClass
-from commlib.transports.mqtt import (
-    Publisher, ConnectionParameters
-)
+from commlib.msg import PubSubMessage
+from commlib.transports.mqtt import Publisher, ConnectionParameters
 
 
-@DataClass
 class SonarMessage(PubSubMessage):
     distance: float = 0.001
     horizontal_fov: float = 30.0
@@ -421,6 +404,7 @@ class SonarMessage(PubSubMessage):
 if __name__ == "__main__":
     conn_params = ConnectionParameters(host='localhost', port=1883)
     pub = Publisher(topic=topic, msg_type=SonarMessage, conn_params=conn_params)
+    pub.run()
     msg = SonarMessage(distance=2.0)
     while True:
         time.sleep(0.5)
@@ -471,10 +455,9 @@ For pattern-based topic subscription use the `PSubscriber` class.
 import sys
 import time
 
-from commlib.msg import PubSubMessage, DataClass
+from commlib.msg import PubSubMessage
 
 
-@DataClass
 class SonarMessage(PubSubMessage):
     distance: float = 0.001
     horizontal_fov: float = 30.0
@@ -501,6 +484,7 @@ if __name__ == '__main__':
 
     # Create an instalce of a Multi-topic Publisher (MPublisher)
     pub = MPublisher(msg_type=SonarMessage)
+    pub.run()
 
     while True:
         time.sleep(1)
@@ -525,22 +509,18 @@ as the move command service of a robot.
 import time
 
 from commlib.action import GoalStatus
-from commlib.msg import ActionMessage, DataClass
-from commlib.transports.redis import (
-    ActionService, ConnectionParameters
+from commlib.msg import ActionMessage
+from commlib.transports.redis import ActionService, ConnectionParameters
 )
 
 
 class ExampleAction(ActionMessage):
-    @DataClass
     class Goal(ActionMessage.Goal):
         target_cm: int = 0
 
-    @DataClass
     class Result(ActionMessage.Result):
         dest_cm: int = 0
 
-    @DataClass
     class Feedback(ActionMessage.Feedback):
         current_cm: int = 0
 
@@ -562,9 +542,9 @@ if __name__ == '__main__':
     action_name = 'testaction'
     conn_params = ConnectionParameters()
     action = ActionService(msg_type=ExampleAction,
-                          conn_params=conn_params,
-                          action_name=action_name,
-                          on_goal=on_goal)
+                           conn_params=conn_params,
+                           action_name=action_name,
+                           on_goal=on_goal)
     action.run()
     while True:
       time.sleep(0.001)
@@ -576,22 +556,17 @@ if __name__ == '__main__':
 import time
 
 from commlib.action import GoalStatus
-from commlib.msg import ActionMessage, DataClass
-from commlib.transports.redis import (
-    ActionClient, ConnectionParameters
-)
+from commlib.msg import ActionMessage
+from commlib.transports.redis import ActionClient, ConnectionParameters
 
 
 class ExampleAction(ActionMessage):
-    @DataClass
     class Goal(ActionMessage.Goal):
         target_cm: int = 0
 
-    @DataClass
     class Result(ActionMessage.Result):
         dest_cm: int = 0
 
-    @DataClass
     class Feedback(ActionMessage.Feedback):
         current_cm: int = 0
 
@@ -612,6 +587,7 @@ if __name__ == '__main__':
                             action_name=action_name,
                             on_feedback=on_feedback,
                             on_goal_reached=on_goal_reached)
+    action_c.run()
     goal_msg = ExampleAction.Goal(target_cm=5)
     action_c.send_goal(goal_msg)
     resp = action_c.get_result(wait=True)
@@ -643,21 +619,17 @@ An EventEmitter can be used to fire multiple events, for event-based systems, ov
 An Event has the following properties:
 
 ```python
-@DataClass
-class Event(Object):
-    """Event.
-    """
-
+class Event(BaseModel):
     name: Text
     uri: Text
     description: Text = ''
-    payload: OrderedDict = DataField(default_factory=OrderedDict)
+    data: Dict[str, Any] = {}
 ```
 
 - name: The name of the Event
 - uri: Broker URI to send the Event
 - description: Optional Description of the Event.
-- payload: Optional payload to attach on the Event.
+- data: Optional data to attach on the Event.
 
 Below is an example of an EventEmitter used to fire the `bedroom.lights.on` and `bedroom.lights.off` events.
 
@@ -667,14 +639,11 @@ Below is an example of an EventEmitter used to fire the `bedroom.lights.on` and 
 import time
 
 from commlib.events import Event
-from commlib.transports.mqtt import (
-    EventEmitter, ConnectionParameters
-)
+from commlib.transports.mqtt import EventEmitter, ConnectionParameters
 
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
-
     emitter = EventEmitter(conn_params=conn_params, debug=True)
 
     eventA = Event(name='TurnOnBedroomLights', uri='bedroom.lights.on')
@@ -799,10 +768,12 @@ if __name__ == '__main__':
                       bB_params,
                       msg_type=SonarMessage,
                       debug=True)
-    br.run_forever()
+    br.run()
 ```
 
-**TODO**: Action bridges
+## Action bridges
+
+### TODO
 
 ## TCP Bridge
 
