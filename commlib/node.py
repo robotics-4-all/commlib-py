@@ -207,7 +207,7 @@ class Node:
         self._node_name = node_name
         self._debug = debug
         self._hb_thread = None
-        self._namespace = f'{self._node_name}'
+        self._namespace = self._node_name
         self._has_ctrl_services = ctrl_services
         self._heartbeats = heartbeats
         self._compression = compression

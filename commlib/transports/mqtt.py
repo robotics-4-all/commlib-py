@@ -12,10 +12,21 @@ from paho.mqtt.properties import Properties
 from paho.mqtt.packettypes import PacketTypes
 
 from commlib.events import BaseEventEmitter, Event
-from commlib.exceptions import RPCClientTimeoutError, MQTTError
+from commlib.exceptions import (
+    RPCClientTimeoutError,
+    RPCRequestError,
+    MQTTError
+)
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import BaseRPCClient, BaseRPCServer, BaseRPCService
+from commlib.rpc import (
+    BaseRPCClient,
+    BaseRPCServer,
+    BaseRPCService,
+    CommRPCMessage,
+    CommRPCHeader
+)
+CommRPCMessage
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.utils import gen_timestamp
 from commlib.connection import BaseConnectionParameters
@@ -443,23 +454,24 @@ class RPCService(BaseRPCService):
             msg (Dict[str, Any]): msg
         """
         try:
-            data, header, uri = self._unpack_comm_msg(msg)
+            req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
-            self.log.error('Could not unpack message. Dropping message!',
-                              exc_info=False)
+            self.log.error(
+                f'Could not unpack request message: {exc}'
+                '\nDropping client request!',
+                exc_info=True
+            )
             return
         try:
             if self._msg_type is None:
-                resp = self.on_request(data)
+                resp = self.on_request(req_msg.data)
             else:
-                resp = self.on_request(self._msg_type.Request(**data))
+                resp = self.on_request(self._msg_type.Request(**req_msg.data))
                 ## RPCMessage.Response object here
                 resp = resp.dict()
+            self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:
-            self.log.error(str(exc), exc_info=False)
-            resp = {}
-        reply_to = header['reply_to']
-        self._send_response(resp, reply_to)
+            self.log.error(str(exc), exc_info=True)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
         """_unpack_comm_msg.
@@ -472,11 +484,20 @@ class RPCService(BaseRPCService):
         Returns:
             Tuple[Any, Any, Any]:
         """
-        _uri = msg.topic
-        _payload = self._serializer.deserialize(msg.payload)
-        _data = _payload['data']
-        _header = _payload['header']
-        return _data, _header, _uri
+        try:
+            _uri = msg.topic
+            _payload = self._serializer.deserialize(msg.payload)
+            _data = _payload['data']
+            _header = _payload['header']
+            _req_msg = CommRPCMessage(
+                header=CommRPCHeader(**_header),
+                data=_data
+            )
+            if not self._validate_rpc_req_msg(_req_msg):
+                raise RPCRequestError('Request Message is invalid!')
+        except Exception as e:
+            raise RPCRequestError(str(e))
+        return _req_msg, _uri
 
     def run_forever(self):
         """run_forever.
