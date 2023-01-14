@@ -174,24 +174,38 @@ class RPCService(BaseRPCService):
                                          serializer=self._serializer,
                                          compression=self._compression)
 
-    def _send_response(self, data, reply_to):
+    def _send_response(self,
+                       data: Dict[str, Any],
+                       reply_to: str
+                       ):
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.dict()
         self._transport.push_msg_to_queue(reply_to, _resp)
 
-    def _on_request(self, data: dict, header: dict):
+    def _on_request(self,
+                    data: Dict[str, Any],
+                    header: Dict[str, Any]
+                    ):
         try:
+            _req_msg = CommRPCMessage(
+                header=CommRPCHeader(reply_to=header['reply_to']),
+                data=data
+            )
+            if not self._validate_rpc_req_msg(_req_msg):
+                raise RPCRequestError('Request Message is invalid!')
             if self._msg_type is None:
                 resp = self.on_request(data)
             else:
                 resp = self.on_request(self._msg_type.Request(**data))
                 ## RPCMessage.Response object here
                 resp = resp.dict()
+        except RPCRequestError as e:
+            self.log.error(str(exc), exc_info=False)
+            return
         except Exception as exc:
             self.log.error(str(exc), exc_info=False)
             resp = {}
-        reply_to = header['reply_to']
         self._send_response(resp, reply_to)
 
     def run_forever(self):
@@ -209,7 +223,9 @@ class RPCService(BaseRPCService):
                     break
             time.sleep(0.001)
 
-    def _detach_request_handler(self, payload):
+    def _detach_request_handler(self,
+                                payload: str
+                                ):
         data, header = self._unpack_comm_msg(payload)
         self.log.debug(f'RPC Request <{self._rpc_name}>')
         _future = self.__exec_in_thread(
@@ -217,7 +233,9 @@ class RPCService(BaseRPCService):
         )
         return _future
 
-    def _unpack_comm_msg(self, payload: str) -> Tuple:
+    def _unpack_comm_msg(self,
+                         payload: str
+                         ) -> Tuple:
         _payload = self._serializer.deserialize(payload)
         _data = _payload['data']
         _header = _payload['header']
@@ -246,14 +264,18 @@ class RPCClient(BaseRPCClient):
     def _gen_queue_name(self):
         return f'rpc-{self._gen_random_id()}'
 
-    def _prepare_request(self, data):
+    def _prepare_request(self,
+                         data: Dict[str, Any]
+                         ):
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.header.reply_to = self._gen_queue_name()
         self._comm_obj.data = data
         return self._comm_obj.dict()
 
-    def call(self, msg: RPCMessage.Request,
-             timeout: float = 30) -> RPCMessage.Response:
+    def call(self,
+             msg: RPCMessage.Request,
+             timeout: float = 30
+             ) -> RPCMessage.Response:
         ## TODO: Evaluate msg type passed here.
         if self._msg_type is None:
             data = msg
@@ -274,7 +296,9 @@ class RPCClient(BaseRPCClient):
         else:
             return self._msg_type.Response(**data)
 
-    def _unpack_comm_msg(self, payload: str) -> Tuple:
+    def _unpack_comm_msg(self,
+                         payload: str
+                         ) -> Tuple:
         _payload = self._serializer.deserialize(payload)
         _data = _payload['data']
         _header = _payload['header']
@@ -305,7 +329,9 @@ class Publisher(BasePublisher):
                                          serializer=self._serializer,
                                          compression=self._compression)
 
-    def publish(self, msg: PubSubMessage) -> None:
+    def publish(self,
+                msg: PubSubMessage
+                ) -> None:
         """publish.
         Publish message
 
@@ -343,7 +369,10 @@ class MPublisher(Publisher):
         """
         super(MPublisher, self).__init__(topic='*', *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str) -> None:
+    def publish(self,
+                msg: PubSubMessage,
+                topic: str
+                ) -> None:
         """publish.
 
         Args:
@@ -428,7 +457,9 @@ class PSubscriber(Subscriber):
     Redis Pattern-based Subscriber.
     """
 
-    def _on_message(self, payload: Dict[str, Any]) -> None:
+    def _on_message(self,
+                    payload: Dict[str, Any]
+                    ) -> None:
         try:
             data, topic = self._unpack_comm_msg(payload)
             if self.onmessage is not None:

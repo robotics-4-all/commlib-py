@@ -26,7 +26,6 @@ from commlib.rpc import (
     CommRPCMessage,
     CommRPCHeader
 )
-CommRPCMessage
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.utils import gen_timestamp
 from commlib.connection import BaseConnectionParameters
@@ -553,8 +552,15 @@ class RPCServer(BaseRPCServer):
             msg (Dict[str, Any]): msg
         """
         try:
-            data, header, uri = self._unpack_comm_msg(msg)
-            reply_to = header['reply_to']
+            req_msg, uri = self._unpack_comm_msg(msg)
+        except Exception as exc:
+            self.log.error(
+                f'Could not unpack request message: {exc}'
+                '\nDropping client request!',
+                exc_info=True
+            )
+            return
+        try:
             uri = uri.replace('/', '.')
             svc_uri = uri.replace(self._base_uri, '')
             if svc_uri[0] == '.':
@@ -565,18 +571,19 @@ class RPCServer(BaseRPCServer):
                 clb = self._svc_map[svc_uri][0]
                 msg_type = self._svc_map[svc_uri][1]
                 if msg_type is None:
-                    resp = clb(data)
+                    resp = clb(req_msg.data)
                 else:
-                    resp = clb(msg_type.Request(**data))
+                    resp = clb(msg_type.Request(**req_msg.data))
                     resp = resp.dict()
+            self._send_response(resp, req.header.reply_to)
         except Exception as exc:
-            self.log.error(exc, exc_info=False)
-            resp = {}
+            self.log.error(str(exc), exc_info=False)
             return
-        self._send_response(resp, reply_to)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
         """_unpack_comm_msg.
+
+        Unpack payload, header and uri from communcation message.
 
         Args:
             msg (Any): msg
@@ -584,11 +591,20 @@ class RPCServer(BaseRPCServer):
         Returns:
             Tuple[Any, Any, Any]:
         """
-        _uri = msg.topic
-        _payload = self._serializer.deserialize(msg.payload)
-        _data = _payload['data']
-        _header = _payload['header']
-        return _data, _header, _uri
+        try:
+            _uri = msg.topic
+            _payload = self._serializer.deserialize(msg.payload)
+            _data = _payload['data']
+            _header = _payload['header']
+            _req_msg = CommRPCMessage(
+                header=CommRPCHeader(**_header),
+                data=_data
+            )
+            if not self._validate_rpc_req_msg(_req_msg):
+                raise RPCRequestError('Request Message is invalid!')
+        except Exception as e:
+            raise RPCRequestError(str(e))
+        return _req_msg, _uri
 
     def _register_endpoint(self, uri: str, callback: Any,
                            msg_type: RPCMessage = None):
