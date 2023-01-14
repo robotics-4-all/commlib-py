@@ -113,26 +113,37 @@ class RedisTransport(BaseTransport):
             self._redis.connection_pool.disconnect()
             self._connected = False
 
-    def delete_queue(self, queue_name: str) -> bool:
+    def delete_queue(self,
+                     queue_name: str
+                     ) -> bool:
         # self.log.debug('Removing message queue: <{}>'.format(queue_name))
         return True if self._redis.delete(queue_name) else False
 
     def queue_exists(self, queue_name: str) -> bool:
         return True if self._redis.exists(queue_name) else False
 
-    def push_msg_to_queue(self, queue_name: str, data: Dict[str, Any]):
+    def push_msg_to_queue(self,
+                          queue_name: str,
+                          data: Dict[str, Any]
+                          ):
         payload = self._serializer.serialize(data)
         if self._compression != CompressionType.NO_COMPRESSION:
             payload = inflate_str(payload)
         self._redis.rpush(queue_name, payload)
 
-    def publish(self, queue_name: str, data: Dict[str, Any]):
+    def publish(self,
+                queue_name: str,
+                data: Dict[str, Any]
+                ):
         payload = self._serializer.serialize(data)
         if self._compression != CompressionType.NO_COMPRESSION:
             payload = inflate_str(payload)
         self._redis.publish(queue_name, payload)
 
-    def subscribe(self, topic: str, callback: Callable):
+    def subscribe(self,
+                  topic: str,
+                  callback: Callable
+                  ):
         _clb = functools.partial(self._on_msg_internal, callback)
         self._sub = self._rsub.psubscribe(
             **{topic: _clb})
@@ -140,13 +151,19 @@ class RedisTransport(BaseTransport):
         t = self._rsub.run_in_thread(0.001, daemon=True)
         return t
 
-    def _on_msg_internal(self, callback: Callable, data: Any):
+    def _on_msg_internal(self,
+                         callback: Callable,
+                         data: Any
+                         ):
         if self._compression != CompressionType.NO_COMPRESSION:
             # _topic = data['channel']
             data['data'] = deflate(data['data'])
         callback(data)
 
-    def wait_for_msg(self, queue_name: str, timeout=10):
+    def wait_for_msg(self,
+                     queue_name: str,
+                     timeout=10
+                     ):
         try:
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
             if self._compression != CompressionType.NO_COMPRESSION:
@@ -350,9 +367,6 @@ class Publisher(BasePublisher):
         self.log.debug(f'Publishing Message to topic <{self._topic}>')
         self._transport.publish(self._topic, data)
         self._msg_seq += 1
-
-    def _publish(self, data, topic) -> None:
-        pass
 
 
 class MPublisher(Publisher):
@@ -567,7 +581,9 @@ class EventEmitter(BaseEventEmitter):
 
         self._transport = RedisTransport(conn_params=self._conn_params)
 
-    def send_event(self, event: Event) -> None:
+    def send_event(self,
+                   event: Event
+                   ) -> None:
         """send_event.
 
         Args:

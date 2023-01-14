@@ -107,8 +107,13 @@ class MQTTTransport(BaseTransport):
         self._mqtt_properties = properties
         self.connect()
 
-    def on_connect(self, client: Any, userdata: Any,
-                   flags: Dict[str, Any], rc: int, properties=None):
+    def on_connect(self,
+                   client: Any,
+                   userdata: Any,
+                   flags: Dict[str, Any],
+                   rc: int,
+                   properties: Any = None
+                   ):
         """on_connect.
 
         Callback for on-connect event.
@@ -132,8 +137,11 @@ class MQTTTransport(BaseTransport):
         self.log.debug(f'- Data Serialization: {self._serializer}')
         self.log.debug(f'- Data Compression: {self._compression}')
 
-    def on_disconnect(self, client: Any, userdata: Any,
-                      rc: int):
+    def on_disconnect(self,
+                      client: Any,
+                      userdata: Any,
+                      rc: int
+                      ):
         """on_disconnect.
 
         Callback for on-disconnect event.
@@ -150,7 +158,11 @@ class MQTTTransport(BaseTransport):
         elif rc > 0:
             self.log.debug(f"Disconnection from MQTT Broker")
 
-    def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def on_message(self,
+                   client: Any,
+                   userdata: Any,
+                   msg: Dict[str, Any]
+                   ):
         """on_message.
 
         Callback for on-message event.
@@ -162,13 +174,20 @@ class MQTTTransport(BaseTransport):
         """
         raise NotImplementedError()
 
-    def on_log(self, client: Any, userdata: Any,
-               level, buf):
+    def on_log(self,
+               client: Any,
+               userdata: Any,
+               level,
+               buf
+               ):
         pass
 
-    def publish(self, topic: str, payload: Dict[str, Any],
+    def publish(self,
+                topic: str,
+                payload: Dict[str, Any],
                 qos: MQTTQoS = MQTTQoS.L0,
-                retain: bool = False):
+                retain: bool = False
+                ):
         """publish.
 
         Args:
@@ -185,8 +204,11 @@ class MQTTTransport(BaseTransport):
         ph = self._client.publish(topic, pl, qos=qos, retain=retain,
                                   properties=self._mqtt_properties)
 
-    def subscribe(self, topic: str, callback: Any,
-                  qos: MQTTQoS = MQTTQoS.L0) -> str:
+    def subscribe(self,
+                  topic: str,
+                  callback: Callable,
+                  qos: MQTTQoS = MQTTQoS.L0
+                  ) -> str:
         """subscribe.
 
         Args:
@@ -205,8 +227,12 @@ class MQTTTransport(BaseTransport):
         self._client.message_callback_add(topic, _clb)
         return topic
 
-    def _on_msg_internal(self, callback: Callable, client: Any,
-                         userdata: Any, msg: Any):
+    def _on_msg_internal(self,
+                         callback: Callable,
+                         client: Any,
+                         userdata: Any,
+                         msg: Any
+                         ):
         _topic = msg.topic
         _payload = msg.payload
         _qos = msg.qos
@@ -283,7 +309,9 @@ class Publisher(BasePublisher):
                                         serializer=self._serializer,
                                         compression=self._compression)
 
-    def publish(self, msg: PubSubMessage) -> None:
+    def publish(self,
+                msg: PubSubMessage
+                ) -> None:
         """publish.
 
         Args:
@@ -310,7 +338,10 @@ class MPublisher(Publisher):
     def __init__(self, *args, **kwargs):
         super(MPublisher, self).__init__(topic='*', *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str) -> None:
+    def publish(self,
+                msg: PubSubMessage,
+                topic: str
+                ) -> None:
         """publish.
 
         Args:
@@ -359,7 +390,11 @@ class Subscriber(BaseSubscriber):
         self.log.debug(f'Started Subscriber: <{self._topic}>')
         self._transport.loop_forever()
 
-    def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def _on_message(self,
+                    client: Any,
+                    userdata: Any,
+                    msg: Dict[str, Any]
+                    ):
         """_on_message.
 
         Args:
@@ -380,7 +415,9 @@ class Subscriber(BaseSubscriber):
         except Exception:
             self.log.error('Exception caught in _on_message', exc_info=True)
 
-    def _unpack_comm_msg(self, msg: Any) -> Tuple:
+    def _unpack_comm_msg(self,
+                         msg: Any
+                         ) -> Tuple:
         _uri = msg.topic
         _data = self._serializer.deserialize(msg.payload)
         return _data, _uri
@@ -390,7 +427,11 @@ class PSubscriber(Subscriber):
     """PSubscriber.
     """
 
-    def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def _on_message(self,
+                    client: Any,
+                    userdata: Any,
+                    msg: Dict[str, Any]
+                    ):
         """_on_message.
 
         Args:
@@ -431,7 +472,10 @@ class RPCService(BaseRPCService):
                                         serializer=self._serializer,
                                         compression=self._compression)
 
-    def _send_response(self, data: dict, reply_to: str):
+    def _send_response(self,
+                       data: Dict[str, Any],
+                       reply_to: str
+                       ):
         """_send_response.
 
         Args:
@@ -443,8 +487,11 @@ class RPCService(BaseRPCService):
         _resp = self._comm_obj.dict()
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
 
-    def _on_request_internal(self, client: Any, userdata: Any,
-                             msg: Dict[str, Any]):
+    def _on_request_internal(self,
+                             client: Any,
+                             userdata: Any,
+                             msg: Dict[str, Any]
+                             ):
         """_on_request_internal.
 
         Args:
@@ -472,7 +519,9 @@ class RPCService(BaseRPCService):
         except Exception as exc:
             self.log.error(str(exc), exc_info=True)
 
-    def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
+    def _unpack_comm_msg(self,
+                         msg: Any
+                         ) -> Tuple[CommRPCMessage, str]:
         """_unpack_comm_msg.
 
         Unpack payload, header and uri from communcation message.
@@ -530,7 +579,10 @@ class RPCServer(BaseRPCServer):
             msg_type = self._svc_map[uri][1]
             self._register_endpoint(uri, callback, msg_type)
 
-    def _send_response(self, data: dict, reply_to: str):
+    def _send_response(self,
+                       data: Dict[str, Any],
+                       reply_to: str
+                       ):
         """_send_response.
 
         Args:
@@ -542,8 +594,11 @@ class RPCServer(BaseRPCServer):
         _resp = self._comm_obj.dict()
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
 
-    def _on_request_internal(self, client: Any, userdata: Any,
-                             msg: Dict[str, Any]):
+    def _on_request_internal(self,
+                             client: Any,
+                             userdata: Any,
+                             msg: Dict[str, Any]
+                             ):
         """_on_request_internal.
 
         Args:
@@ -580,7 +635,9 @@ class RPCServer(BaseRPCServer):
             self.log.error(str(exc), exc_info=False)
             return
 
-    def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
+    def _unpack_comm_msg(self,
+                         msg: Any
+                         ) -> Tuple[CommRPCMessage, str]:
         """_unpack_comm_msg.
 
         Unpack payload, header and uri from communcation message.
@@ -606,8 +663,11 @@ class RPCServer(BaseRPCServer):
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
-    def _register_endpoint(self, uri: str, callback: Any,
-                           msg_type: RPCMessage = None):
+    def _register_endpoint(self,
+                           uri: str,
+                           callback: Callable,
+                           msg_type: RPCMessage = None
+                           ):
         self._svc_map[uri] = (callback, msg_type)
         if self._base_uri in (None, ''):
             full_uri = uri
@@ -654,7 +714,9 @@ class RPCClient(BaseRPCClient):
         """
         return f'rpc-{self._gen_random_id()}'
 
-    def _prepare_request(self, data):
+    def _prepare_request(self,
+                         data: Dict[str, Any]
+                         ):
         """_prepare_request.
 
         Args:
@@ -665,8 +727,11 @@ class RPCClient(BaseRPCClient):
         self._comm_obj.data = data
         return self._comm_obj.dict()
 
-    def _on_response_wrapper(self, client: Any, userdata: Any,
-                             msg: Dict[str, Any]):
+    def _on_response_wrapper(self,
+                             client: Any,
+                             userdata: Any,
+                             msg: Dict[str, Any]
+                             ):
         """_on_response_wrapper.
 
         Args:
@@ -681,14 +746,18 @@ class RPCClient(BaseRPCClient):
             data = {}
         self._response = data
 
-    def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
+    def _unpack_comm_msg(self,
+                         msg: Any
+                         ) -> Tuple[Any, Any, Any]:
         _uri = msg.topic
         _payload = self._serializer.deserialize(msg.payload)
         _data = _payload['data']
         _header = _payload['header']
         return _data, _header, _uri
 
-    def _wait_for_response(self, timeout: float = 10.0):
+    def _wait_for_response(self,
+                           timeout: float = 10.0
+                           ):
         """_wait_for_response.
 
         Args:
@@ -703,8 +772,10 @@ class RPCClient(BaseRPCClient):
             time.sleep(0.001)
         return self._response
 
-    def call(self, msg: RPCMessage.Request,
-             timeout: float = 30) -> RPCMessage.Response:
+    def call(self,
+             msg: RPCMessage.Request,
+             timeout: float = 30
+             ) -> RPCMessage.Response:
         """call.
 
         Args:
@@ -831,7 +902,9 @@ class EventEmitter(BaseEventEmitter):
         self._transport = MQTTTransport(conn_params=self._conn_params,
                                         serializer=self._serializer)
 
-    def send_event(self, event: Event) -> None:
+    def send_event(self,
+                   event: Event
+                   ) -> None:
         """send_event.
 
         Args:
