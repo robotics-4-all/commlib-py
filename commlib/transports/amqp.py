@@ -15,7 +15,13 @@ from commlib.events import BaseEventEmitter, Event
 from commlib.exceptions import *
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import BaseRPCClient, BaseRPCService
+from commlib.rpc import (
+    BaseRPCClient,
+    BaseRPCServer,
+    BaseRPCService,
+    CommRPCMessage,
+    CommRPCHeader
+)
 from commlib.utils import gen_timestamp
 from commlib.connection import BaseConnectionParameters
 from commlib.transports import BaseTransport
@@ -491,6 +497,12 @@ class RPCService(BaseRPCService):
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
+            _req_msg = CommRPCMessage(
+                header=CommRPCHeader(reply_to=_reply_to),
+                data=_data
+            )
+            if not self._validate_rpc_req_msg(_req_msg):
+                raise RPCRequestError('Request Message is invalid!')
         except Exception:
             self.log.error("Exception Thrown in on_request_handle",
                               exc_info=True)
@@ -504,8 +516,11 @@ class RPCService(BaseRPCService):
             _data = {}
             self._send_response(_data, ch, _corr_id, _reply_to, _delivery_tag)
             return
-        resp = self._invoke_onrequest_callback(_data)
-        self._send_response(resp, ch, _corr_id, _reply_to, _delivery_tag)
+        try:
+            resp = self._invoke_onrequest_callback(_data)
+            self._send_response(resp, ch, _corr_id, _reply_to, _delivery_tag)
+        except Exception:
+            self.log.error("OnRequest Callback invocation failed", exc_info=True)
 
     def _invoke_onrequest_callback(self, data: dict):
         if self._msg_type is None:
@@ -524,8 +539,13 @@ class RPCService(BaseRPCService):
             resp = resp.dict()
         return resp
 
-    def _send_response(self, data: dict, channel, correlation_id: str,
-                       reply_to: str, delivery_tag: str):
+    def _send_response(self,
+                       data: dict,
+                       channel,
+                       correlation_id: str,
+                       reply_to: str,
+                       delivery_tag: str
+                       ):
         _payload = None
         _encoding = None
         _type = None
@@ -555,7 +575,8 @@ class RPCService(BaseRPCService):
             exchange=self._exchange,
             routing_key=reply_to,
             properties=_msg_props,
-            body=_payload)
+            body=_payload
+        )
         # Acknowledge receiving the message.
         channel.basic_ack(delivery_tag=delivery_tag)
 
