@@ -6,6 +6,7 @@ import uuid
 from collections import deque
 from threading import Event as ThreadEvent
 from threading import Semaphore, Thread
+import threading
 from typing import Dict
 
 import pika
@@ -15,7 +16,13 @@ from commlib.events import BaseEventEmitter, Event
 from commlib.exceptions import *
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import BaseRPCClient, BaseRPCService
+from commlib.rpc import (
+    BaseRPCClient,
+    BaseRPCServer,
+    BaseRPCService,
+    CommRPCMessage,
+    CommRPCHeader
+)
 from commlib.utils import gen_timestamp
 from commlib.connection import BaseConnectionParameters
 from commlib.transports import BaseTransport
@@ -31,6 +38,8 @@ from commlib.action import (
 
 # Reduce log level for pika internal logger
 logging.getLogger("pika").setLevel(logging.WARN)
+
+logger = logging.getLogger(__name__)
 
 
 class MessageProperties(pika.BasicProperties):
@@ -125,7 +134,7 @@ class ConnectionParameters(BaseConnectionParameters):
 
 
 class Connection(pika.BlockingConnection):
-    """Connection. qThin wrapper around pika.BlockingConnection"""
+    """Connection. Thin wrapper around pika.BlockingConnection"""
     def __init__(self, conn_params: ConnectionParameters):
         """__init__.
 
@@ -177,10 +186,6 @@ class Connection(pika.BlockingConnection):
             print(f'Exception thrown while processing amqp events - {exc}')
 
 
-    def set_transport_ref(self, transport):
-        self._transport = transport
-
-
 class ExchangeType:
     """AMQP Exchange Types."""
     Topic = 'topic'
@@ -199,9 +204,6 @@ class AMQPTransport(BaseTransport):
         self._connection = connection
         self._channel = None
         self._closing = False
-        # Create a new connection
-        if self._connection is None:
-            self._connection = Connection(self._conn_params)
 
     @property
     def channel(self):
@@ -211,8 +213,18 @@ class AMQPTransport(BaseTransport):
     def connection(self):
         return self._connection
 
-    def connect(self):
-        self.create_channel()
+    def connect(self) -> bool:
+        try:
+            if self._connection is None:
+                self._connection = Connection(self._conn_params)
+            self.create_channel()
+            return True
+        except pika.exceptions.ProbableAuthenticationError as e:
+            logger.error(f'Authentication Error: {str(e)}')
+            return False
+        except Exception:
+            return False
+
 
     def _on_connect(self):
         ch = self._connection.channel()
@@ -223,7 +235,6 @@ class AMQPTransport(BaseTransport):
         try:
             # Create a new communication channel
             self._channel = self._connection.channel()
-            # self.add_threadsafe_callback(self._on_connect)
             self.log.debug(
                 f'Connected to AMQP broker <amqp://' + \
                 f'{self._conn_params.host}:{self._conn_params.port}, ' + \
@@ -401,7 +412,7 @@ class AMQPTransport(BaseTransport):
         self._channel.basic_qos(prefetch_count=prefetch_count,
                                 global_qos=global_qos)
 
-    def consume_fromm_queue(self, queue_name, callback):
+    def consume_from_queue(self, queue_name, callback):
         consumer_tag = self._channel.basic_consume(queue_name, callback)
         return consumer_tag
 
@@ -448,6 +459,7 @@ class RPCService(BaseRPCService):
         """
         self._exchange = exchange
         self._closing = False
+        self._rpc_queue = None
         super(RPCService, self).__init__(*args, **kwargs)
 
         self._transport = AMQPTransport(conn_params=self._conn_params,
@@ -456,11 +468,14 @@ class RPCService(BaseRPCService):
 
     def run_forever(self, raise_if_exists: bool = False):
         """Run RPC Service in normal mode. Blocking operation."""
-        self._transport.start()
+        status = self._transport.connect()
+        if not status:
+            raise ConnectionError(f'Failed to connect to AMQP broker')
+
         self._rpc_queue = self._transport.create_queue(self._rpc_name)
-        self._transport.set_channel_qos()
-        self._transport.consume_fromm_queue(self._rpc_queue,
-                                            self._on_request_handle)
+        self._transport.set_channel_qos(prefetch_count=self._max_workers)
+        self._transport.consume_from_queue(self._rpc_queue,
+                                           self._on_request_handle)
         try:
             self._transport.start_consuming()
         except pika.exceptions.ConnectionClosedByBroker as exc:
@@ -475,6 +490,11 @@ class RPCService(BaseRPCService):
         return self._transport.queue_exists(self._rpc_name)
 
     def _on_request_handle(self, ch, method, properties, body):
+        task = self._executor.submit(self._on_request_callback, ch, method,
+                                     properties, body)
+        ## TODO handle tasks
+
+    def _on_request_callback(self, ch, method, properties, body):
         _data = {}
         _ctype = None
         _cencoding = None
@@ -491,6 +511,12 @@ class RPCService(BaseRPCService):
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
+            _req_msg = CommRPCMessage(
+                header=CommRPCHeader(reply_to=_reply_to),
+                data=_data
+            )
+            if not self._validate_rpc_req_msg(_req_msg):
+                raise RPCRequestError('Request Message is invalid!')
         except Exception:
             self.log.error("Exception Thrown in on_request_handle",
                               exc_info=True)
@@ -500,12 +526,19 @@ class RPCService(BaseRPCService):
             _data = self._serializer.deserialize(body)
         except Exception:
             self.log.error("Could not deserialize data", exc_info=True)
-            # Return data as is. Let callback handle with encoding...
-            _data = {}
-            self._send_response(_data, ch, _corr_id, _reply_to, _delivery_tag)
+            self._transport.add_threadsafe_callback(
+                self._send_response,
+                {}, ch, _corr_id, _reply_to, _delivery_tag
+            )
             return
-        resp = self._invoke_onrequest_callback(_data)
-        self._send_response(resp, ch, _corr_id, _reply_to, _delivery_tag)
+        try:
+            resp = self._invoke_onrequest_callback(_data)
+            self._transport.add_threadsafe_callback(
+                self._send_response,
+                resp, ch, _corr_id, _reply_to, _delivery_tag
+            )
+        except Exception:
+            self.log.error("OnRequest Callback invocation failed", exc_info=True)
 
     def _invoke_onrequest_callback(self, data: dict):
         if self._msg_type is None:
@@ -524,8 +557,13 @@ class RPCService(BaseRPCService):
             resp = resp.dict()
         return resp
 
-    def _send_response(self, data: dict, channel, correlation_id: str,
-                       reply_to: str, delivery_tag: str):
+    def _send_response(self,
+                       data: dict,
+                       channel,
+                       correlation_id: str,
+                       reply_to: str,
+                       delivery_tag: str
+                       ):
         _payload = None
         _encoding = None
         _type = None
@@ -555,7 +593,8 @@ class RPCService(BaseRPCService):
             exchange=self._exchange,
             routing_key=reply_to,
             properties=_msg_props,
-            body=_payload)
+            body=_payload
+        )
         # Acknowledge receiving the message.
         channel.basic_ack(delivery_tag=delivery_tag)
 
@@ -665,10 +704,12 @@ class RPCClient(BaseRPCClient):
             self._corr_id = self.gen_corr_id()
 
         start_t = time.time()
-        self._transport.connection.add_callback_threadsafe(
+        self._transport.add_threadsafe_callback(
             functools.partial(self._send_msg, data)
         )
         resp = self._wait_for_response(timeout=timeout)
+        if resp is None:
+            return resp
         elapsed_t = time.time() - start_t
         self._delay = elapsed_t
         if self._msg_type is None:
@@ -676,7 +717,7 @@ class RPCClient(BaseRPCClient):
         else:
             return self._msg_type.Response(**resp)
 
-    def _wait_for_response(self, timeout: float = 10.0):
+    def _wait_for_response(self, timeout: float = 30.0):
         start_t = time.time()
         while self._response is None:
             elapsed_t = time.time() - start_t

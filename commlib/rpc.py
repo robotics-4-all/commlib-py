@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import threading
 from functools import partial
-from typing import Any, Dict, Callable
+from typing import Any, Dict, Callable, Optional
 from pydantic import BaseModel
 
 from commlib.serializer import JSONSerializer, Serializer
@@ -16,10 +16,10 @@ rpc_logger = None
 
 class CommRPCHeader(BaseModel):
     reply_to: str = ''
-    timestamp: int = gen_timestamp()
+    timestamp: Optional[int] = gen_timestamp()
 
 
-class CommRPCObject(BaseModel):
+class CommRPCMessage(BaseModel):
     header: CommRPCHeader = CommRPCHeader()
     data: Dict[str, Any] = {}
 
@@ -51,12 +51,12 @@ class BaseRPCServer(BaseEndpoint):
         super().__init__(*args, **kwargs)
         self._base_uri = base_uri
         self._svc_map = svc_map
-        self._num_workers = workers
+        self._max_workers = workers
         self._gen_random_id = gen_random_id
-        self._executor = ThreadPoolExecutor(max_workers=self._num_workers)
+        self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._main_thread = None
         self._t_stop_event = None
-        self._comm_obj = CommRPCObject()
+        self._comm_obj = CommRPCMessage()
 
     def run_forever(self):
         """run_forever.
@@ -95,7 +95,7 @@ class BaseRPCService(BaseEndpoint):
                  rpc_name: str,
                  msg_type: RPCMessage = None,
                  on_request: Callable = None,
-                 workers: int = 2,
+                 workers: int = 5,
                  *args, **kwargs):
         """__init__.
 
@@ -108,19 +108,26 @@ class BaseRPCService(BaseEndpoint):
         super().__init__(*args, **kwargs)
         self._rpc_name = rpc_name
         self._msg_type = msg_type
-        self._num_workers = workers
         self.on_request = on_request
         self._gen_random_id = gen_random_id
-        self._executor = ThreadPoolExecutor(max_workers=2)
+        self._max_workers = workers
+        self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._main_thread = None
         self._t_stop_event = None
-        self._comm_obj = CommRPCObject()
+        self._comm_obj = CommRPCMessage()
 
     def _serialize_data(self, payload: Dict[str, Any]) -> str:
         return self._serializer.serialize(payload)
 
     def _serialize_response(self, message: RPCMessage.Response) -> str:
         return self._serialize_data(message.dict())
+
+    def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
+        if msg.header is None:
+            return False
+        elif msg.header.reply_to in ('', None):
+            return False
+        return True
 
     def run_forever(self):
         """run_forever.
@@ -158,7 +165,7 @@ class BaseRPCClient(BaseEndpoint):
     def __init__(self,
                  rpc_name: str,
                  msg_type: RPCMessage = None,
-                 max_workers: int = 5,
+                 workers: int = 5,
                  *args, **kwargs):
         """__init__.
 
@@ -170,11 +177,13 @@ class BaseRPCClient(BaseEndpoint):
         self._rpc_name = rpc_name
         self._msg_type = msg_type
         self._gen_random_id = gen_random_id
-        self._executor = ThreadPoolExecutor(max_workers=max_workers)
-        self._comm_obj = CommRPCObject()
+        self._max_workers = workers
+        self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
+        self._comm_obj = CommRPCMessage()
 
     def call(self, msg: RPCMessage.Request,
-             timeout: float = 30) -> RPCMessage.Response:
+             timeout: float = 30.0
+             ) -> RPCMessage.Response:
         """call.
         Synchronous RPC Call.
 
