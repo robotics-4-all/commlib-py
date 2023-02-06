@@ -476,35 +476,32 @@ class RPCService(BaseRPCService):
                        data: Dict[str, Any],
                        reply_to: str
                        ):
-        """_send_response.
-
-        Args:
-            data (dict): data
-            reply_to (str): reply_to
-        """
         self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.dict()
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
+
+    def _on_request_handle(self,
+                           client: Any,
+                           userdata: Any,
+                           msg: Dict[str, Any]
+                           ):
+        task = self._executor.submit(self._on_request_internal,
+                                     client,
+                                     userdata,
+                                     msg)
 
     def _on_request_internal(self,
                              client: Any,
                              userdata: Any,
                              msg: Dict[str, Any]
                              ):
-        """_on_request_internal.
-
-        Args:
-            client (Any): client
-            userdata (Any): userdata
-            msg (Dict[str, Any]): msg
-        """
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(
-                f'Could not unpack request message: {exc}'
-                '\nDropping client request!',
+                f'Could not unpack request message: {exc}\n'
+                'Dropping client request!',
                 exc_info=True
             )
             return
@@ -522,16 +519,6 @@ class RPCService(BaseRPCService):
     def _unpack_comm_msg(self,
                          msg: Any
                          ) -> Tuple[CommRPCMessage, str]:
-        """_unpack_comm_msg.
-
-        Unpack payload, header and uri from communcation message.
-
-        Args:
-            msg (Any): msg
-
-        Returns:
-            Tuple[Any, Any, Any]:
-        """
         try:
             _uri = msg.topic
             _payload = self._serializer.deserialize(msg.payload)
@@ -551,7 +538,7 @@ class RPCService(BaseRPCService):
         """run_forever.
         """
         self._transport.subscribe(self._rpc_name,
-                                  self._on_request_internal,
+                                  self._on_request_handle,
                                   qos=MQTTQoS.L1)
         self._transport.start()
         while True:
@@ -593,6 +580,16 @@ class RPCServer(BaseRPCServer):
         self._comm_obj.data = data
         _resp = self._comm_obj.dict()
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
+
+    def _on_request_handle(self,
+                           client: Any,
+                           userdata: Any,
+                           msg: Dict[str, Any]
+                           ):
+        task = self._executor.submit(self._on_request_internal,
+                                     client,
+                                     userdata,
+                                     msg)
 
     def _on_request_internal(self,
                              client: Any,
@@ -674,7 +671,7 @@ class RPCServer(BaseRPCServer):
         else:
             full_uri = f'{self._base_uri}.{uri}'
         self.log.info(f'Registering endpoint <{full_uri}>')
-        self._transport.subscribe(full_uri, self._on_request_internal,
+        self._transport.subscribe(full_uri, self._on_request_handle,
                                   qos=MQTTQoS.L1)
 
     def run_forever(self):
