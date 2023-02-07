@@ -1,9 +1,9 @@
 import time
 from enum import IntEnum
 from typing import List, Union
+import logging
 
 from commlib.endpoints import endpoint_factory, EndpointType, TransportType
-from commlib.logger import Logger
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.connection import BaseConnectionParameters
 
@@ -43,10 +43,10 @@ class Bridge:
     Base Bridge Class.
     """
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global br_logger
         if br_logger is None:
-            br_logger = Logger(__name__)
+            br_logger = logging.getLogger(__name__)
         return br_logger
 
     def __init__(self,

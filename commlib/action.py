@@ -5,12 +5,12 @@ from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
 from functools import partial
 from typing import Dict, Any
+import logging
 
 from commlib.compression import CompressionType
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.connection import BaseConnectionParameters
 
-from commlib.logger import Logger
 from commlib.msg import ActionMessage, Message, PubSubMessage, RPCMessage
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.utils import gen_random_id, gen_timestamp
@@ -100,10 +100,10 @@ class _ActionFeedbackMessage(PubSubMessage):
 
 class GoalHandler:
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global actions_logger
         if actions_logger is None:
-            actions_logger = Logger(__name__)
+            actions_logger = logging.getLogger(__name__)
         return actions_logger
 
     def __init__(self, msg_type: ActionMessage,
@@ -226,10 +226,10 @@ class GoalHandler:
 
 class BaseActionService:
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global actions_logger
         if actions_logger is None:
-            actions_logger = Logger(__name__)
+            actions_logger = logging.getLogger(__name__)
         return actions_logger
 
     def __init__(self,
@@ -391,10 +391,10 @@ class BaseActionService:
 
 class BaseActionClient:
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global actions_logger
         if actions_logger is None:
-            actions_logger = Logger(__name__)
+            actions_logger = logging.getLogger(__name__)
         return actions_logger
 
     def __init__(self,

@@ -1,7 +1,7 @@
 from typing import Text, Dict, Any
+import logging
 
 from commlib.serializer import JSONSerializer, Serializer
-from commlib.logger import Logger
 from commlib.utils import gen_random_id
 from pydantic import BaseModel, NoneIsAllowedError
 from commlib.connection import BaseConnectionParameters
@@ -23,10 +23,10 @@ class BaseEventEmitter:
     """BaseEventEmitter.
     """
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global em_logger
         if em_logger is None:
-            em_logger = Logger(__name__)
+            em_logger = logging.getLogger(__name__)
         return em_logger
 
     def __init__(self,
@@ -65,14 +65,7 @@ class BaseEventEmitter:
         return self._debug
 
     @property
-    def log(self) -> Logger:
-        """logger.
-
-        Args:
-
-        Returns:
-            Logger:
-        """
+    def log(self) -> logging.Logger:
         return self.logger()
 
     def send_event(self, event: Event) -> None:

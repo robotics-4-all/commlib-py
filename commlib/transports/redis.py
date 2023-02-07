@@ -3,6 +3,7 @@ import functools
 import sys
 import time
 from typing import Any, Dict, Tuple, Callable, Optional
+import logging
 
 import redis
 
@@ -12,7 +13,6 @@ from commlib.exceptions import (
     RPCRequestError,
     MQTTError
 )
-from commlib.logger import Logger
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import (
@@ -65,10 +65,10 @@ class RedisConnection(redis.Redis):
 
 class RedisTransport(BaseTransport):
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global redis_logger
         if redis_logger is None:
-            redis_logger = Logger(__name__)
+            redis_logger = logging.getLogger(__name__)
         return redis_logger
 
     def __init__(self,

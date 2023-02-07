@@ -1,11 +1,8 @@
-"""
-MQTT Implementation
-"""
-
 import functools
 import time
 from enum import IntEnum
 from typing import Any, Dict, Tuple, Callable
+import logging
 
 import paho.mqtt.client as mqtt
 from paho.mqtt.properties import Properties
@@ -40,6 +37,9 @@ from commlib.action import (
     _ActionResultMessage,
     _ActionStatusMessage
 )
+
+
+mqtt_logger: logging.Logger = None
 
 
 class MQTTReturnCode(IntEnum):
@@ -80,6 +80,13 @@ class ConnectionParameters(BaseConnectionParameters):
 class MQTTTransport(BaseTransport):
     """MQTTTransport.
     """
+    @classmethod
+    def logger(cls) -> logging.Logger:
+        global n_logger
+        if mqtt_logger is None:
+            mqtt_logger = logging.getLogger(__name__)
+        return mqtt_logger
+
     def __init__(self,
                  serializer: Serializer = JSONSerializer(),
                  compression: CompressionType =

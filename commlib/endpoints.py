@@ -1,5 +1,5 @@
 from enum import Enum
-from commlib.logger import Logger
+import logging
 from commlib.connection import BaseConnectionParameters
 from commlib.transports import BaseTransport
 from commlib.serializer import Serializer, JSONSerializer
@@ -12,10 +12,10 @@ class BaseEndpoint:
     _transport: BaseTransport = None
 
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global e_logger
         if e_logger is None:
-            e_logger = Logger(__name__)
+            e_logger = logging.getLogger(__name__)
         return e_logger
 
     def __init__(self,
