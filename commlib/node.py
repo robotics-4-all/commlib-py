@@ -435,7 +435,7 @@ class Node:
         rpc = self._transport_module.RPCService(
             conn_params=self._conn_params,
             compression=self._compression,
-            # workers=self._workers_rpc,
+            workers=self._workers_rpc,
             *args, **kwargs
         )
         self._rpc_services.append(rpc)

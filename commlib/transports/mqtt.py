@@ -82,7 +82,7 @@ class MQTTTransport(BaseTransport):
     """
     @classmethod
     def logger(cls) -> logging.Logger:
-        global n_logger
+        global mqtt_logger
         if mqtt_logger is None:
             mqtt_logger = logging.getLogger(__name__)
         return mqtt_logger

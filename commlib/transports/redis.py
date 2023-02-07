@@ -91,7 +91,7 @@ class RedisTransport(BaseTransport):
         return self._connected
 
     @property
-    def log(self) -> Logger:
+    def log(self) -> logging.Logger:
         return self.logger()
 
     def connect(self) -> None:
