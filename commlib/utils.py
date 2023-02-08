@@ -1,9 +1,8 @@
 import re
-import uuid
 import time
-
-from typing import (Any, Callable, Dict, List, Optional, Tuple, Type,
-                    TypeVar, Union, Text)
+import uuid
+from typing import (Any, Callable, Dict, List, Optional, Text, Tuple, Type,
+                    TypeVar, Union)
 
 
 def camelcase_to_snakecase(_str: str) -> str:

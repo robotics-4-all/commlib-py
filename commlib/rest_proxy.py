@@ -1,13 +1,11 @@
-import time
 import json
+import time
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 
-from typing import Dict, List, Any, Optional, Union
-
-from commlib.endpoints import TransportType, EndpointType, endpoint_factory
+from commlib.endpoints import EndpointType, TransportType, endpoint_factory
 from commlib.msg import PubSubMessage, RPCMessage
-
 
 """
 {
@@ -46,10 +44,12 @@ class RESTProxy:
     supported protocols (AMQP, MQTT, REDIS).
     """
 
-    def __init__(self, broker_uri: str,
+    def __init__(self,
+                 broker_uri: str,
                  broker_type: TransportType,
                  broker_params: Any,
-                 debug: bool = False):
+                 debug: bool = False
+                 ):
         """__init__.
 
         Args:
@@ -59,20 +59,16 @@ class RESTProxy:
             debug (bool): debug
         """
         self._debug = debug
-        svc = endpoint_factory(EndpointType.RPCService,
-                               broker_type)(rpc_name=broker_uri,
-                                            msg_type=RESTProxyMessage,
-                                            conn_params=broker_params,
-                                            on_request=self._on_request,
-                                            debug=self._debug)
+        svc = endpoint_factory(EndpointType.RPCService, broker_type)(
+            rpc_name=broker_uri,
+            msg_type=RESTProxyMessage,
+            conn_params=broker_params,
+            on_request=self._on_request,
+            debug=self._debug
+        )
         self._svc = svc
 
     def _on_request(self, msg: RESTProxyMessage.Request):
-        """_on_request.
-
-        Args:
-            msg (RESTProxyMessage): Request message
-        """
         url = f'{msg.base_url}{msg.path}'
         # -------- > Perform HTTP Request from input message
         if msg.verb == 'GET':

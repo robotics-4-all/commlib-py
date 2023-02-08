@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-from commlib.transports.mqtt import PSubscriber, ConnectionParameters
 from commlib.msg import PubSubMessage
+from commlib.transports.mqtt import ConnectionParameters, PSubscriber
 
 
 class SonarMessage(PubSubMessage):

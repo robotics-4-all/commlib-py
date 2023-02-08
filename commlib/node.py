@@ -1,10 +1,11 @@
+import logging
 import threading
 import time
 from enum import IntEnum
 from functools import wraps
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+
 from pydantic import BaseModel
-import logging
 
 from commlib.compression import CompressionType
 from commlib.endpoints import TransportType
@@ -89,16 +90,8 @@ class HeartbeatThread(threading.Thread):
 
     def __init__(self,
                  pub_instance: BasePublisher,
-                 interval: Optional[int] = 10,
+                 interval: Optional[float] = 10,
                  *args, **kwargs):
-        """__init__.
-
-        Args:
-            pub_instance:
-            interval (int): interval
-            args:
-            kwargs:
-        """
         super().__init__(*args, **kwargs)
         self._stop_event = threading.Event()
         self._rate_secs = interval
@@ -185,6 +178,7 @@ class Node:
                  transport_connection_params: Optional[Any] = None,
                  debug: Optional[bool] = False,
                  heartbeats: Optional[bool] = True,
+                 heartbeat_interval: Optional[float] = 10.0,
                  heartbeat_uri: Optional[str] = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
                  ctrl_services: Optional[bool] = False,
@@ -199,8 +193,11 @@ class Node:
                 Used for backward compatibility
             debug (Optional[bool]): debug
             heartbeats (Optional[bool]): heartbeat_thread
-            heartbeat_uri (Optional[str]): heartbeat_uri
-            ctrl_services (Optional[bool]): ctrl_services
+            heartbeat_interval (Optional[float]): Heartbeat publishing interval
+                in seconds
+            heartbeat_uri (Optional[str]): The Topic URI to publish heartbeat
+                messages
+            ctrl_services (Optional[bool]): Enable/Disable control interfaces
         """
         if node_name == '' or node_name is None:
             node_name = gen_random_id()
@@ -212,9 +209,10 @@ class Node:
         self._namespace = self._node_name
         self._has_ctrl_services = ctrl_services
         self._heartbeats = heartbeats
-        self._compression = compression
+        self._heartbeat_interval = heartbeat_interval
         self._heartbeat_uri = heartbeat_uri if heartbeat_uri is not None else \
             f'{self._namespace}.heartbeat'
+        self._compression = compression
         self.state = NodeState.IDLE
 
         self._publishers = []
@@ -254,7 +252,8 @@ class Node:
         hb_pub = self.create_publisher(topic=self._heartbeat_uri,
                                        msg_type=HeartbeatMessage)
         hb_pub.run()
-        self._hb_thread = HeartbeatThread(hb_pub)
+        self._hb_thread = HeartbeatThread(hb_pub,
+                                          interval=self._heartbeat_interval)
         self._hb_thread.start()
         self.log.debug(f'Started Heartbeat Publisher <{self._heartbeat_uri}>')
 

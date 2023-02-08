@@ -1,15 +1,16 @@
-from concurrent.futures import ThreadPoolExecutor
-import threading
-from functools import partial
-from typing import Any, Dict, Callable, Optional
-from pydantic import BaseModel
 import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+from typing import Any, Callable, Dict, Optional
 
-from commlib.serializer import JSONSerializer, Serializer
+from pydantic import BaseModel
+
 from commlib.connection import BaseConnectionParameters
 from commlib.endpoints import BaseEndpoint
-from commlib.utils import gen_random_id, gen_timestamp
 from commlib.msg import RPCMessage
+from commlib.serializer import JSONSerializer, Serializer
+from commlib.utils import gen_random_id, gen_timestamp
 
 rpc_logger = None
 

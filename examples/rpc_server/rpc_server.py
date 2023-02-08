@@ -47,8 +47,7 @@ if __name__ == '__main__':
         raise ValueError('Not yet supported')
         from commlib.transports.amqp import ConnectionParameters
     elif broker == 'mqtt':
-        from commlib.transports.mqtt import ConnectionParameters
-        from commlib.transports.mqtt import RPCServer
+        from commlib.transports.mqtt import ConnectionParameters, RPCServer
     else:
         print('Not a valid broker-type was given!')
         sys.exit(1)

@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
+import time
+
 import commlib.transports.amqp as acomm
 import commlib.transports.redis as rcomm
-from commlib.bridges import (
-    RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
-)
+from commlib.bridges import (RPCBridge, RPCBridgeType, TopicBridge,
+                             TopicBridgeType)
 from commlib.msg import PubSubMessage, RPCMessage
-import time
 
 
 class TopicMessage(PubSubMessage):

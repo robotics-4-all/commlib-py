@@ -1,10 +1,11 @@
-from typing import Text, Dict, Any
 import logging
+from typing import Any, Dict, Text
 
+from pydantic import BaseModel, NoneIsAllowedError
+
+from commlib.connection import BaseConnectionParameters
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.utils import gen_random_id
-from pydantic import BaseModel, NoneIsAllowedError
-from commlib.connection import BaseConnectionParameters
 
 em_logger = None
 

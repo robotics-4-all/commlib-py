@@ -6,7 +6,6 @@ import time
 from commlib.node import Node, TransportType
 from commlib.rest_proxy import RESTProxyMessage
 
-
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         broker = 'redis'

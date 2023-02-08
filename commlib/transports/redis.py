@@ -1,41 +1,28 @@
 import datetime
 import functools
+import logging
 import sys
 import time
-from typing import Any, Dict, Tuple, Callable, Optional
-import logging
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import redis
 
+from commlib.action import (BaseActionClient, BaseActionService,
+                            _ActionCancelMessage, _ActionFeedbackMessage,
+                            _ActionGoalMessage, _ActionResultMessage,
+                            _ActionStatusMessage)
+from commlib.compression import CompressionType, deflate, inflate_str
+from commlib.connection import BaseConnectionParameters
 from commlib.events import BaseEventEmitter, Event
-from commlib.exceptions import (
-    RPCClientTimeoutError,
-    RPCRequestError,
-    MQTTError
-)
+from commlib.exceptions import (MQTTError, RPCClientTimeoutError,
+                                RPCRequestError)
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import (
-    BaseRPCClient,
-    BaseRPCServer,
-    BaseRPCService,
-    CommRPCMessage,
-    CommRPCHeader
-)
-from commlib.serializer import Serializer, JSONSerializer
-from commlib.compression import CompressionType, inflate_str, deflate
-from commlib.utils import gen_timestamp
-from commlib.connection import BaseConnectionParameters
+from commlib.rpc import (BaseRPCClient, BaseRPCServer, BaseRPCService,
+                         CommRPCHeader, CommRPCMessage)
+from commlib.serializer import JSONSerializer, Serializer
 from commlib.transports import BaseTransport
-from commlib.action import (
-    BaseActionClient,
-    BaseActionService,
-    _ActionCancelMessage,
-    _ActionFeedbackMessage,
-    _ActionGoalMessage,
-    _ActionResultMessage,
-    _ActionStatusMessage
-)
+from commlib.utils import gen_timestamp
 
 redis_logger = None
 

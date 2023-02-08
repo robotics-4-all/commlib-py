@@ -1,17 +1,16 @@
 import concurrent.futures.thread
+import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
 from functools import partial
-from typing import Dict, Any
-import logging
+from typing import Any, Dict
 
 from commlib.compression import CompressionType
-from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.connection import BaseConnectionParameters
-
 from commlib.msg import ActionMessage, Message, PubSubMessage, RPCMessage
+from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.utils import gen_random_id, gen_timestamp
 

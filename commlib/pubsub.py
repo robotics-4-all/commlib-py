@@ -1,14 +1,13 @@
-from concurrent.futures import ThreadPoolExecutor
-import threading
-from typing import Dict, Any, Callable, Optional
 import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable, Dict, Optional
 
-from commlib.serializer import Serializer, JSONSerializer
-from commlib.utils import gen_random_id
-from commlib.msg import PubSubMessage
 from commlib.connection import BaseConnectionParameters
 from commlib.endpoints import BaseEndpoint
-
+from commlib.msg import PubSubMessage
+from commlib.serializer import JSONSerializer, Serializer
+from commlib.utils import gen_random_id
 
 pubsub_logger = None
 

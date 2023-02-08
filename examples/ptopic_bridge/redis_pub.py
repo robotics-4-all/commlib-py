@@ -2,8 +2,9 @@
 
 import time
 
-from commlib.transports.redis import MPublisher, ConnectionParameters
 from commlib.msg import PubSubMessage
+from commlib.transports.redis import ConnectionParameters, MPublisher
+
 
 class SonarMessage(PubSubMessage):
     distance: float = 0.001

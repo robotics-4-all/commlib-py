@@ -1,9 +1,10 @@
-from enum import Enum
 import logging
-from commlib.connection import BaseConnectionParameters
-from commlib.transports import BaseTransport
-from commlib.serializer import Serializer, JSONSerializer
+from enum import Enum
+
 from commlib.compression import CompressionType
+from commlib.connection import BaseConnectionParameters
+from commlib.serializer import JSONSerializer, Serializer
+from commlib.transports import BaseTransport
 
 e_logger = None
 

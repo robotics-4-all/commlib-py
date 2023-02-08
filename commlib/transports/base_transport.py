@@ -1,5 +1,6 @@
-from commlib.connection import BaseConnectionParameters
 import logging
+
+from commlib.connection import BaseConnectionParameters
 
 transport_logger = None
 

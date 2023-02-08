@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import time
-from commlib.endpoints import endpoint_factory, EndpointType, TransportType
+
+from commlib.endpoints import EndpointType, TransportType, endpoint_factory
 
 
 def callback(data):

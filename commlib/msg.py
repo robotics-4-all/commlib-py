@@ -1,12 +1,12 @@
 import abc
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
-from uuid import UUID
-from commlib.utils import gen_timestamp
-
 import base64
 from os import path
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from uuid import UUID
 
 from pydantic import BaseModel
+
+from commlib.utils import gen_timestamp
 
 Primitives = [str, int, float, bool, bytes]
 

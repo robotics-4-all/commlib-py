@@ -2,10 +2,10 @@
 
 import sys
 import time
+from typing import Any, List
 
-from commlib.msg import PubSubMessage, MessageHeader, DataClass
+from commlib.msg import DataClass, MessageHeader, PubSubMessage
 from commlib.node import Node, TransportType
-from typing import List, Any
 
 
 @DataClass

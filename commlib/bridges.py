@@ -1,11 +1,11 @@
+import logging
 import time
 from enum import IntEnum
 from typing import List, Union
-import logging
 
-from commlib.endpoints import endpoint_factory, EndpointType, TransportType
-from commlib.msg import PubSubMessage, RPCMessage
 from commlib.connection import BaseConnectionParameters
+from commlib.endpoints import EndpointType, TransportType, endpoint_factory
+from commlib.msg import PubSubMessage, RPCMessage
 
 br_logger = None
 

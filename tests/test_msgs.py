@@ -6,7 +6,7 @@ import time
 import unittest
 from typing import Optional
 
-from commlib.msg import MessageHeader, RPCMessage, PubSubMessage, Message
+from commlib.msg import Message, MessageHeader, PubSubMessage, RPCMessage
 from commlib.timer import Timer
 
 

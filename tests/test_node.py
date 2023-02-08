@@ -5,7 +5,8 @@
 import time
 import unittest
 from typing import Optional
-from commlib.msg import PubSubMessage, MessageHeader, RPCMessage
+
+from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
 from commlib.node import Node, TransportType
 from commlib.transports.mock import ConnectionParameters
 
