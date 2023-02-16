@@ -8,3 +8,4 @@ if [[ -z $VERSION ]]; then
 fi
 
 sed -i "s/__version__ = .*/__version__ = \"${VERSION}\"/g" ./commlib/__init__.py
+sed -i "s/^version = .*/version = \"${VERSION}\"/g" pyproject.toml
