@@ -1,14 +1,13 @@
-from concurrent.futures import ThreadPoolExecutor
+import logging
 import threading
-from typing import Dict, Any, Callable, Optional
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable, Dict, Optional
 
-from commlib.serializer import Serializer, JSONSerializer
-from commlib.logger import Logger
-from commlib.utils import gen_random_id
-from commlib.msg import PubSubMessage
 from commlib.connection import BaseConnectionParameters
 from commlib.endpoints import BaseEndpoint
-
+from commlib.msg import PubSubMessage
+from commlib.serializer import JSONSerializer, Serializer
+from commlib.utils import gen_random_id
 
 pubsub_logger = None
 
@@ -17,10 +16,10 @@ class BasePublisher(BaseEndpoint):
     """BasePublisher.
     """
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global pubsub_logger
         if pubsub_logger is None:
-            pubsub_logger = Logger(__name__)
+            pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
 
     def __init__(self,
@@ -70,10 +69,10 @@ class BaseSubscriber(BaseEndpoint):
     """BaseSubscriber.
     """
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global pubsub_logger
         if pubsub_logger is None:
-            pubsub_logger = Logger(__name__)
+            pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
 
     def __init__(self,

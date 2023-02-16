@@ -3,7 +3,7 @@
 import sys
 import time
 
-from commlib.msg import PubSubMessage, DataClass
+from commlib.msg import DataClass, PubSubMessage
 
 
 @DataClass
@@ -23,19 +23,16 @@ if __name__ == '__main__':
     else:
         broker = str(sys.argv[1])
     if broker == 'amqp':
-        from commlib.transports.amqp import (
-            MPublisher, PSubscriber, ConnectionParameters
-        )
+        from commlib.transports.amqp import (ConnectionParameters, MPublisher,
+                                             PSubscriber)
         topic = 'sensors.#'
     elif broker == 'redis':
-        from commlib.transports.redis import (
-            MPublisher, PSubscriber, ConnectionParameters
-        )
+        from commlib.transports.redis import (ConnectionParameters, MPublisher,
+                                              PSubscriber)
         topic = 'sensors.*'
     elif broker == 'mqtt':
-        from commlib.transports.redis import (
-            MPublisher, PSubscriber, ConnectionParameters
-        )
+        from commlib.transports.redis import (ConnectionParameters, MPublisher,
+                                              PSubscriber)
         topic = 'sensors.*'
 
     sub = PSubscriber(topic=topic, msg_type=SonarMessage,

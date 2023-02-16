@@ -1,15 +1,16 @@
-from concurrent.futures import ThreadPoolExecutor
+import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Any, Dict, Callable, Optional
+from typing import Any, Callable, Dict, Optional
+
 from pydantic import BaseModel
 
-from commlib.serializer import JSONSerializer, Serializer
 from commlib.connection import BaseConnectionParameters
-from commlib.logger import Logger
 from commlib.endpoints import BaseEndpoint
-from commlib.utils import gen_random_id, gen_timestamp
 from commlib.msg import RPCMessage
+from commlib.serializer import JSONSerializer, Serializer
+from commlib.utils import gen_random_id, gen_timestamp
 
 rpc_logger = None
 
@@ -25,17 +26,11 @@ class CommRPCMessage(BaseModel):
 
 
 class BaseRPCServer(BaseEndpoint):
-    """RPCServer Base class.
-    Inherit to implement transport-specific RPCService.
-
-    Args:
-        - rpc_name (str)
-    """
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global rpc_logger
         if rpc_logger is None:
-            rpc_logger = Logger(__name__)
+            rpc_logger = logging.getLogger(__name__)
         return rpc_logger
 
     def __init__(self,
@@ -85,10 +80,10 @@ class BaseRPCService(BaseEndpoint):
         - rpc_name (str)
     """
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global rpc_logger
         if rpc_logger is None:
-            rpc_logger = Logger(__name__)
+            rpc_logger = logging.getLogger(__name__)
         return rpc_logger
 
     def __init__(self,
@@ -161,6 +156,12 @@ class BaseRPCClient(BaseEndpoint):
     """RPCClient Base class.
     Inherit to implement transport-specific RPCClient.
     """
+    @classmethod
+    def logger(cls) -> logging.Logger:
+        global rpc_logger
+        if rpc_logger is None:
+            rpc_logger = logging.getLogger(__name__)
+        return rpc_logger
 
     def __init__(self,
                  rpc_name: str,

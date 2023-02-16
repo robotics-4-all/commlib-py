@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 """The setup script."""
-import sys
-import os
-from setuptools import setup
 import importlib.metadata
+import os
+import sys
 
+from setuptools import setup
 
 this_dir = os.path.abspath(os.path.dirname(__file__))
 

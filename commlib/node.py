@@ -1,18 +1,19 @@
+import logging
 import threading
 import time
 from enum import IntEnum
 from functools import wraps
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+
 from pydantic import BaseModel
 
 from commlib.compression import CompressionType
 from commlib.endpoints import TransportType
-from commlib.logger import Logger
 from commlib.msg import HeartbeatMessage, RPCMessage
 from commlib.pubsub import BasePublisher
 from commlib.utils import gen_random_id
 
-n_logger = None
+n_logger: logging.Logger = None
 
 
 class NodePort:
@@ -81,24 +82,16 @@ class HeartbeatThread(threading.Thread):
     """HeartbeatThread.
     """
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global n_logger
         if n_logger is None:
-            n_logger = Logger(__name__)
+            n_logger = logging.getLogger(__name__)
         return n_logger
 
     def __init__(self,
                  pub_instance: BasePublisher,
-                 interval: Optional[int] = 10,
+                 interval: Optional[float] = 10,
                  *args, **kwargs):
-        """__init__.
-
-        Args:
-            pub_instance:
-            interval (int): interval
-            args:
-            kwargs:
-        """
         super().__init__(*args, **kwargs)
         self._stop_event = threading.Event()
         self._rate_secs = interval
@@ -173,10 +166,10 @@ class Node:
     """Node.
     """
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global n_logger
         if n_logger is None:
-            n_logger = Logger(__name__)
+            n_logger = logging.getLogger(__name__)
         return n_logger
 
     def __init__(self,
@@ -185,9 +178,11 @@ class Node:
                  transport_connection_params: Optional[Any] = None,
                  debug: Optional[bool] = False,
                  heartbeats: Optional[bool] = True,
+                 heartbeat_interval: Optional[float] = 10.0,
                  heartbeat_uri: Optional[str] = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
-                 ctrl_services: Optional[bool] = False):
+                 ctrl_services: Optional[bool] = False,
+                 workers_rpc: Optional[int] = 5):
         """__init__.
 
         Args:
@@ -198,8 +193,11 @@ class Node:
                 Used for backward compatibility
             debug (Optional[bool]): debug
             heartbeats (Optional[bool]): heartbeat_thread
-            heartbeat_uri (Optional[str]): heartbeat_uri
-            ctrl_services (Optional[bool]): ctrl_services
+            heartbeat_interval (Optional[float]): Heartbeat publishing interval
+                in seconds
+            heartbeat_uri (Optional[str]): The Topic URI to publish heartbeat
+                messages
+            ctrl_services (Optional[bool]): Enable/Disable control interfaces
         """
         if node_name == '' or node_name is None:
             node_name = gen_random_id()
@@ -207,12 +205,14 @@ class Node:
         self._node_name = node_name
         self._debug = debug
         self._hb_thread = None
+        self._workers_rpc = workers_rpc
         self._namespace = self._node_name
         self._has_ctrl_services = ctrl_services
         self._heartbeats = heartbeats
-        self._compression = compression
+        self._heartbeat_interval = heartbeat_interval
         self._heartbeat_uri = heartbeat_uri if heartbeat_uri is not None else \
             f'{self._namespace}.heartbeat'
+        self._compression = compression
         self.state = NodeState.IDLE
 
         self._publishers = []
@@ -222,6 +222,7 @@ class Node:
         self._action_services = []
         self._action_clients = []
         self._event_emitters = []
+        self._ports: List[NodePort] = []
 
         ## Set default ConnectionParameters ---->
         if transport_connection_params is not None and connection_params is None:
@@ -244,26 +245,17 @@ class Node:
         self.log.info(f'Created Node <{self._node_name}>')
 
     @property
-    def log(self) -> Logger:
+    def log(self) -> logging.Logger:
         return self.logger()
 
-    def create_heartbeat_thread(self) -> None:
-        """create_heartbeat_thread.
-        Starts the heartbeat thread. Heartbeat messages are sent periodically
-        to inform about correct execution of the node.
-
-        Args:
-            topic (str): topic
-        """
-        self._hb_thread = HeartbeatThread(
-            self.create_publisher(topic=self._heartbeat_uri,
-                                  msg_type=HeartbeatMessage)
-        )
-
-    def start_heartbeat_thread(self):
+    def _init_heartbeat_thread(self) -> None:
+        hb_pub = self.create_publisher(topic=self._heartbeat_uri,
+                                       msg_type=HeartbeatMessage)
+        hb_pub.run()
+        self._hb_thread = HeartbeatThread(hb_pub,
+                                          interval=self._heartbeat_interval)
         self._hb_thread.start()
-        self.log.debug(
-            f'Started Heartbeat Publisher <{self._heartbeat_uri}>')
+        self.log.debug(f'Started Heartbeat Publisher <{self._heartbeat_uri}>')
 
     def create_stop_service(self, uri: str = None) -> None:
         if uri is None:
@@ -333,8 +325,6 @@ class Node:
         Returns:
             None:
         """
-        if self._heartbeats:
-            self.create_heartbeat_thread()
         if self._has_ctrl_services:
             self.create_start_service()
             self.create_stop_service()
@@ -351,7 +341,7 @@ class Node:
         for c in self._action_clients:
             c.run()
         if self._heartbeats:
-            self.start_heartbeat_thread()
+            self._init_heartbeat_thread()
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.001) -> None:
@@ -427,10 +417,24 @@ class Node:
         self._subscribers.append(sub)
         return sub
 
-    def subscriber_callback(self, fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            return self.create_subscriber(*args, **kwargs)
+    def subscribe(self, topic, msg_type):
+        def wrapper(func):
+            _ = self.create_subscriber(
+                on_message=func,
+                msg_type=msg_type,
+                topic=topic
+            )
+            return func
+        return wrapper
+
+    def rpc(self, rpc_name, msg_type):
+        def wrapper(func):
+            _ = self.create_rpc(
+                on_request=func,
+                msg_type=msg_type,
+                rpc_name=rpc_name
+            )
+            return func
         return wrapper
 
     def create_rpc(self, *args, **kwargs):
@@ -439,6 +443,7 @@ class Node:
         rpc = self._transport_module.RPCService(
             conn_params=self._conn_params,
             compression=self._compression,
+            workers=self._workers_rpc,
             *args, **kwargs
         )
         self._rpc_services.append(rpc)

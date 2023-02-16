@@ -10,7 +10,6 @@ import time
 from commlib.events import Event
 from commlib.node import Node
 
-
 if __name__ == '__main__':
     # Selecting broker type from arguments
     if len(sys.argv) < 2:

@@ -4,9 +4,8 @@ import time
 
 import commlib.transports.mqtt as mcomm
 import commlib.transports.redis as rcomm
+from commlib.bridges import PTopicBridge, TopicBridgeType
 from commlib.msg import PubSubMessage
-
-from commlib.bridges import TopicBridgeType, PTopicBridge
 
 
 class SonarMessage(PubSubMessage):

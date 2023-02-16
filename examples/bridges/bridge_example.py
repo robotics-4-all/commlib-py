@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-import commlib.transports.amqp as acomm
-import commlib.transports.redis as rcomm
-import commlib.transports.mqtt as mcomm
-from commlib.bridges import (
-    RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
-)
-from commlib.msg import PubSubMessage, RPCMessage
 import time
+
+import commlib.transports.amqp as acomm
+import commlib.transports.mqtt as mcomm
+import commlib.transports.redis as rcomm
+from commlib.bridges import (RPCBridge, RPCBridgeType, TopicBridge,
+                             TopicBridgeType)
+from commlib.msg import PubSubMessage, RPCMessage
 
 
 def on_request(msg):

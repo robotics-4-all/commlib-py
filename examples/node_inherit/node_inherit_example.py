@@ -3,8 +3,8 @@
 import sys
 import time
 
-from commlib.msg import PubSubMessage, MessageHeader
 from commlib.connection import BaseConnectionParameters
+from commlib.msg import MessageHeader, PubSubMessage
 from commlib.node import Node
 from commlib.utils import Rate
 

@@ -1,6 +1,6 @@
 import threading
 import time
-from typing import Callable, Any
+from typing import Any, Callable
 
 from commlib.utils import Rate
 
@@ -26,8 +26,11 @@ class TimerEvent:
 
 
 class Timer(threading.Thread):
-    def __init__(self, period: float, callback: Callable,
-                 oneshot: bool = False):
+    def __init__(self,
+                 period: float,
+                 callback: Callable,
+                 oneshot: bool = False
+                 ):
         """__init__.
 
         Args:

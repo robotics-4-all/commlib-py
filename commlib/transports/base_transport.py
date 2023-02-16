@@ -1,6 +1,6 @@
-from commlib.connection import BaseConnectionParameters
-from commlib.logger import Logger
+import logging
 
+from commlib.connection import BaseConnectionParameters
 
 transport_logger = None
 
@@ -9,10 +9,10 @@ class BaseTransport:
     _connected = False
 
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global transport_logger
         if transport_logger is None:
-            transport_logger = Logger(__name__)
+            transport_logger = logging.getLogger(__name__)
         return transport_logger
 
     def __init__(self,

@@ -9,7 +9,6 @@ import time
 
 from commlib.events import Event
 
-
 if __name__ == '__main__':
     # Selecting broker type from arguments
     if len(sys.argv) < 2:
@@ -17,17 +16,11 @@ if __name__ == '__main__':
     else:
         broker = str(sys.argv[1])
     if broker == 'redis':
-        from commlib.transports.redis import (
-            EventEmitter, ConnectionParameters
-        )
+        from commlib.transports.redis import ConnectionParameters, EventEmitter
     elif broker == 'amqp':
-        from commlib.transports.amqp import (
-            EventEmitter, ConnectionParameters
-        )
+        from commlib.transports.amqp import ConnectionParameters, EventEmitter
     elif broker == 'mqtt':
-        from commlib.transports.mqtt import (
-            EventEmitter, ConnectionParameters
-        )
+        from commlib.transports.mqtt import ConnectionParameters, EventEmitter
     else:
         print('Not a valid broker-type was given!')
         sys.exit(1)

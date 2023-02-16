@@ -1,40 +1,30 @@
 import functools
 import json
 import logging
+import threading
 import time
 import uuid
 from collections import deque
 from threading import Event as ThreadEvent
 from threading import Semaphore, Thread
-import threading
 from typing import Dict
 
 import pika
 
+from commlib.action import (BaseActionClient, BaseActionService,
+                            _ActionCancelMessage, _ActionFeedbackMessage,
+                            _ActionGoalMessage, _ActionResultMessage,
+                            _ActionStatusMessage)
 from commlib.compression import CompressionType, deflate, inflate_str
+from commlib.connection import BaseConnectionParameters
 from commlib.events import BaseEventEmitter, Event
 from commlib.exceptions import *
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import (
-    BaseRPCClient,
-    BaseRPCServer,
-    BaseRPCService,
-    CommRPCMessage,
-    CommRPCHeader
-)
-from commlib.utils import gen_timestamp
-from commlib.connection import BaseConnectionParameters
+from commlib.rpc import (BaseRPCClient, BaseRPCServer, BaseRPCService,
+                         CommRPCHeader, CommRPCMessage)
 from commlib.transports import BaseTransport
-from commlib.action import (
-    BaseActionClient,
-    BaseActionService,
-    _ActionCancelMessage,
-    _ActionFeedbackMessage,
-    _ActionGoalMessage,
-    _ActionResultMessage,
-    _ActionStatusMessage
-)
+from commlib.utils import gen_timestamp
 
 # Reduce log level for pika internal logger
 logging.getLogger("pika").setLevel(logging.WARN)

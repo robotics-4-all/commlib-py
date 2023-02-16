@@ -3,8 +3,25 @@
 import sys
 import time
 
+from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
 from commlib.node import Node, TransportType
-from commlib.rest_proxy import RESTProxyMessage
+
+
+class SonarMessage(PubSubMessage):
+    header: MessageHeader = MessageHeader()
+    range: float = -1
+    hfov: float = 30.6
+    vfov: float = 14.2
+
+
+class AddTwoIntMessage(RPCMessage):
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    class Response(RPCMessage.Response):
+        c: int = 0
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -25,28 +42,26 @@ if __name__ == '__main__':
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    node = Node(node_name='rest_proxy_client',
-                transport_type=transport,
+    node = Node(node_name='sensors.sonar.front',
                 connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
 
-    rpc = node.create_rpc_client(msg_type=RESTProxyMessage,
-                                 rpc_name='proxy.rest')
+    pub = node.create_publisher(msg_type=SonarMessage,
+                                topic='sensors.sonar.front')
+
+    rpc = node.create_rpc_client(msg_type=AddTwoIntMessage,
+                                 rpc_name='add_two_ints_node.add_two_ints')
 
     node.run()
 
-    # Create an instance of the request object
-    # msg = RESTProxyMessage.Request(base_url='https://httpbin.org',
-    #                                path='/get', verb='GET',
-    #                                query_params={'a': 1, 'b': 2})
-    msg = RESTProxyMessage.Request(base_url='https://httpbin.org',
-                                   path='/put', verb='PUT',
-                                   query_params={'a': 1, 'b': 2},
-                                   body_params={'c': 3, 'd': 4})
+    msg = SonarMessage()
+    msg_b = AddTwoIntMessage.Request()
 
     while True:
-        # returns AddTwoIntMessage.Response instance
-        resp = rpc.call(msg)
-        print(resp)
-        time.sleep(10)
+        pub.publish(msg)
+        resp = rpc.call(msg_b)
+        msg.range += 1
+        msg_b.a += 1
+        msg_b.b += 1
+        time.sleep(1)

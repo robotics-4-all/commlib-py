@@ -17,6 +17,7 @@
 import abc
 import enum
 from typing import Any, Dict
+from decimal import Decimal
 
 DEFAULT_JSON_SERIALIZER = 'ujson'
 
@@ -79,7 +80,7 @@ class JSONSerializer(Serializer):
         Args:
             data (dict): Serialize to json string
         """
-        return str(json.dumps(data))
+        return str(json.dumps(JSONSerializer.make_primitives(data)))
 
     @staticmethod
     def deserialize(data: str) -> Dict[str, Any]:
@@ -89,3 +90,14 @@ class JSONSerializer(Serializer):
             data (str): json str to dict
         """
         return json.loads(data)
+
+    @staticmethod
+    def make_primitives(data: Dict[str, Any]):
+        for key, val in data.items():
+            if isinstance(val, dict):
+                JSONSerializer.make_primitives(val)
+            elif isinstance(val, Decimal):
+                data[key] = float(val)
+            else:
+                data[key] = str(val)
+        return data

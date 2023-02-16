@@ -1,31 +1,28 @@
 import datetime
 import functools
+import logging
 import sys
 import time
-from typing import Any, Dict, Tuple, Callable, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import redis
 
+from commlib.action import (BaseActionClient, BaseActionService,
+                            _ActionCancelMessage, _ActionFeedbackMessage,
+                            _ActionGoalMessage, _ActionResultMessage,
+                            _ActionStatusMessage)
+from commlib.compression import CompressionType, deflate, inflate_str
+from commlib.connection import BaseConnectionParameters
 from commlib.events import BaseEventEmitter, Event
-from commlib.exceptions import RPCClientTimeoutError, SubscriberError
-from commlib.logger import Logger
+from commlib.exceptions import (MQTTError, RPCClientTimeoutError,
+                                RPCRequestError)
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import BaseRPCClient, BaseRPCService
-from commlib.serializer import Serializer, JSONSerializer
-from commlib.compression import CompressionType, inflate_str, deflate
-from commlib.utils import gen_timestamp
-from commlib.connection import BaseConnectionParameters
+from commlib.rpc import (BaseRPCClient, BaseRPCServer, BaseRPCService,
+                         CommRPCHeader, CommRPCMessage)
+from commlib.serializer import JSONSerializer, Serializer
 from commlib.transports import BaseTransport
-from commlib.action import (
-    BaseActionClient,
-    BaseActionService,
-    _ActionCancelMessage,
-    _ActionFeedbackMessage,
-    _ActionGoalMessage,
-    _ActionResultMessage,
-    _ActionStatusMessage
-)
+from commlib.utils import gen_timestamp
 
 redis_logger = None
 
@@ -55,10 +52,10 @@ class RedisConnection(redis.Redis):
 
 class RedisTransport(BaseTransport):
     @classmethod
-    def logger(cls) -> Logger:
+    def logger(cls) -> logging.Logger:
         global redis_logger
         if redis_logger is None:
-            redis_logger = Logger(__name__)
+            redis_logger = logging.getLogger(__name__)
         return redis_logger
 
     def __init__(self,
@@ -81,7 +78,7 @@ class RedisTransport(BaseTransport):
         return self._connected
 
     @property
-    def log(self) -> Logger:
+    def log(self) -> logging.Logger:
         return self.logger()
 
     def connect(self) -> None:
@@ -200,10 +197,20 @@ class RPCService(BaseRPCService):
         _resp = self._comm_obj.dict()
         self._transport.push_msg_to_queue(reply_to, _resp)
 
-    def _on_request(self,
-                    data: Dict[str, Any],
-                    header: Dict[str, Any]
-                    ):
+    def _on_request_handle(self,
+                           data: Dict[str, Any],
+                           header: Dict[str, Any]
+                           ):
+        task = self._executor.submit(self._on_request_internal,
+                                     data,
+                                     header)
+
+    def _on_request_internal(self,
+                             data: Dict[str, Any],
+                             header: Dict[str, Any]
+                             ):
+        if not 'reply_to' in header:
+            return
         try:
             _req_msg = CommRPCMessage(
                 header=CommRPCHeader(reply_to=header['reply_to']),
@@ -223,7 +230,7 @@ class RPCService(BaseRPCService):
         except Exception as exc:
             self.log.error(str(exc), exc_info=False)
             resp = {}
-        self._send_response(resp, reply_to)
+        self._send_response(resp, _req_msg.header.reply_to)
 
     def run_forever(self):
         if self._transport.queue_exists(self._rpc_name):
@@ -244,11 +251,8 @@ class RPCService(BaseRPCService):
                                 payload: str
                                 ):
         data, header = self._unpack_comm_msg(payload)
-        self.log.debug(f'RPC Request <{self._rpc_name}>')
-        _future = self.__exec_in_thread(
-            functools.partial(self._on_request, data, header)
-        )
-        return _future
+        self.log.info(f'RPC Request <{self._rpc_name}>')
+        self._on_request_handle(data, header)
 
     def _unpack_comm_msg(self,
                          payload: str
@@ -257,10 +261,6 @@ class RPCService(BaseRPCService):
         _data = _payload['data']
         _header = _payload['header']
         return _data, _header
-
-    def __exec_in_thread(self, on_request):
-        _future = self._executor.submit(on_request)
-        return _future
 
 
 class RPCClient(BaseRPCClient):
