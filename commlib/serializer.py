@@ -103,6 +103,8 @@ class JSONSerializer(Serializer):
             return int(val)
         elif isinstance(val, bool):
             return bool(val)
+        elif val is None:
+            return None
         else:
             return str(val)
 
