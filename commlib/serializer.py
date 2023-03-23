@@ -92,12 +92,20 @@ class JSONSerializer(Serializer):
         return json.loads(data)
 
     @staticmethod
+    def make_primitive_value(val: Any):
+        if isinstance(val, dict):
+            return JSONSerializer.make_primitives(val)
+        elif isinstance(val, list):
+            return list([JSONSerializer.make_primitive_value(v) for v in val])
+        elif isinstance(val, Decimal):
+            return float(val)
+        elif isinstance(val, bool):
+            return bool(val)
+        else:
+            return str(val)
+
+    @staticmethod
     def make_primitives(data: Dict[str, Any]):
         for key, val in data.items():
-            if isinstance(val, dict):
-                JSONSerializer.make_primitives(val)
-            elif isinstance(val, Decimal):
-                data[key] = float(val)
-            else:
-                data[key] = str(val)
+            data[key] = JSONSerializer.make_primitive_value(val)
         return data
