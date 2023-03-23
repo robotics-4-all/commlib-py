@@ -99,6 +99,8 @@ class JSONSerializer(Serializer):
             return list([JSONSerializer.make_primitive_value(v) for v in val])
         elif isinstance(val, Decimal):
             return float(val)
+        elif isinstance(val, bool):
+            return bool(val)
         else:
             return str(val)
 
