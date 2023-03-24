@@ -95,14 +95,16 @@ class JSONSerializer(Serializer):
     def make_primitive_value(val: Any):
         if isinstance(val, dict):
             return JSONSerializer.make_primitives(val)
-        elif isinstance(val, list):
+        elif isinstance(val, list) or isinstance(val, tuple):
             return list([JSONSerializer.make_primitive_value(v) for v in val])
-        elif isinstance(val, Decimal):
+        elif isinstance(val, Decimal) or isinstance(val, float):
             return float(val)
-        elif isinstance(val, float):
-            return float(val)
+        elif isinstance(val, int):
+            return int(val)
         elif isinstance(val, bool):
             return bool(val)
+        elif val is None:
+            return None
         else:
             return str(val)
 
