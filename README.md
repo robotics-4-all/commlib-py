@@ -367,6 +367,8 @@ if __name__ == '__main__':
 
 ## PubSub Communicaton
 
+Traditional Topic-based Publish-Subscribe pattern for asynchronous communication as depicted below.
+
 ```
                                                     +------------+
                                                     |            |
@@ -387,13 +389,21 @@ if __name__ == '__main__':
                                                     +------------+
 ```
 
+An example of using PubSub communication is located at [examples/simple_pubsub](https://github.com/robotics-4-all/commlib-py/tree/docs/examples/simple_pubsub).
+
+
 ### Write a Simple Topic Publisher
 
 ```python
-import time
+from commlib.msg import MessageHeader, PubSubMessage
+from commlib.node import Node
+from commlib.transports.mqtt import ConnectionParameters
 
-from commlib.msg import PubSubMessage
-from commlib.transports.mqtt import Publisher, ConnectionParameters
+class SonarMessage(PubSubMessage):
+    header: MessageHeader = MessageHeader()
+    range: float = -1
+    hfov: float = 30.6
+    vfov: float = 14.2
 
 
 class SonarMessage(PubSubMessage):
@@ -404,95 +414,120 @@ class SonarMessage(PubSubMessage):
 
 if __name__ == "__main__":
     conn_params = ConnectionParameters(host='localhost', port=1883)
-    pub = Publisher(topic=topic, msg_type=SonarMessage, conn_params=conn_params)
-    pub.run()
-    msg = SonarMessage(distance=2.0)
-    while True:
-        time.sleep(0.5)
-        pub.publish(msg)
-        msg.distance += 1
+    node = Node(node_name='sensors.sonar.front',
+                connection_params=conn_params,
+                # heartbeat_uri='nodes.add_two_ints.heartbeat',
+                debug=True)
 
+    pub = node.create_publisher(msg_type=SonarMessage,
+                                topic='sensors.sonar.front')
+    node.run()
+
+    msg = SonarMessage()
+    while True:
+        pub.publish(msg)
+        msg.range += 1
+        time.sleep(1)
 ```
 
 ### Write a Simple Topic Subscriber
 
 ```python
+#!/usr/bin/env python
+
 import time
 
-from commlib.msg import PubSubMessage, DataClass
-from commlib.transports.mqtt import (
-    Subscriber, ConnectionParameters
-)
+from commlib.msg import MessageHeader, PubSubMessage
+from commlib.node import Node
+from commlib.transports.mqtt import ConnectionParameters
 
 
 class SonarMessage(PubSubMessage):
-    distance: float = 0.001
-    horizontal_fov: float = 30.0
-    vertical_fov: float = 14.0
+    header: MessageHeader = MessageHeader()
+    range: float = -1
+    hfov: float = 30.6
+    vfov: float = 14.2
 
 
-def sonar_data_callback(msg):
-    print(f'Message: {msg}')
+def on_message(msg):
+    print(f'Received front sonar data: {msg}')
 
 
-if __name__ == "__main__":
-    conn_params = ConnectionParameters(host='localhost', port=1883)
-    sub = Subscriber(topic=topic,
-                     on_message=sonar_data_callback,
-                     conn_params=conn_params)
-    sub.run()
-    while True:
-        time.sleep(0.001)
+if __name__ == '__main__':
+    conn_params = ConnectionParameters()
+
+    node = Node(node_name='obstacle_avoidance_node',
+                connection_params=conn_params,
+                # heartbeat_uri='nodes.add_two_ints.heartbeat',
+                debug=True)
+
+    node.create_subscriber(msg_type=SonarMessage,
+                           topic='sensors.sonar.front',
+                           on_message=on_message)
+
+    node.run_forever(sleep_rate=1)
 ```
 
 ## Pattern-based Topic Subscription
 
-For pattern-based topic subscription use the `PSubscriber` class.
+For pattern-based topic subscription one can also use the `PSubscriber` class directly.
+
+For multi-topic publisher one can also use the `MPublisher` class directly.
 
 ```python
 #!/usr/bin/env python
 
-import sys
-import time
+##
+# Pattern-based Subscriber
+##
 
-from commlib.msg import PubSubMessage
+from commlib.node import Node
+from commlib.transports.mqtt import ConnectionParameters
 
-
-class SonarMessage(PubSubMessage):
-    distance: float = 0.001
-    horizontal_fov: float = 30.0
-    vertical_fov: float = 14.0
-
-
-def sensor_data_callback(msg, topic):
-    print(f'Sensor Data Message: {topic}:{msg}')
+def on_message(msg, topic):
+    print(f'Message at topic <{topic}>: {msg}')
 
 
 if __name__ == '__main__':
-    topic = 'sensors.*'
-    p1_topic = topic.split('*')[0] + 'sonar.front'
-    p2_topic = topic.split('*')[0] + 'ir.rear'
+    conn_params = ConnectionParameters()
+    node = Node(node_name='example5_listener',
+                connection_params=conn_params,
+                debug=True)
 
-    # Create an instance of a Patter-based Subscriber (PSubscriber)
-    sub = PSubscriber(topic=topic, msg_type=SonarMessage,
-                      on_message=sensor_data_callback)
-    # Run the PSubscriber in the background.
-    sub.run()
+    node.create_psubscriber(topic='topic.*', on_message=on_message)
+    node.run_forever()
+```
 
-    # Create an instance of the communication message
-    msg = SonarMessage()
+```python
+#!/usr/bin/env python
 
-    # Create an instalce of a Multi-topic Publisher (MPublisher)
-    pub = MPublisher(msg_type=SonarMessage)
-    pub.run()
+##
+# Multi-Topic Puiblisher
+##
+
+from commlib.node import Node
+from commlib.transports.mqtt import ConnectionParameters
+
+def on_message(msg, topic):
+    print(f'Message at topic <{topic}>: {msg}')
+
+
+if __name__ == '__main__':
+    conn_params = ConnectionParameters()
+    node = Node(node_name='example5_publisher',
+                connection_params=conn_params,
+                debug=True)
+
+    pub = node.create_mpublisher()
+    node.run()
+
+    topicA = 'topic.a'
+    topicB = 'topic.b'
 
     while True:
+        pub.publish({'a': 1}, topicA)
+        pub.publish({'b': 1}, topicB)
         time.sleep(1)
-        # Publish message to topic A
-        pub.publish(msg, p1_topic)
-        # Publish message to topic B
-        pub.publish(msg, p2_topic)
-        msg.distance += 1
 ```
 
 ## Preemptable Services with Feedback (Actions)
@@ -510,7 +545,7 @@ import time
 
 from commlib.action import GoalStatus
 from commlib.msg import ActionMessage
-from commlib.transports.redis import ActionService, ConnectionParameters
+from commlib.transports.redis import ConnectionParameters
 )
 
 
@@ -541,13 +576,14 @@ def on_goal(goal_h):
 if __name__ == '__main__':
     action_name = 'testaction'
     conn_params = ConnectionParameters()
-    action = ActionService(msg_type=ExampleAction,
-                           conn_params=conn_params,
-                           action_name=action_name,
-                           on_goal=on_goal)
-    action.run()
-    while True:
-      time.sleep(0.001)
+    node = Node(node_name='action_service_example_node',
+                connection_params=conn_params,
+                # heartbeat_uri='nodes.add_two_ints.heartbeat',
+                debug=True)
+    node.create_action(msg_type=ExampleAction,
+                       action_name=action_name,
+                       on_goal=on_goal)
+    node.run_forever()
 ```
 
 ### Write an Action Client
@@ -575,6 +611,10 @@ def on_feedback(feedback):
     print(f'ActionClient <on-feedback> callback: {feedback}')
 
 
+def on_result(result):
+    print(f'ActionClient <on-result> callback: {result}')
+
+
 def on_goal_reached(result):
     print(f'ActionClient <on-goal-reached> callback: {result}')
 
@@ -582,16 +622,21 @@ def on_goal_reached(result):
 if __name__ == '__main__':
     action_name = 'testaction'
     conn_params = ConnectionParameters()
-    action_c = ActionClient(msg_type=ExampleAction,
-                            conn_params=conn_params,
-                            action_name=action_name,
-                            on_feedback=on_feedback,
-                            on_goal_reached=on_goal_reached)
-    action_c.run()
+    node = Node(node_name='action_client_example_node',
+                connection_params=conn_params,
+                # heartbeat_uri='nodes.add_two_ints.heartbeat',
+                debug=True)
+    action_client = node.create_action_client(msg_type=ExampleAction,
+                                              action_name=action_name,
+                                              on_goal_reached=on_goal_reached,
+                                              on_feedback=on_feedback,
+                                              on_result=on_result)
+    node.run()
     goal_msg = ExampleAction.Goal(target_cm=5)
-    action_c.send_goal(goal_msg)
-    resp = action_c.get_result(wait=True)
-    print(resp)
+    action_client.send_goal(goal_msg)
+    resp = action_client.get_result(wait=True)
+    print(f'Action Result: {resp}')
+    node.stop()
 ```
 
 ## EventEmitter
@@ -637,21 +682,26 @@ Below is an example of an EventEmitter used to fire the `bedroom.lights.on` and 
 #!/usr/bin/env python
 
 import time
-
 from commlib.events import Event
-from commlib.transports.mqtt import EventEmitter, ConnectionParameters
+from commlib.node import Node
 
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
-    emitter = EventEmitter(conn_params=conn_params, debug=True)
-
+    node = Node(node_name='simple_event_emitter',
+                connection_params=conn_params,
+                # heartbeat_uri='nodes.add_two_ints.heartbeat',
+                debug=True)
+    emitter = node.create_event_emitter()
+    node.run()
     eventA = Event(name='TurnOnBedroomLights', uri='bedroom.lights.on')
     eventB = Event(name='TurnOffBedroomLights', uri='bedroom.lights.off')
 
-    emitter.send_event(eventA)
-    time.sleep(2)
-    emitter.send_event(eventB)
+    while True:
+        emitter.send_event(eventA)
+        time.sleep(2)
+        emitter.send_event(eventB)
+        time.sleep(2)
 ```
 
 
