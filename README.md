@@ -530,6 +530,52 @@ if __name__ == '__main__':
         time.sleep(1)
 ```
 
+## Pythonic implementation of Subscribers and RPCs using decorators
+
+```python
+from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
+from commlib.node import Node, TransportType
+from commlib.transports.redis import ConnectionParameters
+
+
+class SonarMessage(PubSubMessage):
+    header: MessageHeader = MessageHeader()
+    range: float = -1
+    hfov: float = 30.6
+    vfov: float = 14.2
+
+
+class AddTwoIntMessage(RPCMessage):
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
+conn_params = ConnectionParameters()
+
+node = Node(node_name='obstacle_avoidance_node',
+            connection_params=conn_params,
+            debug=True)
+
+
+@node.subscribe('sensors.sonar.front', SonarMessage)
+def on_message(msg):
+    print(f'Received front sonar data: {msg}')
+
+
+@node.rpc('add_two_ints_node.add_two_ints', AddTwoIntMessage)
+def add_two_int_handler(msg):
+    print(f'Request Message: {msg.__dict__}')
+    resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
+    return resp
+
+
+node.run_forever(sleep_rate=0.01)
+```
+
 ## Preemptable Services with Feedback (Actions)
 
 Actions are [pre-emptable services](https://en.wikipedia.org/wiki/Preemption_(computing)) 
