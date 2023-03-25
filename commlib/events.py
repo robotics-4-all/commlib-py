@@ -11,9 +11,6 @@ em_logger = None
 
 
 class Event(BaseModel):
-    """Event.
-    """
-
     name: Text
     uri: Text
     description: Text = ''

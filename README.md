@@ -150,6 +150,7 @@ from commlib.msg import RPCMessage
 ## Imports are lazy handled internally
 from commlib.transports.redis import ConnectionParameters
 
+
 class AddTwoIntMessage(RPCMessage):
     class Request(RPCMessage.Request):
         a: int = 0
@@ -424,7 +425,6 @@ from commlib.transports.mqtt import (
 )
 
 
-@DataClass
 class SonarMessage(PubSubMessage):
     distance: float = 0.001
     horizontal_fov: float = 30.0
@@ -731,20 +731,21 @@ if __name__ == '__main__':
 ```
 
 A Pattern-based Topic Bridge (PTopicBridge) example is also shown below.
+In this example, we use static definition of messages (`SonarMessage`), also
+referred as `typed communication`.
+
 
 ```python
 #!/usr/bin/env python
 
 import time
 
+from commlib.msg import PubSubMessage
+from commlib.bridges import PTopicBridge
 import commlib.transports.amqp as acomm
 import commlib.transports.redis as rcomm
-from commlib.msg import PubSubMessage, DataClass
-
-from commlib.bridges import PTopicBridge
 
 
-@DataClass
 class SonarMessage(PubSubMessage):
     distance: float = 0.001
     horizontal_fov: float = 30.0
@@ -767,7 +768,7 @@ if __name__ == '__main__':
                       bA_params,
                       bB_params,
                       msg_type=SonarMessage,
-                      debug=True)
+                      debug=False)
     br.run()
 ```
 
@@ -798,20 +799,19 @@ REST-compliant, http request, based on the input parameters.
 
 ```python
 class RESTProxyMessage(RPCMessage):
-    @DataClass
     class Request(RPCMessage.Request):
-        host: str
-        port: int = 80
+        base_url: str
         path: str = '/'
         verb: str = 'GET'
-        query_params: Dict = DataField(default_factory=dict)
-        path_params: Dict = DataField(default_factory=dict)
-        body_params: Dict = DataField(default_factory=dict)
-        headers: Dict = DataField(default_factory=dict)
+        query_params: Dict = {}
+        path_params: Dict = {}
+        body_params: Dict = {}
+        headers: Dict = {}
 
-    @DataClass
     class Response(RPCMessage.Response):
-        data: Dict = DataField(default_factory=dict)
+        data: Union[str, Dict, int]
+        headers: Dict[str, Any]
+        status_code: int = 200
 ```
 
 Responses from the REST services are returned to clients in the form of a 

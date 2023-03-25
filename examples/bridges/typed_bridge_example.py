@@ -41,8 +41,12 @@ def redis_to_amqp_topic_bridge():
     bA_uri = 'rpc.bridge.testA'
     bB_uri = 'rpc.bridge.testB'
     br = TopicBridge(TopicBridgeType.REDIS_TO_AMQP,
-                     TopicMessage, bA_uri, bB_uri,
-                     bA_params, bB_params, debug=False)
+                     TopicMessage,
+                     bA_uri,
+                     bB_uri,
+                     bA_params,
+                     bB_params,
+                     debug=False)
     br.run()
 
     pub = rcomm.Publisher(conn_params=bA_params,
