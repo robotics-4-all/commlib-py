@@ -578,7 +578,6 @@ class EventEmitter(BaseEventEmitter):
             kwargs: See BaseEventEmitter class
         """
         super(EventEmitter, self).__init__(*args, **kwargs)
-
         self._transport = RedisTransport(conn_params=self._conn_params)
 
     def send_event(self,
@@ -593,5 +592,4 @@ class EventEmitter(BaseEventEmitter):
             None:
         """
         _msg = event.dict()
-        self.log.debug(f'Firing Event: {event.name}:<{event.uri}>')
         self._transport.publish(event.uri, _msg)
