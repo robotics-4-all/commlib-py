@@ -61,6 +61,7 @@ class ConnectionParameters(BaseConnectionParameters):
     protocol: MQTTProtocolType = MQTTProtocolType.MQTTv311
     ssl: bool = False
     transport: str = 'tcp'
+    keepalive: int = 60
 
 
 class MQTTTransport(BaseTransport):
@@ -251,7 +252,7 @@ class MQTTTransport(BaseTransport):
                                      self._conn_params.password)
         self._client.connect(
             self._conn_params.host, int(self._conn_params.port),
-            keepalive=60,
+            keepalive=self._conn_params.keepalive,
             properties=self._mqtt_properties
         )
         if self._conn_params.ssl:
