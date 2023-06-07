@@ -888,7 +888,6 @@ class EventEmitter(BaseEventEmitter):
             kwargs: See BaseEventEmitter
         """
         super(EventEmitter, self).__init__(*args, **kwargs)
-
         self._transport = MQTTTransport(conn_params=self._conn_params,
                                         serializer=self._serializer)
 
@@ -904,5 +903,4 @@ class EventEmitter(BaseEventEmitter):
             None:
         """
         _msg = event.dict()
-        self.log.debug(f'Firing Event: {event.name}:<{event.uri}>')
         self._transport.publish(event.uri, _msg, qos=MQTTQoS.L1)
