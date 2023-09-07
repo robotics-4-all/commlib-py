@@ -28,6 +28,9 @@ if __name__ == '__main__':
     elif broker == 'mqtt':
         from commlib.transports.mqtt import ConnectionParameters
         transport = TransportType.MQTT
+    elif broker == 'kafka':
+        from commlib.transports.kafka import ConnectionParameters
+        transport = TransportType.MQTT
     else:
         print('Not a valid broker-type was given!')
         sys.exit(1)
