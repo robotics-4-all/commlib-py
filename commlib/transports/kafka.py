@@ -31,12 +31,14 @@ from confluent_kafka import (
 
 
 class ConnectionParameters(BaseConnectionParameters):
+    # https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     host: str = 'localhost'
     port: int = 29092
     username: str = ''
     password: str = ''
     ssl: bool = False
     group: str = 'main'
+    auto_create_topics: bool = True
 
 
 class Publisher(BasePublisher):
@@ -89,6 +91,7 @@ class Publisher(BasePublisher):
         cfg = {
             'bootstrap.servers':
                 f'{self._conn_params.host}:{self._conn_params.port}',
+            'allow.auto.create.topics': self._conn_params.auto_create_topics,
             # 'group.id': self._conn_params.group,
         }
         self._producer = Producer(cfg)
@@ -151,6 +154,7 @@ class Subscriber(BaseSubscriber):
             'group.id': self._conn_params.group,
             'enable.auto.offset.store': True,
             'enable.auto.commit': True,
+            'allow.auto.create.topics': self._conn_params.auto_create_topics,
         }
 
         self._consumer = Consumer(cfg)
@@ -174,7 +178,6 @@ class Subscriber(BaseSubscriber):
                     # self._consumer.commit(asynchronous=False)
         finally:
             # Close down consumer to commit final offsets.
-            print('Skata')
             self._consumer.close()
         self.log.debug(f'Started Subscriber: <{self._topic}>')
 
@@ -210,7 +213,6 @@ class Subscriber(BaseSubscriber):
         return _data, _topic, _key, _timestamp
 
     def stop(self):
-        print('Skata')
         self._consumer.close()
 
 

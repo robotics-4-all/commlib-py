@@ -37,7 +37,7 @@ if __name__ == '__main__':
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    node = Node(node_name='obstacle_avoidance_node',
+    node = Node(node_name='sensors.sonar.front',
                 connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)

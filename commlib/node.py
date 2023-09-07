@@ -357,11 +357,9 @@ class Node:
         """
         if self.state != NodeState.RUNNING:
             self.run()
-        try:
-            while self.state != NodeState.EXITED:
-                time.sleep(sleep_rate)
-        finally:
-            self.stop()
+        while self.state != NodeState.EXITED:
+            time.sleep(sleep_rate)
+        self.stop()
 
     def stop(self):
         for c in self._subscribers:
