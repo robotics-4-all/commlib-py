@@ -30,6 +30,10 @@ from confluent_kafka import (
 )
 
 
+SECURITY_PROTOCOL = "SASL_SSL"
+SASL_MECHANISM = "PLAIN"
+
+
 class ConnectionParameters(BaseConnectionParameters):
     # https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     host: str = 'localhost'
@@ -87,12 +91,22 @@ class Publisher(BasePublisher):
         self.logger().info(f'Published on {msg.topic()}, partition'
                            f'{msg.partition()}')
 
-    def run(self):
+    def run_forever(self):
+        host = f'{self._conn_params.host}:{self._conn_params.port}'
+        if self._conn_params.username not in (None, '') and \
+            self._conn_params.password not in (None, ''):
+            auth = {
+                'sasl.mechanisms': SASL_MECHANISM,
+                'security.protocol': SECURITY_PROTOCOL,
+                'sasl.username': self._conn_params.username,
+                'sasl.password': self._conn_params.password,
+            }
+        else:
+            auth = {}
         cfg = {
-            'bootstrap.servers':
-                f'{self._conn_params.host}:{self._conn_params.port}',
+            'bootstrap.servers': host,
             'allow.auto.create.topics': self._conn_params.auto_create_topics,
-            # 'group.id': self._conn_params.group,
+            **auth
         }
         self._producer = Producer(cfg)
 
@@ -147,14 +161,25 @@ class Subscriber(BaseSubscriber):
 
     def run_forever(self):
         running = True
+        host = f'{self._conn_params.host}:{self._conn_params.port}'
+        if self._conn_params.username not in (None, '') and \
+            self._conn_params.password not in (None, ''):
+            auth = {
+                'sasl.mechanisms': SASL_MECHANISM,
+                'security.protocol': SECURITY_PROTOCOL,
+                'sasl.username': self._conn_params.username,
+                'sasl.password': self._conn_params.password,
+            }
+        else:
+            auth = {}
         cfg = {
-            'bootstrap.servers':
-                f'{self._conn_params.host}:{self._conn_params.port}',
+            'bootstrap.servers': host,
             'auto.offset.reset': 'end',
             'group.id': self._conn_params.group,
             'enable.auto.offset.store': True,
             'enable.auto.commit': True,
             'allow.auto.create.topics': self._conn_params.auto_create_topics,
+            **auth
         }
 
         self._consumer = Consumer(cfg)
