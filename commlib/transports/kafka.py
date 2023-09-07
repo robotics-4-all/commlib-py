@@ -43,34 +43,41 @@ class ConnectionParameters(BaseConnectionParameters):
     ssl: bool = False
     group: str = 'main'
     auto_create_topics: bool = True
+    auto_commit_interval: int = 1000  # ms
 
 
 class Publisher(BasePublisher):
 
     def __init__(self, key: str = '', *args, **kwargs):
-        """__init__.
-
-        Args:
-            args: See BasePublisher
-            kwargs: See BasePublisher
-        """
         self._key = key
         self._msg_seq = 0
         self._producer: Producer = None
+
         super().__init__(*args, **kwargs)
+        self._create_kafka_conf()
+
+    def _create_kafka_conf(self):
+        if self._conn_params.username not in (None, '') and \
+            self._conn_params.password not in (None, ''):
+            auth = {
+                'sasl.mechanisms': SASL_MECHANISM,
+                'security.protocol': SECURITY_PROTOCOL,
+                'sasl.username': self._conn_params.username,
+                'sasl.password': self._conn_params.password,
+            }
+        else:
+            auth = {}
+        host = f'{self._conn_params.host}:{self._conn_params.port}'
+        self._kafka_cfg = {
+            'bootstrap.servers': host,
+            'allow.auto.create.topics': self._conn_params.auto_create_topics,
+            **auth
+        }
 
     def publish(self,
                 msg: PubSubMessage,
                 key: str = ''
                 ) -> None:
-        """publish.
-
-        Args:
-            msg (PubSubMessage): Message to Publish
-
-        Returns:
-            None:
-        """
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
@@ -79,6 +86,7 @@ class Publisher(BasePublisher):
             data = msg.dict()
         if key in (None, ''):
             key = self._key
+
         self._producer.poll(0)
         payload = self._serializer.serialize(data)
         self._producer.produce(self._topic, key=key, value=payload,
@@ -91,24 +99,8 @@ class Publisher(BasePublisher):
         self.logger().info(f'Published on {msg.topic()}, partition'
                            f'{msg.partition()}')
 
-    def run_forever(self):
-        host = f'{self._conn_params.host}:{self._conn_params.port}'
-        if self._conn_params.username not in (None, '') and \
-            self._conn_params.password not in (None, ''):
-            auth = {
-                'sasl.mechanisms': SASL_MECHANISM,
-                'security.protocol': SECURITY_PROTOCOL,
-                'sasl.username': self._conn_params.username,
-                'sasl.password': self._conn_params.password,
-            }
-        else:
-            auth = {}
-        cfg = {
-            'bootstrap.servers': host,
-            'allow.auto.create.topics': self._conn_params.auto_create_topics,
-            **auth
-        }
-        self._producer = Producer(cfg)
+    def run(self):
+        self._producer = Producer(self._kafka_cfg)
 
     def stop(self):
         if self._producer is not None:
@@ -116,9 +108,6 @@ class Publisher(BasePublisher):
 
 
 class MPublisher(Publisher):
-    """MPublisher.
-    Multi-Topic Publisher
-    """
 
     def __init__(self, key: str = '', *args, **kwargs):
         self._key = key
@@ -129,15 +118,6 @@ class MPublisher(Publisher):
                 topic: str,
                 key: str = ''
                 ) -> None:
-        """publish.
-
-        Args:
-            msg (PubSubMessage): msg
-            topic (str): topic
-
-        Returns:
-            None:
-        """
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
@@ -158,10 +138,9 @@ class Subscriber(BaseSubscriber):
         self._key = key
         self._consumer: Consumer = None
         super(Subscriber, self).__init__(*args, **kwargs)
+        self._create_kafka_conf()
 
-    def run_forever(self):
-        running = True
-        host = f'{self._conn_params.host}:{self._conn_params.port}'
+    def _create_kafka_conf(self):
         if self._conn_params.username not in (None, '') and \
             self._conn_params.password not in (None, ''):
             auth = {
@@ -172,17 +151,21 @@ class Subscriber(BaseSubscriber):
             }
         else:
             auth = {}
-        cfg = {
+        host = f'{self._conn_params.host}:{self._conn_params.port}'
+        self._kafka_cfg = {
             'bootstrap.servers': host,
             'auto.offset.reset': 'end',
             'group.id': self._conn_params.group,
             'enable.auto.offset.store': True,
             'enable.auto.commit': True,
             'allow.auto.create.topics': self._conn_params.auto_create_topics,
+            'auto.commit.interval.ms': self._conn_params.auto_commit_interval,
             **auth
         }
 
-        self._consumer = Consumer(cfg)
+    def run_forever(self):
+        running = True
+        self._consumer = Consumer(self._kafka_cfg)
         try:
             self._consumer.subscribe([self._topic], on_assign=self._on_assign)
 
