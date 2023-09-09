@@ -483,14 +483,3 @@ class Node:
         )
         self._action_clients.append(aclient)
         return aclient
-
-    def create_event_emitter(self, *args, **kwargs):
-        """Creates a new EventEmitter Endpoint.
-        """
-        em = self._transport_module.EventEmitter(
-            conn_params=self._conn_params,
-            compression=self._compression,
-            *args, **kwargs
-        )
-        self._event_emitters.append(em)
-        return em

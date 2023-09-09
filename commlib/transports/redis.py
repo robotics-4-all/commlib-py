@@ -13,8 +13,7 @@ from commlib.action import (BaseActionClient, BaseActionService,
                             _ActionStatusMessage)
 from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
-from commlib.events import BaseEventEmitter, Event
-from commlib.exceptions import (MQTTError, RPCClientTimeoutError,
+from commlib.exceptions import (RPCClientTimeoutError,
                                 RPCRequestError)
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
@@ -563,33 +562,3 @@ class ActionClient(BaseActionClient):
                                         conn_params=self._conn_params,
                                         topic=self._feedback_topic,
                                         on_message=self._on_feedback)
-
-
-class EventEmitter(BaseEventEmitter):
-    """EventEmitter.
-    Redis EventEmitter class
-    """
-
-    def __init__(self, *args, **kwargs):
-        """__init__.
-
-        Args:
-            args: See BaseEventEmitter class
-            kwargs: See BaseEventEmitter class
-        """
-        super(EventEmitter, self).__init__(*args, **kwargs)
-        self._transport = RedisTransport(conn_params=self._conn_params)
-
-    def send_event(self,
-                   event: Event
-                   ) -> None:
-        """send_event.
-
-        Args:
-            event (Event): The Event to send.
-
-        Returns:
-            None:
-        """
-        _msg = event.dict()
-        self._transport.publish(event.uri, _msg)

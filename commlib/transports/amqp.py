@@ -17,7 +17,6 @@ from commlib.action import (BaseActionClient, BaseActionService,
                             _ActionStatusMessage)
 from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
-from commlib.events import BaseEventEmitter, Event
 from commlib.exceptions import *
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
@@ -1159,59 +1158,3 @@ class ActionClient(BaseActionClient):
                                         conn_params=self._conn_params,
                                         topic=self._feedback_topic,
                                         on_message=self._on_feedback)
-
-
-class EventEmitter(BaseEventEmitter):
-    def __init__(self,
-                 exchange: str = 'amq.topic',
-                 connection: Connection = None,
-                 *args, **kwargs):
-        super(EventEmitter, self).__init__(*args, **kwargs)
-
-        self._transport = AMQPTransport(conn_params=self._conn_params,
-                                        connection=connection,
-                                        debug=self.debug)
-        self._transport.connect()
-        self._exchange = exchange
-
-        if connection is None:
-            self.run()
-
-    def run(self) -> None:
-        self._transport.detach_amqp_events_thread()
-
-    def send_event(self, event: Event):
-        _data = event.dict()
-        self._transport.add_threadsafe_callback(
-            functools.partial(self._send_data, event.uri, _data)
-        )
-
-    def _send_data(self, topic: str, data: dict) -> None:
-        _payload = None
-        _encoding = None
-        _type = None
-
-        if isinstance(data, dict):
-            _payload = self._serializer.serialize(data).encode('utf-8')
-            _encoding = self._serializer.CONTENT_ENCODING
-            _type = self._serializer.CONTENT_TYPE
-        elif isinstance(data, str):
-            _type = 'text/plain'
-            _encoding = 'utf8'
-            _payload = data
-        elif isinstance(data, bytes):
-            _type = 'application/octet-stream'
-            _encoding = 'utf8'
-            _payload = data
-
-        msg_props = MessageProperties(
-            content_type=_type,
-            content_encoding=_encoding,
-            message_id=0,
-        )
-
-        self._transport._channel.basic_publish(
-            exchange=self._exchange,
-            routing_key=topic,
-            properties=msg_props,
-            body=_payload)
