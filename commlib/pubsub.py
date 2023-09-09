@@ -102,6 +102,11 @@ class BaseSubscriber(BaseEndpoint):
         """topic"""
         return self._topic
 
+    @property
+    def executor(self) -> ThreadPoolExecutor:
+        """topic"""
+        return self._executor
+
     def run_forever(self) -> None:
         """run_forever.
         Start subscriber thread in background and blocks main thread.
