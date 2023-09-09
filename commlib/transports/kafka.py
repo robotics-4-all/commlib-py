@@ -2,7 +2,7 @@ import functools
 import logging
 import time
 from enum import IntEnum
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict, Tuple, List
 
 from commlib.action import (BaseActionClient, BaseActionService,
                             _ActionCancelMessage, _ActionFeedbackMessage,
@@ -46,6 +46,67 @@ class ConnectionParameters(BaseConnectionParameters):
     auto_commit_interval: int = 1000  # ms
 
 
+class KafkaTransport(BaseTransport):
+
+    def __init__(self,
+                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
+                 serializer: Serializer = JSONSerializer(),
+                 *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._serializer = serializer
+        self._compression = compression
+        self._producers: List[Producer] = []
+        self._consumers: List[Consumer] = []
+        self.connect()
+
+    def connect(self) -> None:
+        pass
+
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
+
+    def start(self) -> None:
+        if not self.is_connected:
+            self.connect()
+
+    def stop(self) -> None:
+        if self.is_connected:
+            for producer in self._producers:
+                try:
+                    producer.flush()
+                finally:
+                    pass
+            for consumer in self._consumers:
+                try:
+                    consumer.close()
+                finally:
+                    pass
+            self._connected = False
+
+    def create_producer(self, kafka_cfg):
+        producer = Producer(kafka_cfg)
+        self._producers.append(producer)
+        return producer
+
+    def create_consumer(self, kafka_cfg):
+        consumer = Consumer(kafka_cfg)
+        self._consumers.append(consumer)
+        return consumer
+
+    def publish_data(self, producer: Producer, data: Dict,
+                     topic: str, key: str = '', on_delivery = None):
+        producer.poll(0)
+        payload = self._serializer.serialize(data)
+        if on_delivery is None:
+            on_delivery = self._on_publish
+        producer.produce(topic, key=key, value=payload,
+                         on_delivery=on_delivery)
+
+    def _on_publish(self, err, msg):
+        pass
+
+
 class Publisher(BasePublisher):
 
     def __init__(self, key: str = '', *args, **kwargs):
@@ -55,6 +116,9 @@ class Publisher(BasePublisher):
 
         super().__init__(*args, **kwargs)
         self._create_kafka_conf()
+        self._transport = KafkaTransport(conn_params=self._conn_params,
+                                         serializer=self._serializer,
+                                         compression=self._compression)
 
     def _create_kafka_conf(self):
         if self._conn_params.username not in (None, '') and \
@@ -87,10 +151,8 @@ class Publisher(BasePublisher):
         if key in (None, ''):
             key = self._key
 
-        self._producer.poll(0)
-        payload = self._serializer.serialize(data)
-        self._producer.produce(self._topic, key=key, value=payload,
-                               on_delivery=self._on_delivery)
+        self._transport.publish_data(self._producer, data, self._topic,
+                                     key, on_delivery=self._on_delivery)
         self._msg_seq += 1
 
     def _on_delivery(self, err, msg):
@@ -100,7 +162,7 @@ class Publisher(BasePublisher):
                            f'{msg.partition()}')
 
     def run(self):
-        self._producer = Producer(self._kafka_cfg)
+        self._producer = self._transport.create_producer(self._kafka_cfg)
 
     def stop(self):
         if self._producer is not None:
@@ -139,6 +201,9 @@ class Subscriber(BaseSubscriber):
         self._consumer: Consumer = None
         super(Subscriber, self).__init__(*args, **kwargs)
         self._create_kafka_conf()
+        self._transport = KafkaTransport(conn_params=self._conn_params,
+                                         serializer=self._serializer,
+                                         compression=self._compression)
 
     def _create_kafka_conf(self):
         if self._conn_params.username not in (None, '') and \
@@ -165,14 +230,12 @@ class Subscriber(BaseSubscriber):
 
     def run_forever(self):
         running = True
-        self._consumer = Consumer(self._kafka_cfg)
+        self._consumer = self._transport.create_consumer(self._kafka_cfg)
         try:
             self._consumer.subscribe([self._topic], on_assign=self._on_assign)
-
             while running:
                 msg = self._consumer.poll(timeout=1.0)
                 if msg is None: continue
-
                 if msg.error():
                     if msg.error().code() == KafkaError._PARTITION_EOF:
                         # End of partition event
@@ -249,12 +312,6 @@ class RPCService(BaseRPCService):
     """
 
     def __init__(self, *args, **kwargs):
-        """__init__.
-
-        Args:
-            args: See BaseRPCService
-            kwargs: See BaseRPCService
-        """
         raise NotImplementedError('RPCService for Kafka transport not supported')
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=self._conn_params,
@@ -337,6 +394,7 @@ class RPCService(BaseRPCService):
                     break
             time.sleep(0.001)
         self._transport.stop()
+
 
 class RPCServer(BaseRPCServer):
     def __init__(self, *args, **kwargs):

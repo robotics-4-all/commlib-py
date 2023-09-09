@@ -18,6 +18,9 @@ rpc_logger = None
 class CommRPCHeader(BaseModel):
     reply_to: str = ''
     timestamp: Optional[int] = gen_timestamp()
+    content_type: Optional[str] = 'json'
+    encoding: Optional[str] = 'utf8'
+    agent: Optional[str] = 'commlib'
 
 
 class CommRPCMessage(BaseModel):
