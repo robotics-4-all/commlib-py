@@ -130,7 +130,6 @@ InPort  +-+     Node      +-+ OutPort
   - Publisher
   - RPC Client
   - Action Client
-  - Event Emitter
 
 **InOut Port**:
   - RPCBridge: Bridge RPC Communication between two brokers. Directional.
@@ -235,7 +234,6 @@ supported transport
 - PSubscriber (Pattern-based Subscriber)
 - ActionService (Preemptable Services with feedback)
 - ActionClient
-- EventEmitter
 
 
 ```python
@@ -474,6 +472,25 @@ For pattern-based topic subscription one can also use the `PSubscriber` class di
 
 For multi-topic publisher one can also use the `MPublisher` class directly.
 
+```
+                                +---------+
+        +---------------------> | Topic A |
+        |                       +---------+
+        |                                  
+        |                                  
++---------------+                          
+|               |               +---------+
+|  MPublisher   |-------------->| Topic B |
+|               |               +---------+
++---------------+                          
+        |                                  
+        |                                  
+        |                       +---------+
+        +---------------------> | Topic C |
+                                +---------+
+```
+
+
 ```python
 #!/usr/bin/env python
 
@@ -685,72 +702,6 @@ if __name__ == '__main__':
     node.stop()
 ```
 
-## EventEmitter
-
-An EventEmitter can be used to fire multiple events, for event-based systems, over a single connection.
-
-```
-                                +---------+
-        +---------------------> | Topic A |
-        |                       +---------+
-        |                                  
-        |                                  
-+---------------+                          
-|               |               +---------+
-|  EventEmitter |-------------->| Topic B |
-|               |               +---------+
-+---------------+                          
-        |                                  
-        |                                  
-        |                       +---------+
-        +---------------------> | Topic C |
-                                +---------+
-```
-
-An Event has the following properties:
-
-```python
-class Event(BaseModel):
-    name: Text
-    uri: Text
-    description: Text = ''
-    data: Dict[str, Any] = {}
-```
-
-- name: The name of the Event
-- uri: Broker URI to send the Event
-- description: Optional Description of the Event.
-- data: Optional data to attach on the Event.
-
-Below is an example of an EventEmitter used to fire the `bedroom.lights.on` and `bedroom.lights.off` events.
-
-```python
-#!/usr/bin/env python
-
-import time
-from commlib.events import Event
-from commlib.node import Node
-
-
-if __name__ == '__main__':
-    conn_params = ConnectionParameters()
-    node = Node(node_name='simple_event_emitter',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
-    emitter = node.create_event_emitter()
-    node.run()
-    eventA = Event(name='TurnOnBedroomLights', uri='bedroom.lights.on')
-    eventB = Event(name='TurnOffBedroomLights', uri='bedroom.lights.off')
-
-    while True:
-        emitter.send_event(eventA)
-        time.sleep(2)
-        emitter.send_event(eventB)
-        time.sleep(2)
-```
-
-
 ## Broker-to-broker (B2B) bridges
 
 In the context of IoT and CPS, it is a common requirement to bridge messages
@@ -936,26 +887,6 @@ metadata, as specified my AMQP.
 
 ### Redis
 
-PubSub endpoints uses the out-of-the-box [Redis pubsub channel](https://redis.io/topics/pubsub) to exchange messages. PubSub message payload in Redis includes the
-data of the message and meta-information (header) regarding serialization method used, 
-timestamp, etc. Below is an example of the payload for pubsub communication.
-
-```
-{
-  'data': {},
-  'header': {
-    'timestamp': <int>,
-    'properties': {
-      'content_type': 'application/json',
-      'content_encoding': 'utf8'
-    }
-  }
-}
-```
-
-This is useful for transparency between brokers. Default values are evident
-in the previous example.
-
 Req/Resp communication (RPC) is not supported out-of-the-box. To support
 RPC communication over Redis, a custom layer implements the pattern for both endpoints 
 using Redis Lists to represent queues. RPC server listens for requests from
@@ -975,10 +906,9 @@ Below is the  data model of the request message.
   'header': {
     'timestamp': <int>,
     'reply_to': <str>,
-    'properties': {
-      'content_type': 'application/json',
-      'content_encoding': 'utf8'
-    }
+    'content_type': 'application/json',
+    'content_encoding': 'utf8',
+    'agent': 'commlib'
   }
 }
 ```
@@ -989,27 +919,7 @@ temporary queues!
 
 ### MQTT
 
-PubSub message payload in MQTT includes the
-data of the message and meta-information (header) regarding serialization method used, 
-timestamp, etc. Below is an example of the payload for pubsub communication.
-
-```
-{
-  'data': {},
-  'header': {
-    'timestamp': <int>,
-    'properties': {
-      'content_type': 'application/json',
-      'content_encoding': 'utf8'
-    }
-  }
-}
-```
-
-This is useful for transparency between brokers. Default values are evident
-in the previous example.
-
-Though, Req/Resp communication (RPC) is not supported out-of-the-box. To support
+Req/Resp communication (RPC) is not supported out-of-the-box. To support
 RPC communication over MQTT, a custom layer implements the pattern for both endpoints 
 using MQTT topics. RPC server listens for requests at a specific topic,
 while an RPC client listens to a temporary topic for response messages.
@@ -1026,10 +936,9 @@ Below is the data model of the Request message.
   'header': {
     'timestamp': <int>,
     'reply_to': <str>,
-    'properties': {
-      'content_type': 'application/json',
-      'content_encoding': 'utf8'
-    }
+    'content_type': 'application/json',
+    'content_encoding': 'utf8',
+    'agent': 'commlib',
   }
 }
 ```
