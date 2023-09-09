@@ -727,34 +727,3 @@ class ActionClient(BaseActionClient):
                                         topic=self._feedback_topic,
                                         on_message=self._on_feedback,
                                         debug=self.debug)
-
-
-class EventEmitter(BaseEventEmitter):
-    """EventEmitter.
-    MQTT Event Emitter class
-    """
-
-    def __init__(self, *args, **kwargs):
-        """__init__.
-
-        Args:
-            args: See BaseEventEmitter
-            kwargs: See BaseEventEmitter
-        """
-        super(EventEmitter, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(conn_params=self._conn_params,
-                                        serializer=self._serializer)
-
-    def send_event(self,
-                   event: Event
-                   ) -> None:
-        """send_event.
-
-        Args:
-            event (Event): The Event to send.
-
-        Returns:
-            None:
-        """
-        _msg = event.dict()
-        self._transport.publish(event.uri, _msg, qos=MQTTQoS.L1)
