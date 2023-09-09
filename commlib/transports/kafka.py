@@ -1,17 +1,15 @@
 import functools
 import logging
 import time
-from enum import IntEnum
 from typing import Any, Callable, Dict, Tuple, List
 
 from commlib.action import (BaseActionClient, BaseActionService,
                             _ActionCancelMessage, _ActionFeedbackMessage,
                             _ActionGoalMessage, _ActionResultMessage,
                             _ActionStatusMessage)
-from commlib.compression import CompressionType, deflate, inflate_str
+from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
-from commlib.events import BaseEventEmitter, Event
-from commlib.exceptions import (MQTTError, RPCClientTimeoutError,
+from commlib.exceptions import (RPCClientTimeoutError,
                                 RPCRequestError)
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
