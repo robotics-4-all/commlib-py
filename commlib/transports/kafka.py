@@ -3,28 +3,41 @@ import logging
 import time
 from typing import Any, Callable, Dict, Tuple, List
 
-from commlib.action import (BaseActionClient, BaseActionService,
-                            _ActionCancelMessage, _ActionFeedbackMessage,
-                            _ActionGoalMessage, _ActionResultMessage,
-                            _ActionStatusMessage)
+from commlib.action import (
+    BaseActionClient,
+    BaseActionService,
+    _ActionCancelMessage,
+    _ActionFeedbackMessage,
+    _ActionGoalMessage,
+    _ActionResultMessage,
+    _ActionStatusMessage,
+)
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
-from commlib.exceptions import (RPCClientTimeoutError,
-                                RPCRequestError)
+from commlib.exceptions import RPCClientTimeoutError, RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import (BaseRPCClient, BaseRPCServer, BaseRPCService,
-                         CommRPCHeader, CommRPCMessage)
+from commlib.rpc import (
+    BaseRPCClient,
+    BaseRPCServer,
+    BaseRPCService,
+    CommRPCHeader,
+    CommRPCMessage,
+)
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.transports import BaseTransport
 from commlib.utils import gen_timestamp
 
-kafka_logger: logging.Logger = logging.getLogger('kafka')
+kafka_logger: logging.Logger = logging.getLogger("kafka")
 
 
 from confluent_kafka import (
-    Consumer, Producer, KafkaError, KafkaException,
-    OFFSET_BEGINNING, OFFSET_END
+    Consumer,
+    Producer,
+    KafkaError,
+    KafkaException,
+    OFFSET_BEGINNING,
+    OFFSET_END,
 )
 
 
@@ -34,22 +47,24 @@ SASL_MECHANISM = "PLAIN"
 
 class ConnectionParameters(BaseConnectionParameters):
     # https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
-    host: str = 'localhost'
+    host: str = "localhost"
     port: int = 29092
-    username: str = ''
-    password: str = ''
+    username: str = ""
+    password: str = ""
     ssl: bool = False
-    group: str = 'main'
+    group: str = "main"
     auto_create_topics: bool = True
     auto_commit_interval: int = 1000  # ms
 
 
 class KafkaTransport(BaseTransport):
-
-    def __init__(self,
-                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
-                 serializer: Serializer = JSONSerializer(),
-                 *args, **kwargs):
+    def __init__(
+        self,
+        compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
+        serializer: Serializer = JSONSerializer(),
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self._serializer = serializer
         self._compression = compression
@@ -92,72 +107,79 @@ class KafkaTransport(BaseTransport):
         self._consumers.append(consumer)
         return consumer
 
-    def publish_data(self, producer: Producer, data: Dict,
-                     topic: str, key: str = '', on_delivery = None):
+    def publish_data(
+        self,
+        producer: Producer,
+        data: Dict,
+        topic: str,
+        key: str = "",
+        on_delivery=None,
+    ):
         producer.poll(0)
         payload = self._serializer.serialize(data)
         if on_delivery is None:
             on_delivery = self._on_publish
-        producer.produce(topic, key=key, value=payload,
-                         on_delivery=on_delivery)
+        producer.produce(topic, key=key, value=payload, on_delivery=on_delivery)
 
     def _on_publish(self, err, msg):
         pass
 
 
 class Publisher(BasePublisher):
-
-    def __init__(self, key: str = '', *args, **kwargs):
+    def __init__(self, key: str = "", *args, **kwargs):
         self._key = key
         self._msg_seq = 0
         self._producer: Producer = None
 
         super().__init__(*args, **kwargs)
         self._create_kafka_conf()
-        self._transport = KafkaTransport(conn_params=self._conn_params,
-                                         serializer=self._serializer,
-                                         compression=self._compression)
+        self._transport = KafkaTransport(
+            conn_params=self._conn_params,
+            serializer=self._serializer,
+            compression=self._compression,
+        )
 
     def _create_kafka_conf(self):
-        if self._conn_params.username not in (None, '') and \
-            self._conn_params.password not in (None, ''):
+        if self._conn_params.username not in (
+            None,
+            "",
+        ) and self._conn_params.password not in (None, ""):
             auth = {
-                'sasl.mechanisms': SASL_MECHANISM,
-                'security.protocol': SECURITY_PROTOCOL,
-                'sasl.username': self._conn_params.username,
-                'sasl.password': self._conn_params.password,
+                "sasl.mechanisms": SASL_MECHANISM,
+                "security.protocol": SECURITY_PROTOCOL,
+                "sasl.username": self._conn_params.username,
+                "sasl.password": self._conn_params.password,
             }
         else:
             auth = {}
-        host = f'{self._conn_params.host}:{self._conn_params.port}'
+        host = f"{self._conn_params.host}:{self._conn_params.port}"
         self._kafka_cfg = {
-            'bootstrap.servers': host,
-            'allow.auto.create.topics': self._conn_params.auto_create_topics,
-            **auth
+            "bootstrap.servers": host,
+            "allow.auto.create.topics": self._conn_params.auto_create_topics,
+            **auth,
         }
 
-    def publish(self,
-                msg: PubSubMessage,
-                key: str = ''
-                ) -> None:
+    def publish(self, msg: PubSubMessage, key: str = "") -> None:
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.dict()
-        if key in (None, ''):
+        if key in (None, ""):
             key = self._key
 
-        self._transport.publish_data(self._producer, data, self._topic,
-                                     key, on_delivery=self._on_delivery)
+        self._transport.publish_data(
+            self._producer, data, self._topic, key, on_delivery=self._on_delivery
+        )
         self._msg_seq += 1
 
     def _on_delivery(self, err, msg):
         if err is not None:
             self.logger().error(err)
-        self.logger().info(f'Published on {msg.topic()}, partition'
-                           f'{msg.partition()}')
+        self.logger().info(
+            f"Published on {msg.topic()}, partition" f"{msg.partition()}"
+        )
 
     def run(self):
         self._producer = self._transport.create_producer(self._kafka_cfg)
@@ -168,62 +190,61 @@ class Publisher(BasePublisher):
 
 
 class MPublisher(Publisher):
-
-    def __init__(self, key: str = '', *args, **kwargs):
+    def __init__(self, key: str = "", *args, **kwargs):
         self._key = key
-        super(MPublisher, self).__init__(topic='*', *args, **kwargs)
+        super(MPublisher, self).__init__(topic="*", *args, **kwargs)
 
-    def publish(self,
-                msg: PubSubMessage,
-                topic: str,
-                key: str = ''
-                ) -> None:
+    def publish(self, msg: PubSubMessage, topic: str, key: str = "") -> None:
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.dict()
-        if key in (None, ''):
+        if key in (None, ""):
             key = self._key
         self._producer.poll(0)
-        self._producer.produce(topic, key=key, value=data,
-                               on_delivery=self._on_delivery)
+        self._producer.produce(
+            topic, key=key, value=data, on_delivery=self._on_delivery
+        )
         self._msg_seq += 1
 
 
 class Subscriber(BaseSubscriber):
-
-    def __init__(self, key: str = '', *args, **kwargs):
+    def __init__(self, key: str = "", *args, **kwargs):
         self._key = key
         self._consumer: Consumer = None
         super(Subscriber, self).__init__(*args, **kwargs)
         self._create_kafka_conf()
-        self._transport = KafkaTransport(conn_params=self._conn_params,
-                                         serializer=self._serializer,
-                                         compression=self._compression)
+        self._transport = KafkaTransport(
+            conn_params=self._conn_params,
+            serializer=self._serializer,
+            compression=self._compression,
+        )
 
     def _create_kafka_conf(self):
-        if self._conn_params.username not in (None, '') and \
-            self._conn_params.password not in (None, ''):
+        if self._conn_params.username not in (
+            None,
+            "",
+        ) and self._conn_params.password not in (None, ""):
             auth = {
-                'sasl.mechanisms': SASL_MECHANISM,
-                'security.protocol': SECURITY_PROTOCOL,
-                'sasl.username': self._conn_params.username,
-                'sasl.password': self._conn_params.password,
+                "sasl.mechanisms": SASL_MECHANISM,
+                "security.protocol": SECURITY_PROTOCOL,
+                "sasl.username": self._conn_params.username,
+                "sasl.password": self._conn_params.password,
             }
         else:
             auth = {}
-        host = f'{self._conn_params.host}:{self._conn_params.port}'
+        host = f"{self._conn_params.host}:{self._conn_params.port}"
         self._kafka_cfg = {
-            'bootstrap.servers': host,
-            'auto.offset.reset': 'end',
-            'group.id': self._conn_params.group,
-            'enable.auto.offset.store': True,
-            'enable.auto.commit': True,
-            'allow.auto.create.topics': self._conn_params.auto_create_topics,
-            'auto.commit.interval.ms': self._conn_params.auto_commit_interval,
-            **auth
+            "bootstrap.servers": host,
+            "auto.offset.reset": "end",
+            "group.id": self._conn_params.group,
+            "enable.auto.offset.store": True,
+            "enable.auto.commit": True,
+            "allow.auto.create.topics": self._conn_params.auto_create_topics,
+            "auto.commit.interval.ms": self._conn_params.auto_commit_interval,
+            **auth,
         }
 
     def run_forever(self):
@@ -233,12 +254,15 @@ class Subscriber(BaseSubscriber):
             self._consumer.subscribe([self._topic], on_assign=self._on_assign)
             while running:
                 msg = self._consumer.poll(timeout=1.0)
-                if msg is None: continue
+                if msg is None:
+                    continue
                 if msg.error():
                     if msg.error().code() == KafkaError._PARTITION_EOF:
                         # End of partition event
-                        print('%% %s [%d] reached end at offset %d\n' %
-                                         (msg.topic(), msg.partition(), msg.offset()))
+                        print(
+                            "%% %s [%d] reached end at offset %d\n"
+                            % (msg.topic(), msg.partition(), msg.offset())
+                        )
                     elif msg.error():
                         raise KafkaException(msg.error())
                 else:
@@ -248,10 +272,10 @@ class Subscriber(BaseSubscriber):
         finally:
             # Close down consumer to commit final offsets.
             self._consumer.close()
-        self.log.debug(f'Started Subscriber: <{self._topic}>')
+        self.log.debug(f"Started Subscriber: <{self._topic}>")
 
     def _on_assign(self, consumer, partitions):
-        self.logger().info('Assignment:', partitions)
+        self.logger().info("Assignment:", partitions)
         self._reset_offset(consumer, partitions)
 
     def _reset_offset(self, consumer, partitions):
@@ -266,15 +290,12 @@ class Subscriber(BaseSubscriber):
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, data)
                 else:
-                    _clb = functools.partial(self.onmessage,
-                                             self._msg_type(**data))
+                    _clb = functools.partial(self.onmessage, self._msg_type(**data))
                 _clb()
         except Exception:
-            self.log.error('Exception caught in _on_message', exc_info=True)
+            self.log.error("Exception caught in _on_message", exc_info=True)
 
-    def _unpack_comm_msg(self,
-                         msg: Any
-                         ) -> Tuple:
+    def _unpack_comm_msg(self, msg: Any) -> Tuple:
         _topic = msg.topic()
         _key = msg.key()
         _timestamp = msg.timestamp()
@@ -286,22 +307,19 @@ class Subscriber(BaseSubscriber):
 
 
 class PSubscriber(Subscriber):
-
     def _on_message(self, msg: Any):
         try:
             data, topic, key, ts = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage,
-                                             data,
-                                             topic)
+                    _clb = functools.partial(self.onmessage, data, topic)
                 else:
-                    _clb = functools.partial(self.onmessage,
-                                             self._msg_type(**data),
-                                             topic)
+                    _clb = functools.partial(
+                        self.onmessage, self._msg_type(**data), topic
+                    )
                 _clb()
         except Exception:
-            self.log.error('Exception caught in _on_message', exc_info=True)
+            self.log.error("Exception caught in _on_message", exc_info=True)
 
 
 class RPCService(BaseRPCService):
@@ -310,43 +328,30 @@ class RPCService(BaseRPCService):
     """
 
     def __init__(self, *args, **kwargs):
-        raise NotImplementedError('RPCService for Kafka transport not supported')
+        raise NotImplementedError("RPCService for Kafka transport not supported")
         super(RPCService, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(conn_params=self._conn_params,
-                                        serializer=self._serializer,
-                                        compression=self._compression)
+        self._transport = MQTTTransport(
+            conn_params=self._conn_params,
+            serializer=self._serializer,
+            compression=self._compression,
+        )
 
-    def _send_response(self,
-                       data: Dict[str, Any],
-                       reply_to: str
-                       ):
-        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+    def _send_response(self, data: Dict[str, Any], reply_to: str):
+        self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.dict()
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
 
-    def _on_request_handle(self,
-                           client: Any,
-                           userdata: Any,
-                           msg: Dict[str, Any]
-                           ):
-        task = self._executor.submit(self._on_request_internal,
-                                     client,
-                                     userdata,
-                                     msg)
+    def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+        task = self._executor.submit(self._on_request_internal, client, userdata, msg)
 
-    def _on_request_internal(self,
-                             client: Any,
-                             userdata: Any,
-                             msg: Dict[str, Any]
-                             ):
+    def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(
-                f'Could not unpack request message: {exc}\n'
-                'Dropping client request!',
-                exc_info=True
+                f"Could not unpack request message: {exc}\n" "Dropping client request!",
+                exc_info=True,
             )
             return
         try:
@@ -360,35 +365,29 @@ class RPCService(BaseRPCService):
         except Exception as exc:
             self.log.error(str(exc), exc_info=True)
 
-    def _unpack_comm_msg(self,
-                         msg: Any
-                         ) -> Tuple[CommRPCMessage, str]:
+    def _unpack_comm_msg(self, msg: Any) -> Tuple[CommRPCMessage, str]:
         try:
             _uri = msg.topic
             _payload = self._serializer.deserialize(msg.payload)
-            _data = _payload['data']
-            _header = _payload['header']
-            _req_msg = CommRPCMessage(
-                header=CommRPCHeader(**_header),
-                data=_data
-            )
+            _data = _payload["data"]
+            _header = _payload["header"]
+            _req_msg = CommRPCMessage(header=CommRPCHeader(**_header), data=_data)
             if not self._validate_rpc_req_msg(_req_msg):
-                raise RPCRequestError('Request Message is invalid!')
+                raise RPCRequestError("Request Message is invalid!")
         except Exception as e:
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
     def run_forever(self):
-        """run_forever.
-        """
-        self._transport.subscribe(self._rpc_name,
-                                  self._on_request_handle,
-                                  qos=MQTTQoS.L1)
+        """run_forever."""
+        self._transport.subscribe(
+            self._rpc_name, self._on_request_handle, qos=MQTTQoS.L1
+        )
         self._transport.start()
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
-                    self.log.debug('Stop event caught in thread')
+                    self.log.debug("Stop event caught in thread")
                     break
             time.sleep(0.001)
         self._transport.stop()
@@ -403,44 +402,32 @@ class RPCServer(BaseRPCServer):
             kwargs: See BaseRPCServer
         """
         super(RPCServer, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(conn_params=self._conn_params,
-                                        serializer=self._serializer,
-                                        compression=self._compression)
+        self._transport = MQTTTransport(
+            conn_params=self._conn_params,
+            serializer=self._serializer,
+            compression=self._compression,
+        )
         for uri in self._svc_map:
             callback = self._svc_map[uri][0]
             msg_type = self._svc_map[uri][1]
             self._register_endpoint(uri, callback, msg_type)
 
-    def _send_response(self,
-                       data: Dict[str, Any],
-                       reply_to: str
-                       ):
+    def _send_response(self, data: Dict[str, Any], reply_to: str):
         """_send_response.
 
         Args:
             data (dict): data
             reply_to (str): reply_to
         """
-        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.dict()
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
 
-    def _on_request_handle(self,
-                           client: Any,
-                           userdata: Any,
-                           msg: Dict[str, Any]
-                           ):
-        task = self._executor.submit(self._on_request_internal,
-                                     client,
-                                     userdata,
-                                     msg)
+    def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+        task = self._executor.submit(self._on_request_internal, client, userdata, msg)
 
-    def _on_request_internal(self,
-                             client: Any,
-                             userdata: Any,
-                             msg: Dict[str, Any]
-                             ):
+    def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """_on_request_internal.
 
         Args:
@@ -452,15 +439,14 @@ class RPCServer(BaseRPCServer):
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(
-                f'Could not unpack request message: {exc}'
-                '\nDropping client request!',
-                exc_info=True
+                f"Could not unpack request message: {exc}" "\nDropping client request!",
+                exc_info=True,
             )
             return
         try:
-            uri = uri.replace('/', '.')
-            svc_uri = uri.replace(self._base_uri, '')
-            if svc_uri[0] == '.':
+            uri = uri.replace("/", ".")
+            svc_uri = uri.replace(self._base_uri, "")
+            if svc_uri[0] == ".":
                 svc_uri = svc_uri[1:]
             if svc_uri not in self._svc_map:
                 return
@@ -477,9 +463,7 @@ class RPCServer(BaseRPCServer):
             self.log.error(str(exc), exc_info=False)
             return
 
-    def _unpack_comm_msg(self,
-                         msg: Any
-                         ) -> Tuple[CommRPCMessage, str]:
+    def _unpack_comm_msg(self, msg: Any) -> Tuple[CommRPCMessage, str]:
         """_unpack_comm_msg.
 
         Unpack payload, header and uri from communcation message.
@@ -493,40 +477,33 @@ class RPCServer(BaseRPCServer):
         try:
             _uri = msg.topic
             _payload = self._serializer.deserialize(msg.payload)
-            _data = _payload['data']
-            _header = _payload['header']
-            _req_msg = CommRPCMessage(
-                header=CommRPCHeader(**_header),
-                data=_data
-            )
+            _data = _payload["data"]
+            _header = _payload["header"]
+            _req_msg = CommRPCMessage(header=CommRPCHeader(**_header), data=_data)
             if not self._validate_rpc_req_msg(_req_msg):
-                raise RPCRequestError('Request Message is invalid!')
+                raise RPCRequestError("Request Message is invalid!")
         except Exception as e:
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
-    def _register_endpoint(self,
-                           uri: str,
-                           callback: Callable,
-                           msg_type: RPCMessage = None
-                           ):
+    def _register_endpoint(
+        self, uri: str, callback: Callable, msg_type: RPCMessage = None
+    ):
         self._svc_map[uri] = (callback, msg_type)
-        if self._base_uri in (None, ''):
+        if self._base_uri in (None, ""):
             full_uri = uri
         else:
-            full_uri = f'{self._base_uri}.{uri}'
-        self.log.info(f'Registering endpoint <{full_uri}>')
-        self._transport.subscribe(full_uri, self._on_request_handle,
-                                  qos=MQTTQoS.L1)
+            full_uri = f"{self._base_uri}.{uri}"
+        self.log.info(f"Registering endpoint <{full_uri}>")
+        self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
 
     def run_forever(self):
-        """run_forever.
-        """
+        """run_forever."""
         self._transport.start()
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
-                    self.log.debug('Stop event caught in thread')
+                    self.log.debug("Stop event caught in thread")
                     break
             time.sleep(0.001)
         self._transport.stop()
@@ -547,33 +524,28 @@ class RPCClient(BaseRPCClient):
         self._response = None
 
         super(RPCClient, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(conn_params=self._conn_params,
-                                        serializer=self._serializer,
-                                        compression=self._compression)
+        self._transport = MQTTTransport(
+            conn_params=self._conn_params,
+            serializer=self._serializer,
+            compression=self._compression,
+        )
 
     def _gen_queue_name(self):
-        """_gen_queue_name.
-        """
-        return f'rpc-{self._gen_random_id()}'
+        """_gen_queue_name."""
+        return f"rpc-{self._gen_random_id()}"
 
-    def _prepare_request(self,
-                         data: Dict[str, Any]
-                         ):
+    def _prepare_request(self, data: Dict[str, Any]):
         """_prepare_request.
 
         Args:
             data:
         """
-        self._comm_obj.header.timestamp = gen_timestamp()   #pylint: disable=E0237
+        self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.header.reply_to = self._gen_queue_name()
         self._comm_obj.data = data
         return self._comm_obj.dict()
 
-    def _on_response_wrapper(self,
-                             client: Any,
-                             userdata: Any,
-                             msg: Dict[str, Any]
-                             ):
+    def _on_response_wrapper(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """_on_response_wrapper.
 
         Args:
@@ -588,18 +560,14 @@ class RPCClient(BaseRPCClient):
             data = {}
         self._response = data
 
-    def _unpack_comm_msg(self,
-                         msg: Any
-                         ) -> Tuple[Any, Any, Any]:
+    def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
         _uri = msg.topic
         _payload = self._serializer.deserialize(msg.payload)
-        _data = _payload['data']
-        _header = _payload['header']
+        _data = _payload["data"]
+        _header = _payload["header"]
         return _data, _header, _uri
 
-    def _wait_for_response(self,
-                           timeout: float = 10.0
-                           ):
+    def _wait_for_response(self, timeout: float = 10.0):
         """_wait_for_response.
 
         Args:
@@ -609,15 +577,11 @@ class RPCClient(BaseRPCClient):
         while self._response is None:
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:
-                raise RPCClientTimeoutError(
-                    f'Response timeout after {timeout} seconds')
+                raise RPCClientTimeoutError(f"Response timeout after {timeout} seconds")
             time.sleep(0.001)
         return self._response
 
-    def call(self,
-             msg: RPCMessage.Request,
-             timeout: float = 30
-             ) -> RPCMessage.Response:
+    def call(self, msg: RPCMessage.Request, timeout: float = 30) -> RPCMessage.Response:
         """call.
 
         Args:
@@ -628,16 +592,17 @@ class RPCClient(BaseRPCClient):
             data = msg
         else:
             if not isinstance(msg, self._msg_type.Request):
-                raise ValueError('Message type not valid')
+                raise ValueError("Message type not valid")
             data = msg.dict()
 
         self._response = None
 
         _msg = self._prepare_request(data)
-        _reply_to = _msg['header']['reply_to']
+        _reply_to = _msg["header"]["reply_to"]
 
-        self._transport.subscribe(_reply_to, callback=self._on_response_wrapper,
-                                  qos=MQTTQoS.L1)
+        self._transport.subscribe(
+            _reply_to, callback=self._on_response_wrapper, qos=MQTTQoS.L1
+        )
         start_t = time.time()
         self._transport.publish(self._rpc_name, _msg, qos=MQTTQoS.L1)
         _resp = self._wait_for_response(timeout=timeout)
@@ -664,29 +629,39 @@ class ActionService(BaseActionService):
         """
         super(ActionService, self).__init__(*args, **kwargs)
 
-        self._goal_rpc = RPCService(msg_type=_ActionGoalMessage,
-                                    rpc_name=self._goal_rpc_uri,
-                                    conn_params=self._conn_params,
-                                    on_request=self._handle_send_goal,
-                                    debug=self.debug)
-        self._cancel_rpc = RPCService(msg_type=_ActionCancelMessage,
-                                      rpc_name=self._cancel_rpc_uri,
-                                      conn_params=self._conn_params,
-                                      on_request=self._handle_cancel_goal,
-                                      debug=self.debug)
-        self._result_rpc = RPCService(msg_type=_ActionResultMessage,
-                                      rpc_name=self._result_rpc_uri,
-                                      conn_params=self._conn_params,
-                                      on_request=self._handle_get_result,
-                                      debug=self.debug)
-        self._feedback_pub = Publisher(msg_type=_ActionFeedbackMessage,
-                                       topic=self._feedback_topic,
-                                       conn_params=self._conn_params,
-                                       debug=self.debug)
-        self._status_pub = Publisher(msg_type=_ActionStatusMessage,
-                                     topic=self._status_topic,
-                                     conn_params=self._conn_params,
-                                     debug=self.debug)
+        self._goal_rpc = RPCService(
+            msg_type=_ActionGoalMessage,
+            rpc_name=self._goal_rpc_uri,
+            conn_params=self._conn_params,
+            on_request=self._handle_send_goal,
+            debug=self.debug,
+        )
+        self._cancel_rpc = RPCService(
+            msg_type=_ActionCancelMessage,
+            rpc_name=self._cancel_rpc_uri,
+            conn_params=self._conn_params,
+            on_request=self._handle_cancel_goal,
+            debug=self.debug,
+        )
+        self._result_rpc = RPCService(
+            msg_type=_ActionResultMessage,
+            rpc_name=self._result_rpc_uri,
+            conn_params=self._conn_params,
+            on_request=self._handle_get_result,
+            debug=self.debug,
+        )
+        self._feedback_pub = Publisher(
+            msg_type=_ActionFeedbackMessage,
+            topic=self._feedback_topic,
+            conn_params=self._conn_params,
+            debug=self.debug,
+        )
+        self._status_pub = Publisher(
+            msg_type=_ActionStatusMessage,
+            topic=self._status_topic,
+            conn_params=self._conn_params,
+            debug=self.debug,
+        )
 
 
 class ActionClient(BaseActionClient):
@@ -703,25 +678,35 @@ class ActionClient(BaseActionClient):
         """
         super(ActionClient, self).__init__(*args, **kwargs)
 
-        self._goal_client = RPCClient(msg_type=_ActionGoalMessage,
-                                      rpc_name=self._goal_rpc_uri,
-                                      conn_params=self._conn_params,
-                                      debug=self.debug)
-        self._cancel_client = RPCClient(msg_type=_ActionCancelMessage,
-                                        rpc_name=self._cancel_rpc_uri,
-                                        conn_params=self._conn_params,
-                                        debug=self.debug)
-        self._result_client = RPCClient(msg_type=_ActionResultMessage,
-                                        rpc_name=self._result_rpc_uri,
-                                        conn_params=self._conn_params,
-                                        debug=self.debug)
-        self._status_sub = Subscriber(msg_type=_ActionStatusMessage,
-                                      conn_params=self._conn_params,
-                                      topic=self._status_topic,
-                                      on_message=self._on_status,
-                                      debug=self.debug)
-        self._feedback_sub = Subscriber(msg_type=_ActionFeedbackMessage,
-                                        conn_params=self._conn_params,
-                                        topic=self._feedback_topic,
-                                        on_message=self._on_feedback,
-                                        debug=self.debug)
+        self._goal_client = RPCClient(
+            msg_type=_ActionGoalMessage,
+            rpc_name=self._goal_rpc_uri,
+            conn_params=self._conn_params,
+            debug=self.debug,
+        )
+        self._cancel_client = RPCClient(
+            msg_type=_ActionCancelMessage,
+            rpc_name=self._cancel_rpc_uri,
+            conn_params=self._conn_params,
+            debug=self.debug,
+        )
+        self._result_client = RPCClient(
+            msg_type=_ActionResultMessage,
+            rpc_name=self._result_rpc_uri,
+            conn_params=self._conn_params,
+            debug=self.debug,
+        )
+        self._status_sub = Subscriber(
+            msg_type=_ActionStatusMessage,
+            conn_params=self._conn_params,
+            topic=self._status_topic,
+            on_message=self._on_status,
+            debug=self.debug,
+        )
+        self._feedback_sub = Subscriber(
+            msg_type=_ActionFeedbackMessage,
+            conn_params=self._conn_params,
+            topic=self._feedback_topic,
+            on_message=self._on_feedback,
+            debug=self.debug,
+        )

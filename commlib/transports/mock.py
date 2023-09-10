@@ -14,6 +14,7 @@ class MockTransport(BaseTransport):
     def stop(self):
         self._connected = False
 
+
 class Publisher(BasePublisher):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

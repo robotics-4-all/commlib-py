@@ -21,11 +21,12 @@ from commlib.msg import PubSubMessage, RPCMessage
 
 """
 
+
 class RESTProxyMessage(RPCMessage):
     class Request(RPCMessage.Request):
         base_url: str
-        path: str = '/'
-        verb: str = 'GET'
+        path: str = "/"
+        verb: str = "GET"
         query_params: Dict = {}
         path_params: Dict = {}
         body_params: Dict = {}
@@ -44,12 +45,13 @@ class RESTProxy:
     supported protocols (AMQP, MQTT, REDIS).
     """
 
-    def __init__(self,
-                 broker_uri: str,
-                 broker_type: TransportType,
-                 broker_params: Any,
-                 debug: bool = False
-                 ):
+    def __init__(
+        self,
+        broker_uri: str,
+        broker_type: TransportType,
+        broker_params: Any,
+        debug: bool = False,
+    ):
         """__init__.
 
         Args:
@@ -64,40 +66,40 @@ class RESTProxy:
             msg_type=RESTProxyMessage,
             conn_params=broker_params,
             on_request=self._on_request,
-            debug=self._debug
+            debug=self._debug,
         )
         self._svc = svc
 
     def _on_request(self, msg: RESTProxyMessage.Request):
-        url = f'{msg.base_url}{msg.path}'
+        url = f"{msg.base_url}{msg.path}"
         # -------- > Perform HTTP Request from input message
-        if msg.verb == 'GET':
-            resp = requests.get(url, params=msg.query_params,
-                                headers=msg.headers)
-        elif msg.verb == 'PUT':
-            resp = requests.put(url, params=msg.query_params,
-                                data=msg.body_params, headers=msg.headers)
-        elif msg.verb == 'POST':
-            resp = requests.post(url, params=msg.query_params,
-                                 data=msg.body_params, headers=msg.headers)
+        if msg.verb == "GET":
+            resp = requests.get(url, params=msg.query_params, headers=msg.headers)
+        elif msg.verb == "PUT":
+            resp = requests.put(
+                url, params=msg.query_params, data=msg.body_params, headers=msg.headers
+            )
+        elif msg.verb == "POST":
+            resp = requests.post(
+                url, params=msg.query_params, data=msg.body_params, headers=msg.headers
+            )
         else:
-            raise ValueError(f'HTTP Verb [{msg.verb}] is not valid!')
+            raise ValueError(f"HTTP Verb [{msg.verb}] is not valid!")
         # <---------------------------------------------------
         headers = dict(**resp.headers)
         data = resp.text
-        if headers.get('Content-Type') == 'application/json':
+        if headers.get("Content-Type") == "application/json":
             data = json.loads(data)
-        return RESTProxyMessage.Response(data=data, headers=headers,
-                                         status_code=resp.status_code)
+        return RESTProxyMessage.Response(
+            data=data, headers=headers, status_code=resp.status_code
+        )
 
     def run(self):
-        """run.
-        """
+        """run."""
         self._svc.run()
 
     def run_forever(self):
-        """run_forever.
-        """
+        """run_forever."""
         self._svc.run()
         while True:
             time.sleep(0.001)

@@ -19,14 +19,14 @@ import enum
 from typing import Any, Dict
 from decimal import Decimal
 
-DEFAULT_JSON_SERIALIZER = 'ujson'
+DEFAULT_JSON_SERIALIZER = "ujson"
 
 
-if DEFAULT_JSON_SERIALIZER == 'json':
+if DEFAULT_JSON_SERIALIZER == "json":
     import json as json
-elif DEFAULT_JSON_SERIALIZER == 'ujson':
+elif DEFAULT_JSON_SERIALIZER == "ujson":
     import ujson as json
-elif DEFAULT_JSON_SERIALIZER == 'orjson':
+elif DEFAULT_JSON_SERIALIZER == "orjson":
     import orjson as json
 
 
@@ -36,15 +36,17 @@ class SerializationTypes(enum.IntEnum):
 
 class ContentType:
     """Content Types."""
-    json: str = 'application/json'
-    raw_bytes: str = 'application/octet-stream'
-    text: str = 'plain/text'
+
+    json: str = "application/json"
+    raw_bytes: str = "application/octet-stream"
+    text: str = "plain/text"
 
 
 class Serializer(abc.ABC):
     """Serializer Abstract Class."""
-    CONTENT_TYPE: str = 'None'
-    CONTENT_ENCODING: str = 'None'
+
+    CONTENT_TYPE: str = "None"
+    CONTENT_ENCODING: str = "None"
 
     @staticmethod
     def serialize(data: Any) -> str:
@@ -70,8 +72,9 @@ class JSONSerializer(Serializer):
 
     Static class.
     """
+
     CONTENT_TYPE: str = ContentType.json
-    CONTENT_ENCODING: str = 'utf8'
+    CONTENT_ENCODING: str = "utf8"
 
     @staticmethod
     def serialize(data: Dict[str, Any]) -> str:
