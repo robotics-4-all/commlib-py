@@ -21,7 +21,7 @@ class TCPBridgeRequestHandler(socketserver.BaseRequestHandler):
                 sock.connect((self.server.host_ep2, self.server.port_ep2))
                 sock.sendall(data)
                 # Receive data from the server
-                while 1:
+                while True:
                     received = sock.recv(1024)
                     if not received:
                         break

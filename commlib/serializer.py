@@ -16,8 +16,8 @@
 
 import abc
 import enum
-from typing import Any, Dict
 from decimal import Decimal
+from typing import Any, Dict
 
 DEFAULT_JSON_SERIALIZER = "ujson"
 

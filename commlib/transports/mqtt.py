@@ -8,27 +8,17 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 
-from commlib.action import (
-    BaseActionClient,
-    BaseActionService,
-    _ActionCancelMessage,
-    _ActionFeedbackMessage,
-    _ActionGoalMessage,
-    _ActionResultMessage,
-    _ActionStatusMessage,
-)
+from commlib.action import (BaseActionClient, BaseActionService,
+                            _ActionCancelMessage, _ActionFeedbackMessage,
+                            _ActionGoalMessage, _ActionResultMessage,
+                            _ActionStatusMessage)
 from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCClientTimeoutError, RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import (
-    BaseRPCClient,
-    BaseRPCServer,
-    BaseRPCService,
-    CommRPCHeader,
-    CommRPCMessage,
-)
+from commlib.rpc import (BaseRPCClient, BaseRPCServer, BaseRPCService,
+                         CommRPCHeader, CommRPCMessage)
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.transports import BaseTransport
 from commlib.utils import gen_timestamp
@@ -102,7 +92,7 @@ class MQTTTransport(BaseTransport):
         self._serializer = serializer
         self._compression = compression
 
-        ## Workaround for both v3 and v5 support
+        # Workaround for both v3 and v5 support
         # http://www.steves-internet-guide.com/python-mqtt-client-changes/
         if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
             properties = Properties(PacketTypes.CONNECT)
@@ -211,7 +201,7 @@ class MQTTTransport(BaseTransport):
         Returns:
             str:
         """
-        ## Adds subtopic specific callback handlers
+        # Adds subtopic specific callback handlers
         topic = topic.replace(".", "/").replace("*", "#")
         self._client.subscribe(
             topic, qos=qos, options=None, properties=self._mqtt_properties
@@ -475,7 +465,7 @@ class RPCService(BaseRPCService):
                 resp = self.on_request(req_msg.data)
             else:
                 resp = self.on_request(self._msg_type.Request(**req_msg.data))
-                ## RPCMessage.Response object here
+                # RPCMessage.Response object here
                 resp = resp.dict()
             self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:

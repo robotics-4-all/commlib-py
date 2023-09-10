@@ -1,44 +1,27 @@
 import functools
 import logging
 import time
-from typing import Any, Callable, Dict, Tuple, List
+from typing import Any, Callable, Dict, List, Tuple
 
-from commlib.action import (
-    BaseActionClient,
-    BaseActionService,
-    _ActionCancelMessage,
-    _ActionFeedbackMessage,
-    _ActionGoalMessage,
-    _ActionResultMessage,
-    _ActionStatusMessage,
-)
+from confluent_kafka import (OFFSET_BEGINNING, OFFSET_END, Consumer,
+                             KafkaError, KafkaException, Producer)
+
+from commlib.action import (BaseActionClient, BaseActionService,
+                            _ActionCancelMessage, _ActionFeedbackMessage,
+                            _ActionGoalMessage, _ActionResultMessage,
+                            _ActionStatusMessage)
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCClientTimeoutError, RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import (
-    BaseRPCClient,
-    BaseRPCServer,
-    BaseRPCService,
-    CommRPCHeader,
-    CommRPCMessage,
-)
+from commlib.rpc import (BaseRPCClient, BaseRPCServer, BaseRPCService,
+                         CommRPCHeader, CommRPCMessage)
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.transports import BaseTransport
 from commlib.utils import gen_timestamp
 
 kafka_logger: logging.Logger = logging.getLogger("kafka")
-
-
-from confluent_kafka import (
-    Consumer,
-    Producer,
-    KafkaError,
-    KafkaException,
-    OFFSET_BEGINNING,
-    OFFSET_END,
-)
 
 
 SECURITY_PROTOCOL = "SASL_SSL"
@@ -359,7 +342,7 @@ class RPCService(BaseRPCService):
                 resp = self.on_request(req_msg.data)
             else:
                 resp = self.on_request(self._msg_type.Request(**req_msg.data))
-                ## RPCMessage.Response object here
+                # RPCMessage.Response object here
                 resp = resp.dict()
             self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:

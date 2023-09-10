@@ -283,7 +283,7 @@ class PTopicBridge(Bridge):
             debug (bool): debug
         """
         super().__init__(btype, *args, **kwargs)
-        if not "*" in from_uri:
+        if "*" not in from_uri:
             raise ValueError("from_uri must be defined using topic patterns")
         self._from_broker_params = from_broker_params
         self._to_broker_params = to_broker_params

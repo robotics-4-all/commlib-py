@@ -268,7 +268,7 @@ class BaseActionService:
         self._cancel_rpc_uri = f"{self._action_name}.cancel_goal"
         self._result_rpc_uri = f"{self._action_name}.get_result"
 
-        ## To be instantiated by the child classes
+        # To be instantiated by the child classes
         self._feedback_pub = None
         self._status_pub = None
         self._goal_rpc = None
@@ -346,7 +346,7 @@ class BaseActionService:
             pass
         else:
             return resp
-        ## Execute user-defined callback
+        # Execute user-defined callback
         if self._on_goal is not None:
             resp.status = 1
             resp.goal_id = self._current_goal.id
@@ -386,7 +386,7 @@ class BaseActionService:
         elif self._current_goal.id != _goal_id:
             return resp
         resp.status = self._current_goal.status
-        ## Set Result data
+        # Set Result data
         if self._msg_type is not None:
             resp.result = self._current_goal.result.dict()
         else:
@@ -438,7 +438,7 @@ class BaseActionClient:
         self._cancel_rpc_uri = f"{self._action_name}.cancel_goal"
         self._result_rpc_uri = f"{self._action_name}.get_result"
 
-        ## To be instantiated by the child classes
+        # To be instantiated by the child classes
         self._goal_client = None
         self._cancel_client = None
         self._result_client = None
@@ -504,7 +504,7 @@ class BaseActionClient:
         """
         req = _ActionCancelMessage.Request(goal_id=self._goal_id)
         _ = self._cancel_client.call(req, timeout=timeout)
-        ## TODO Check response status
+        # TODO Check response status
         res = self.get_result(wait=wait_for_result)
         return res
 

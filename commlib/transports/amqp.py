@@ -11,27 +11,17 @@ from typing import Dict
 
 import pika
 
-from commlib.action import (
-    BaseActionClient,
-    BaseActionService,
-    _ActionCancelMessage,
-    _ActionFeedbackMessage,
-    _ActionGoalMessage,
-    _ActionResultMessage,
-    _ActionStatusMessage,
-)
+from commlib.action import (BaseActionClient, BaseActionService,
+                            _ActionCancelMessage, _ActionFeedbackMessage,
+                            _ActionGoalMessage, _ActionResultMessage,
+                            _ActionStatusMessage)
 from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import *
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import (
-    BaseRPCClient,
-    BaseRPCServer,
-    BaseRPCService,
-    CommRPCHeader,
-    CommRPCMessage,
-)
+from commlib.rpc import (BaseRPCClient, BaseRPCServer, BaseRPCService,
+                         CommRPCHeader, CommRPCMessage)
 from commlib.transports import BaseTransport
 from commlib.utils import gen_timestamp
 
@@ -427,7 +417,7 @@ class AMQPTransport(BaseTransport):
     def stop_consuming(self):
         try:
             self.channel.stop_consuming()
-        except:
+        except BaseException:
             pass
 
     def disconnect(self):
@@ -497,7 +487,7 @@ class RPCService(BaseRPCService):
         task = self._executor.submit(
             self._on_request_callback, ch, method, properties, body
         )
-        ## TODO handle tasks
+        # TODO handle tasks
 
     def _on_request_callback(self, ch, method, properties, body):
         _data = {}
@@ -649,7 +639,7 @@ class RPCClient(BaseRPCClient):
         )
         self._transport.connect()
 
-        ## Register on_request cabblack handle
+        # Register on_request cabblack handle
         self._transport.add_threadsafe_callback(
             self._transport.channel.basic_consume,
             "amq.rabbitmq.reply-to",
@@ -821,7 +811,7 @@ class Publisher(BasePublisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.dict()
-        ## Thread Safe solution
+        # Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data, self._topic)
 
     def _send_msg(self, msg: Dict, topic: str):
@@ -870,7 +860,7 @@ class MPublisher(Publisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.dict()
-        ## Thread Safe solution
+        # Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data, topic)
 
 

@@ -7,27 +7,17 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 import redis
 
-from commlib.action import (
-    BaseActionClient,
-    BaseActionService,
-    _ActionCancelMessage,
-    _ActionFeedbackMessage,
-    _ActionGoalMessage,
-    _ActionResultMessage,
-    _ActionStatusMessage,
-)
+from commlib.action import (BaseActionClient, BaseActionService,
+                            _ActionCancelMessage, _ActionFeedbackMessage,
+                            _ActionGoalMessage, _ActionResultMessage,
+                            _ActionStatusMessage)
 from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCClientTimeoutError, RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import (
-    BaseRPCClient,
-    BaseRPCServer,
-    BaseRPCService,
-    CommRPCHeader,
-    CommRPCMessage,
-)
+from commlib.rpc import (BaseRPCClient, BaseRPCServer, BaseRPCService,
+                         CommRPCHeader, CommRPCMessage)
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.transports import BaseTransport
 from commlib.utils import gen_timestamp
@@ -195,7 +185,7 @@ class RPCService(BaseRPCService):
         task = self._executor.submit(self._on_request_internal, data, header)
 
     def _on_request_internal(self, data: Dict[str, Any], header: Dict[str, Any]):
-        if not "reply_to" in header:
+        if "reply_to" not in header:
             return
         try:
             _req_msg = CommRPCMessage(
@@ -207,7 +197,7 @@ class RPCService(BaseRPCService):
                 resp = self.on_request(data)
             else:
                 resp = self.on_request(self._msg_type.Request(**data))
-                ## RPCMessage.Response object here
+                # RPCMessage.Response object here
                 resp = resp.dict()
         except RPCRequestError as e:
             self.log.error(str(exc), exc_info=False)
@@ -270,7 +260,7 @@ class RPCClient(BaseRPCClient):
         return self._comm_obj.dict()
 
     def call(self, msg: RPCMessage.Request, timeout: float = 30) -> RPCMessage.Response:
-        ## TODO: Evaluate msg type passed here.
+        # TODO: Evaluate msg type passed here.
         if self._msg_type is None:
             data = msg
         else:
@@ -284,7 +274,7 @@ class RPCClient(BaseRPCClient):
         if _msg is None:
             return None
         data, header = self._unpack_comm_msg(_msg)
-        ## TODO: Evaluate response type and raise exception if necessary
+        # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
             return data
         else:

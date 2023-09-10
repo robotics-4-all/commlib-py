@@ -229,12 +229,12 @@ class BaseRPCClient(BaseEndpoint):
     def _done_callback(self, on_response: callable, _future):
         if _future.cancelled():
             pass
-            ## TODO: Implement Calcellation logic
+            # TODO: Implement Calcellation logic
         elif _future.done():
             error = _future.exception()
             if error:
                 pass
-                ## TODO: Implement Exception logic
+                # TODO: Implement Exception logic
             else:
                 result = _future.result()
                 on_response(result)

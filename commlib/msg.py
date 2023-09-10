@@ -8,7 +8,6 @@ from pydantic import BaseModel
 
 from commlib.utils import gen_timestamp
 
-
 Primitives = [str, int, float, bool, bytes]
 
 

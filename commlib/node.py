@@ -103,7 +103,7 @@ class HeartbeatThread(threading.Thread):
                 self.logger().debug(
                     f"Sending heartbeat message - {self._heartbeat_pub._topic}"
                 )
-                if self._heartbeat_pub._msg_type == None:
+                if self._heartbeat_pub._msg_type is None:
                     self._heartbeat_pub.publish(msg.dict())
                 else:
                     self._heartbeat_pub.publish(msg)
@@ -223,7 +223,7 @@ class Node:
         self._event_emitters = []
         self._ports: List[NodePort] = []
 
-        ## Set default ConnectionParameters ---->
+        # Set default ConnectionParameters ---->
         if transport_connection_params is not None and connection_params is None:
             connection_params = transport_connection_params
         self._conn_params = connection_params
