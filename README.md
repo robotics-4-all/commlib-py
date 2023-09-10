@@ -61,18 +61,14 @@ pip install hiredis
 
 In order to have access to the AMQP transport you will have to installed the following dependencies:
 
-- pika==1.1.0
-
 ```bash
-pip install "pika==1.1.0"
+pip install "pika"
 ```
 
 
 ## MQTT Support
 
 In order to have access to the MQTT transport you will have to installed the following dependencies:
-
-- paho-mqtt
 
 ```bash
 pip install paho-mqtt
@@ -88,13 +84,7 @@ The framework will load and use the most performance optimal library based
 on installations.
 
 
-# Quick Start
-
-The purpose of this implementation is to provide an application-level communication layer, 
-by providing implementations for Remote-Procedure-Calls (RPCs), Topic-based PubSub, Preemptable Services (aka Actions), Events etc.
-
-
-# User Guide
+# Guide
 
 ## Node
 
@@ -183,7 +173,7 @@ A Node always binds to a specific broker for implementing the input and
 output ports. Of course you can instantiate and run several Nodes in a single-process 
 application.
 
-### Node class:
+**Node class:**
 
 ```python
 class Node:
