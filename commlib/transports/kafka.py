@@ -3,20 +3,36 @@ import logging
 import time
 from typing import Any, Callable, Dict, List, Tuple
 
-from confluent_kafka import (OFFSET_BEGINNING, OFFSET_END, Consumer,
-                             KafkaError, KafkaException, Producer)
+from confluent_kafka import (
+    OFFSET_BEGINNING,
+    OFFSET_END,
+    Consumer,
+    KafkaError,
+    KafkaException,
+    Producer,
+)
 
-from commlib.action import (BaseActionClient, BaseActionService,
-                            _ActionCancelMessage, _ActionFeedbackMessage,
-                            _ActionGoalMessage, _ActionResultMessage,
-                            _ActionStatusMessage)
+from commlib.action import (
+    BaseActionClient,
+    BaseActionService,
+    _ActionCancelMessage,
+    _ActionFeedbackMessage,
+    _ActionGoalMessage,
+    _ActionResultMessage,
+    _ActionStatusMessage,
+)
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCClientTimeoutError, RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.rpc import (BaseRPCClient, BaseRPCServer, BaseRPCService,
-                         CommRPCHeader, CommRPCMessage)
+from commlib.rpc import (
+    BaseRPCClient,
+    BaseRPCServer,
+    BaseRPCService,
+    CommRPCHeader,
+    CommRPCMessage,
+)
 from commlib.serializer import JSONSerializer, Serializer
 from commlib.transports import BaseTransport
 from commlib.utils import gen_timestamp

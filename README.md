@@ -1,3 +1,5 @@
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 # commlib-py
 Broker-based communication framework written in python 3.
 Implements the most common communication patterns (RPC/ReqResp, PubSub) over a message broker.
