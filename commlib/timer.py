@@ -6,9 +6,14 @@ from commlib.utils import Rate
 
 
 class TimerEvent:
-    def __init__(self, last_expected: float, last_real: float,
-                 current_expected: float, current_real: float,
-                 last_duration: float):
+    def __init__(
+        self,
+        last_expected: float,
+        last_real: float,
+        current_expected: float,
+        current_real: float,
+        last_duration: float,
+    ):
         """__init__.
 
         Args:
@@ -26,11 +31,7 @@ class TimerEvent:
 
 
 class Timer(threading.Thread):
-    def __init__(self,
-                 period: float,
-                 callback: Callable,
-                 oneshot: bool = False
-                 ):
+    def __init__(self, period: float, callback: Callable, oneshot: bool = False):
         """__init__.
 
         Args:
@@ -65,13 +66,17 @@ class Timer(threading.Thread):
                 break
             start = time.time()
             current_real = start
-            self._callback(TimerEvent(last_expected, last_real,
-                                      current_expected,
-                                      current_real,
-                                      last_duration))
+            self._callback(
+                TimerEvent(
+                    last_expected,
+                    last_real,
+                    current_expected,
+                    current_real,
+                    last_duration,
+                )
+            )
             if self._oneshot:
                 break
             last_duration = time.time() - start
             last_expected, last_real = current_expected, current_real
             current_expected += self._period
-

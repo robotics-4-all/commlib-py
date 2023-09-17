@@ -1,12 +1,16 @@
 import functools
 import logging
 import time
-from enum import IntEnum
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
-import paho.mqtt.client as mqtt
-from paho.mqtt.packettypes import PacketTypes
-from paho.mqtt.properties import Properties
+from confluent_kafka import (
+    OFFSET_BEGINNING,
+    OFFSET_END,
+    Consumer,
+    KafkaError,
+    KafkaException,
+    Producer,
+)
 
 from commlib.action import (
     BaseActionClient,
@@ -17,7 +21,7 @@ from commlib.action import (
     _ActionResultMessage,
     _ActionStatusMessage,
 )
-from commlib.compression import CompressionType, deflate, inflate_str
+from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCClientTimeoutError, RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
@@ -33,366 +37,254 @@ from commlib.serializer import JSONSerializer, Serializer
 from commlib.transports import BaseTransport
 from commlib.utils import gen_timestamp
 
-mqtt_logger: logging.Logger = None
+kafka_logger: logging.Logger = logging.getLogger("kafka")
 
 
-class MQTTReturnCode(IntEnum):
-    CONNECTION_SUCCESS = 0
-    INCORRECT_PROTOCOL_VERSION = 1
-    INVALID_CLIENT_ID = 2
-    SERVER_UNAVAILABLE = 3
-    AUTHENTICATION_ERROR = 4
-    AUTHORIZATION_ERROR = 5
-
-
-class MQTTProtocolType(IntEnum):
-    MQTTv31 = mqtt.MQTTv31
-    MQTTv311 = mqtt.MQTTv311
-    MQTTv5 = mqtt.MQTTv5
-
-
-class MQTTQoS(IntEnum):
-    """
-    MQTT QoS Levels.
-    https://mntolia.com/mqtt-qos-levels-explained/
-    """
-
-    L0 = 0  # At Most Once
-    L1 = 1  # At Least Once
-    L2 = 2  # Exactly Once
+SECURITY_PROTOCOL = "SASL_SSL"
+SASL_MECHANISM = "PLAIN"
 
 
 class ConnectionParameters(BaseConnectionParameters):
+    # https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     host: str = "localhost"
-    port: int = 1883
+    port: int = 29092
     username: str = ""
     password: str = ""
-    protocol: MQTTProtocolType = MQTTProtocolType.MQTTv311
     ssl: bool = False
-    transport: str = "tcp"
-    keepalive: int = 60
+    group: str = "main"
+    auto_create_topics: bool = True
+    auto_commit_interval: int = 1000  # ms
 
 
-class MQTTTransport(BaseTransport):
-    """MQTTTransport."""
-
-    @classmethod
-    def logger(cls) -> logging.Logger:
-        global mqtt_logger
-        if mqtt_logger is None:
-            mqtt_logger = logging.getLogger(__name__)
-        return mqtt_logger
-
+class KafkaTransport(BaseTransport):
     def __init__(
         self,
-        serializer: Serializer = JSONSerializer(),
         compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
+        serializer: Serializer = JSONSerializer(),
         *args,
         **kwargs,
     ):
-        """__init__.
-
-        Args:
-            conn_params (ConnectionParameters): conn_params
-            serializer (Serializer): serializer
-            compression (CompressionType): compression_type
-        """
         super().__init__(*args, **kwargs)
-        self._client = None
         self._serializer = serializer
         self._compression = compression
-
-        # Workaround for both v3 and v5 support
-        # http://www.steves-internet-guide.com/python-mqtt-client-changes/
-        if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
-            properties = Properties(PacketTypes.CONNECT)
-            properties.MaximumPacketSize = 20
-        else:
-            properties = None
-        self._mqtt_properties = properties
+        self._producers: List[Producer] = []
+        self._consumers: List[Consumer] = []
         self.connect()
 
-    def on_connect(
-        self,
-        client: Any,
-        userdata: Any,
-        flags: Dict[str, Any],
-        rc: int,
-        properties: Any = None,
-    ):
-        """on_connect.
-
-        Callback for on-connect event.
-
-        Args:
-            client (Any): Internal paho-mqtt
-            userdata (Any): Internal paho-mqtt userdata
-            flags (Dict[str, Any]): Interla paho-mqtt flags
-            rc (int): Return Code - Internal paho-mqtt
-        """
-        if rc == MQTTReturnCode.CONNECTION_SUCCESS:
-            self._connected = True
-            self._report_on_connect()
-
-    def _report_on_connect(self):
-        self.log.debug("MQTT Transport initiated:")
-        self.log.debug(
-            f"- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}"
-        )
-        self.log.debug(f"- Data Serialization: {self._serializer}")
-        self.log.debug(f"- Data Compression: {self._compression}")
-
-    def on_disconnect(self, client: Any, userdata: Any, rc: int):
-        """on_disconnect.
-
-        Callback for on-disconnect event.
-
-        Args:
-            client (Any): Internal paho-mqtt
-            userdata (Any): Internal paho-mqtt userdata
-            rc (int): Return Code - Internal paho-mqtt
-        """
-        self._connected = False
-        self._client.loop_stop()
-        if rc == 5:
-            self.log.debug(f"Authentication error with MQTT broker")
-        elif rc > 0:
-            self.log.debug(f"Disconnection from MQTT Broker")
-
-    def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        """on_message.
-
-        Callback for on-message event.
-
-        Args:
-            client (Any): Internal paho-mqtt
-            userdata (Any): Internal paho-mqtt userdata
-            msg (Dict[str, Any]): Received message
-        """
-        raise NotImplementedError()
-
-    def on_log(self, client: Any, userdata: Any, level, buf):
+    def connect(self) -> None:
         pass
 
-    def publish(
-        self,
-        topic: str,
-        payload: Dict[str, Any],
-        qos: MQTTQoS = MQTTQoS.L0,
-        retain: bool = False,
-    ):
-        """publish.
-
-        Args:
-            topic (str): topic
-            payload (Dict[str, Any]): payload
-            qos (int): MQTT QoS Level (see MQTTQoS class)
-            retain (bool): If set to True, then it tells the broker to store
-                that message on the topic as the “last good message”.
-        """
-        topic = topic.replace(".", "/")
-        pl = self._serializer.serialize(payload)
-        if self._compression != CompressionType.NO_COMPRESSION:
-            pl = inflate_str(pl)
-        ph = self._client.publish(
-            topic, pl, qos=qos, retain=retain, properties=self._mqtt_properties
-        )
-
-    def subscribe(
-        self, topic: str, callback: Callable, qos: MQTTQoS = MQTTQoS.L0
-    ) -> str:
-        """subscribe.
-
-        Args:
-            topic (str): topic
-            callback (Any): callback
-            qos (int): MQTT QoS Level (see MQTTQoS class)
-
-        Returns:
-            str:
-        """
-        # Adds subtopic specific callback handlers
-        topic = topic.replace(".", "/").replace("*", "#")
-        self._client.subscribe(
-            topic, qos=qos, options=None, properties=self._mqtt_properties
-        )
-        _clb = functools.partial(self._on_msg_internal, callback)
-        self._client.message_callback_add(topic, _clb)
-        return topic
-
-    def _on_msg_internal(
-        self, callback: Callable, client: Any, userdata: Any, msg: Any
-    ):
-        _topic = msg.topic
-        _payload = msg.payload
-        _qos = msg.qos
-        _retain = msg.retain
-        if self._compression != CompressionType.NO_COMPRESSION:
-            _payload = deflate(_payload)
-        msg.payload = _payload
-        callback(client, userdata, msg)
-
-    def connect(self):
-        if self._connected:
-            raise Exception("Already connected")
-        self._client = mqtt.Client(
-            clean_session=True,
-            protocol=self._conn_params.protocol,
-            transport=self._conn_params.transport,
-        )
-
-        self._client.on_connect = self.on_connect
-        self._client.on_disconnect = self.on_disconnect
-        # self._client.on_log = self.on_log
-        self._client.on_message = self.on_message
-
-        self._client.username_pw_set(
-            self._conn_params.username, self._conn_params.password
-        )
-        self._client.connect(
-            self._conn_params.host,
-            int(self._conn_params.port),
-            keepalive=self._conn_params.keepalive,
-            properties=self._mqtt_properties,
-        )
-        if self._conn_params.ssl:
-            import ssl
-
-            self._client.tls_set(cert_reqs=None, certfile=None, keyfile=None)
-
-    def disconnect(self) -> None:
-        self._client.disconnect()
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
 
     def start(self) -> None:
-        """start.
-
-        Start the event loop. Cannot create any more endpoints from here on.
-        """
-        self._client.loop_start()
+        if not self.is_connected:
+            self.connect()
 
     def stop(self) -> None:
-        """stop.
+        if self.is_connected:
+            for producer in self._producers:
+                try:
+                    producer.flush()
+                finally:
+                    pass
+            for consumer in self._consumers:
+                try:
+                    consumer.close()
+                finally:
+                    pass
+            self._connected = False
 
-        Disconnects the client and stops the event loop.
-        """
-        self.disconnect()
-        self._client.loop_stop(force=True)
+    def create_producer(self, kafka_cfg):
+        producer = Producer(kafka_cfg)
+        self._producers.append(producer)
+        return producer
 
-    def loop_forever(self):
-        """loop_forever.
+    def create_consumer(self, kafka_cfg):
+        consumer = Consumer(kafka_cfg)
+        self._consumers.append(consumer)
+        return consumer
 
-        Starts the loop and waits until termination. This is synchronous.
-        """
-        self._client.loop_forever()
+    def publish_data(
+        self,
+        producer: Producer,
+        data: Dict,
+        topic: str,
+        key: str = "",
+        on_delivery=None,
+    ):
+        producer.poll(0)
+        payload = self._serializer.serialize(data)
+        if on_delivery is None:
+            on_delivery = self._on_publish
+        producer.produce(topic, key=key, value=payload, on_delivery=on_delivery)
+
+    def _on_publish(self, err, msg):
+        pass
 
 
 class Publisher(BasePublisher):
-    """Publisher.
-    MQTT Publisher
-    """
-
-    def __init__(self, *args, **kwargs):
-        """__init__.
-
-        Args:
-            args: See BasePublisher
-            kwargs: See BasePublisher
-        """
+    def __init__(self, key: str = "", *args, **kwargs):
+        self._key = key
         self._msg_seq = 0
+        self._producer: Producer = None
+
         super().__init__(*args, **kwargs)
-        self._transport = MQTTTransport(
+        self._create_kafka_conf()
+        self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
             compression=self._compression,
         )
 
-    def publish(self, msg: PubSubMessage) -> None:
-        """publish.
+    def _create_kafka_conf(self):
+        if self._conn_params.username not in (
+            None,
+            "",
+        ) and self._conn_params.password not in (None, ""):
+            auth = {
+                "sasl.mechanisms": SASL_MECHANISM,
+                "security.protocol": SECURITY_PROTOCOL,
+                "sasl.username": self._conn_params.username,
+                "sasl.password": self._conn_params.password,
+            }
+        else:
+            auth = {}
+        host = f"{self._conn_params.host}:{self._conn_params.port}"
+        self._kafka_cfg = {
+            "bootstrap.servers": host,
+            "allow.auto.create.topics": self._conn_params.auto_create_topics,
+            **auth,
+        }
 
-        Args:
-            msg (PubSubMessage): Message to Publish
-
-        Returns:
-            None:
-        """
+    def publish(self, msg: PubSubMessage, key: str = "") -> None:
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.dict()
-        self._transport.publish(self._topic, data, qos=MQTTQoS.L0)
+        if key in (None, ""):
+            key = self._key
+
+        self._transport.publish_data(
+            self._producer, data, self._topic, key, on_delivery=self._on_delivery
+        )
         self._msg_seq += 1
+
+    def _on_delivery(self, err, msg):
+        if err is not None:
+            self.logger().error(err)
+        self.logger().info(
+            f"Published on {msg.topic()}, partition" f"{msg.partition()}"
+        )
+
+    def run(self):
+        self._producer = self._transport.create_producer(self._kafka_cfg)
+
+    def stop(self):
+        if self._producer is not None:
+            self._producer.flush()
 
 
 class MPublisher(Publisher):
-    """MPublisher.
-    Multi-Topic Publisher
-    """
-
-    def __init__(self, *args, **kwargs):
+    def __init__(self, key: str = "", *args, **kwargs):
+        self._key = key
         super(MPublisher, self).__init__(topic="*", *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str) -> None:
-        """publish.
-
-        Args:
-            msg (PubSubMessage): msg
-            topic (str): topic
-
-        Returns:
-            None:
-        """
+    def publish(self, msg: PubSubMessage, topic: str, key: str = "") -> None:
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.dict()
-        self._transport.publish(topic, data)
+        if key in (None, ""):
+            key = self._key
+        self._producer.poll(0)
+        self._producer.produce(
+            topic, key=key, value=data, on_delivery=self._on_delivery
+        )
         self._msg_seq += 1
 
 
 class Subscriber(BaseSubscriber):
-    """Subscriber.
-    MQTT Subscriber
-    """
-
-    def __init__(self, *args, **kwargs):
-        """__init__.
-
-        Args:
-            args: See BaseSubscriber
-            kwargs: See BaseSubscriber
-        """
+    def __init__(self, key: str = "", *args, **kwargs):
+        self._key = key
+        self._consumer: Consumer = None
         super(Subscriber, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(
+        self._create_kafka_conf()
+        self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
             compression=self._compression,
         )
 
-    def run(self):
-        self._topic = self._transport.subscribe(self._topic, self._on_message)
-        super().run()
-        self.log.debug(f"Started Subscriber: <{self._topic}>")
+    def _create_kafka_conf(self):
+        if self._conn_params.username not in (
+            None,
+            "",
+        ) and self._conn_params.password not in (None, ""):
+            auth = {
+                "sasl.mechanisms": SASL_MECHANISM,
+                "security.protocol": SECURITY_PROTOCOL,
+                "sasl.username": self._conn_params.username,
+                "sasl.password": self._conn_params.password,
+            }
+        else:
+            auth = {}
+        host = f"{self._conn_params.host}:{self._conn_params.port}"
+        self._kafka_cfg = {
+            "bootstrap.servers": host,
+            "auto.offset.reset": "end",
+            "group.id": self._conn_params.group,
+            "enable.auto.offset.store": True,
+            "enable.auto.commit": True,
+            "allow.auto.create.topics": self._conn_params.auto_create_topics,
+            "auto.commit.interval.ms": self._conn_params.auto_commit_interval,
+            **auth,
+        }
 
     def run_forever(self):
-        self._transport.subscribe(self._topic, self._on_message)
-        self.log.debug(f"Started Subscriber: <{self._topic}>")
-        self._transport.loop_forever()
-
-    def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        """_on_message.
-
-        Args:
-            client (Any): client
-            userdata (Any): userdata
-            msg (Dict[str, Any]): msg
-        """
-        # Received MqttMessage (paho)
+        running = True
+        self._consumer = self._transport.create_consumer(self._kafka_cfg)
         try:
-            data, uri = self._unpack_comm_msg(msg)
+            self._consumer.subscribe([self._topic], on_assign=self._on_assign)
+            while running:
+                msg = self._consumer.poll(timeout=1.0)
+                if msg is None:
+                    continue
+                if msg.error():
+                    if msg.error().code() == KafkaError._PARTITION_EOF:
+                        # End of partition event
+                        print(
+                            "%% %s [%d] reached end at offset %d\n"
+                            % (msg.topic(), msg.partition(), msg.offset())
+                        )
+                    elif msg.error():
+                        raise KafkaException(msg.error())
+                else:
+                    self._on_message(msg)
+                    # self._consumer.store_offsets(msg)
+                    # self._consumer.commit(asynchronous=False)
+        finally:
+            # Close down consumer to commit final offsets.
+            self._consumer.close()
+        self.log.debug(f"Started Subscriber: <{self._topic}>")
+
+    def _on_assign(self, consumer, partitions):
+        self.logger().info("Assignment:", partitions)
+        self._reset_offset(consumer, partitions)
+
+    def _reset_offset(self, consumer, partitions):
+        for p in partitions:
+            p.offset = OFFSET_END
+        consumer.assign(partitions)
+
+    def _on_message(self, msg: Any):
+        try:
+            data, topic, key, ts = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, data)
@@ -403,24 +295,20 @@ class Subscriber(BaseSubscriber):
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple:
-        _uri = msg.topic
-        _data = self._serializer.deserialize(msg.payload)
-        return _data, _uri
+        _topic = msg.topic()
+        _key = msg.key()
+        _timestamp = msg.timestamp()
+        _data = self._serializer.deserialize(msg.value())
+        return _data, _topic, _key, _timestamp
+
+    def stop(self):
+        self._consumer.close()
 
 
 class PSubscriber(Subscriber):
-    """PSubscriber."""
-
-    def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        """_on_message.
-
-        Args:
-            client (Any): client
-            userdata (Any): userdata
-            msg (Dict[str, Any]): msg
-        """
+    def _on_message(self, msg: Any):
         try:
-            data, topic = self._unpack_comm_msg(msg)
+            data, topic, key, ts = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, data, topic)
@@ -439,12 +327,7 @@ class RPCService(BaseRPCService):
     """
 
     def __init__(self, *args, **kwargs):
-        """__init__.
-
-        Args:
-            args: See BaseRPCService
-            kwargs: See BaseRPCService
-        """
+        raise NotImplementedError("RPCService for Kafka transport not supported")
         super(RPCService, self).__init__(*args, **kwargs)
         self._transport = MQTTTransport(
             conn_params=self._conn_params,

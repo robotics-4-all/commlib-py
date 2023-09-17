@@ -21,13 +21,14 @@ class TCPBridgeRequestHandler(socketserver.BaseRequestHandler):
                 sock.connect((self.server.host_ep2, self.server.port_ep2))
                 sock.sendall(data)
                 # Receive data from the server
-                while 1:
+                while True:
                     received = sock.recv(1024)
-                    if not received: break
+                    if not received:
+                        break
                     # Send back received data
                     self.request.sendall(received)
             except Exception as exc:
-              print(exc)
+                print(exc)
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -35,11 +36,9 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 
 class TCPBridge(ThreadedTCPServer):
-    def __init__(self, host_ep1: str, port_ep1: int,
-                 host_ep2: str, port_ep2: int):
+    def __init__(self, host_ep1: str, port_ep1: int, host_ep2: str, port_ep2: int):
         self.host_ep1 = host_ep1
         self.host_ep2 = host_ep2
         self.port_ep1 = port_ep1
         self.port_ep2 = port_ep2
         super().__init__((host_ep1, port_ep1), TCPBridgeRequestHandler)
-

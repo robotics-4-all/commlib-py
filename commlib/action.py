@@ -18,8 +18,8 @@ actions_logger = None
 
 
 class GoalStatus(IntEnum):
-    """GoalStatus.
-    """
+    """GoalStatus."""
+
     ACCEPTED = 1
     EXECUTING = 2
     CANCELING = 3
@@ -34,13 +34,13 @@ class _ActionGoalMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
-        description: str = ''
+        description: str = ""
         goal_data: Dict[str, Any] = {}
 
     class Response(RPCMessage.Response):
         status: int = 0
         timestamp: int = -1
-        goal_id: str = ''
+        goal_id: str = ""
 
         def __post_init__(self):
             self.timestamp = int(time.time())
@@ -52,7 +52,7 @@ class _ActionResultMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
-        goal_id: str = ''
+        goal_id: str = ""
 
     class Response(RPCMessage.Response):
         status: int = 0
@@ -69,9 +69,8 @@ class _ActionCancelMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
-        goal_id: str = ''
+        goal_id: str = ""
         timestamp: int = gen_timestamp()
-
 
     class Response(RPCMessage.Response):
         status: int = 0
@@ -84,7 +83,7 @@ class _ActionStatusMessage(PubSubMessage):
     Internal Action Status Message.
     """
 
-    goal_id: str = ''
+    goal_id: str = ""
     status: int = 0
 
 
@@ -94,7 +93,7 @@ class _ActionFeedbackMessage(PubSubMessage):
     """
 
     feedback_data: Dict[str, Any]
-    goal_id: str = ''
+    goal_id: str = ""
 
 
 class GoalHandler:
@@ -105,11 +104,14 @@ class GoalHandler:
             actions_logger = logging.getLogger(__name__)
         return actions_logger
 
-    def __init__(self, msg_type: ActionMessage,
-                 status_publisher: callable,
-                 feedback_publisher: callable,
-                 on_goal: callable,
-                 on_cancel: callable):
+    def __init__(
+        self,
+        msg_type: ActionMessage,
+        status_publisher: callable,
+        feedback_publisher: callable,
+        on_goal: callable,
+        on_cancel: callable,
+    ):
         """__init__.
 
         Args:
@@ -122,12 +124,10 @@ class GoalHandler:
         self._msg_type = msg_type
         self.status = GoalStatus.ACCEPTED
         self.id = gen_random_id()
-        self.data = msg_type.Result() if \
-            isinstance(msg_type, ActionMessage) else {}
+        self.data = msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
         self._pub_status = status_publisher
         self._pub_feedback = feedback_publisher
-        self.result = msg_type.Result() if \
-            isinstance(msg_type, ActionMessage) else {}
+        self.result = msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
         self._task = None
         self._on_goal = on_goal
         self._on_cancel = on_cancel
@@ -152,7 +152,7 @@ class GoalHandler:
         elif future.done():
             self.set_status(GoalStatus.SUCCEDED)
         else:
-            print('Whaaaaaat?..')
+            print("Whaaaaaat?..")
         res = future.result()
         self.result = res
 
@@ -160,9 +160,11 @@ class GoalHandler:
         """is_finished.
         Check wheather the current goal has reached a final state.
         """
-        if self.status in (GoalStatus.SUCCEDED,
-                           GoalStatus.CANCELED,
-                           GoalStatus.ABORTED):
+        if self.status in (
+            GoalStatus.SUCCEDED,
+            GoalStatus.CANCELED,
+            GoalStatus.ABORTED,
+        ):
             return True
         else:
             return False
@@ -171,9 +173,7 @@ class GoalHandler:
         """start.
         Start the execution of the goal handler.
         """
-        self._goal_task = self._executor.submit(
-            partial(self._on_goal, self)
-        )
+        self._goal_task = self._executor.submit(partial(self._on_goal, self))
         # self._cancel_task = self._executor.submit(self._on_cancel, self)
         self._goal_task.add_done_callback(self._done_callback)
 
@@ -181,10 +181,12 @@ class GoalHandler:
         """cancel.
         Cancels the execution of the goal handler.
         """
-        if self.status in (GoalStatus.ABORTED,
-                           GoalStatus.CANCELED,
-                           GoalStatus.CANCELING,
-                           GoalStatus.SUCCEDED):
+        if self.status in (
+            GoalStatus.ABORTED,
+            GoalStatus.CANCELED,
+            GoalStatus.CANCELING,
+            GoalStatus.SUCCEDED,
+        ):
             return 0
         try:
             self.set_status(GoalStatus.CANCELING)
@@ -207,15 +209,14 @@ class GoalHandler:
             status (GoalStatus):
         """
         if status not in GoalStatus:
-            raise ValueError('Wrong status code!')
+            raise ValueError("Wrong status code!")
         status = int(status)
         self.status = status
         msg = _ActionStatusMessage(status=status, goal_id=self.id)
         self._pub_status.publish(msg)
 
     def send_feedback(self, feedback_msg: _ActionFeedbackMessage):
-        _fb = feedback_msg.dict() if \
-            self._msg_type is not None else feedback_msg
+        _fb = feedback_msg.dict() if self._msg_type is not None else feedback_msg
         msg = _ActionFeedbackMessage(feedback_data=_fb, goal_id=self.id)
         self._pub_feedback.publish(msg)
 
@@ -231,15 +232,17 @@ class BaseActionService:
             actions_logger = logging.getLogger(__name__)
         return actions_logger
 
-    def __init__(self,
-                 action_name: str,
-                 msg_type: ActionMessage = None,
-                 debug: bool = True,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION,
-                 conn_params: BaseConnectionParameters = None,
-                 on_goal: callable = None,
-                 on_cancel: callable = None,
-                 on_getresult: callable = None):
+    def __init__(
+        self,
+        action_name: str,
+        msg_type: ActionMessage = None,
+        debug: bool = True,
+        compression: CompressionType = CompressionType.NO_COMPRESSION,
+        conn_params: BaseConnectionParameters = None,
+        on_goal: callable = None,
+        on_cancel: callable = None,
+        on_getresult: callable = None,
+    ):
         """__init__.
 
         Args:
@@ -259,13 +262,13 @@ class BaseActionService:
         self._on_getresult = on_getresult
         self._conn_params = conn_params
 
-        self._status_topic = f'{self._action_name}.status'
-        self._feedback_topic = f'{self._action_name}.feedback'
-        self._goal_rpc_uri = f'{self._action_name}.send_goal'
-        self._cancel_rpc_uri = f'{self._action_name}.cancel_goal'
-        self._result_rpc_uri = f'{self._action_name}.get_result'
+        self._status_topic = f"{self._action_name}.status"
+        self._feedback_topic = f"{self._action_name}.feedback"
+        self._goal_rpc_uri = f"{self._action_name}.send_goal"
+        self._cancel_rpc_uri = f"{self._action_name}.cancel_goal"
+        self._result_rpc_uri = f"{self._action_name}.get_result"
 
-        ## To be instantiated by the child classes
+        # To be instantiated by the child classes
         self._feedback_pub = None
         self._status_pub = None
         self._goal_rpc = None
@@ -311,24 +314,30 @@ class BaseActionService:
         """
         resp = _ActionGoalMessage.Response()
         if self._current_goal is None:
-            self._current_goal = GoalHandler(self._msg_type,
-                                             self._status_pub,
-                                             self._feedback_pub,
-                                             self._on_goal,
-                                             self._on_cancel)
+            self._current_goal = GoalHandler(
+                self._msg_type,
+                self._status_pub,
+                self._feedback_pub,
+                self._on_goal,
+                self._on_cancel,
+            )
             if self._msg_type is not None:
                 self._current_goal.data = self._msg_type.Goal(**msg.goal_data)
             else:
                 self._current_goal.data = msg.goal_data
-        elif self._current_goal.status in (GoalStatus.SUCCEDED,
-                                           GoalStatus.CANCELED,
-                                           GoalStatus.ABORTED):
+        elif self._current_goal.status in (
+            GoalStatus.SUCCEDED,
+            GoalStatus.CANCELED,
+            GoalStatus.ABORTED,
+        ):
             # Final States - Completed Goal Task
-            self._current_goal = GoalHandler(self._msg_type,
-                                             self._status_pub,
-                                             self._feedback_pub,
-                                             self._on_goal,
-                                             self._on_cancel)
+            self._current_goal = GoalHandler(
+                self._msg_type,
+                self._status_pub,
+                self._feedback_pub,
+                self._on_goal,
+                self._on_cancel,
+            )
             if self._msg_type is not None:
                 self._current_goal.data = self._msg_type.Goal(**msg.goal_data)
             else:
@@ -337,7 +346,7 @@ class BaseActionService:
             pass
         else:
             return resp
-        ## Execute user-defined callback
+        # Execute user-defined callback
         if self._on_goal is not None:
             resp.status = 1
             resp.goal_id = self._current_goal.id
@@ -358,7 +367,7 @@ class BaseActionService:
             return resp
         if self._current_goal.id != _goal_id:
             return resp
-        _status =  self._current_goal.cancel()
+        _status = self._current_goal.cancel()
         resp.status = _status
         return resp
 
@@ -370,14 +379,14 @@ class BaseActionService:
         """
         resp = _ActionResultMessage.Response()
         _goal_id = msg.goal_id
-        if _goal_id == '':
+        if _goal_id == "":
             pass
         elif self._current_goal is None:
             return resp
         elif self._current_goal.id != _goal_id:
             return resp
         resp.status = self._current_goal.status
-        ## Set Result data
+        # Set Result data
         if self._msg_type is not None:
             resp.result = self._current_goal.result.dict()
         else:
@@ -396,15 +405,17 @@ class BaseActionClient:
             actions_logger = logging.getLogger(__name__)
         return actions_logger
 
-    def __init__(self,
-                 action_name: str,
-                 msg_type: ActionMessage = None,
-                 debug: bool = False,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION,
-                 conn_params: BaseConnectionParameters = None,
-                 on_feedback: callable = None,
-                 on_result: callable = None,
-                 on_goal_reached: callable = None):
+    def __init__(
+        self,
+        action_name: str,
+        msg_type: ActionMessage = None,
+        debug: bool = False,
+        compression: CompressionType = CompressionType.NO_COMPRESSION,
+        conn_params: BaseConnectionParameters = None,
+        on_feedback: callable = None,
+        on_result: callable = None,
+        on_goal_reached: callable = None,
+    ):
         """__init__.
 
         Args:
@@ -421,13 +432,13 @@ class BaseActionClient:
         self._compression = compression
         self._conn_params = conn_params
 
-        self._status_topic = f'{self._action_name}.status'
-        self._feedback_topic = f'{self._action_name}.feedback'
-        self._goal_rpc_uri = f'{self._action_name}.send_goal'
-        self._cancel_rpc_uri = f'{self._action_name}.cancel_goal'
-        self._result_rpc_uri = f'{self._action_name}.get_result'
+        self._status_topic = f"{self._action_name}.status"
+        self._feedback_topic = f"{self._action_name}.feedback"
+        self._goal_rpc_uri = f"{self._action_name}.send_goal"
+        self._cancel_rpc_uri = f"{self._action_name}.cancel_goal"
+        self._result_rpc_uri = f"{self._action_name}.get_result"
 
-        ## To be instantiated by the child classes
+        # To be instantiated by the child classes
         self._goal_client = None
         self._cancel_client = None
         self._result_client = None
@@ -449,10 +460,12 @@ class BaseActionClient:
     def log(self):
         return self.logger()
 
-    def send_goal(self,
-                  goal_msg: ActionMessage.Goal,
-                  timeout: int = 10,
-                  wait_for_result: bool = False) -> _ActionGoalMessage.Response:
+    def send_goal(
+        self,
+        goal_msg: ActionMessage.Goal,
+        timeout: int = 10,
+        wait_for_result: bool = False,
+    ) -> _ActionGoalMessage.Response:
         """send_goal.
         Send a new goal to the Action service.
 
@@ -476,9 +489,9 @@ class BaseActionClient:
         self._goal_id = resp.goal_id
         return resp
 
-    def cancel_goal(self,
-                    timeout: float = 10.0,
-                    wait_for_result: bool = False) -> _ActionCancelMessage.Response:
+    def cancel_goal(
+        self, timeout: float = 10.0, wait_for_result: bool = False
+    ) -> _ActionCancelMessage.Response:
         """cancel_goal.
         Cancel the current goal.
 
@@ -491,14 +504,13 @@ class BaseActionClient:
         """
         req = _ActionCancelMessage.Request(goal_id=self._goal_id)
         _ = self._cancel_client.call(req, timeout=timeout)
-        ## TODO Check response status
+        # TODO Check response status
         res = self.get_result(wait=wait_for_result)
         return res
 
-    def get_result(self,
-                   timeout: float = 10.0,
-                   wait: bool = False,
-                   wait_max_sec: float = 30.0) -> ActionMessage.Result:
+    def get_result(
+        self, timeout: float = 10.0, wait: bool = False, wait_max_sec: float = 30.0
+    ) -> ActionMessage.Result:
         """get_result.
         Returns the result of the goal.
 
@@ -519,9 +531,11 @@ class BaseActionClient:
             t_elapsed = 0
             while t_elapsed < wait_max_sec:
                 # If the goal has reached a final state
-                if self._status.status in (GoalStatus.ABORTED,
-                                           GoalStatus.SUCCEDED,
-                                           GoalStatus.CANCELED):
+                if self._status.status in (
+                    GoalStatus.ABORTED,
+                    GoalStatus.SUCCEDED,
+                    GoalStatus.CANCELED,
+                ):
                     resp = self._result_client.call(req, timeout=timeout)
                     if self._msg_type is None:
                         res = resp.result
@@ -548,14 +562,18 @@ class BaseActionClient:
             return
         self._status = msg
         # If it reaches a final state F
-        if self._status.status in (GoalStatus.SUCCEDED,
-                                   GoalStatus.CANCELED,
-                                   GoalStatus.ABORTED):
+        if self._status.status in (
+            GoalStatus.SUCCEDED,
+            GoalStatus.CANCELED,
+            GoalStatus.ABORTED,
+        ):
             res = self.get_result(wait=True, wait_max_sec=10)
             self.result = res
             # Call the on_goal_reached callback
-            if self._status.status == GoalStatus.SUCCEDED and \
-                    self.on_goal_reached is not None:
+            if (
+                self._status.status == GoalStatus.SUCCEDED
+                and self.on_goal_reached is not None
+            ):
                 self.on_goal_reached(res)
 
             # If the on_result callback was declared
@@ -576,8 +594,11 @@ class BaseActionClient:
         # Check if the goal_id matches the one of the current goal.
         if msg.goal_id != self._goal_id:
             return
-        fb = self._msg_type.Feedback(**msg.feedback_data) \
-            if self._msg_type is not None else msg.feedback_data
+        fb = (
+            self._msg_type.Feedback(**msg.feedback_data)
+            if self._msg_type is not None
+            else msg.feedback_data
+        )
         if self.on_feedback is not None:
             self.on_feedback(fb)
 

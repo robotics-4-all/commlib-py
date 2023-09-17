@@ -1,13 +1,9 @@
-=======
-Credits
-=======
+# Credits
 
-Development Lead
-----------------
+# Development Lead
 
 * Konstantinos Panayiotou (klpanagi) <klpanagi@gmail.com>
 
-Contributors
-------------
+# Contributors
 
 None yet. Why not be the first?

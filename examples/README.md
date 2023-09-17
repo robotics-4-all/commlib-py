@@ -5,7 +5,6 @@ An example is worth hundreds of pages of API documentation and words.
 - Simple Publisher/Subscriber example
 - Simple RPC Client/Server example
 - Simple Action Client/Server example
-- EventEmitter example
 - Pattern-based topic subscription
 - Topic Bridge
 - MultiTopic Bridge

@@ -19,12 +19,13 @@ class BaseEndpoint:
             e_logger = logging.getLogger(__name__)
         return e_logger
 
-    def __init__(self,
-                 debug: bool = False,
-                 serializer: Serializer = JSONSerializer,
-                 conn_params: BaseConnectionParameters = None,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION
-                 ):
+    def __init__(
+        self,
+        debug: bool = False,
+        serializer: Serializer = JSONSerializer,
+        conn_params: BaseConnectionParameters = None,
+        compression: CompressionType = CompressionType.NO_COMPRESSION,
+    ):
         self._debug = debug
         self._serializer = serializer
         self._compression = compression
@@ -43,6 +44,7 @@ class EndpointType(Enum):
     """EndpointType.
     Types of supported Endpoints.
     """
+
     RPCService = 1
     RPCClient = 2
     Publisher = 3
@@ -57,6 +59,7 @@ class TransportType(Enum):
     """TransportType.
     Types of supported Transports
     """
+
     AMQP = 1
     REDIS = 2
     MQTT = 3

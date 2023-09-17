@@ -3,9 +3,12 @@ import time
 from typing import Any, Dict, List, Optional, Union
 
 import requests
+from rich.console import Console
 
 from commlib.endpoints import EndpointType, TransportType, endpoint_factory
 from commlib.msg import PubSubMessage, RPCMessage
+from commlib import Node
+
 
 """
 {
@@ -21,11 +24,15 @@ from commlib.msg import PubSubMessage, RPCMessage
 
 """
 
+
 class RESTProxyMessage(RPCMessage):
     class Request(RPCMessage.Request):
-        base_url: str
-        path: str = '/'
-        verb: str = 'GET'
+        host: Optional[str] = 'localhost'
+        port: Optional[int] = 8080
+        ssl: Optional[bool] = False
+        base_url: str = ''
+        path: str = "/"
+        verb: str = "GET"
         query_params: Dict = {}
         path_params: Dict = {}
         body_params: Dict = {}
@@ -37,19 +44,25 @@ class RESTProxyMessage(RPCMessage):
         status_code: int = 200
 
 
-class RESTProxy:
+class RestProxyServer:
+    def __init__(self, service_map):
+        self._service_map = service_map
+
+
+class RESTProxy(Node):
     """RESTProxy.
 
     REST Proxy implementation class. Call REST Web services via commlib
     supported protocols (AMQP, MQTT, REDIS).
     """
 
-    def __init__(self,
-                 broker_uri: str,
-                 broker_type: TransportType,
-                 broker_params: Any,
-                 debug: bool = False
-                 ):
+    def __init__(
+        self,
+        broker_uri: str,
+        broker_params: Any,
+        debug: bool = False,
+        *args, **kwargs
+    ):
         """__init__.
 
         Args:
@@ -59,45 +72,58 @@ class RESTProxy:
             debug (bool): debug
         """
         self._debug = debug
-        svc = endpoint_factory(EndpointType.RPCService, broker_type)(
+        self._console = Console()
+
+        super().__init__(node_name='util.rest_proxy',
+                         connection_params=broker_params,
+                         *args, **kwargs)
+        self._broker_uri = broker_uri
+        self._svc = self.create_rpc(
             rpc_name=broker_uri,
             msg_type=RESTProxyMessage,
-            conn_params=broker_params,
-            on_request=self._on_request,
-            debug=self._debug
+            on_request = self._on_request
         )
-        self._svc = svc
+        self.console.log(f'Initiated REST Proxy @ {broker_uri}')
 
     def _on_request(self, msg: RESTProxyMessage.Request):
-        url = f'{msg.base_url}{msg.path}'
+        schema = 'https' if msg.ssl else 'http'
+        port = msg.port
+        if port is None:
+            port = 443 if msg.ssl else 80
+        url = f"{schema}://{msg.host}:{port}{msg.base_url}{msg.path}"
+        self.console.log(f'Request for: {url}')
         # -------- > Perform HTTP Request from input message
-        if msg.verb == 'GET':
-            resp = requests.get(url, params=msg.query_params,
-                                headers=msg.headers)
-        elif msg.verb == 'PUT':
-            resp = requests.put(url, params=msg.query_params,
-                                data=msg.body_params, headers=msg.headers)
-        elif msg.verb == 'POST':
-            resp = requests.post(url, params=msg.query_params,
-                                 data=msg.body_params, headers=msg.headers)
+        if msg.verb == "GET":
+            resp = requests.get(url, params=msg.query_params, headers=msg.headers)
+        elif msg.verb == "PUT":
+            resp = requests.put(
+                url, params=msg.query_params, data=msg.body_params, headers=msg.headers
+            )
+        elif msg.verb == "POST":
+            resp = requests.post(
+                url, params=msg.query_params, data=msg.body_params, headers=msg.headers
+            )
         else:
-            raise ValueError(f'HTTP Verb [{msg.verb}] is not valid!')
+            raise ValueError(f"HTTP Verb [{msg.verb}] is not valid!")
         # <---------------------------------------------------
         headers = dict(**resp.headers)
         data = resp.text
-        if headers.get('Content-Type') == 'application/json':
+        if headers.get("Content-Type") == "application/json":
             data = json.loads(data)
-        return RESTProxyMessage.Response(data=data, headers=headers,
-                                         status_code=resp.status_code)
+        return RESTProxyMessage.Response(
+            data=data, headers=headers, status_code=resp.status_code
+        )
 
     def run(self):
-        """run.
-        """
+        """run."""
         self._svc.run()
 
     def run_forever(self):
-        """run_forever.
-        """
+        """run_forever."""
         self._svc.run()
         while True:
-            time.sleep(0.001)
+            time.sleep(0.01)
+
+    @property
+    def console(self):
+        return self._console
