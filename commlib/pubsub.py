@@ -13,8 +13,8 @@ pubsub_logger = None
 
 
 class BasePublisher(BaseEndpoint):
-    """BasePublisher.
-    """
+    """BasePublisher."""
+
     @classmethod
     def logger(cls) -> logging.Logger:
         global pubsub_logger
@@ -22,10 +22,7 @@ class BasePublisher(BaseEndpoint):
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
 
-    def __init__(self,
-                 topic: str,
-                 msg_type: PubSubMessage = None,
-                 *args, **kwargs):
+    def __init__(self, topic: str, msg_type: PubSubMessage = None, *args, **kwargs):
         """__init__.
 
         Args:
@@ -66,8 +63,8 @@ class BasePublisher(BaseEndpoint):
 
 
 class BaseSubscriber(BaseEndpoint):
-    """BaseSubscriber.
-    """
+    """BaseSubscriber."""
+
     @classmethod
     def logger(cls) -> logging.Logger:
         global pubsub_logger
@@ -75,11 +72,14 @@ class BaseSubscriber(BaseEndpoint):
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
 
-    def __init__(self,
-                 topic: str,
-                 msg_type: Optional[PubSubMessage] = None,
-                 on_message: Optional[Callable] = None,
-                 *args, **kwargs):
+    def __init__(
+        self,
+        topic: str,
+        msg_type: Optional[PubSubMessage] = None,
+        on_message: Optional[Callable] = None,
+        *args,
+        **kwargs
+    ):
         """__init__.
 
         Args:
@@ -101,6 +101,11 @@ class BaseSubscriber(BaseEndpoint):
     def topic(self) -> str:
         """topic"""
         return self._topic
+
+    @property
+    def executor(self) -> ThreadPoolExecutor:
+        """topic"""
+        return self._executor
 
     def run_forever(self) -> None:
         """run_forever.

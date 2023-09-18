@@ -15,6 +15,7 @@ class SonarMessage(PubSubMessage):
 
 
 def on_message(msg):
+    # pass
     print(f'Received front sonar data: {msg}')
 
 
@@ -29,12 +30,14 @@ if __name__ == '__main__':
         from commlib.transports.amqp import ConnectionParameters
     elif broker == 'mqtt':
         from commlib.transports.mqtt import ConnectionParameters
+    elif broker == 'kafka':
+        from commlib.transports.kafka import ConnectionParameters
     else:
         print('Not a valid broker-type was given!')
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    node = Node(node_name='obstacle_avoidance_node',
+    node = Node(node_name='sensors.sonar.front',
                 connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)

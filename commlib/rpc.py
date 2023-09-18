@@ -16,8 +16,11 @@ rpc_logger = None
 
 
 class CommRPCHeader(BaseModel):
-    reply_to: str = ''
+    reply_to: str = ""
     timestamp: Optional[int] = gen_timestamp()
+    content_type: Optional[str] = "json"
+    encoding: Optional[str] = "utf8"
+    agent: Optional[str] = "commlib"
 
 
 class CommRPCMessage(BaseModel):
@@ -33,11 +36,9 @@ class BaseRPCServer(BaseEndpoint):
             rpc_logger = logging.getLogger(__name__)
         return rpc_logger
 
-    def __init__(self,
-                 base_uri: str = '',
-                 svc_map: dict = {},
-                 workers: int = 2,
-                 *args, **kwargs):
+    def __init__(
+        self, base_uri: str = "", svc_map: dict = {}, workers: int = 2, *args, **kwargs
+    ):
         """__init__.
 
         Args:
@@ -79,6 +80,7 @@ class BaseRPCService(BaseEndpoint):
     Args:
         - rpc_name (str)
     """
+
     @classmethod
     def logger(cls) -> logging.Logger:
         global rpc_logger
@@ -86,12 +88,15 @@ class BaseRPCService(BaseEndpoint):
             rpc_logger = logging.getLogger(__name__)
         return rpc_logger
 
-    def __init__(self,
-                 rpc_name: str,
-                 msg_type: RPCMessage = None,
-                 on_request: Callable = None,
-                 workers: int = 5,
-                 *args, **kwargs):
+    def __init__(
+        self,
+        rpc_name: str,
+        msg_type: RPCMessage = None,
+        on_request: Callable = None,
+        workers: int = 5,
+        *args,
+        **kwargs
+    ):
         """__init__.
 
         Args:
@@ -120,7 +125,7 @@ class BaseRPCService(BaseEndpoint):
     def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
         if msg.header is None:
             return False
-        elif msg.header.reply_to in ('', None):
+        elif msg.header.reply_to in ("", None):
             return False
         return True
 
@@ -156,6 +161,7 @@ class BaseRPCClient(BaseEndpoint):
     """RPCClient Base class.
     Inherit to implement transport-specific RPCClient.
     """
+
     @classmethod
     def logger(cls) -> logging.Logger:
         global rpc_logger
@@ -163,11 +169,14 @@ class BaseRPCClient(BaseEndpoint):
             rpc_logger = logging.getLogger(__name__)
         return rpc_logger
 
-    def __init__(self,
-                 rpc_name: str,
-                 msg_type: RPCMessage = None,
-                 workers: int = 5,
-                 *args, **kwargs):
+    def __init__(
+        self,
+        rpc_name: str,
+        msg_type: RPCMessage = None,
+        workers: int = 5,
+        *args,
+        **kwargs
+    ):
         """__init__.
 
         Args:
@@ -182,9 +191,9 @@ class BaseRPCClient(BaseEndpoint):
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._comm_obj = CommRPCMessage()
 
-    def call(self, msg: RPCMessage.Request,
-             timeout: float = 30.0
-             ) -> RPCMessage.Response:
+    def call(
+        self, msg: RPCMessage.Request, timeout: float = 30.0
+    ) -> RPCMessage.Response:
         """call.
         Synchronous RPC Call.
 
@@ -197,9 +206,12 @@ class BaseRPCClient(BaseEndpoint):
         """
         raise NotImplementedError()
 
-    def call_async(self, msg: RPCMessage.Request,
-                   timeout: float = 30.0,
-                   on_response: callable = None):
+    def call_async(
+        self,
+        msg: RPCMessage.Request,
+        timeout: float = 30.0,
+        on_response: callable = None,
+    ):
         """call_async.
         Asynchrouns RPC Call. The on_response callback is fired when result is
         received by the client.
@@ -211,20 +223,18 @@ class BaseRPCClient(BaseEndpoint):
         """
         _future = self._executor.submit(self.call, msg, timeout)
         if on_response is not None:
-            _future.add_done_callback(
-                partial(self._done_callback, on_response)
-            )
+            _future.add_done_callback(partial(self._done_callback, on_response))
         return _future
 
     def _done_callback(self, on_response: callable, _future):
         if _future.cancelled():
             pass
-            ## TODO: Implement Calcellation logic
+            # TODO: Implement Calcellation logic
         elif _future.done():
             error = _future.exception()
             if error:
                 pass
-                ## TODO: Implement Exception logic
+                # TODO: Implement Exception logic
             else:
                 result = _future.result()
                 on_response(result)

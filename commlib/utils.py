@@ -1,8 +1,18 @@
 import re
 import time
 import uuid
-from typing import (Any, Callable, Dict, List, Optional, Text, Tuple, Type,
-                    TypeVar, Union)
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Text,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 
 def camelcase_to_snakecase(_str: str) -> str:
@@ -15,8 +25,8 @@ def camelcase_to_snakecase(_str: str) -> str:
     Returns:
         str: Transformed string
     """
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', _str)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", _str)
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
 def gen_timestamp() -> int:
@@ -41,7 +51,7 @@ def gen_random_id() -> str:
     Returns:
         str: String representation of the random unique id
     """
-    return str(uuid.uuid4()).replace('-', '')
+    return str(uuid.uuid4()).replace("-", "")
 
 
 class Rate:

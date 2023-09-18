@@ -1,6 +1,5 @@
 class ConnectionError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -10,7 +9,6 @@ class ConnectionError(Exception):
 
 class AMQPError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -20,7 +18,6 @@ class AMQPError(Exception):
 
 class MQTTError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -30,7 +27,6 @@ class MQTTError(Exception):
 
 class RedisError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -40,7 +36,6 @@ class RedisError(Exception):
 
 class RPCClientError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -50,7 +45,6 @@ class RPCClientError(Exception):
 
 class RPCServiceError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -60,7 +54,6 @@ class RPCServiceError(Exception):
 
 class RPCRequestError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -70,7 +63,6 @@ class RPCRequestError(Exception):
 
 class RPCClientTimeoutError(RPCClientError):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -80,7 +72,6 @@ class RPCClientTimeoutError(RPCClientError):
 
 class RPCServerError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -90,7 +81,6 @@ class RPCServerError(Exception):
 
 class PublisherError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -100,7 +90,6 @@ class PublisherError(Exception):
 
 class SubscriberError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -110,7 +99,6 @@ class SubscriberError(Exception):
 
 class NodeError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -120,10 +108,8 @@ class NodeError(Exception):
 
 class SerializationError(Exception):
     def __init__(self, message, errors=None):
-
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
         # Now for your custom code...
         self.errors = errors
-
