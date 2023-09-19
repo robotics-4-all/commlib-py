@@ -3,7 +3,6 @@ import time
 from typing import Any, Dict, List, Optional, Union
 
 import requests
-from rich.console import Console
 
 from commlib.endpoints import EndpointType, TransportType, endpoint_factory
 from commlib.msg import PubSubMessage, RPCMessage
@@ -72,7 +71,6 @@ class RESTProxy(Node):
             debug (bool): debug
         """
         self._debug = debug
-        self._console = Console()
 
         super().__init__(node_name='util.rest_proxy',
                          connection_params=broker_params,
@@ -83,7 +81,7 @@ class RESTProxy(Node):
             msg_type=RESTProxyMessage,
             on_request = self._on_request
         )
-        self.console.log(f'Initiated REST Proxy @ {broker_uri}')
+        self.logger().info(f'Initiated REST Proxy @ {broker_uri}')
 
     def _on_request(self, msg: RESTProxyMessage.Request):
         schema = 'https' if msg.ssl else 'http'
@@ -91,7 +89,7 @@ class RESTProxy(Node):
         if port is None:
             port = 443 if msg.ssl else 80
         url = f"{schema}://{msg.host}:{port}{msg.base_url}{msg.path}"
-        self.console.log(f'Request for: {url}')
+        self.logger().info(f'Request for: {url}')
         # -------- > Perform HTTP Request from input message
         if msg.verb == "GET":
             resp = requests.get(url, params=msg.query_params, headers=msg.headers)
@@ -123,7 +121,3 @@ class RESTProxy(Node):
         self._svc.run()
         while True:
             time.sleep(0.01)
-
-    @property
-    def console(self):
-        return self._console
