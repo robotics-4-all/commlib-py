@@ -52,7 +52,6 @@ class Bridge:
 
     def __init__(
         self,
-        btype: Union[TopicBridgeType, RPCBridgeType],
         from_uri: str,
         to_uri: str,
         from_broker_params: BaseConnectionParameters,
@@ -65,7 +64,6 @@ class Bridge:
             btype:
             debug (bool): debug
         """
-        self._btype = btype
         self._from_broker_params = from_broker_params
         self._to_broker_params = to_broker_params
         self._from_uri = from_uri
@@ -77,7 +75,7 @@ class Bridge:
         return self._debug
 
     @property
-    def log(self) -> Logger:
+    def log(self) -> logging.Logger:
         return self.logger()
 
     def run(self):
@@ -99,42 +97,53 @@ class RPCBridge(Bridge):
           <from>           <to>
     """
 
-    def __init__(
-        self, btype: RPCBridgeType, msg_type: RPCMessage = None, *args, **kwargs
-    ):
+    def __init__(self,
+                 msg_type: RPCMessage = None,
+                 *args, **kwargs):
         """__init__.
 
         Args:
             btype (RPCBridgeType): RPC Bridge Type
         """
-        super().__init__(btype, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._msg_type = msg_type
 
-        if self._btype == RPCBridgeType.REDIS_TO_AMQP:
+        bA_type_str = str(type(self._from_broker_params)).split("'")[1]
+        bB_type_str = str(type(self._to_broker_params)).split("'")[1]
+        if 'redis' in bA_type_str and 'amqp' in bB_type_str:
+            self._btype = RPCBridgeType.REDIS_TO_AMQP
             from_transport = TransportType.REDIS
             to_transport = TransportType.AMQP
-        elif self._btype == RPCBridgeType.AMQP_TO_REDIS:
+        elif 'amqp' in bA_type_str and 'redis' in bB_type_str:
+            self._btype = RPCBridgeType.AMQP_TO_REDIS
             from_transport = TransportType.AMQP
             to_transport = TransportType.REDIS
-        elif self._btype == RPCBridgeType.AMQP_TO_AMQP:
+        elif 'amqp' in bA_type_str and 'amqp' in bB_type_str:
+            self._btype = RPCBridgeType.AMQP_TO_AMQP
             from_transport = TransportType.AMQP
             to_transport = TransportType.AMQP
-        elif self._btype == RPCBridgeType.REDIS_TO_REDIS:
+        elif 'redis' in bA_type_str and 'redis' in bB_type_str:
+            self._btype = RPCBridgeType.REDIS_TO_REDIS
             from_transport = TransportType.REDIS
             to_transport = TransportType.REDIS
-        elif self._btype == RPCBridgeType.MQTT_TO_REDIS:
+        elif 'mqtt' in bA_type_str and 'redis' in bB_type_str:
+            self._btype = RPCBridgeType.MQTT_TO_REDIS
             from_transport = TransportType.MQTT
             to_transport = TransportType.REDIS
-        elif self._btype == RPCBridgeType.MQTT_TO_AMQP:
+        elif 'mqtt' in bA_type_str and 'amqp' in bB_type_str:
+            self._btype = RPCBridgeType.MQTT_TO_AMQP
             from_transport = TransportType.MQTT
             to_transport = TransportType.AMQP
-        elif self._btype == RPCBridgeType.MQTT_TO_MQTT:
+        elif 'mqtt' in bA_type_str and 'mqtt' in bB_type_str:
+            self._btype = RPCBridgeType.MQTT_TO_MQTT
             from_transport = TransportType.MQTT
             to_transport = TransportType.MQTT
-        elif self._btype == RPCBridgeType.REDIS_TO_MQTT:
+        elif 'redis' in bA_type_str and 'mqtt' in bB_type_str:
+            self._btype = RPCBridgeType.REDIS_TO_MQTT
             from_transport = TransportType.REDIS
             to_transport = TransportType.MQTT
-        elif self._btype == RPCBridgeType.AMQP_TO_MQTT:
+        elif 'amqp' in bA_type_str and 'mqtt' in bB_type_str:
+            self._btype = RPCBridgeType.AMQP_TO_MQTT
             from_transport = TransportType.AMQP
             to_transport = TransportType.MQTT
         self._server = endpoint_factory(EndpointType.RPCService, from_transport)(
@@ -179,45 +188,57 @@ class TopicBridge(Bridge):
           <from>           <to>
     """
 
-    def __init__(
-        self, btype: TopicBridgeType, msg_type: PubSubMessage = None, *args, **kwargs
-    ):
+    def __init__(self,
+                 msg_type: PubSubMessage = None,
+                 *args, **kwargs):
         """__init__.
 
         Args:
             btype (TopicBridgeType): btype
             msg_type (PubSubMessage): msg_type
         """
-        super().__init__(btype, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._msg_type = msg_type
 
-        if self._btype == RPCBridgeType.REDIS_TO_AMQP:
+        bA_type_str = str(type(self._from_broker_params)).split("'")[1]
+        bB_type_str = str(type(self._to_broker_params)).split("'")[1]
+        if 'redis' in bA_type_str and 'amqp' in bB_type_str:
+            self._btype = TopicBridgeType.REDIS_TO_AMQP
             from_transport = TransportType.REDIS
             to_transport = TransportType.AMQP
-        elif self._btype == RPCBridgeType.AMQP_TO_REDIS:
+        elif 'amqp' in bA_type_str and 'redis' in bB_type_str:
+            self._btype = TopicBridgeType.AMQP_TO_REDIS
             from_transport = TransportType.AMQP
             to_transport = TransportType.REDIS
-        elif self._btype == RPCBridgeType.AMQP_TO_AMQP:
+        elif 'amqp' in bA_type_str and 'amqp' in bB_type_str:
+            self._btype = TopicBridgeType.AMQP_TO_AMQP
             from_transport = TransportType.AMQP
             to_transport = TransportType.AMQP
-        elif self._btype == RPCBridgeType.REDIS_TO_REDIS:
+        elif 'redis' in bA_type_str and 'redis' in bB_type_str:
+            self._btype = TopicBridgeType.REDIS_TO_REDIS
             from_transport = TransportType.REDIS
             to_transport = TransportType.REDIS
-        elif self._btype == RPCBridgeType.MQTT_TO_REDIS:
+        elif 'mqtt' in bA_type_str and 'redis' in bB_type_str:
+            self._btype = TopicBridgeType.MQTT_TO_REDIS
             from_transport = TransportType.MQTT
             to_transport = TransportType.REDIS
-        elif self._btype == RPCBridgeType.MQTT_TO_AMQP:
+        elif 'mqtt' in bA_type_str and 'amqp' in bB_type_str:
+            self._btype = TopicBridgeType.MQTT_TO_AMQP
             from_transport = TransportType.MQTT
             to_transport = TransportType.AMQP
-        elif self._btype == RPCBridgeType.MQTT_TO_MQTT:
+        elif 'mqtt' in bA_type_str and 'mqtt' in bB_type_str:
+            self._btype = TopicBridgeType.MQTT_TO_MQTT
             from_transport = TransportType.MQTT
             to_transport = TransportType.MQTT
-        elif self._btype == RPCBridgeType.REDIS_TO_MQTT:
+        elif 'redis' in bA_type_str and 'mqtt' in bB_type_str:
+            self._btype = TopicBridgeType.REDIS_TO_MQTT
             from_transport = TransportType.REDIS
             to_transport = TransportType.MQTT
-        elif self._btype == RPCBridgeType.AMQP_TO_MQTT:
+        elif 'amqp' in bA_type_str and 'mqtt' in bB_type_str:
+            self._btype = TopicBridgeType.AMQP_TO_MQTT
             from_transport = TransportType.AMQP
             to_transport = TransportType.MQTT
+
         self._sub = endpoint_factory(EndpointType.Subscriber, from_transport)(
             topic=self._from_uri,
             msg_type=self._msg_type,
@@ -265,7 +286,6 @@ class PTopicBridge(Bridge):
 
     def __init__(
         self,
-        btype: TopicBridgeType,
         msg_type: PubSubMessage = None,
         uri_transform: List = [],
         *args,
@@ -282,41 +302,46 @@ class PTopicBridge(Bridge):
             msg_type (PubSubMessage): msg_type
             debug (bool): debug
         """
-        super().__init__(btype, *args, **kwargs)
-        if "*" not in from_uri:
-            raise ValueError("from_uri must be defined using topic patterns")
-        self._from_broker_params = from_broker_params
-        self._to_broker_params = to_broker_params
-        self._from_uri = from_uri
-        self._to_uri = to_uri
+        super().__init__(*args, **kwargs)
         self._msg_type = msg_type
         self._uri_transform = uri_transform
 
-        if self._btype == RPCBridgeType.REDIS_TO_AMQP:
+        bA_type_str = str(type(self._from_broker_params)).split("'")[1]
+        bB_type_str = str(type(self._to_broker_params)).split("'")[1]
+        if 'redis' in bA_type_str and 'amqp' in bB_type_str:
+            self._btype = TopicBridgeType.REDIS_TO_AMQP
             from_transport = TransportType.REDIS
             to_transport = TransportType.AMQP
-        elif self._btype == RPCBridgeType.AMQP_TO_REDIS:
+        elif 'amqp' in bA_type_str and 'redis' in bB_type_str:
+            self._btype = TopicBridgeType.AMQP_TO_REDIS
             from_transport = TransportType.AMQP
             to_transport = TransportType.REDIS
-        elif self._btype == RPCBridgeType.AMQP_TO_AMQP:
+        elif 'amqp' in bA_type_str and 'amqp' in bB_type_str:
+            self._btype = TopicBridgeType.AMQP_TO_AMQP
             from_transport = TransportType.AMQP
             to_transport = TransportType.AMQP
-        elif self._btype == RPCBridgeType.REDIS_TO_REDIS:
+        elif 'redis' in bA_type_str and 'redis' in bB_type_str:
+            self._btype = TopicBridgeType.REDIS_TO_REDIS
             from_transport = TransportType.REDIS
             to_transport = TransportType.REDIS
-        elif self._btype == RPCBridgeType.MQTT_TO_REDIS:
+        elif 'mqtt' in bA_type_str and 'redis' in bB_type_str:
+            self._btype = TopicBridgeType.MQTT_TO_REDIS
             from_transport = TransportType.MQTT
             to_transport = TransportType.REDIS
-        elif self._btype == RPCBridgeType.MQTT_TO_AMQP:
+        elif 'mqtt' in bA_type_str and 'amqp' in bB_type_str:
+            self._btype = TopicBridgeType.MQTT_TO_AMQP
             from_transport = TransportType.MQTT
             to_transport = TransportType.AMQP
-        elif self._btype == RPCBridgeType.MQTT_TO_MQTT:
+        elif 'mqtt' in bA_type_str and 'mqtt' in bB_type_str:
+            self._btype = TopicBridgeType.MQTT_TO_MQTT
             from_transport = TransportType.MQTT
             to_transport = TransportType.MQTT
-        elif self._btype == RPCBridgeType.REDIS_TO_MQTT:
+        elif 'redis' in bA_type_str and 'mqtt' in bB_type_str:
+            self._btype = TopicBridgeType.REDIS_TO_MQTT
             from_transport = TransportType.REDIS
             to_transport = TransportType.MQTT
-        elif self._btype == RPCBridgeType.AMQP_TO_MQTT:
+        elif 'amqp' in bA_type_str and 'mqtt' in bB_type_str:
+            self._btype = TopicBridgeType.AMQP_TO_MQTT
             from_transport = TransportType.AMQP
             to_transport = TransportType.MQTT
         self._sub = endpoint_factory(EndpointType.PSubscriber, from_transport)(
