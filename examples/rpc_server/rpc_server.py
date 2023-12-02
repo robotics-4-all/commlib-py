@@ -24,44 +24,40 @@ class MultiplyIntMessage(RPCMessage):
 
 
 def multiply_int_handler(msg):
-    print(f'Request Message: {msg}')
-    resp = MultiplyIntMessage.Response(c = msg.a * msg.b)
+    print(f"Request Message: {msg}")
+    resp = MultiplyIntMessage.Response(c=msg.a * msg.b)
     return resp
 
 
 def add_two_int_handler(msg):
-    print(f'Request Message: {msg}')
-    resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
+    print(f"Request Message: {msg}")
+    resp = AddTwoIntMessage.Response(c=msg.a + msg.b)
     return resp
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if len(sys.argv) < 2:
-        broker = 'redis'
+        broker = "redis"
     else:
         broker = str(sys.argv[1])
-    if broker == 'redis':
-        raise ValueError('Not yet supported')
+    if broker == "redis":
+        raise ValueError("Not yet supported")
         from commlib.transports.redis import ConnectionParameters
-    elif broker == 'amqp':
-        raise ValueError('Not yet supported')
+    elif broker == "amqp":
+        raise ValueError("Not yet supported")
         from commlib.transports.amqp import ConnectionParameters
-    elif broker == 'mqtt':
+    elif broker == "mqtt":
         from commlib.transports.mqtt import ConnectionParameters, RPCServer
     else:
-        print('Not a valid broker-type was given!')
+        print("Not a valid broker-type was given!")
         sys.exit(1)
     conn_params = ConnectionParameters()
 
     svc_map = {
-        'add_two_ints': (add_two_int_handler, AddTwoIntMessage),
-        'multiply_ints': (multiply_int_handler, MultiplyIntMessage)
+        "add_two_ints": (add_two_int_handler, AddTwoIntMessage),
+        "multiply_ints": (multiply_int_handler, MultiplyIntMessage),
     }
-    base_uri = 'rpcserver.test'
+    base_uri = "rpcserver.test"
 
-    server = RPCServer(
-        base_uri = base_uri,
-        svc_map = svc_map,
-        conn_params = conn_params
-    )
+    server = RPCServer(base_uri=base_uri, svc_map=svc_map, conn_params=conn_params)
     server.run_forever()

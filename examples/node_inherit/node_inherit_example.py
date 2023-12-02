@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
 import sys
-import time
 
-from commlib.connection import BaseConnectionParameters
 from commlib.msg import MessageHeader, PubSubMessage
 from commlib.node import Node
 from commlib.utils import Rate
@@ -19,20 +17,16 @@ class SonarMessage(PubSubMessage):
 class SonarNode(Node):
     count = 0
 
-    def __init__(self,
-                 sensor_id: str = None, pub_freq: int = 2,
-                 *args, **kwargs):
+    def __init__(self, sensor_id: str = None, pub_freq: int = 2, *args, **kwargs):
         if sensor_id is None:
-            sensor_id = f'Sonar-{SonarNode.count}'
+            sensor_id = f"Sonar-{SonarNode.count}"
         self.sensor_id = sensor_id
         self.pub_freq = pub_freq
-        self.topic = f'sensors.sonar.{self.sensor_id}'
+        self.topic = f"sensors.sonar.{self.sensor_id}"
         SonarNode.count += 1
 
-        super().__init__(node_name='sensors.sonar.front',
-            *args, **kwargs)
-        self.pub = self.create_publisher(msg_type=SonarMessage,
-                                         topic=self.topic)
+        super().__init__(node_name="sensors.sonar.front", *args, **kwargs)
+        self.pub = self.create_publisher(msg_type=SonarMessage, topic=self.topic)
 
     def start(self):
         self.run()
@@ -43,19 +37,19 @@ class SonarNode(Node):
             rate.sleep()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if len(sys.argv) < 2:
-        broker = 'redis'
+        broker = "redis"
     else:
         broker = str(sys.argv[1])
-    if broker == 'redis':
+    if broker == "redis":
         from commlib.transports.redis import ConnectionParameters
-    elif broker == 'amqp':
+    elif broker == "amqp":
         from commlib.transports.amqp import ConnectionParameters
-    elif broker == 'mqtt':
+    elif broker == "mqtt":
         from commlib.transports.mqtt import ConnectionParameters
     else:
-        print('Not a valid broker-type was given!')
+        print("Not a valid broker-type was given!")
         sys.exit(1)
     conn_params = ConnectionParameters()
 
