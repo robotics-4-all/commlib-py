@@ -1,12 +1,10 @@
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Dict, Optional
 
-from commlib.connection import BaseConnectionParameters
 from commlib.endpoints import BaseEndpoint
 from commlib.msg import PubSubMessage
-from commlib.serializer import JSONSerializer, Serializer
 from commlib.utils import gen_random_id
 
 pubsub_logger = None
@@ -78,7 +76,7 @@ class BaseSubscriber(BaseEndpoint):
         msg_type: Optional[PubSubMessage] = None,
         on_message: Optional[Callable] = None,
         *args,
-        **kwargs
+        **kwargs,
     ):
         """__init__.
 

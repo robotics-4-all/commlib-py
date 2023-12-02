@@ -1,7 +1,5 @@
-import datetime
 import functools
 import logging
-import sys
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -18,12 +16,11 @@ from commlib.action import (
 )
 from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
-from commlib.exceptions import RPCClientTimeoutError, RPCRequestError
+from commlib.exceptions import RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import (
     BaseRPCClient,
-    BaseRPCServer,
     BaseRPCService,
     CommRPCHeader,
     CommRPCMessage,
@@ -209,7 +206,7 @@ class RPCService(BaseRPCService):
                 resp = self.on_request(self._msg_type.Request(**data))
                 # RPCMessage.Response object here
                 resp = resp.dict()
-        except RPCRequestError as e:
+        except RPCRequestError:
             self.log.error(str(exc), exc_info=False)
             return
         except Exception as exc:

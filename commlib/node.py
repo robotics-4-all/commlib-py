@@ -2,7 +2,7 @@ import logging
 import threading
 import time
 from enum import IntEnum
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, List, Optional
 from pydantic import BaseModel
 
 from commlib.compression import CompressionType
@@ -117,6 +117,7 @@ class _NodeStopMessage(RPCMessage):
 
 class Node:
     """Node."""
+
     @classmethod
     def logger(cls) -> logging.Logger:
         global n_logger
@@ -215,10 +216,7 @@ class Node:
             topic=self._heartbeat_uri, msg_type=HeartbeatMessage
         )
         hb_pub.run()
-        self._hb_thread = HeartbeatThread(
-            hb_pub,
-            interval=self._heartbeat_interval
-        )
+        self._hb_thread = HeartbeatThread(hb_pub, interval=self._heartbeat_interval)
         work = self._executor.submit(self._hb_thread.start).add_done_callback(
             Node._worker_clb
         )
@@ -246,8 +244,7 @@ class Node:
         if uri in (None, ""):
             uri = f"{self._namespace}.stop"
         self.create_rpc(
-            rpc_name=uri, msg_type=_NodeStopMessage,
-            on_request=self._stop_rpc_callback
+            rpc_name=uri, msg_type=_NodeStopMessage, on_request=self._stop_rpc_callback
         )
 
     def _stop_rpc_callback(
@@ -272,7 +269,8 @@ class Node:
         )
 
     def _start_rpc_callback(
-        self, msg: _NodeStartMessage.Request) -> _NodeStartMessage.Response:
+        self, msg: _NodeStartMessage.Request
+    ) -> _NodeStartMessage.Response:
         resp = _NodeStartMessage.Response()
         if self.state == NodeState.STOPPED:
             self.run()

@@ -1,11 +1,10 @@
 import json
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import requests
 
-from commlib.endpoints import EndpointType, TransportType, endpoint_factory
-from commlib.msg import PubSubMessage, RPCMessage
+from commlib.msg import RPCMessage
 from commlib import Node
 
 
@@ -26,10 +25,10 @@ from commlib import Node
 
 class RESTProxyMessage(RPCMessage):
     class Request(RPCMessage.Request):
-        host: Optional[str] = 'localhost'
+        host: Optional[str] = "localhost"
         port: Optional[int] = 8080
         ssl: Optional[bool] = False
-        base_url: str = ''
+        base_url: str = ""
         path: str = "/"
         verb: str = "GET"
         query_params: Dict = {}
@@ -56,11 +55,7 @@ class RESTProxy(Node):
     """
 
     def __init__(
-        self,
-        broker_uri: str,
-        broker_params: Any,
-        debug: bool = False,
-        *args, **kwargs
+        self, broker_uri: str, broker_params: Any, debug: bool = False, *args, **kwargs
     ):
         """__init__.
 
@@ -72,24 +67,25 @@ class RESTProxy(Node):
         """
         self._debug = debug
 
-        super().__init__(node_name='util.rest_proxy',
-                         connection_params=broker_params,
-                         *args, **kwargs)
+        super().__init__(
+            node_name="util.rest_proxy",
+            connection_params=broker_params,
+            *args,
+            **kwargs,
+        )
         self._broker_uri = broker_uri
         self._svc = self.create_rpc(
-            rpc_name=broker_uri,
-            msg_type=RESTProxyMessage,
-            on_request = self._on_request
+            rpc_name=broker_uri, msg_type=RESTProxyMessage, on_request=self._on_request
         )
-        self.logger().info(f'Initiated REST Proxy @ {broker_uri}')
+        self.logger().info(f"Initiated REST Proxy @ {broker_uri}")
 
     def _on_request(self, msg: RESTProxyMessage.Request):
-        schema = 'https' if msg.ssl else 'http'
+        schema = "https" if msg.ssl else "http"
         port = msg.port
         if port is None:
             port = 443 if msg.ssl else 80
         url = f"{schema}://{msg.host}:{port}{msg.base_url}{msg.path}"
-        self.logger().info(f'Request for: {url}')
+        self.logger().info(f"Request for: {url}")
         # -------- > Perform HTTP Request from input message
         if msg.verb == "GET":
             resp = requests.get(url, params=msg.query_params, headers=msg.headers)

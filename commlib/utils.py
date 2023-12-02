@@ -2,21 +2,8 @@ import os
 import re
 import time
 import uuid
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Text,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
 import logging
 from rich.logging import RichHandler
-
 
 
 def camelcase_to_snakecase(_str: str) -> str:
@@ -71,6 +58,5 @@ LOGGING_FORMAT = "%(message)s"
 LOG_LEVEL = os.getenv("COMMLIB_LOG_LEVEL", "INFO")
 
 logging.basicConfig(
-    level=LOG_LEVEL, format=LOGGING_FORMAT, datefmt="[%X]",
-    handlers=[RichHandler()]
+    level=LOG_LEVEL, format=LOGGING_FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )

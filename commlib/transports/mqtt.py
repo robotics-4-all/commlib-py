@@ -118,11 +118,11 @@ class MQTTTransport(BaseTransport):
         self._client.on_message = self.on_message
 
         self._client.username_pw_set(
-            self._conn_params.username,
-            self._conn_params.password
+            self._conn_params.username, self._conn_params.password
         )
         if self._conn_params.ssl:
             import ssl
+
             ssl_ctx = ssl.create_default_context()
             ssl_ctx.check_hostname = False
             ssl_ctx.verify_mode = ssl.CERT_NONE
@@ -153,11 +153,11 @@ class MQTTTransport(BaseTransport):
         self._client.on_message = self.on_message
 
         self._client.username_pw_set(
-            self._conn_params.username,
-            self._conn_params.password
+            self._conn_params.username, self._conn_params.password
         )
         if self._conn_params.ssl:
             import ssl
+
             ssl_ctx = ssl.create_default_context()
             ssl_ctx.check_hostname = False
             ssl_ctx.verify_mode = ssl.CERT_NONE
@@ -210,7 +210,7 @@ class MQTTTransport(BaseTransport):
     def _report_on_connect(self):
         self.log.debug("MQTT Transport initiated:")
         self.log.debug(
-            f"- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}"
+            "- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}"
         )
         self.log.debug(f"- Data Serialization: {self._serializer}")
         self.log.debug(f"- Data Compression: {self._compression}")
@@ -239,9 +239,7 @@ class MQTTTransport(BaseTransport):
             self._reconnect()
 
     def _reconnect(self):
-        self.log.info(
-            f"Reconnecting in {self._conn_params.reconnect_wait} seconds"
-        )
+        self.log.info(f"Reconnecting in {self._conn_params.reconnect_wait} seconds")
         time.sleep(self._conn_params.reconnect_wait)
         self.connect()
 
@@ -281,8 +279,7 @@ class MQTTTransport(BaseTransport):
         if self._compression != CompressionType.NO_COMPRESSION:
             pl = inflate_str(pl)
         ph = self._client.publish(
-            topic, pl, qos=qos, retain=retain,
-            properties=self._mqtt_properties
+            topic, pl, qos=qos, retain=retain, properties=self._mqtt_properties
         )
 
     def subscribe(
