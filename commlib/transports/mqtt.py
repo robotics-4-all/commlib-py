@@ -67,7 +67,7 @@ class ConnectionParameters(BaseConnectionParameters):
     port: int = 1883
     username: str = ""
     password: str = ""
-    protocol: MQTTProtocolType = MQTTProtocolType.MQTTv311
+    protocol: MQTTProtocolType = MQTTProtocolType.MQTTv5
     ssl: bool = False
     transport: str = "tcp"
     keepalive: int = 60
@@ -102,15 +102,74 @@ class MQTTTransport(BaseTransport):
         self._serializer = serializer
         self._compression = compression
 
+        self.connect()
+
+    def _connect_v3(self):
+        properties = None
+        self._client = mqtt.Client(
+            clean_session=True,
+            protocol=self._conn_params.protocol,
+            transport=self._conn_params.transport,
+        )
+
+        self._client.on_connect = self.on_connect
+        self._client.on_disconnect = self.on_disconnect
+        # self._client.on_log = self.on_log
+        self._client.on_message = self.on_message
+
+        self._client.username_pw_set(
+            self._conn_params.username, self._conn_params.password
+        )
+        self._client.connect(
+            self._conn_params.host,
+            int(self._conn_params.port),
+            keepalive=self._conn_params.keepalive,
+            properties=properties,
+        )
+        if self._conn_params.ssl:
+            import ssl
+
+            self._client.tls_set(cert_reqs=None, certfile=None, keyfile=None)
+        return properties
+
+    def _connect_v5(self):
+        properties = Properties(PacketTypes.CONNECT)
+        properties.MaximumPacketSize = 20
+        self._client = mqtt.Client(
+            protocol=self._conn_params.protocol,
+            transport=self._conn_params.transport,
+        )
+
+        self._client.on_connect = self.on_connect
+        self._client.on_disconnect = self.on_disconnect
+        # self._client.on_log = self.on_log
+        self._client.on_message = self.on_message
+
+        self._client.username_pw_set(
+            self._conn_params.username, self._conn_params.password
+        )
+        self._client.connect(
+            self._conn_params.host,
+            int(self._conn_params.port),
+            keepalive=self._conn_params.keepalive,
+            properties=properties,
+        )
+        if self._conn_params.ssl:
+            import ssl
+
+            self._client.tls_set(cert_reqs=None, certfile=None, keyfile=None)
+        return properties
+
+    def connect(self):
+        if self._connected:
+            raise Exception("Already connected")
         # Workaround for both v3 and v5 support
         # http://www.steves-internet-guide.com/python-mqtt-client-changes/
         if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
-            properties = Properties(PacketTypes.CONNECT)
-            properties.MaximumPacketSize = 20
+            properties = self._connect_v5()
         else:
-            properties = None
+            properties = self._connect_v3()
         self._mqtt_properties = properties
-        self.connect()
 
     def on_connect(
         self,
@@ -231,34 +290,6 @@ class MQTTTransport(BaseTransport):
             _payload = deflate(_payload)
         msg.payload = _payload
         callback(client, userdata, msg)
-
-    def connect(self):
-        if self._connected:
-            raise Exception("Already connected")
-        self._client = mqtt.Client(
-            clean_session=True,
-            protocol=self._conn_params.protocol,
-            transport=self._conn_params.transport,
-        )
-
-        self._client.on_connect = self.on_connect
-        self._client.on_disconnect = self.on_disconnect
-        # self._client.on_log = self.on_log
-        self._client.on_message = self.on_message
-
-        self._client.username_pw_set(
-            self._conn_params.username, self._conn_params.password
-        )
-        self._client.connect(
-            self._conn_params.host,
-            int(self._conn_params.port),
-            keepalive=self._conn_params.keepalive,
-            properties=self._mqtt_properties,
-        )
-        if self._conn_params.ssl:
-            import ssl
-
-            self._client.tls_set(cert_reqs=None, certfile=None, keyfile=None)
 
     def disconnect(self) -> None:
         self._client.disconnect()
