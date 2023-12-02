@@ -14,7 +14,7 @@ paho-mqtt = "^1.6.1"
 hiredis = "^2.1.1"
 ujson = "^5.7.0"
 pydantic = "^2.0.0"
-pydantic = "^16.0.0"
+rich = "^16.0.0"
 
 [tool.poetry.group.dev.dependencies]
 bump2version = "0.5.11"
