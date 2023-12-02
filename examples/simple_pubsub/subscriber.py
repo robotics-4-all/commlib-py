@@ -4,7 +4,7 @@ import sys
 import time
 
 from commlib.msg import MessageHeader, PubSubMessage
-from commlib.node import Node, TransportType
+from commlib.node import Node
 
 
 class SonarMessage(PubSubMessage):

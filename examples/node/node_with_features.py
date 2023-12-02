@@ -4,7 +4,7 @@ import sys
 import time
 
 from commlib.msg import MessageHeader, PubSubMessage
-from commlib.node import Node, TransportType
+from commlib.node import Node
 
 
 class SonarMessage(PubSubMessage):
@@ -36,7 +36,6 @@ if __name__ == '__main__':
 
     nodeA = Node(node_name='obstacle_avoidance_node',
                  connection_params=conn_params,
-                 heartbeat_thread=True,
                  # heartbeat_uri='nodes.add_two_ints.heartbeat',
                  debug=False)
 
@@ -48,7 +47,6 @@ if __name__ == '__main__':
 
     nodeB = Node(node_name='front_sonar_node',
                  connection_params=conn_params,
-                 heartbeat_thread=True,
                  # heartbeat_uri='nodes.add_two_ints.heartbeat',
                  ctrl_services=True,  # Create start/stop control services
                  debug=False)

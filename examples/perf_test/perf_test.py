@@ -4,11 +4,10 @@ import sys
 import time
 from typing import Any, List
 
-from commlib.msg import DataClass, MessageHeader, PubSubMessage
-from commlib.node import Node, TransportType
+from commlib.msg import PubSubMessage
+from commlib.node import Node
 
 
-@DataClass
 class DataContainer(PubSubMessage):
     data: List[Any]
 
@@ -18,7 +17,8 @@ def on_message(msg):
     print(f'- Size (bytes): {sys.getsizeof(msg.data)}')
 
 
-def run_variable_data_size(initial_data_size: int, final_data_size: int,
+def run_variable_data_size(initial_data_size: int,
+                           final_data_size: int,
                            freq: int, pub):
     initial_data_len = int(initial_data_size / 4)
     # final_data_len = int(final_data_size / sys.getsizeof(int))
@@ -46,20 +46,16 @@ if __name__ == '__main__':
         broker = str(sys.argv[1])
     if broker == 'redis':
         from commlib.transports.redis import ConnectionParameters
-        transport = TransportType.REDIS
     elif broker == 'amqp':
         from commlib.transports.amqp import ConnectionParameters
-        transport = TransportType.AMQP
     elif broker == 'mqtt':
         from commlib.transports.mqtt import ConnectionParameters
-        transport = TransportType.MQTT
     else:
         print('Not a valid broker-type was given!')
         sys.exit(1)
     conn_params = ConnectionParameters()
 
     node = Node(node_name='sensors.sonar.front',
-                transport_type=transport,
                 connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=False)

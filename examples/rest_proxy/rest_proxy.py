@@ -3,7 +3,6 @@
 import sys
 import time
 
-from commlib.endpoints import TransportType
 from commlib.rest_proxy import RESTProxy
 
 if __name__ == '__main__':
