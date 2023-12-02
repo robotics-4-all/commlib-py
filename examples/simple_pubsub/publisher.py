@@ -30,7 +30,13 @@ if __name__ == '__main__':
     else:
         print('Not a valid broker-type was given!')
         sys.exit(1)
-    conn_params = ConnectionParameters()
+    conn_params = ConnectionParameters(host="localhost",
+                                       port=1883,
+                                       # port=8883,
+                                       username="",
+                                       password="",
+                                       # ssl=True)
+                                       ssl=False)
 
     node = Node(node_name='sensors.sonar.front',
                 connection_params=conn_params,

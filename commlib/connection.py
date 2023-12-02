@@ -13,3 +13,7 @@ class AuthPlain(AuthBase):
 class BaseConnectionParameters(BaseModel):
     host: str
     port: int
+    ssl: bool = False
+    ssl_insecure: bool = False
+    reconnect: bool = True
+    reconnect_wait: int = 5
