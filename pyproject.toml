@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "commlib-py"
-version = "0.11.2"
+version = "0.11.3"
 description = "Internal DSL for communication and messaging in CyberPhysical Systems"
 authors = ["Konstantinos Panayiotou <klpanagi@gmail.com>"]
 readme = "README.md"
