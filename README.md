@@ -1,3 +1,5 @@
+[![PyPI version](https://badge.fury.io/py/commlib-py.svg)](https://badge.fury.io/py/commlib-py)
+
 
 ![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/0dc3db01-eb5e-40a2-9d3a-07d25613fc86)
 
@@ -15,52 +17,27 @@ technologies. Such patterns include PubSub, RPC and Preemptive Services (aka Act
 
 
 
-
-
 # Installation
 
+Install from PyPi:
 
 ```bash
-pip install commlib
+pip install commlib-py
 ```
 
-In order to keep minimal footprint of the implementation, the backend
-communication transports (AMQP, MQTT, Redis etc) are not installed by default.
-
-## Redis Support
-
-In order to have access to the Redis transport you will have to install the
-`redis` python package
-
-```bash
-pip install redis
-```
-
-However, there’s also a C library, Hiredis, that contains a fast parser that can offer significant speedups for some Redis commands such as LRANGE. You can think of Hiredis as an optional accelerator for Redis commands.
-
-It is highly recommended to also install hiredis.
+Alternatively, download this repo and install using setuptools:
 
 ```
-pip install hiredis
+git clone git@github.com:robotics-4-all/commlib-py.git
+cd commlib-py && python setup.py install
 ```
 
-## AMQP Support
+Commlib can also be used in a virtual envirtonment
 
-In order to have access to the AMQP transport you will have to installed the following dependencies:
-
-```bash
-pip install "pika"
 ```
-
-
-## MQTT Support
-
-In order to have access to the MQTT transport you will have to installed the following dependencies:
-
-```bash
-pip install paho-mqtt
+python -m venv myvenv
+pip install commlib-py
 ```
-
 
 ## JSON Serialization
 
@@ -68,8 +45,7 @@ It is recommended to use a fast json library, such as [orjson](https://github.co
 or [ujson](https://github.com/ultrajson/ultrajson).
 
 The framework will load and use the most performance optimal library based
-on installations.
-
+on installations. The default is `ujson`.
 
 # Guide
 
@@ -141,8 +117,9 @@ application.
 
 **Node class:**
 
-```python
+```py
 class Node:
+    
     def __init__(self,
                  node_name: Optional[str] = '',
                  connection_params: Optional[Any] = None,
@@ -156,23 +133,23 @@ class Node:
 
 Node methods to create and run Endpoints::
 
-```
-▾+Node : class
-   +create_action(self, *args, **kwargs) : member
-   +create_action_client(self, *args, **kwargs) : member
-   +create_event_emitter(self, *args, **kwargs) : member
-   +create_heartbeat_thread(self) : member
-   +create_mpublisher(self, *args, **kwargs) : member
-   +create_psubscriber(self, *args, **kwargs) : member
-   +create_publisher(self, *args, **kwargs) : member
-   +create_rpc(self, *args, **kwargs) : member
-   +create_rpc_client(self, *args, **kwargs) : member
-   +create_start_service(self, uri: str = None) : member
-   +create_stop_service(self, uri: str = None) : member
-   +create_subscriber(self, *args, **kwargs) : member
-   +run(self) : member
-   +run_forever(self, sleep_rate: float = 0.001) : member
-   +stop(self) : member
+```py
+Node:
+   create_action(self, *args, **kwargs)
+   create_action_client(self, *args, **kwargs)
+   create_event_emitter(self, *args, **kwargs)
+   create_heartbeat_thread(self)
+   create_mpublisher(self, *args, **kwargs)
+   create_psubscriber(self, *args, **kwargs)
+   create_publisher(self, *args, **kwargs)
+   create_rpc(self, *args, **kwargs)
+   create_rpc_client(self, *args, **kwargs)
+   create_start_service(self, uri: str = None)
+   create_stop_service(self, uri: str = None)
+   create_subscriber(self, *args, **kwargs)
+   run_forever(self, sleep_rate: float = 0.001)
+   run(self)
+   stop(self)
 ```
 
 ## Endpoint (Low-level API)
@@ -214,15 +191,15 @@ def callback(data):
 
 if __name__ == '__main__':
     topic = 'factory_test_topic'
-    mqtt_sub = endpoint_factory(EndpointType.Subscriber, TransportType.MQTT)(
-        topic=topic,
-        on_message=callback
-    )
+    mqtt_sub = endpoint_factory(
+        EndpointType.Subscriber,
+        TransportType.MQTT
+    )(topic=topic, on_message=callback)
     mqtt_sub.run()
-    mqtt_pub = endpoint_factory(EndpointType.Publisher, TransportType.MQTT)(
-        topic=topic,
-        debug=True
-    )
+    mqtt_pub = endpoint_factory(
+        EndpointType.Publisher,
+        TransportType.MQTT
+    )(topic=topic, debug=True)
 
     data = {'a': 1, 'b': 2}
     while True:
@@ -262,13 +239,17 @@ def add_two_int_handler(msg):
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
-    node = Node(node_name='add_two_ints_node',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
-    rpc = node.create_rpc(msg_type=AddTwoIntMessage,
-                          rpc_name='add_two_ints_node.add_two_ints',
-                          on_request=add_two_int_handler)
+    node = Node(
+        node_name='add_two_ints_node',
+        connection_params=conn_params,
+        # heartbeat_uri='nodes.add_two_ints.heartbeat',
+        debug=True
+    )
+    rpc = node.create_rpc(
+        msg_type=AddTwoIntMessage,
+        rpc_name='add_two_ints_node.add_two_ints',
+        on_request=add_two_int_handler
+    )
     node.run_forever(sleep_rate=1)
 ```
 
@@ -297,8 +278,10 @@ if __name__ == '__main__':
                 connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
-    rpc = node.create_rpc_client(msg_type=AddTwoIntMessage,
-                                 rpc_name='add_two_ints_node.add_two_ints')
+    rpc = node.create_rpc_client(
+        msg_type=AddTwoIntMessage,
+        rpc_name='add_two_ints_node.add_two_ints'
+    )
     node.run()
 
     # Create an instance of the request object
@@ -602,11 +585,13 @@ if __name__ == '__main__':
                 connection_params=conn_params,
                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
                 debug=True)
-    action_client = node.create_action_client(msg_type=ExampleAction,
-                                              action_name=action_name,
-                                              on_goal_reached=on_goal_reached,
-                                              on_feedback=on_feedback,
-                                              on_result=on_result)
+    action_client = node.create_action_client(
+        msg_type=ExampleAction,
+        action_name=action_name,
+        on_goal_reached=on_goal_reached,
+        on_feedback=on_feedback,
+        on_result=on_result
+    )
     node.run()
     goal_msg = ExampleAction.Goal(target_cm=5)
     action_client.send_goal(goal_msg)
