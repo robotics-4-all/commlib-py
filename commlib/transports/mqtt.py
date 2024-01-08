@@ -5,6 +5,7 @@ from enum import IntEnum
 from typing import Any, Callable, Dict, Tuple
 
 import paho.mqtt.client as mqtt
+from paho.mqtt.client import error_string
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 
@@ -68,7 +69,6 @@ class ConnectionParameters(BaseConnectionParameters):
     username: str = ""
     password: str = ""
     protocol: MQTTProtocolType = MQTTProtocolType.MQTTv311
-    ssl: bool = False
     transport: str = "tcp"
     keepalive: int = 60
 
@@ -102,15 +102,88 @@ class MQTTTransport(BaseTransport):
         self._serializer = serializer
         self._compression = compression
 
+        self.connect()
+
+    def _connect_v3(self):
+        properties = None
+        self._client = mqtt.Client(
+            clean_session=True,
+            protocol=self._conn_params.protocol,
+            transport=self._conn_params.transport,
+        )
+
+        self._client.on_connect = self.on_connect
+        self._client.on_disconnect = self.on_disconnect
+        # self._client.on_log = self.on_log
+        self._client.on_message = self.on_message
+
+        self._client.username_pw_set(
+            self._conn_params.username, self._conn_params.password
+        )
+        if self._conn_params.ssl:
+            import ssl
+
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+            self._client.tls_set_context(ssl_ctx)
+            if self._conn_params.ssl_insecure:
+                self._client.tls_insecure_set(True)
+            else:
+                self._client.tls_insecure_set(False)
+        self._client.connect(
+            self._conn_params.host,
+            int(self._conn_params.port),
+            keepalive=self._conn_params.keepalive,
+            properties=properties,
+        )
+        return properties
+
+    def _connect_v5(self):
+        properties = Properties(PacketTypes.CONNECT)
+        properties.MaximumPacketSize = 20
+        self._client = mqtt.Client(
+            protocol=self._conn_params.protocol,
+            transport=self._conn_params.transport,
+        )
+
+        self._client.on_connect = self.on_connect
+        self._client.on_disconnect = self.on_disconnect
+        # self._client.on_log = self.on_log
+        self._client.on_message = self.on_message
+
+        self._client.username_pw_set(
+            self._conn_params.username, self._conn_params.password
+        )
+        if self._conn_params.ssl:
+            import ssl
+
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+            self._client.tls_set_context(ssl_ctx)
+            if self._conn_params.ssl_insecure:
+                self._client.tls_insecure_set(True)
+            else:
+                self._client.tls_insecure_set(False)
+        self._client.connect(
+            self._conn_params.host,
+            int(self._conn_params.port),
+            keepalive=self._conn_params.keepalive,
+            properties=properties,
+        )
+        return properties
+
+    def connect(self):
+        if self._connected:
+            raise Exception("Already connected")
         # Workaround for both v3 and v5 support
         # http://www.steves-internet-guide.com/python-mqtt-client-changes/
         if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
-            properties = Properties(PacketTypes.CONNECT)
-            properties.MaximumPacketSize = 20
+            properties = self._connect_v5()
         else:
-            properties = None
+            properties = self._connect_v3()
         self._mqtt_properties = properties
-        self.connect()
 
     def on_connect(
         self,
@@ -137,12 +210,12 @@ class MQTTTransport(BaseTransport):
     def _report_on_connect(self):
         self.log.debug("MQTT Transport initiated:")
         self.log.debug(
-            f"- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}"
+            "- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}"
         )
         self.log.debug(f"- Data Serialization: {self._serializer}")
         self.log.debug(f"- Data Compression: {self._compression}")
 
-    def on_disconnect(self, client: Any, userdata: Any, rc: int):
+    def on_disconnect(self, client: Any, userdata: Any, rc: int, unk: Any = None):
         """on_disconnect.
 
         Callback for on-disconnect event.
@@ -155,9 +228,20 @@ class MQTTTransport(BaseTransport):
         self._connected = False
         self._client.loop_stop()
         if rc == 5:
-            self.log.debug(f"Authentication error with MQTT broker")
-        elif rc > 0:
-            self.log.debug(f"Disconnection from MQTT Broker")
+            self.log.error("Authentication error with MQTT broker")
+            # raise ConnectionError("Authentication error with MQTT broker")
+        # elif rc > 0:
+        #     self.log.error(f"Disconnection from MQTT Broker: {str(rc)}")
+        #     # raise ConnectionError("Disconnection from MQTT Broker")
+        else:
+            self.log.error(error_string(rc))
+        if self._conn_params.reconnect:
+            self._reconnect()
+
+    def _reconnect(self):
+        self.log.info(f"Reconnecting in {self._conn_params.reconnect_wait} seconds")
+        time.sleep(self._conn_params.reconnect_wait)
+        self.connect()
 
     def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """on_message.
@@ -172,7 +256,7 @@ class MQTTTransport(BaseTransport):
         raise NotImplementedError()
 
     def on_log(self, client: Any, userdata: Any, level, buf):
-        pass
+        self.log.info(level, buf)
 
     def publish(
         self,
@@ -231,34 +315,6 @@ class MQTTTransport(BaseTransport):
             _payload = deflate(_payload)
         msg.payload = _payload
         callback(client, userdata, msg)
-
-    def connect(self):
-        if self._connected:
-            raise Exception("Already connected")
-        self._client = mqtt.Client(
-            clean_session=True,
-            protocol=self._conn_params.protocol,
-            transport=self._conn_params.transport,
-        )
-
-        self._client.on_connect = self.on_connect
-        self._client.on_disconnect = self.on_disconnect
-        # self._client.on_log = self.on_log
-        self._client.on_message = self.on_message
-
-        self._client.username_pw_set(
-            self._conn_params.username, self._conn_params.password
-        )
-        self._client.connect(
-            self._conn_params.host,
-            int(self._conn_params.port),
-            keepalive=self._conn_params.keepalive,
-            properties=self._mqtt_properties,
-        )
-        if self._conn_params.ssl:
-            import ssl
-
-            self._client.tls_set(cert_reqs=None, certfile=None, keyfile=None)
 
     def disconnect(self) -> None:
         self._client.disconnect()

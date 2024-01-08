@@ -4,7 +4,6 @@ import time
 from typing import Any, Callable, Dict, List, Tuple
 
 from confluent_kafka import (
-    OFFSET_BEGINNING,
     OFFSET_END,
     Consumer,
     KafkaError,

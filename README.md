@@ -1,40 +1,27 @@
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/0dc3db01-eb5e-40a2-9d3a-07d25613fc86)
+
 
 # commlib-py
-Broker-based communication framework written in python 3.
-Implements the most common communication patterns (RPC/ReqResp, PubSub) over a message broker.
-A message broker is a communication middleware responsible for routing messages to the
-proper endpoints. Some examples of message brokers are: AMQP brokers (e.g. RabbitMQ),
-Apache Kafka, MQTT brokers (e.g. Mosquito and EMQX) and Redis.
 
-Yes, Redis can also be used as a message broker for RPC and PubSub communication!!
+Commlib is an **internal DSL** for communication and messaging in **Cyber-Physical Systems**. Can be used for
+rapid development of the communication layer on-device, at the Edge and on the Cloud.
 
-Currently, AMQP, Redis and MQTT brokers are supported.
+The goal of this project is to implement a simple Protocol-agnostic API (AMQP, Kafka, Redis, MQTT, etc)
+for common communication patterns in the context of Cyber-Physical Systems, using message broker
+technologies. Such patterns include PubSub, RPC and Preemptive Services (aka Actions), among others.
 
-The goal of this project is to implement a standard communication middleware
-based on message brokers, for building systems. A system can be a device, 
-an IoT environment or a software platformm. Performance is also considered
-as it is often used on low-cost devices, so messaging has to be fast and with
-low footprint.
+![Broker_A](https://github.com/robotics-4-all/commlib-py/assets/4770702/ab009804-75aa-4272-a471-b3f966e4011c)
+
+
+
 
 
 # Installation
 
 
 ```bash
-python setup.py install
-```
-
-, or via pip
-
-```bash
-pip install .
-```
-
-, or by giving the git repo url to pip
-
-```bash
-pip install git+https://github.com/robotics-4-all/commlib-py.git@master
+pip install commlib
 ```
 
 In order to keep minimal footprint of the implementation, the backend
@@ -91,27 +78,6 @@ on installations.
 A **Node** is a software component that follows the Component-Port-Connector model.
 It has input and output ports for communicating with the world. Each
 port defines an endpoint and can be of the following types.
-
-```
-         +-----------------+
-         |                 |
-InPort  +-+     Node      +-+ OutPort
-        +-+               +-+
-         |                 |
-         +-----------------+
-```
-
-```
-                        +--------+                         
-+----------+ OutPort    |        |      InPort +----------+
-|         +-+ --------> |        | ---------> +-+         |
-|         +-+           |        |            +-+         |
-| Node A   |            | Broker |             |   Node B |
-|         +-+ <-------- |        | <--------- +-+         |
-|         +-+           |        |            +-+         |
-+----------+ InPort     |        |     OutPort +----------+
-                        +--------+
-```
 
 **Input Port**:
   - Subscriber
@@ -264,22 +230,14 @@ if __name__ == '__main__':
         time.sleep(1)
 ```
 
-## Req/Resp (RPC) Communication
+## Communication Patters
 
-```
-                             +---------------+
-                   +-------->+   RPC Topic   +------+
-+--------------+   |         |               |      |        +---------------+
-|              +---+         +---------------+      +------->+               |
-|  RPC Client  |                                             |  RPC Service  |
-|              +<--+         +---------------+      +--------+               |
-+--------------+   |         |Temporaty Topic|      |        +---------------+
-                   +---------+               +<-----+
-                             +---------------+
-```
+![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/b1a27e08-0ddd-4498-a882-1c255e36a1c4)
 
 
-### Server Side Example
+### Req/Resp (RPC) Communication
+
+#### Server Side Example
 
 ```python
 from commlib.msg import RPCMessage
@@ -314,7 +272,7 @@ if __name__ == '__main__':
     node.run_forever(sleep_rate=1)
 ```
 
-### Client Side Example
+#### Client Side Example
 
 ```python
 import time
@@ -355,34 +313,15 @@ if __name__ == '__main__':
 ```
 
 
-## PubSub Communicaton
+### PubSub Communicaton
 
 Traditional Topic-based Publish-Subscribe pattern for asynchronous communication as depicted below.
 
-```
-                                                    +------------+
-                                                    |            |
-                                            +------>+ Subscriber |
-                                            |       |            |
-                                            |       +------------+
-                                            |
-+-----------+             +------------+    |       +------------+
-|           |             |            |    |       |            |
-| Publisher +------------>+   Topic    +----------->+ Subscriber |
-|           |             |            |    |       |            |
-+-----------+             +------------+    |       +------------+
-                                            |
-                                            |       +------------+
-                                            |       |            |
-                                            +------>+ Subscriber |
-                                                    |            |
-                                                    +------------+
-```
 
 An example of using PubSub communication is located at [examples/simple_pubsub](https://github.com/robotics-4-all/commlib-py/tree/docs/examples/simple_pubsub).
 
 
-### Write a Simple Topic Publisher
+#### Write a Simple Topic Publisher
 
 ```python
 from commlib.msg import MessageHeader, PubSubMessage
@@ -420,7 +359,7 @@ if __name__ == "__main__":
         time.sleep(1)
 ```
 
-### Write a Simple Topic Subscriber
+#### Write a Simple Topic Subscriber
 
 ```python
 #!/usr/bin/env python
@@ -458,29 +397,11 @@ if __name__ == '__main__':
     node.run_forever(sleep_rate=1)
 ```
 
-## Pattern-based Topic Subscription
+### Pattern-based Topic Subscription
 
 For pattern-based topic subscription one can also use the `PSubscriber` class directly.
 
 For multi-topic publisher one can also use the `MPublisher` class directly.
-
-```
-                                +---------+
-        +---------------------> | Topic A |
-        |                       +---------+
-        |                                  
-        |                                  
-+---------------+                          
-|               |               +---------+
-|  MPublisher   |-------------->| Topic B |
-|               |               +---------+
-+---------------+                          
-        |                                  
-        |                                  
-        |                       +---------+
-        +---------------------> | Topic C |
-                                +---------+
-```
 
 
 ```python
@@ -539,7 +460,7 @@ if __name__ == '__main__':
         time.sleep(1)
 ```
 
-## Pythonic implementation of Subscribers and RPCs using decorators
+### Pythonic implementation of Subscribers and RPCs using decorators
 
 ```python
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
@@ -585,7 +506,7 @@ def add_two_int_handler(msg):
 node.run_forever(sleep_rate=0.01)
 ```
 
-## Preemptable Services with Feedback (Actions)
+### Preemptable Services with Feedback (Actions)
 
 Actions are [pre-emptable services](https://en.wikipedia.org/wiki/Preemption_(computing)) 
 with support for asynchronous feedback publishing. This communication pattern
@@ -593,7 +514,7 @@ is used to implement services which can be stopped and can provide feedback data
 as the move command service of a robot.
 
 
-### Write an Action Service
+#### Write an Action Service
 
 ```python
 import time
@@ -641,7 +562,7 @@ if __name__ == '__main__':
     node.run_forever()
 ```
 
-### Write an Action Client
+#### Write an Action Client
 
 ```python
 import time
@@ -701,18 +622,7 @@ between message brokers, based on application-specific rules. An example is to
 bridge analytics (preprocessed) data from the Edge to the Cloud. And what happens
 if the brokers use different communication protocols?
 
-
-```
-                                  {Bridge}
-[Producer] -------> [Broker A] -------------> [Broker B] ------> [Consumer]
-                                  {Bridge}
-```
-
-In the context of the current work, communication bridges are implemented for
-PubSub and RPC communication between various message brokers. Currently, MQTT, 
-AMQP and Redis are supported.
-
-![bridges_1](./assets/BrokerMessaging-Bridges.png)
+![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/98993090-abfd-4e9f-b16e-ad9b7f436987)
 
 
 Below are examples of an MQTT Redis-to-MQTT Bridge and a Redis-to-MQTT
@@ -811,11 +721,9 @@ if __name__ == '__main__':
     br.run()
 ```
 
-## Action bridges
+### Action bridges
 
-### TODO
-
-## TCP Bridge
+### TCP Bridge
 
 TCP bridge forwards tcp packages between two endpoints:
 
@@ -834,6 +742,9 @@ Implements a REST proxy, that enables invocation of REST services via
 broker communication. The proxy uses an RPCService to run the broker endpoint and
 an http client for calling REST services. An RPC call is transformed into proper,
 REST-compliant, http request, based on the input parameters.
+
+![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/1507cb10-00ec-49ce-8159-967c23d1ba72)
+
 
 
 ```python
@@ -922,12 +833,12 @@ includes a `timestamp`, that indicates the time that the message was sent to to 
 
 Below is the data model of the Request message.
 
-```json
+```
 {
   'data': {},
   'header': {
-    'timestamp': <int>,
-    'reply_to': <str>,
+    'timestamp': -1,
+    'reply_to': "UNIQUE_NAME",
     'content_type': 'application/json',
     'content_encoding': 'utf8',
     'agent': 'commlib',

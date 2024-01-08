@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import time
 
 import commlib.transports.mqtt as mcomm
 import commlib.transports.redis as rcomm
@@ -14,23 +13,25 @@ class SonarMessage(PubSubMessage):
     vertical_fov: float = 14.0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     [Broker A] ------------> [Broker B] ---> [Consumer Endpoint]
     """
-    bA_uri = 'sensors.*'
-    bB_namespace = 'myrobot'
-    p1 = 'sensors.sonar.front'
-    p2 = 'sensors.ir.rear'
+    bA_uri = "sensors.*"
+    bB_namespace = "myrobot"
+    p1 = "sensors.sonar.front"
+    p2 = "sensors.ir.rear"
 
     bA_params = rcomm.ConnectionParameters()
     bB_params = mcomm.ConnectionParameters()
 
-    br = PTopicBridge(TopicBridgeType.REDIS_TO_MQTT,
-                      bA_uri,
-                      bB_namespace,
-                      bA_params,
-                      bB_params,
-                      msg_type=SonarMessage,
-                      debug=True)
+    br = PTopicBridge(
+        TopicBridgeType.REDIS_TO_MQTT,
+        bA_uri,
+        bB_namespace,
+        bA_params,
+        bB_params,
+        msg_type=SonarMessage,
+        debug=True,
+    )
     br.run_forever()

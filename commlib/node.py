@@ -2,51 +2,25 @@ import logging
 import threading
 import time
 from enum import IntEnum
-from functools import wraps
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
-
+from typing import Any, List, Optional
 from pydantic import BaseModel
 
 from commlib.compression import CompressionType
-from commlib.endpoints import TransportType
 from commlib.msg import HeartbeatMessage, RPCMessage
 from commlib.pubsub import BasePublisher
 from commlib.utils import gen_random_id
+from concurrent.futures import ThreadPoolExecutor
 
 n_logger: logging.Logger = None
 
 
-class NodePort:
-    """NodePort."""
-
-    def __init__(self):
-        pass
+class NodePort(BaseModel):
+    endpoints: List[Any] = []
 
 
-class NodeInputPort(NodePort):
-    """NodeInputPort."""
-
-    def __init__(self, *args, **kwargs):
-        """__init__.
-
-        Args:
-            args:
-            kwargs:
-        """
-        super().__init__(*args, **kwargs)
-
-
-class NodeOutputPort(NodePort):
-    """NodeOutputPort."""
-
-    def __init__(self, *args, **kwargs):
-        """__init__.
-
-        Args:
-            args:
-            kwargs:
-        """
-        super().__init__(*args, **kwargs)
+class NodePorts(BaseModel):
+    input: List[NodePort] = []
+    output: List[NodePort] = []
 
 
 class NodePortType(IntEnum):
@@ -64,17 +38,13 @@ class NodeExecutorType(IntEnum):
 
 
 class NodeState(IntEnum):
-    """NodeState."""
-
     IDLE = 1
     RUNNING = 2
     STOPPED = 4
     EXITED = 3
 
 
-class HeartbeatThread(threading.Thread):
-    """HeartbeatThread."""
-
+class HeartbeatThread:
     @classmethod
     def logger(cls) -> logging.Logger:
         global n_logger
@@ -93,44 +63,33 @@ class HeartbeatThread(threading.Thread):
         self._stop_event = threading.Event()
         self._rate_secs = interval
         self._heartbeat_pub = pub_instance
-        self.daemon = True
 
-    def run(self):
-        """run."""
+    def start(self):
+        """start"""
         try:
             msg = HeartbeatMessage(ts=self.get_ts())
             while not self._stop_event.isSet():
-                self.logger().debug(
+                self.logger().info(
                     f"Sending heartbeat message - {self._heartbeat_pub._topic}"
                 )
                 if self._heartbeat_pub._msg_type is None:
-                    self._heartbeat_pub.publish(msg.dict())
+                    self._heartbeat_pub.publish(msg.model_dump())
                 else:
                     self._heartbeat_pub.publish(msg)
                 # Wait for n seconds or until stop event is raised
                 self._stop_event.wait(self._rate_secs)
                 msg.ts = self.get_ts()
-            self.logger().error("Heartbeat Thread Ended")
+            self.logger().debug("Heartbeat Thread Ended")
         except Exception as exc:
             self.logger().error(f"Exception in Heartbeat-Thread: {exc}")
-
-    def force_join(self, timeout: float = None):
-        """force_join.
-        Sudo stop the thread!
-
-        Args:
-            timeout (float): timeout
-        """
-        self._stop_event.set()
-        threading.Thread.join(self, timeout)
 
     def stop(self):
         """stop."""
         self._stop_event.set()
 
-    def stopped(self):
+    def running(self):
         """stopped."""
-        return self._stop_event.is_set()
+        return not self._stop_event.is_set()
 
     def get_ts(self):
         """get_ts."""
@@ -222,11 +181,16 @@ class Node:
         self._action_clients = []
         self._event_emitters = []
         self._ports: List[NodePort] = []
+        self._executor = ThreadPoolExecutor()
+        self._workers: List[Any] = []
 
         # Set default ConnectionParameters ---->
         if transport_connection_params is not None and connection_params is None:
             connection_params = transport_connection_params
         self._conn_params = connection_params
+        self._select_transport()
+
+    def _select_transport(self):
         type_str = str(type(self._conn_params)).split("'")[1]
 
         if type_str == "commlib.transports.mqtt.ConnectionParameters":
@@ -243,8 +207,6 @@ class Node:
             raise ValueError("Transport type is not supported!")
         self._transport_module = transport_module
 
-        self.log.info(f"Created Node <{self._node_name}>")
-
     @property
     def log(self) -> logging.Logger:
         return self.logger()
@@ -255,11 +217,31 @@ class Node:
         )
         hb_pub.run()
         self._hb_thread = HeartbeatThread(hb_pub, interval=self._heartbeat_interval)
-        self._hb_thread.start()
-        self.log.debug(f"Started Heartbeat Publisher <{self._heartbeat_uri}>")
+        work = self._executor.submit(self._hb_thread.start).add_done_callback(
+            Node._worker_clb
+        )
+        self._workers.append(work)
 
-    def create_stop_service(self, uri: str = None) -> None:
-        if uri is None:
+    @staticmethod
+    def _worker_clb(f):
+        e = f.exception()
+        if e is None:
+            return
+        trace = []
+        tb = e.__traceback__
+        while tb is not None:
+            trace.append(
+                {
+                    "filename": tb.tb_frame.f_code.co_filename,
+                    "name": tb.tb_frame.f_code.co_name,
+                    "lineno": tb.tb_lineno,
+                }
+            )
+            tb = tb.tb_next
+        print(str({"type": type(e).__name__, "message": str(e), "trace": trace}))
+
+    def create_stop_service(self, uri: str = "") -> None:
+        if uri in (None, ""):
             uri = f"{self._namespace}.stop"
         self.create_rpc(
             rpc_name=uri, msg_type=_NodeStopMessage, on_request=self._stop_rpc_callback
@@ -277,8 +259,8 @@ class Node:
             resp.error = "Cannot make the transition from current state!"
         return resp
 
-    def create_start_service(self, uri: str = None) -> None:
-        if uri is None:
+    def create_start_service(self, uri: str = "") -> None:
+        if uri in ("", None):
             uri = f"{self._namespace}.start"
         self.create_rpc(
             rpc_name=uri,
@@ -327,6 +309,7 @@ class Node:
         Returns:
             None:
         """
+        self.log.info(f"Starting Node <{self._node_name}>")
         if self._has_ctrl_services:
             self.create_start_service()
             self.create_stop_service()
@@ -350,7 +333,6 @@ class Node:
         """run_forever.
         Starts Services, Subscribers and ActionServices and blocks
         the main thread from exiting.
-        Also starts the heartbeat thread (if enabled).
 
         Args:
             sleep_rate (float): Rate to sleep between wait-state iterations.
@@ -374,6 +356,10 @@ class Node:
             c.stop()
         for c in self._action_clients:
             c.stop()
+        if self._hb_thread:
+            self._hb_thread.stop()
+        if self._executor:
+            self._executor.shutdown(wait=False, cancel_futures=True)
 
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint."""

@@ -6,10 +6,8 @@ from typing import Any, Callable, Dict, Optional
 
 from pydantic import BaseModel
 
-from commlib.connection import BaseConnectionParameters
 from commlib.endpoints import BaseEndpoint
 from commlib.msg import RPCMessage
-from commlib.serializer import JSONSerializer, Serializer
 from commlib.utils import gen_random_id, gen_timestamp
 
 rpc_logger = None
@@ -95,7 +93,7 @@ class BaseRPCService(BaseEndpoint):
         on_request: Callable = None,
         workers: int = 5,
         *args,
-        **kwargs
+        **kwargs,
     ):
         """__init__.
 
@@ -175,7 +173,7 @@ class BaseRPCClient(BaseEndpoint):
         msg_type: RPCMessage = None,
         workers: int = 5,
         *args,
-        **kwargs
+        **kwargs,
     ):
         """__init__.
 

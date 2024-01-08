@@ -4,7 +4,7 @@ import sys
 import time
 
 from commlib.msg import MessageHeader, PubSubMessage
-from commlib.node import Node, TransportType
+from commlib.node import Node
 
 
 class SonarMessage(PubSubMessage):
@@ -15,46 +15,47 @@ class SonarMessage(PubSubMessage):
 
 
 def on_message(msg):
-    print(f'Received front sonar data: {msg}')
+    print(f"Received front sonar data: {msg}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if len(sys.argv) < 2:
-        broker = 'redis'
+        broker = "redis"
     else:
         broker = str(sys.argv[1])
-    if broker == 'redis':
+    if broker == "redis":
         from commlib.transports.redis import ConnectionParameters
-    elif broker == 'amqp':
+    elif broker == "amqp":
         from commlib.transports.amqp import ConnectionParameters
-    elif broker == 'mqtt':
+    elif broker == "mqtt":
         from commlib.transports.mqtt import ConnectionParameters
     else:
-        print('Not a valid broker-type was given!')
+        print("Not a valid broker-type was given!")
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    nodeA = Node(node_name='obstacle_avoidance_node',
-                 connection_params=conn_params,
-                 heartbeat_thread=True,
-                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                 debug=False)
+    nodeA = Node(
+        node_name="obstacle_avoidance_node",
+        connection_params=conn_params,
+        # heartbeat_uri='nodes.add_two_ints.heartbeat',
+        debug=False,
+    )
 
-    nodeA.create_subscriber(msg_type=SonarMessage,
-                            topic='sensors.sonar.front',
-                            on_message=on_message)
+    nodeA.create_subscriber(
+        msg_type=SonarMessage, topic="sensors.sonar.front", on_message=on_message
+    )
 
     nodeA.run()
 
-    nodeB = Node(node_name='front_sonar_node',
-                 connection_params=conn_params,
-                 heartbeat_thread=True,
-                 # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                 ctrl_services=True,  # Create start/stop control services
-                 debug=False)
+    nodeB = Node(
+        node_name="front_sonar_node",
+        connection_params=conn_params,
+        # heartbeat_uri='nodes.add_two_ints.heartbeat',
+        ctrl_services=True,  # Create start/stop control services
+        debug=False,
+    )
 
-    pub = nodeB.create_publisher(msg_type=SonarMessage,
-                                 topic='sensors.sonar.front')
+    pub = nodeB.create_publisher(msg_type=SonarMessage, topic="sensors.sonar.front")
 
     nodeB.run()
 

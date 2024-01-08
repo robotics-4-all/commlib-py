@@ -16,34 +16,38 @@ class AddTwoIntMessage(RPCMessage):
 
 
 def add_two_int_handler(msg):
-    print(f'Request Message: {msg.__dict__}')
-    resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
+    print(f"Request Message: {msg.__dict__}")
+    resp = AddTwoIntMessage.Response(c=msg.a + msg.b)
     return resp
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if len(sys.argv) < 2:
-        broker = 'redis'
+        broker = "redis"
     else:
         broker = str(sys.argv[1])
-    if broker == 'redis':
+    if broker == "redis":
         from commlib.transports.redis import ConnectionParameters
-    elif broker == 'amqp':
+    elif broker == "amqp":
         from commlib.transports.amqp import ConnectionParameters
-    elif broker == 'mqtt':
+    elif broker == "mqtt":
         from commlib.transports.mqtt import ConnectionParameters
     else:
-        print('Not a valid broker-type was given!')
+        print("Not a valid broker-type was given!")
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    node = Node(node_name='add_two_ints_node',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
+    node = Node(
+        node_name="add_two_ints_node",
+        connection_params=conn_params,
+        # heartbeat_uri='nodes.add_two_ints.heartbeat',
+        debug=True,
+    )
 
-    rpc = node.create_rpc(msg_type=AddTwoIntMessage,
-                          rpc_name='add_two_ints_node.add_two_ints',
-                          on_request=add_two_int_handler)
+    rpc = node.create_rpc(
+        msg_type=AddTwoIntMessage,
+        rpc_name="add_two_ints_node.add_two_ints",
+        on_request=add_two_int_handler,
+    )
 
     node.run_forever(sleep_rate=1)

@@ -31,29 +31,29 @@ def on_goal(goal_h):
     return res
 
 
-if __name__ == '__main__':
-    action_name = 'action_example'
+if __name__ == "__main__":
+    action_name = "action_example"
     if len(sys.argv) > 1:
         broker_type = str(sys.argv[1])
     else:
-        broker_type = 'redis'
-    if broker_type == 'redis':
+        broker_type = "redis"
+    if broker_type == "redis":
         from commlib.transports.redis import ConnectionParameters
-    elif broker_type == 'amqp':
+    elif broker_type == "amqp":
         from commlib.transports.amqp import ConnectionParameters
-    elif broker_type == 'mqtt':
+    elif broker_type == "mqtt":
         from commlib.transports.mqtt import ConnectionParameters
     else:
-        print('Not a valid broker-type was given!')
+        print("Not a valid broker-type was given!")
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    node = Node(node_name='action_service_example_node',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
-    node.create_action(msg_type=ExampleAction,
-                       action_name=action_name,
-                       on_goal=on_goal)
+    node = Node(
+        node_name="action_service_example_node",
+        connection_params=conn_params,
+        # heartbeat_uri='nodes.add_two_ints.heartbeat',
+        debug=True,
+    )
+    node.create_action(msg_type=ExampleAction, action_name=action_name, on_goal=on_goal)
 
     node.run_forever()

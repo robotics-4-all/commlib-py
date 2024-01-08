@@ -4,22 +4,22 @@ import sys
 import time
 from typing import Any, List
 
-from commlib.msg import DataClass, MessageHeader, PubSubMessage
-from commlib.node import Node, TransportType
+from commlib.msg import PubSubMessage
+from commlib.node import Node
 
 
-@DataClass
 class DataContainer(PubSubMessage):
     data: List[Any]
 
 
 def on_message(msg):
-    print(f'Received data:')
-    print(f'- Size (bytes): {sys.getsizeof(msg.data)}')
+    print("Received data:")
+    print(f"- Size (bytes): {sys.getsizeof(msg.data)}")
 
 
-def run_variable_data_size(initial_data_size: int, final_data_size: int,
-                           freq: int, pub):
+def run_variable_data_size(
+    initial_data_size: int, final_data_size: int, freq: int, pub
+):
     initial_data_len = int(initial_data_size / 4)
     # final_data_len = int(final_data_size / sys.getsizeof(int))
 
@@ -33,44 +33,41 @@ def run_variable_data_size(initial_data_size: int, final_data_size: int,
             return
         data_len = data_len * 2
         msg = DataContainer(data=data)
-        print(f'Sending Data of size {data_size} bytes')
+        print(f"Sending Data of size {data_size} bytes")
         pub.publish(msg)
-        time.sleep(1/freq)
+        time.sleep(1 / freq)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     rate = 1
     if len(sys.argv) < 2:
-        broker = 'redis'
+        broker = "redis"
     else:
         broker = str(sys.argv[1])
-    if broker == 'redis':
+    if broker == "redis":
         from commlib.transports.redis import ConnectionParameters
-        transport = TransportType.REDIS
-    elif broker == 'amqp':
+    elif broker == "amqp":
         from commlib.transports.amqp import ConnectionParameters
-        transport = TransportType.AMQP
-    elif broker == 'mqtt':
+    elif broker == "mqtt":
         from commlib.transports.mqtt import ConnectionParameters
-        transport = TransportType.MQTT
     else:
-        print('Not a valid broker-type was given!')
+        print("Not a valid broker-type was given!")
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    node = Node(node_name='sensors.sonar.front',
-                transport_type=transport,
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=False)
+    node = Node(
+        node_name="sensors.sonar.front",
+        connection_params=conn_params,
+        # heartbeat_uri='nodes.add_two_ints.heartbeat',
+        debug=False,
+    )
 
-    node.create_subscriber(msg_type=DataContainer,
-                           topic='perftest.sub',
-                           on_message=on_message)
+    node.create_subscriber(
+        msg_type=DataContainer, topic="perftest.sub", on_message=on_message
+    )
 
     node.run()
 
-    pub = node.create_publisher(msg_type=DataContainer,
-                                topic='perftest.sub')
+    pub = node.create_publisher(msg_type=DataContainer, topic="perftest.sub")
 
     run_variable_data_size(2**8, 34724184, rate, pub)

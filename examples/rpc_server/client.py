@@ -25,31 +25,35 @@ class MultiplyIntMessage(RPCMessage):
         c: int = 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if len(sys.argv) < 2:
-        broker = 'redis'
+        broker = "redis"
     else:
         broker = str(sys.argv[1])
-    if broker == 'redis':
+    if broker == "redis":
         from commlib.transports.redis import ConnectionParameters
-    elif broker == 'amqp':
+    elif broker == "amqp":
         from commlib.transports.amqp import ConnectionParameters
-    elif broker == 'mqtt':
+    elif broker == "mqtt":
         from commlib.transports.mqtt import ConnectionParameters
     else:
-        print('Not a valid broker-type was given!')
+        print("Not a valid broker-type was given!")
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    node = Node(node_name='myclient',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
+    node = Node(
+        node_name="myclient",
+        connection_params=conn_params,
+        # heartbeat_uri='nodes.add_two_ints.heartbeat',
+        debug=True,
+    )
 
-    rpc_a = node.create_rpc_client(msg_type=AddTwoIntMessage,
-                                   rpc_name='rpcserver.test.add_two_ints')
-    rpc_b = node.create_rpc_client(msg_type=MultiplyIntMessage,
-                                   rpc_name='rpcserver.test.multiply_ints')
+    rpc_a = node.create_rpc_client(
+        msg_type=AddTwoIntMessage, rpc_name="rpcserver.test.add_two_ints"
+    )
+    rpc_b = node.create_rpc_client(
+        msg_type=MultiplyIntMessage, rpc_name="rpcserver.test.multiply_ints"
+    )
 
     node.run()
 

@@ -1,6 +1,6 @@
 import threading
 import time
-from typing import Any, Callable
+from typing import Callable
 
 from commlib.utils import Rate
 

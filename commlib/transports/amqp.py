@@ -1,7 +1,6 @@
 import functools
 import json
 import logging
-import threading
 import time
 import uuid
 from collections import deque
@@ -27,7 +26,6 @@ from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import (
     BaseRPCClient,
-    BaseRPCServer,
     BaseRPCService,
     CommRPCHeader,
     CommRPCMessage,
@@ -238,7 +236,7 @@ class AMQPTransport(BaseTransport):
             # Create a new communication channel
             self._channel = self._connection.channel()
             self.log.debug(
-                f"Connected to AMQP broker <amqp://"
+                "Connected to AMQP broker <amqp://"
                 + f"{self._conn_params.host}:{self._conn_params.port}, "
                 + f"vhost={self._conn_params.vhost}>"
             )
@@ -475,7 +473,7 @@ class RPCService(BaseRPCService):
         """Run RPC Service in normal mode. Blocking operation."""
         status = self._transport.connect()
         if not status:
-            raise ConnectionError(f"Failed to connect to AMQP broker")
+            raise ConnectionError("Failed to connect to AMQP broker")
 
         self._rpc_queue = self._transport.create_queue(self._rpc_name)
         self._transport.set_channel_qos(prefetch_count=self._max_workers)
