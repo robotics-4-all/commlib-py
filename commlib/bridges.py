@@ -156,7 +156,6 @@ class Bridge:
         return uri
 
 
-
 class RPCBridge(Bridge):
     """RPCBridge.
     Bridge implementation for RPC Communication.
@@ -195,7 +194,7 @@ class RPCBridge(Bridge):
         Args:
             msg (RPCMessage.Request): RPC request message
         """
-        #print(msg)
+        # print(msg)
         resp = self._client.call(msg)
         return resp
 

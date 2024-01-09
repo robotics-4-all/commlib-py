@@ -27,7 +27,7 @@ from commlib.rpc import (
     CommRPCMessage,
 )
 from commlib.serializer import JSONSerializer, Serializer
-from commlib.transports import BaseTransport
+from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
 
 from threading import Event
@@ -174,8 +174,7 @@ class RedisTransport(BaseTransport):
             if self._compression != CompressionType.NO_COMPRESSION:
                 payload = deflate(payload)
         except Exception as exc:
-            self.log.error(
-                f'Timeout after {timeout} seconds waiting for message')
+            self.log.error(f"Timeout after {timeout} seconds waiting for message")
             msgq = ""
             payload = None
         return msgq, payload
