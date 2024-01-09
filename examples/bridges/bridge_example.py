@@ -5,9 +5,13 @@ import time
 import commlib.transports.mqtt as mcomm
 import commlib.transports.redis as rcomm
 from commlib.bridges import RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
+from rich import print, console, pretty
+from commlib.msg import PubSubMessage, RPCMessage
+
+pretty.install()
 
 
-def on_request(msg):
+def on_request(msg) -> RPCMessage.Response:
     print(f"[Broker-B] - RPC Service received request: {msg}")
     c = msg["a"] + msg["b"]
     resp = {"c": c}
@@ -27,7 +31,6 @@ def redis_to_mqtt_rpc_bridge():
     bA_uri = "ops.start_navigation"
     bB_uri = "thing.robotA.ops.start_navigation"
     br = RPCBridge(
-        RPCBridgeType.REDIS_TO_MQTT,
         from_uri=bA_uri,
         to_uri=bB_uri,
         from_broker_params=bA_params,
@@ -41,10 +44,10 @@ def redis_to_mqtt_rpc_bridge():
     client = rcomm.RPCClient(conn_params=bA_params, rpc_name=bA_uri, debug=False)
 
     ## BrokerB
-    server = mcomm.RPCService(
+    service = mcomm.RPCService(
         conn_params=bB_params, rpc_name=bB_uri, on_request=on_request, debug=False
     )
-    server.run()
+    service.run()
     time.sleep(1)
 
     count = 0
@@ -52,10 +55,10 @@ def redis_to_mqtt_rpc_bridge():
     while count < 5:
         req_msg["a"] = count
         resp = client.call(req_msg)
-        print(f"[Broker-A Client] - Response from AMQP RPC Service: {resp}")
+        print(f"[Broker-A Client] - Response from MQTT RPC Service: {resp}")
         time.sleep(1)
         count += 1
-    server.stop()
+    service.stop()
     ## <-------------------------------------
     br.stop()
 
@@ -69,7 +72,6 @@ def redis_to_mqtt_topic_bridge():
     bA_uri = "sonar.front"
     bB_uri = "thing.robotA.sensors.sonar.font"
     br = TopicBridge(
-        TopicBridgeType.REDIS_TO_MQTT,
         from_uri=bA_uri,
         to_uri=bB_uri,
         from_broker_params=bA_params,

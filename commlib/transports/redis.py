@@ -132,9 +132,6 @@ class RedisTransport(BaseTransport):
             self.connect()
 
     def stop(self) -> None:
-        print('AAAAAAAAA')
-        print('AAAAAAAAA')
-        print('AAAAAAAAA')
         if self.is_connected:
             self._redis.connection_pool.disconnect()
             self._connected = False
@@ -177,7 +174,8 @@ class RedisTransport(BaseTransport):
             if self._compression != CompressionType.NO_COMPRESSION:
                 payload = deflate(payload)
         except Exception as exc:
-            self.log.error(exc, exc_info=True)
+            self.log.error(
+                f'Timeout after {timeout} seconds waiting for message')
             msgq = ""
             payload = None
         return msgq, payload
