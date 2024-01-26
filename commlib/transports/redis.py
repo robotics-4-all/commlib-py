@@ -1,6 +1,5 @@
 import functools
 import logging
-import signal
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -30,21 +29,12 @@ from commlib.serializer import JSONSerializer, Serializer
 from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
 
-from threading import Event
-
 from rich import print, console, pretty
 
 pretty.install()
 console = console.Console()
 
 redis_logger = None
-
-terminate_event = Event()
-
-
-def signal_handler(sig, frame):
-    print("Interrupt received. Attempting to gracefully terminate workers.")
-    terminate_event.set()
 
 
 class ConnectionParameters(BaseConnectionParameters):
@@ -94,8 +84,6 @@ class RedisTransport(BaseTransport):
         self._serializer = serializer
         self._compression = compression
         self.connect()
-        signal.signal(signal.SIGINT, self.stop)
-        signal.signal(signal.SIGTERM, self.stop)
 
     @property
     def is_connected(self) -> bool:
@@ -134,6 +122,7 @@ class RedisTransport(BaseTransport):
     def stop(self) -> None:
         if self.is_connected:
             self._redis.connection_pool.disconnect()
+            self._redis.close()
             self._connected = False
 
     def delete_queue(self, queue_name: str) -> bool:

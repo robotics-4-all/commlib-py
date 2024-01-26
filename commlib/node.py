@@ -1,5 +1,6 @@
 import logging
 import threading
+from threading import Event
 import time
 from enum import IntEnum
 from typing import Any, List, Optional
@@ -68,7 +69,7 @@ class HeartbeatThread:
         """start"""
         try:
             msg = HeartbeatMessage(ts=self.get_ts())
-            while not self._stop_event.isSet():
+            while self.running():
                 self.logger().info(
                     f"Sending heartbeat message - {self._heartbeat_pub._topic}"
                 )
@@ -329,7 +330,7 @@ class Node:
             self._init_heartbeat_thread()
         self.state = NodeState.RUNNING
 
-    def run_forever(self, sleep_rate: float = 0.001) -> None:
+    def run_forever(self, sleep_rate: float = 0.01) -> None:
         """run_forever.
         Starts Services, Subscribers and ActionServices and blocks
         the main thread from exiting.
@@ -339,8 +340,11 @@ class Node:
         """
         if self.state != NodeState.RUNNING:
             self.run()
-        while self.state != NodeState.EXITED:
-            time.sleep(sleep_rate)
+        try:
+            while self.state != NodeState.EXITED:
+                    time.sleep(sleep_rate)
+        except:
+            pass
         self.stop()
 
     def stop(self):
@@ -360,6 +364,7 @@ class Node:
             self._hb_thread.stop()
         if self._executor:
             self._executor.shutdown(wait=False, cancel_futures=True)
+        self.state = NodeState.EXITED
 
     def create_publisher(self, *args, **kwargs):
         """Creates a new Publisher Endpoint."""

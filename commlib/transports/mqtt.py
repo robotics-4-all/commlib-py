@@ -229,10 +229,8 @@ class MQTTTransport(BaseTransport):
         self._client.loop_stop()
         if rc == 5:
             self.log.error("Authentication error with MQTT broker")
-            # raise ConnectionError("Authentication error with MQTT broker")
-        # elif rc > 0:
-        #     self.log.error(f"Disconnection from MQTT Broker: {str(rc)}")
-        #     # raise ConnectionError("Disconnection from MQTT Broker")
+        elif rc == 0:
+            pass
         else:
             self.log.error(error_string(rc))
         if self._conn_params.reconnect:
@@ -253,7 +251,7 @@ class MQTTTransport(BaseTransport):
             userdata (Any): Internal paho-mqtt userdata
             msg (Dict[str, Any]): Received message
         """
-        raise NotImplementedError()
+        pass
 
     def on_log(self, client: Any, userdata: Any, level, buf):
         self.log.info(level, buf)
