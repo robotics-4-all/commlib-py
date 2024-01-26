@@ -1,6 +1,6 @@
 from commlib.connection import BaseConnectionParameters
 from commlib.pubsub import BasePublisher, BaseSubscriber
-from commlib.transports import BaseTransport
+from commlib.transports.base_transport import BaseTransport
 
 
 class ConnectionParameters(BaseConnectionParameters):

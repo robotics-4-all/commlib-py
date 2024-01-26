@@ -32,26 +32,25 @@ class TestNode(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures, if any."""
-        self.connparams = ConnectionParameters(host='test', port='1234')
+        self.connparams = ConnectionParameters(host="test", port="1234")
 
     def tearDown(self):
         """Tear down test fixtures, if any."""
 
     def test_node_create_wrong_transport(self):
         try:
-            node = Node(node_name='sensors.sonar.front',
-                        connection_params=self.connparams)
+            node = Node(
+                node_name="sensors.sonar.front", connection_params=self.connparams
+            )
             self.assertTrue(1, 0)
         except ValueError as e:
             print(str(e))
-            if str(e) == 'ValueError: Transport type is not supported!':
+            if str(e) == "ValueError: Transport type is not supported!":
                 self.assertTrue(1, 1)
             else:
                 self.assertTrue(1, 0)
 
     def test_node_create_publisher(self):
-        node = Node(node_name='sensors.sonar.front',
-                    connection_params=self.connparams)
-        node.create_publisher(msg_type=SonarMessage,
-                              topic='sensors.sonar.front')
+        node = Node(node_name="sensors.sonar.front", connection_params=self.connparams)
+        node.create_publisher(msg_type=SonarMessage, topic="sensors.sonar.front")
         self.assertTrue(len(node._publishers), 1)

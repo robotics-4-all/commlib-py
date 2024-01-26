@@ -4,7 +4,7 @@ from enum import Enum
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
 from commlib.serializer import JSONSerializer, Serializer
-from commlib.transports import BaseTransport
+from commlib.transports.base_transport import BaseTransport
 
 e_logger = None
 

@@ -32,11 +32,9 @@ if __name__ == "__main__":
         sys.exit(1)
     conn_params = ConnectionParameters(
         host="localhost",
-        port=1883,
-        # port=8883,
+        # port=1883,
         username="",
         password="",
-        # ssl=True)
         ssl=False,
     )
 
@@ -52,7 +50,11 @@ if __name__ == "__main__":
     node.run()
 
     msg = SonarMessage()
-    while True:
-        pub.publish(msg)
-        msg.range += 1
-        time.sleep(1)
+    try:
+        while True:
+            pub.publish(msg)
+            msg.range += 1
+            time.sleep(1)
+    except Exception as e:
+        print(e)
+        node.stop()

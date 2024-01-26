@@ -27,7 +27,7 @@ class TestTimer(unittest.TestCase):
         while count < iter:
             time.sleep(1.5)
             count += 1
-        self.assertEqual(self.count_0, iter+1)
+        self.assertEqual(self.count_0, iter + 1)
 
     def callback_0(self, event):
         self.count_0 += 1

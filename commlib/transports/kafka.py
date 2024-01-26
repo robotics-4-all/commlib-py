@@ -33,7 +33,7 @@ from commlib.rpc import (
     CommRPCMessage,
 )
 from commlib.serializer import JSONSerializer, Serializer
-from commlib.transports import BaseTransport
+from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
 
 kafka_logger: logging.Logger = logging.getLogger("kafka")

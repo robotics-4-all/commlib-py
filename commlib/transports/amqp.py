@@ -30,7 +30,7 @@ from commlib.rpc import (
     CommRPCHeader,
     CommRPCMessage,
 )
-from commlib.transports import BaseTransport
+from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
 
 # Reduce log level for pika internal logger
