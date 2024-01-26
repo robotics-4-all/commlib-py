@@ -1,3 +1,10 @@
+[project]
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
+
 [tool.poetry]
 name = "commlib-py"
 version = "0.11.3"
@@ -8,21 +15,21 @@ packages = [{include = "commlib"}]
 
 [tool.poetry.dependencies]
 python = "^3.7"
-requests = "^2.1.0"
-pika = "^1.3.1"
-paho-mqtt = "^1.6.1"
-hiredis = "^2.1.1"
-ujson = "^5.7.0"
-pydantic = "^2.0.0"
-rich = "^16.0.0"
+wheel = ">=0.38.0"
+pydantic = ">=2.0.0"
+ujson = ">=5.7.0"
+rich = "^13.7.0"
+redis = {extras = ["hiredis"], version = "^5.0.1"}
+paho-mqtt = ">=1.6.1"
+pika = ">=1.3.1"
+requests = ">=2.1.0"
 
 [tool.poetry.group.dev.dependencies]
-bump2version = "0.5.11"
-wheel = "0.38.4"
-flake8 = "3.7.8"
-coverage = "7.0.1"
-twine = "1.14.0"
-pip = ">=21.1"
+bump2version = "^0.5.11"
+wheel = "0.42.0"
+flake8 = "^3.7.8"
+coverage = "^7.0.1"
+pip = ">=23"
 
 [build-system]
 requires = ["poetry-core"]
