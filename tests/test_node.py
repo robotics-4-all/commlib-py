@@ -7,7 +7,7 @@ import unittest
 from typing import Optional
 
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
-from commlib.node import Node, TransportType
+from commlib.node import Node
 from commlib.transports.mock import ConnectionParameters
 
 
@@ -54,3 +54,12 @@ class TestNode(unittest.TestCase):
         node = Node(node_name="sensors.sonar.front", connection_params=self.connparams)
         node.create_publisher(msg_type=SonarMessage, topic="sensors.sonar.front")
         self.assertTrue(len(node._publishers), 1)
+
+    def test_node_create_subscriber(self):
+        node = Node(node_name="sensors.sonar.front", connection_params=self.connparams)
+        def on_message(msg):
+            pass
+        node.create_subscriber(msg_type=SonarMessage,
+                               topic="sensors.sonar.front",
+                               on_message=on_message)
+        self.assertTrue(len(node._subscribers), 1)
