@@ -22,4 +22,6 @@ class Publisher(BasePublisher):
 
 
 class Subscriber(BaseSubscriber):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = MockTransport(self._conn_params)
