@@ -276,7 +276,7 @@ class MQTTTransport(BaseTransport):
         pl = self._serializer.serialize(payload)
         if self._compression != CompressionType.NO_COMPRESSION:
             pl = inflate_str(pl)
-        ph = self._client.publish(
+        self._client.publish(
             topic, pl, qos=qos, retain=retain, properties=self._mqtt_properties
         )
 
@@ -513,7 +513,7 @@ class RPCService(BaseRPCService):
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        task = self._executor.submit(self._on_request_internal, client, userdata, msg)
+        self._executor.submit(self._on_request_internal, client, userdata, msg)
 
     def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         try:
@@ -595,7 +595,7 @@ class RPCServer(BaseRPCServer):
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        task = self._executor.submit(self._on_request_internal, client, userdata, msg)
+        self._executor.submit(self._on_request_internal, client, userdata, msg)
 
     def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """_on_request_internal.

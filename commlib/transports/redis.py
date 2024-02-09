@@ -29,7 +29,7 @@ from commlib.serializer import JSONSerializer, Serializer
 from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
 
-from rich import print, console, pretty
+from rich import console, pretty
 
 pretty.install()
 console = console.Console()
@@ -162,7 +162,7 @@ class RedisTransport(BaseTransport):
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
             if self._compression != CompressionType.NO_COMPRESSION:
                 payload = deflate(payload)
-        except Exception as exc:
+        except Exception:
             self.log.error(f"Timeout after {timeout} seconds waiting for message")
             msgq = ""
             payload = None
@@ -195,7 +195,7 @@ class RPCService(BaseRPCService):
         self._transport.push_msg_to_queue(reply_to, _resp)
 
     def _on_request_handle(self, data: Dict[str, Any], header: Dict[str, Any]):
-        task = self._executor.submit(self._on_request_internal, data, header)
+        self._executor.submit(self._on_request_internal, data, header)
 
     def _on_request_internal(self, data: Dict[str, Any], header: Dict[str, Any]):
         if "reply_to" not in header:

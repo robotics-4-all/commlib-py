@@ -492,7 +492,7 @@ class RPCService(BaseRPCService):
         return self._transport.queue_exists(self._rpc_name)
 
     def _on_request_handle(self, ch, method, properties, body):
-        task = self._executor.submit(
+        self._executor.submit(
             self._on_request_callback, ch, method, properties, body
         )
         # TODO handle tasks
