@@ -1,6 +1,5 @@
 import logging
 import threading
-from threading import Event
 import time
 from enum import IntEnum
 from typing import Any, List, Optional
@@ -342,7 +341,7 @@ class Node:
             self.run()
         try:
             while self.state != NodeState.EXITED:
-                    time.sleep(sleep_rate)
+                time.sleep(sleep_rate)
         except:
             pass
         self.stop()

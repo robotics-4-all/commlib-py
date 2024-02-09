@@ -321,14 +321,10 @@ class PSubscriber(Subscriber):
 
 
 class RPCService(BaseRPCService):
-    """RPCService.
-    MQTT RPC Service class.
-    """
-
     def __init__(self, *args, **kwargs):
         raise NotImplementedError("RPCService for Kafka transport not supported")
         super(RPCService, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(
+        self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
             compression=self._compression,
@@ -338,10 +334,10 @@ class RPCService(BaseRPCService):
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.dict()
-        self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
+        self._transport.publish(reply_to, _resp)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        task = self._executor.submit(self._on_request_internal, client, userdata, msg)
+        self._executor.submit(self._on_request_internal, client, userdata, msg)
 
     def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         try:
@@ -378,9 +374,7 @@ class RPCService(BaseRPCService):
 
     def run_forever(self):
         """run_forever."""
-        self._transport.subscribe(
-            self._rpc_name, self._on_request_handle, qos=MQTTQoS.L1
-        )
+        self._transport.subscribe(self._rpc_name, self._on_request_handle)
         self._transport.start()
         while True:
             if self._t_stop_event is not None:
@@ -400,7 +394,7 @@ class RPCServer(BaseRPCServer):
             kwargs: See BaseRPCServer
         """
         super(RPCServer, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(
+        self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
             compression=self._compression,
@@ -420,10 +414,10 @@ class RPCServer(BaseRPCServer):
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.dict()
-        self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
+        self._transport.publish(reply_to, _resp)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        task = self._executor.submit(self._on_request_internal, client, userdata, msg)
+        self._executor.submit(self._on_request_internal, client, userdata, msg)
 
     def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """_on_request_internal.
@@ -493,7 +487,7 @@ class RPCServer(BaseRPCServer):
         else:
             full_uri = f"{self._base_uri}.{uri}"
         self.log.info(f"Registering endpoint <{full_uri}>")
-        self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
+        self._transport.subscribe(full_uri, self._on_request_handle)
 
     def run_forever(self):
         """run_forever."""
@@ -509,7 +503,6 @@ class RPCServer(BaseRPCServer):
 
 class RPCClient(BaseRPCClient):
     """RPCClient.
-    MQTT RPC Client
     """
 
     def __init__(self, *args, **kwargs):
@@ -522,7 +515,7 @@ class RPCClient(BaseRPCClient):
         self._response = None
 
         super(RPCClient, self).__init__(*args, **kwargs)
-        self._transport = MQTTTransport(
+        self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
             compression=self._compression,
@@ -575,7 +568,9 @@ class RPCClient(BaseRPCClient):
         while self._response is None:
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:
-                raise RPCClientTimeoutError(f"Response timeout after {timeout} seconds")
+                raise RPCClientTimeoutError(
+                    f"Response timeout after {timeout} seconds"
+                )
             time.sleep(0.001)
         return self._response
 
@@ -599,10 +594,10 @@ class RPCClient(BaseRPCClient):
         _reply_to = _msg["header"]["reply_to"]
 
         self._transport.subscribe(
-            _reply_to, callback=self._on_response_wrapper, qos=MQTTQoS.L1
+            _reply_to, callback=self._on_response_wrapper
         )
         start_t = time.time()
-        self._transport.publish(self._rpc_name, _msg, qos=MQTTQoS.L1)
+        self._transport.publish(self._rpc_name, _msg)
         _resp = self._wait_for_response(timeout=timeout)
         elapsed_t = time.time() - start_t
         self._delay = elapsed_t
@@ -615,7 +610,6 @@ class RPCClient(BaseRPCClient):
 
 class ActionService(BaseActionService):
     """ActionService.
-    MQTT Action Server
     """
 
     def __init__(self, *args, **kwargs):
@@ -664,7 +658,6 @@ class ActionService(BaseActionService):
 
 class ActionClient(BaseActionClient):
     """ActionClient.
-    MQTT Action Client
     """
 
     def __init__(self, *args, **kwargs):
