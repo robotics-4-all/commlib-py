@@ -63,11 +63,13 @@ lint: ## check style with flake8
 test: ## run tests quickly with the default Python
 	coverage run -m unittest discover
 
-cov: test ## check code coverage quickly with the default Python
+cov:
+	test ## check code coverage quickly with the default Python
 	coverage report -m
 	coverage xml
 
-cov_html: test
+cov_html:
+	test
 	html
 
 diff: ## Calculate diff
@@ -85,10 +87,17 @@ docs: ## generate Sphinx HTML documentation, including API docs
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
-release: dist ## package and upload a release
+_release:
+	dist ## package and upload a release
 	twine upload dist/*
 
-dist: clean ## builds source and wheel package
+release:
+	poetry build
+	poetry update
+	poetry publish
+
+dist:
+	clean ## builds source and wheel package
 	python setup.py sdist
 	python setup.py bdist_wheel
 	ls -l dist
