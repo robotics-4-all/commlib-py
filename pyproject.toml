@@ -7,7 +7,7 @@ optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
 
 [tool.poetry]
 name = "commlib-py"
-version = "0.11.3"
+version = "0.11.4"
 description = "Internal DSL for communication and messaging in CyberPhysical Systems"
 authors = ["Konstantinos Panayiotou <klpanagi@gmail.com>"]
 readme = "README.md"
