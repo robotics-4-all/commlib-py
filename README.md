@@ -844,19 +844,16 @@ Run tests by executing `tox` command under this repo directory:
 make tests
 ```
 
-**TODO - Currently working on!!**
+# Development
 
-# Docs
+Starting from 2024 (>0.11.3) only PRs from the `devel` branch are merged into the `master` branch.
 
-Make docs by running:
+Other branches are merged into `devel` first.
 
-```bash
-make docs
-```
+Types of branches:
 
-**TODO - Currently working on!!**
+- Bug fix: `fix/<bug_short_name>`
+- New feature: `feat/<feature_short_name>`
+- Documentation: `doc/<doc_short_name>`
 
-# Contributions
-
-- [klpanagi](https://github.com/klpanagi)
-
+New versions will be released from the `master` branch after a PR request from `devel`.

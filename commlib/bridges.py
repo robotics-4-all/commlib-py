@@ -305,40 +305,22 @@ class PTopicBridge(Bridge):
         bB_type_str = str(type(self._to_broker_params)).split("'")[1]
         if "redis" in bA_type_str and "amqp" in bB_type_str:
             self._btype = TopicBridgeType.REDIS_TO_AMQP
-            from_transport = TransportType.REDIS
-            to_transport = TransportType.AMQP
         elif "amqp" in bA_type_str and "redis" in bB_type_str:
             self._btype = TopicBridgeType.AMQP_TO_REDIS
-            from_transport = TransportType.AMQP
-            to_transport = TransportType.REDIS
         elif "amqp" in bA_type_str and "amqp" in bB_type_str:
             self._btype = TopicBridgeType.AMQP_TO_AMQP
-            from_transport = TransportType.AMQP
-            to_transport = TransportType.AMQP
         elif "redis" in bA_type_str and "redis" in bB_type_str:
             self._btype = TopicBridgeType.REDIS_TO_REDIS
-            from_transport = TransportType.REDIS
-            to_transport = TransportType.REDIS
         elif "mqtt" in bA_type_str and "redis" in bB_type_str:
             self._btype = TopicBridgeType.MQTT_TO_REDIS
-            from_transport = TransportType.MQTT
-            to_transport = TransportType.REDIS
         elif "mqtt" in bA_type_str and "amqp" in bB_type_str:
             self._btype = TopicBridgeType.MQTT_TO_AMQP
-            from_transport = TransportType.MQTT
-            to_transport = TransportType.AMQP
         elif "mqtt" in bA_type_str and "mqtt" in bB_type_str:
             self._btype = TopicBridgeType.MQTT_TO_MQTT
-            from_transport = TransportType.MQTT
-            to_transport = TransportType.MQTT
         elif "redis" in bA_type_str and "mqtt" in bB_type_str:
             self._btype = TopicBridgeType.REDIS_TO_MQTT
-            from_transport = TransportType.REDIS
-            to_transport = TransportType.MQTT
         elif "amqp" in bA_type_str and "mqtt" in bB_type_str:
             self._btype = TopicBridgeType.AMQP_TO_MQTT
-            from_transport = TransportType.AMQP
-            to_transport = TransportType.MQTT
         self._sub = endpoint_factory(EndpointType.PSubscriber, self._from_transport)(
             topic=self._from_uri,
             msg_type=self._msg_type,

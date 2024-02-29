@@ -4,9 +4,9 @@ import time
 
 import commlib.transports.mqtt as mcomm
 import commlib.transports.redis as rcomm
-from commlib.bridges import RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
-from rich import print, console, pretty
-from commlib.msg import PubSubMessage, RPCMessage
+from commlib.bridges import RPCBridge, TopicBridge
+from rich import print, pretty
+from commlib.msg import RPCMessage
 
 pretty.install()
 
