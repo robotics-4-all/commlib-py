@@ -69,7 +69,7 @@ class HeartbeatThread:
         try:
             msg = HeartbeatMessage(ts=self.get_ts())
             while self.running():
-                self.logger().info(
+                self.logger().debug(
                     f"Sending heartbeat message - {self._heartbeat_pub._topic}"
                 )
                 if self._heartbeat_pub._msg_type is None:
