@@ -82,7 +82,6 @@ class ActionMessage(BaseModel):
 
 class HeartbeatMessage(PubSubMessage):
     """HeartbeatMessage."""
-
     ts: int = gen_timestamp()
 
 
@@ -103,3 +102,8 @@ class FileObject(BaseModel):
             b64 = base64.b64encode(fdata)
             self.data = b64.decode()
             self.filename = path.basename(filepath)
+
+
+class Event(PubSubMessage):
+    header: MessageHeader = MessageHeader()
+    payload: Dict[str, Any] = dict()
