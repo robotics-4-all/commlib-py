@@ -96,7 +96,7 @@ class ConnectionParameters(BaseConnectionParameters):
     vhost: str = "/"
     secure: bool = False
     reconnect_attempts: int = 10
-    retry_delay: float = 2.0
+    retry_delay: float = 5.0
     timeout: float = 120
     blocked_connection_timeout: float = None
     heartbeat_timeout: int = 60
@@ -223,7 +223,7 @@ class AMQPTransport(BaseTransport):
         except pika.exceptions.ProbableAuthenticationError as e:
             logger.error(f"Authentication Error: {str(e)}")
             return False
-        except Exception:
+        except Exception as e:
             return False
 
     def _on_connect(self):
@@ -231,7 +231,7 @@ class AMQPTransport(BaseTransport):
         self._channel = ch
 
     def create_channel(self):
-        """Connect to the AMQP broker. Creates a new channel."""
+        """Creates a new channel."""
         try:
             # Create a new communication channel
             self._channel = self._connection.channel()
@@ -630,14 +630,15 @@ class RPCClient(BaseRPCClient):
     """
 
     def __init__(
-        self, use_corr_id=False, connection: Connection = None, *args, **kwargs
-    ):
-        """Constructor."""
+        self,
+        use_corr_id=False,
+        connection: Connection = None,
+        *args,
+        **kwargs):
         self._use_corr_id = use_corr_id
         self._corr_id = None
         self._response = None
         self._exchange = ExchangeType.Default
-        self._mean_delay = 0
         self._delay = 0
 
         super().__init__(*args, **kwargs)
@@ -659,11 +660,6 @@ class RPCClient(BaseRPCClient):
 
         if connection is None:
             self.run()
-
-    @property
-    def mean_delay(self) -> float:
-        """The mean delay of the communication. Internally calculated."""
-        return self._mean_delay
 
     @property
     def delay(self) -> float:

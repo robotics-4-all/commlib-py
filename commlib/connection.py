@@ -15,5 +15,5 @@ class BaseConnectionParameters(BaseModel):
     port: int
     ssl: bool = False
     ssl_insecure: bool = False
-    reconnect: bool = False
-    reconnect_wait: int = 5
+    reconnect_attempts: int = 5
+    reconnect_delay: float = 5.0
