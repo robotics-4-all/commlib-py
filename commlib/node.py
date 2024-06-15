@@ -300,15 +300,10 @@ class Node:
         return {"input": self.input_ports, "output": self.output_ports}
 
     def run(self) -> None:
-        """run.
-        Starts Services, Subscribers and ActionServices.
-        Also starts the heartbeat thread (if enabled).
-
-        Args:
-
-        Returns:
-            None:
+        """run
+        Starts the node by running all its subscribers, publishers, RPC services, RPC clients, action services, and action clients. If the node has control services, it also creates the start and stop services. If the node has heartbeats, it initializes the heartbeat thread. Finally, it sets the node state to RUNNING.
         """
+
         self.log.info(f"Starting Node <{self._node_name}>")
         if self._has_ctrl_services:
             self.create_start_service()
@@ -330,13 +325,20 @@ class Node:
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.01) -> None:
-        """run_forever.
-        Starts Services, Subscribers and ActionServices and blocks
-        the main thread from exiting.
+        """run_forever
+        Runs the node indefinitely until the node state is set to EXITED.
+        This method first checks if the node is in the RUNNING state, and if not,
+        it calls the `run()` method to start the node. It then enters a loop that
+        sleeps for the specified `sleep_rate` (default is 0.01 seconds) until the
+        node state is set to EXITED. If an exception occurs during the loop,
+        it is caught and ignored.
+
+        Finally, the `stop()` method is called to stop the node.
 
         Args:
             sleep_rate (float): Rate to sleep between wait-state iterations.
         """
+
         if self.state != NodeState.RUNNING:
             self.run()
         try:
@@ -347,6 +349,13 @@ class Node:
         self.stop()
 
     def stop(self):
+        """stop
+        Stops the node by stopping all its subscribers, publishers, RPC services,
+        RPC clients, action services, and action clients. If the node has a
+        heartbeat thread, it is also stopped. If the node has an executor,
+        it is shut down. Finally, the node state is set to EXITED.
+        """
+
         for c in self._subscribers:
             c.stop()
         for c in self._publishers:
@@ -366,7 +375,17 @@ class Node:
         self.state = NodeState.EXITED
 
     def create_publisher(self, *args, **kwargs):
-        """Creates a new Publisher Endpoint."""
+        """create_publisher
+        Creates a new Publisher Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the Publisher constructor.
+            **kwargs: Keyword arguments to be passed to the Publisher constructor.
+
+        Returns:
+            The created Publisher instance.
+        """
+
         pub = self._transport_module.Publisher(
             conn_params=self._conn_params,
             compression=self._compression,
@@ -377,7 +396,17 @@ class Node:
         return pub
 
     def create_mpublisher(self, *args, **kwargs):
-        """Creates a new Publisher Endpoint."""
+        """create_mpublisher
+        Creates a new MPublisher (Multi-Topic Publisher) Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the MPublisher constructor.
+            **kwargs: Keyword arguments to be passed to the MPublisher constructor.
+
+        Returns:
+            The created MPublisher instance.
+        """
+
         pub = self._transport_module.MPublisher(
             conn_params=self._conn_params,
             compression=self._compression,
@@ -388,7 +417,17 @@ class Node:
         return pub
 
     def create_subscriber(self, *args, **kwargs):
-        """Creates a new Publisher Endpoint."""
+        """create_subscriber
+        Creates a new Subscriber Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the Subscriber constructor.
+            **kwargs: Keyword arguments to be passed to the Subscriber constructor.
+
+        Returns:
+            The created Subscriber instance.
+        """
+
         sub = self._transport_module.Subscriber(
             conn_params=self._conn_params,
             compression=self._compression,
@@ -399,7 +438,17 @@ class Node:
         return sub
 
     def create_psubscriber(self, *args, **kwargs):
-        """Creates a new Publisher Endpoint."""
+        """create_psubscriber
+        Creates a new PSubscriber Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the PSubscriber constructor.
+            **kwargs: Keyword arguments to be passed to the PSubscriber constructor.
+
+        Returns:
+            The created PSubscriber instance.
+        """
+
         sub = self._transport_module.PSubscriber(
             conn_params=self._conn_params,
             compression=self._compression,
@@ -409,30 +458,18 @@ class Node:
         self._subscribers.append(sub)
         return sub
 
-    def subscribe(self, topic, msg_type):
-        def wrapper(func):
-            _ = self.create_subscriber(
-                on_message=func,
-                msg_type=msg_type,
-                topic=topic
-            )
-            return func
-
-        return wrapper
-
-    def rpc(self, rpc_name, msg_type):
-        def wrapper(func):
-            _ = self.create_rpc(
-                on_request=func,
-                msg_type=msg_type,
-                rpc_name=rpc_name
-            )
-            return func
-
-        return wrapper
-
     def create_rpc(self, *args, **kwargs):
-        """Creates a new Publisher Endpoint."""
+        """create_rpc.
+        Creates a new RPCService Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the RPCService constructor.
+            **kwargs: Keyword arguments to be passed to the RPCService constructor.
+
+        Returns:
+            The created RPCService instance.
+        """
+
         rpc = self._transport_module.RPCService(
             conn_params=self._conn_params,
             compression=self._compression,
@@ -444,7 +481,17 @@ class Node:
         return rpc
 
     def create_rpc_client(self, *args, **kwargs):
-        """Creates a new Publisher Endpoint."""
+        """create_rpc_client.
+        Creates a new RPCClient Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the RPCClient constructor.
+            **kwargs: Keyword arguments to be passed to the RPCClient constructor.
+
+        Returns:
+            The created RPCClient instance.
+        """
+
         client = self._transport_module.RPCClient(
             conn_params=self._conn_params,
             compression=self._compression,
@@ -455,7 +502,17 @@ class Node:
         return client
 
     def create_action(self, *args, **kwargs):
-        """Creates a new ActionService Endpoint."""
+        """create_action.
+        Creates a new ActionService Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the ActionService constructor.
+            **kwargs: Keyword arguments to be passed to the ActionService constructor.
+
+        Returns:
+            The created ActionService instance.
+        """
+
         action = self._transport_module.ActionService(
             conn_params=self._conn_params,
             compression=self._compression,
@@ -466,7 +523,17 @@ class Node:
         return action
 
     def create_action_client(self, *args, **kwargs):
-        """Creates a new ActionClient Endpoint."""
+        """create_action_client.
+        Creates a new ActionClient Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the ActionClient constructor.
+            **kwargs: Keyword arguments to be passed to the ActionClient constructor.
+
+        Returns:
+            The created ActionClient instance.
+        """
+
         aclient = self._transport_module.ActionClient(
             conn_params=self._conn_params,
             compression=self._compression,
@@ -475,3 +542,47 @@ class Node:
         )
         self._action_clients.append(aclient)
         return aclient
+
+    def subscribe(self, topic, msg_type):
+        """subscribe.
+        Decorator to create a new Subscriber Endpoint.
+
+        Args:
+            topic (str): The topic to subscribe to.
+            msg_type (type): The message type expected for the subscription.
+
+        Returns:
+            A decorator function that, when applied to a function, creates a new Subscriber Endpoint using the provided function as the message handler.
+        """
+
+        def wrapper(func):
+            _ = self.create_subscriber(
+                on_message=func,
+                msg_type=msg_type,
+                topic=topic
+            )
+            return func
+
+        return wrapper
+
+    def rpc(self, rpc_name, msg_type):
+        """rpc.
+        Decorator to create a new RPC service endpoint.
+
+        Args:
+            rpc_name (str): The name of the RPC service.
+            msg_type (type): The message type expected for the RPC service.
+
+        Returns:
+            A decorator function that, when applied to a function, creates a new RPC service endpoint using the provided function as the request handler.
+        """
+
+        def wrapper(func):
+            _ = self.create_rpc(
+                on_request=func,
+                msg_type=msg_type,
+                rpc_name=rpc_name
+            )
+            return func
+
+        return wrapper

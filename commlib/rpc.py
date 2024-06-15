@@ -35,13 +35,31 @@ class BaseRPCServer(BaseEndpoint):
         return rpc_logger
 
     def __init__(
-        self, base_uri: str = "", svc_map: dict = {}, workers: int = 2, *args, **kwargs
-    ):
+        self,
+        base_uri: str = "",
+        svc_map: dict = {},
+        workers: int = 2,
+        *args,
+        **kwargs):
         """__init__.
+        Initializes a BaseRPCService instance with the provided configuration.
 
         Args:
-            workers (int): Number of workers to start listening
+            base_uri (str): The base URI for the RPC service.
+            svc_map (dict): A mapping of service names to their corresponding RPC service implementations.
+            workers (int): The number of worker threads to use for the RPC service.
+
+        Attributes:
+            _base_uri (str): The base URI for the RPC service.
+            _svc_map (dict): A mapping of service names to their corresponding RPC service implementations.
+            _max_workers (int): The number of worker threads to use for the RPC service.
+            _gen_random_id (Callable): A function to generate a random ID.
+            _executor (ThreadPoolExecutor): A thread pool executor to handle RPC requests.
+            _main_thread (threading.Thread): The main thread for the RPC service.
+            _t_stop_event (threading.Event): An event to signal the RPC service to stop.
+            _comm_obj (CommRPCMessage): An instance of the CommRPCMessage class.
         """
+
         super().__init__(*args, **kwargs)
         self._base_uri = base_uri
         self._svc_map = svc_map
@@ -72,11 +90,14 @@ class BaseRPCServer(BaseEndpoint):
 
 
 class BaseRPCService(BaseEndpoint):
-    """RPCService Base class.
-    Inherit to implement transport-specific RPCService.
+    """ΒaseRPCService.
+    Implements a base class for an RPC service that can be run in the background.
 
-    Args:
-        - rpc_name (str)
+    The `BaseRPCService` class provides a foundation for implementing RPC services that can be run in the background. It includes functionality for managing worker threads, serializing and deserializing RPC messages, and handling incoming RPC requests.
+
+    Subclasses of `BaseRPCService` must implement the `run_forever()` method, which is responsible for the main loop of the RPC service. The `run()` method starts the RPC service in a background thread, and the `stop()` method stops the RPC service.
+
+    The `_serialize_data()`, `_serialize_response()`, and `_validate_rpc_req_msg()` methods are utility functions used by the RPC service implementation.
     """
 
     @classmethod
@@ -95,12 +116,26 @@ class BaseRPCService(BaseEndpoint):
         *args,
         **kwargs):
         """__init__.
+        Initializes a new instance of the `BaseRPCService` class.
 
         Args:
             rpc_name (str): The name of the RPC service.
-            msg_type (RPCMessage): The type of RPC message to use.
+            msg_type (RPCMessage, optional): The type of RPC message to use.
+            on_request (Callable, optional): A callback function to handle incoming RPC requests.
+            workers (int, optional): The maximum number of worker threads to use. Defaults to 5.
+            *args: Additional positional arguments to pass to the base class constructor.
+            **kwargs: Additional keyword arguments to pass to the base class constructor.
+
+        Attributes:
+            _rpc_name (str): The name of the RPC service.
+            _msg_type (RPCMessage): The type of RPC message to use.
             on_request (Callable): A callback function to handle incoming RPC requests.
-            workers (int): The number of worker threads to use for the RPC service.
+            _gen_random_id (Callable): A function to generate a random ID.
+            _max_workers (int): The maximum number of worker threads to use.
+            _executor (ThreadPoolExecutor): The thread pool executor used to handle RPC requests.
+            _main_thread (threading.Thread): The main thread running the RPC service.
+            _t_stop_event (threading.Event): An event used to signal the RPC service to stop.
+            _comm_obj (CommRPCMessage): An instance of the `CommRPCMessage` class.
         """
 
         super().__init__(*args, **kwargs)
@@ -184,8 +219,10 @@ class BaseRPCService(BaseEndpoint):
                 f"Transport already connected - cannot run {self.__class__.__name__}")
 
     def stop(self):
-        """stop.
-        Stops the RPC service by setting the `_t_stop_event` flag, and then calls the `stop()` method of the parent class.
+        """
+        Stop the RPC service and the main thread.
+
+        This method sets the `_t_stop_event` flag, which is used to signal the main thread to stop running. It then calls the `stop()` method of the parent class to perform any additional cleanup or shutdown logic.
         """
 
         if self._t_stop_event is not None:
@@ -212,8 +249,8 @@ class BaseRPCClient(BaseEndpoint):
         workers: int = 5,
         *args,
         **kwargs):
-        """__init__.
-        Initializes a BaseRPCClient instance with the given parameters.
+        """
+        Initializes a new instance of the `BaseRPCClient` class.
 
         Args:
             rpc_name (str): The name of the RPC service.
@@ -227,8 +264,8 @@ class BaseRPCClient(BaseEndpoint):
             _msg_type (RPCMessage): The type of RPC message to use.
             _gen_random_id (callable): A function to generate a random ID for RPC messages.
             _max_workers (int): The maximum number of worker threads to use for asynchronous RPC calls.
-            _executor (ThreadPoolExecutor): The executor used to manage the worker threads for asynchronous RPC calls.
-            _comm_obj (CommRPCMessage): An instance of the CommRPCMessage class.
+            _executor (ThreadPoolExecutor): The thread pool executor used for asynchronous RPC calls.
+            _comm_obj (CommRPCMessage): An instance of the `CommRPCMessage` class.
         """
 
         super().__init__(*args, **kwargs)

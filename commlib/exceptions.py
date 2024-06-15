@@ -1,3 +1,15 @@
+"""
+Defines a set of custom exceptions used throughout the commlib module.
+
+The `BaseException` class provides a common base for all custom exceptions, with
+support for storing additional error information.
+
+The other exception classes inherit from `BaseException` and provide more
+specific error types, such as `ConnectionError`, `AMQPError`, `MQTTError`, etc.
+These exceptions can be raised by various components of the commlib module to
+indicate specific error conditions.
+"""
+
 class BaseException(Exception):
     def __init__(self, message, errors=None):
         super().__init__(message)

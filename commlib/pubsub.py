@@ -64,12 +64,16 @@ class BaseSubscriber(BaseEndpoint):
         *args,
         **kwargs):
         """__init__.
+        Initializes a new instance of the `BaseSubscriber` class.
 
         Args:
-            topic (str): topic
-            msg_type (PubSubMessage): msg_type
-            on_message (callable): on_message
+            topic (str): The topic to subscribe to.
+            msg_type (Optional[PubSubMessage]): The type of message to expect for this subscription.
+            on_message (Optional[Callable]): A callback function to be called when a message is received.
+            *args: Additional positional arguments to pass to the base class constructor.
+            **kwargs: Additional keyword arguments to pass to the base class constructor.
         """
+
         super().__init__(*args, **kwargs)
         self._topic = topic
         self._msg_type = msg_type

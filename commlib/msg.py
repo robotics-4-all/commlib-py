@@ -81,12 +81,25 @@ class ActionMessage(BaseModel):
 
 
 class HeartbeatMessage(PubSubMessage):
-    """HeartbeatMessage."""
+    """HeartbeatMessage
+    A PubSubMessage that contains a timestamp.
+
+    The `ts` attribute is an integer representing the timestamp of the heartbeat message.
+    """
+
     ts: int = gen_timestamp()
 
 
 class FileObject(BaseModel):
-    """Implementation of the File object."""
+    """FileObject Class.
+    Represents a file object with its raw data, filename, and encoding.
+
+    The `data` attribute contains the raw bytes of the file, encoded in the specified encoding.
+    The `filename` attribute contains the name of the file.
+    The `encoding` attribute specifies the encoding used for the `data` attribute, defaulting to "base64".
+
+    The `load_from_file` method reads the raw bytes from the specified file path and stores them in the `data` attribute, encoding them in the specified encoding.
+    """
 
     data: List[bytes] = []
     filename: str = ""
@@ -105,5 +118,12 @@ class FileObject(BaseModel):
 
 
 class Event(PubSubMessage):
+    """Event
+    A PubSubMessage that contains a header and a payload.
+
+    The `header` attribute is a `MessageHeader` object that contains metadata about the event.
+    The `payload` attribute is a dictionary that contains the event data.
+    """
+
     header: MessageHeader = MessageHeader()
     payload: Dict[str, Any] = dict()

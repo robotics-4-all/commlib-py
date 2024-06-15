@@ -17,6 +17,19 @@ class EndpointState(Enum):
 
 
 class BaseEndpoint:
+    """
+    Defines the base class for all endpoints in the commlib library.
+
+    The `BaseEndpoint` class provides common functionality for all endpoint types, such as:
+    - Logging
+    - Serialization
+    - Connection parameters
+    - Compression
+
+    Subclasses of `BaseEndpoint` should implement the specific functionality for their
+    endpoint type, such as RPC, publish/subscribe, etc.
+    """
+
     _transport: BaseTransport = None
 
     @classmethod
@@ -31,8 +44,17 @@ class BaseEndpoint:
         debug: bool = False,
         serializer: Serializer = JSONSerializer,
         conn_params: BaseConnectionParameters = None,
-        compression: CompressionType = CompressionType.NO_COMPRESSION,
-    ):
+        compression: CompressionType = CompressionType.NO_COMPRESSION):
+        """__init__.
+        Initializes a new instance of the `BaseEndpoint` class.
+
+        Args:
+            debug (bool, optional): A flag indicating whether debug mode is enabled. Defaults to `False`.
+            serializer (Serializer, optional): The serializer to use for data serialization. Defaults to `JSONSerializer`.
+            conn_params (BaseConnectionParameters, optional): The connection parameters to use for the transport. Defaults to `None`.
+            compression (CompressionType, optional): The compression type to use for the transport. Defaults to `CompressionType.NO_COMPRESSION`.
+        """
+
         self._debug = debug
         self._serializer = serializer
         self._compression = compression

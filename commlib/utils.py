@@ -46,11 +46,32 @@ def gen_random_id() -> str:
 
 
 class Rate:
+
     def __init__(self, hz: int):
+        """__init__.
+        Initializes a `Rate` object with the specified Hz (Hertz) rate.
+
+        Args:
+            hz (int): The rate in Hertz (Hz) to use for the `Rate` object.
+
+        Attributes:
+            _hz (int): The rate in Hertz (Hz) for the `Rate` object.
+            _tsleep (float): The time in seconds to sleep between each iteration, calculated as 1.0 / `_hz`.
+        """
+
         self._hz = hz
         self._tsleep = 1.0 / hz
 
     def sleep(self):
+        """sleep.
+        Sleeps for the time specified by the `_tsleep` attribute of the `Rate` object.
+
+        This method is used to implement the desired rate specified by the `hz` parameter
+        passed to the `Rate` constructor. It ensures that the code execution is paused for
+        the appropriate amount of time between each iteration, in order to achieve the
+        desired rate.
+        """
+
         time.sleep(self._tsleep)
 
 
