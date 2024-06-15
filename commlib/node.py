@@ -411,14 +411,22 @@ class Node:
 
     def subscribe(self, topic, msg_type):
         def wrapper(func):
-            _ = self.create_subscriber(on_message=func, msg_type=msg_type, topic=topic)
+            _ = self.create_subscriber(
+                on_message=func,
+                msg_type=msg_type,
+                topic=topic
+            )
             return func
 
         return wrapper
 
     def rpc(self, rpc_name, msg_type):
         def wrapper(func):
-            _ = self.create_rpc(on_request=func, msg_type=msg_type, rpc_name=rpc_name)
+            _ = self.create_rpc(
+                on_request=func,
+                msg_type=msg_type,
+                rpc_name=rpc_name
+            )
             return func
 
         return wrapper

@@ -43,7 +43,7 @@ if __name__ == "__main__":
         debug=True,
     )
 
-    node.create_subscriber(
+    _ = node.create_subscriber(
         msg_type=SonarMessage, topic="sensors.sonar.front", on_message=on_message
     )
 

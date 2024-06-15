@@ -49,11 +49,12 @@ if __name__ == "__main__":
 
     node.run()
 
-    msg = SonarMessage()
+    range = 1
     try:
         while True:
+            msg = SonarMessage(range=range)
             pub.publish(msg)
-            msg.range += 1
+            range += 1
             time.sleep(1)
     except Exception as e:
         print(e)
