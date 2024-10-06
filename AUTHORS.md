@@ -2,7 +2,7 @@
 
 # Development Lead
 
-* Konstantinos Panayiotou (klpanagi) <klpanagi@gmail.com>
+* Konstantinos Panayiotou (klpanagi) <klpanagi@ece.auth.gr>
 
 # Contributors
 
