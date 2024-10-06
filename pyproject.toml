@@ -16,7 +16,7 @@ readme = "README.md"
 packages = [{include = "commlib"}]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.8"
 wheel = ">=0.38.0"
 pydantic = "^2.0.0"
 ujson = "^5.7.0"
