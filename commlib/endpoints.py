@@ -9,7 +9,27 @@ from commlib.transports.base_transport import BaseTransport
 e_logger = None
 
 
+class EndpointState(Enum):
+    DISCONNECTED = 0
+    CONNECTED = 1
+    CONNECTING = 2
+    DISCONNECTING = 3
+
+
 class BaseEndpoint:
+    """
+    Defines the base class for all endpoints in the commlib library.
+
+    The `BaseEndpoint` class provides common functionality for all endpoint types, such as:
+    - Logging
+    - Serialization
+    - Connection parameters
+    - Compression
+
+    Subclasses of `BaseEndpoint` should implement the specific functionality for their
+    endpoint type, such as RPC, publish/subscribe, etc.
+    """
+
     _transport: BaseTransport = None
 
     @classmethod
@@ -24,12 +44,22 @@ class BaseEndpoint:
         debug: bool = False,
         serializer: Serializer = JSONSerializer,
         conn_params: BaseConnectionParameters = None,
-        compression: CompressionType = CompressionType.NO_COMPRESSION,
-    ):
+        compression: CompressionType = CompressionType.NO_COMPRESSION):
+        """__init__.
+        Initializes a new instance of the `BaseEndpoint` class.
+
+        Args:
+            debug (bool, optional): A flag indicating whether debug mode is enabled. Defaults to `False`.
+            serializer (Serializer, optional): The serializer to use for data serialization. Defaults to `JSONSerializer`.
+            conn_params (BaseConnectionParameters, optional): The connection parameters to use for the transport. Defaults to `None`.
+            compression (CompressionType, optional): The compression type to use for the transport. Defaults to `CompressionType.NO_COMPRESSION`.
+        """
+
         self._debug = debug
         self._serializer = serializer
         self._compression = compression
         self._conn_params = conn_params
+        self._state = EndpointState.DISCONNECTED
 
     @property
     def log(self):
@@ -38,6 +68,53 @@ class BaseEndpoint:
     @property
     def debug(self):
         return self._debug
+
+    def run(self):
+        """
+        Starts the subscriber and connects to the transport if it is not already connected.
+
+        If the transport is not initialized, raises a `RuntimeError`.
+
+        If the transport is not connected and the subscriber is not in the `CONNECTED` or `CONNECTING` state, it starts the transport.
+
+        Finally, it sets the subscriber state to `CONNECTED`.
+        """
+
+        if self._transport is None:
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and \
+            self._state not in (EndpointState.CONNECTED,
+                                EndpointState.CONNECTING):
+            self._transport.start()
+            self._state = EndpointState.CONNECTED
+        else:
+            self.logger().debug(
+                f"Transport already connected - cannot run {self.__class__.__name__}")
+
+    def stop(self) -> None:
+        """
+        Stops the subscriber and disconnects from the transport if it is connected.
+
+        If the transport is not initialized, raises a `RuntimeError`.
+
+        If the transport is connected and the subscriber is not in the `DISCONNECTED` or `DISCONNECTING` state, it stops the transport.
+        """
+
+        if self._transport is None:
+            raise RuntimeError(
+                f"Transport not initialized - cannot stop {self.__class__.__name__}")
+        if self._transport.is_connected and \
+            self._state not in (EndpointState.DISCONNECTED,
+                                EndpointState.DISCONNECTING):
+            self._transport.stop()
+            self._state = EndpointState.DISCONNECTED
+        else:
+            self.logger().debug(
+                f"Transport is not connected - cannot stop {self.__class__.__name__}")
+
+    def __del__(self):
+        self.stop()
 
 
 class EndpointType(Enum):
@@ -63,6 +140,7 @@ class TransportType(Enum):
     AMQP = 1
     REDIS = 2
     MQTT = 3
+    KAFKA = 4
 
 
 def endpoint_factory(etype: EndpointType, etransport: TransportType):

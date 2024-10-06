@@ -1,5 +1,4 @@
-[![PyPI version](https://badge.fury.io/py/commlib-py.svg)](https://badge.fury.io/py/commlib-py)
-
+[![PyPI version](https://badge.fury.io/py/commlib-py.svg)](https://badge.fury.io/py/commlib-py) [![Downloads](https://static.pepy.tech/badge/commlib-py)](https://pepy.tech/project/commlib-py) [![Downloads](https://static.pepy.tech/badge/commlib-py/month)](https://pepy.tech/project/commlib-py) [![Downloads](https://static.pepy.tech/badge/commlib-py/week)](https://pepy.tech/project/commlib-py)
 
 ![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/0dc3db01-eb5e-40a2-9d3a-07d25613fc86)
 

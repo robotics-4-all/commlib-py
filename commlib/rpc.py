@@ -1,12 +1,12 @@
 import logging
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from functools import partial
 from typing import Any, Callable, Dict, Optional
 
 from pydantic import BaseModel
 
-from commlib.endpoints import BaseEndpoint
+from commlib.endpoints import BaseEndpoint, EndpointState
 from commlib.msg import RPCMessage
 from commlib.utils import gen_random_id, gen_timestamp
 
@@ -35,13 +35,31 @@ class BaseRPCServer(BaseEndpoint):
         return rpc_logger
 
     def __init__(
-        self, base_uri: str = "", svc_map: dict = {}, workers: int = 2, *args, **kwargs
-    ):
+        self,
+        base_uri: str = "",
+        svc_map: dict = {},
+        workers: int = 2,
+        *args,
+        **kwargs):
         """__init__.
+        Initializes a BaseRPCService instance with the provided configuration.
 
         Args:
-            workers (int): Number of workers to start listening
+            base_uri (str): The base URI for the RPC service.
+            svc_map (dict): A mapping of service names to their corresponding RPC service implementations.
+            workers (int): The number of worker threads to use for the RPC service.
+
+        Attributes:
+            _base_uri (str): The base URI for the RPC service.
+            _svc_map (dict): A mapping of service names to their corresponding RPC service implementations.
+            _max_workers (int): The number of worker threads to use for the RPC service.
+            _gen_random_id (Callable): A function to generate a random ID.
+            _executor (ThreadPoolExecutor): A thread pool executor to handle RPC requests.
+            _main_thread (threading.Thread): The main thread for the RPC service.
+            _t_stop_event (threading.Event): An event to signal the RPC service to stop.
+            _comm_obj (CommRPCMessage): An instance of the CommRPCMessage class.
         """
+
         super().__init__(*args, **kwargs)
         self._base_uri = base_uri
         self._svc_map = svc_map
@@ -72,11 +90,14 @@ class BaseRPCServer(BaseEndpoint):
 
 
 class BaseRPCService(BaseEndpoint):
-    """RPCService Base class.
-    Inherit to implement transport-specific RPCService.
+    """ΒaseRPCService.
+    Implements a base class for an RPC service that can be run in the background.
 
-    Args:
-        - rpc_name (str)
+    The `BaseRPCService` class provides a foundation for implementing RPC services that can be run in the background. It includes functionality for managing worker threads, serializing and deserializing RPC messages, and handling incoming RPC requests.
+
+    Subclasses of `BaseRPCService` must implement the `run_forever()` method, which is responsible for the main loop of the RPC service. The `run()` method starts the RPC service in a background thread, and the `stop()` method stops the RPC service.
+
+    The `_serialize_data()`, `_serialize_response()`, and `_validate_rpc_req_msg()` methods are utility functions used by the RPC service implementation.
     """
 
     @classmethod
@@ -93,16 +114,30 @@ class BaseRPCService(BaseEndpoint):
         on_request: Callable = None,
         workers: int = 5,
         *args,
-        **kwargs,
-    ):
+        **kwargs):
         """__init__.
+        Initializes a new instance of the `BaseRPCService` class.
 
         Args:
-            rpc_name (str): rpc_name
-            msg_type (RPCMessage): msg_type
-            on_request (callable): on_request
-            workers (int): workers
+            rpc_name (str): The name of the RPC service.
+            msg_type (RPCMessage, optional): The type of RPC message to use.
+            on_request (Callable, optional): A callback function to handle incoming RPC requests.
+            workers (int, optional): The maximum number of worker threads to use. Defaults to 5.
+            *args: Additional positional arguments to pass to the base class constructor.
+            **kwargs: Additional keyword arguments to pass to the base class constructor.
+
+        Attributes:
+            _rpc_name (str): The name of the RPC service.
+            _msg_type (RPCMessage): The type of RPC message to use.
+            on_request (Callable): A callback function to handle incoming RPC requests.
+            _gen_random_id (Callable): A function to generate a random ID.
+            _max_workers (int): The maximum number of worker threads to use.
+            _executor (ThreadPoolExecutor): The thread pool executor used to handle RPC requests.
+            _main_thread (threading.Thread): The main thread running the RPC service.
+            _t_stop_event (threading.Event): An event used to signal the RPC service to stop.
+            _comm_obj (CommRPCMessage): An instance of the `CommRPCMessage` class.
         """
+
         super().__init__(*args, **kwargs)
         self._rpc_name = rpc_name
         self._msg_type = msg_type
@@ -115,12 +150,42 @@ class BaseRPCService(BaseEndpoint):
         self._comm_obj = CommRPCMessage()
 
     def _serialize_data(self, payload: Dict[str, Any]) -> str:
+        """
+        Serializes the given payload dictionary to a string using the configured serializer.
+
+        Args:
+            payload (Dict[str, Any]): The dictionary to serialize.
+
+        Returns:
+            str: The serialized payload.
+        """
+
         return self._serializer.serialize(payload)
 
     def _serialize_response(self, message: RPCMessage.Response) -> str:
+        """
+        Serializes an RPC response message to a string.
+
+        Args:
+            message (RPCMessage.Response): The RPC response message to serialize.
+
+        Returns:
+            str: The serialized RPC response message.
+        """
+
         return self._serialize_data(message.dict())
 
     def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
+        """_validate_rpc_req_msg.
+        Validates the RPC request message by checking if the message header is present and the reply_to field is not empty or None.
+
+        Args:
+            msg (CommRPCMessage): The RPC request message to validate.
+
+        Returns:
+            bool: True if the RPC request message is valid, False otherwise.
+        """
+
         if msg.header is None:
             return False
         elif msg.header.reply_to in ("", None):
@@ -133,26 +198,36 @@ class BaseRPCService(BaseEndpoint):
         """
         raise NotImplementedError()
 
-    def run(self):
-        """run.
-        Run the RPC service in background.
+    def run(self) -> None:
         """
-        self._main_thread = threading.Thread(target=self.run_forever)
-        self._main_thread.daemon = True
-        self._t_stop_event = threading.Event()
-        self._main_thread.start()
+        Start the subscriber thread in the background without blocking
+        the main thread.
+        """
+        if self._transport is None:
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and \
+            self._state not in (EndpointState.CONNECTED,
+                                EndpointState.CONNECTING):
+            self._main_thread = threading.Thread(target=self.run_forever)
+            self._main_thread.daemon = True
+            self._t_stop_event = threading.Event()
+            self._main_thread.start()
+            self._state = EndpointState.CONNECTED
+        else:
+            self.logger().debug(
+                f"Transport already connected - cannot run {self.__class__.__name__}")
 
     def stop(self):
-        """stop.
-        Stop the RPC Service.
         """
+        Stop the RPC service and the main thread.
+
+        This method sets the `_t_stop_event` flag, which is used to signal the main thread to stop running. It then calls the `stop()` method of the parent class to perform any additional cleanup or shutdown logic.
+        """
+
         if self._t_stop_event is not None:
             self._t_stop_event.set()
-        if self._transport is not None:
-            self._transport.stop()
-
-    def __del__(self):
-        self.stop()
+        super().stop()
 
 
 class BaseRPCClient(BaseEndpoint):
@@ -173,14 +248,26 @@ class BaseRPCClient(BaseEndpoint):
         msg_type: RPCMessage = None,
         workers: int = 5,
         *args,
-        **kwargs,
-    ):
-        """__init__.
+        **kwargs):
+        """
+        Initializes a new instance of the `BaseRPCClient` class.
 
         Args:
-            rpc_name (str): rpc_name
-            msg_type (RPCMessage): msg_type
+            rpc_name (str): The name of the RPC service.
+            msg_type (RPCMessage): The type of RPC message to use.
+            workers (int): The number of worker threads to use for asynchronous RPC calls.
+            *args: Additional arguments to pass to the parent class constructor.
+            **kwargs: Additional keyword arguments to pass to the parent class constructor.
+
+        Attributes:
+            _rpc_name (str): The name of the RPC service.
+            _msg_type (RPCMessage): The type of RPC message to use.
+            _gen_random_id (callable): A function to generate a random ID for RPC messages.
+            _max_workers (int): The maximum number of worker threads to use for asynchronous RPC calls.
+            _executor (ThreadPoolExecutor): The thread pool executor used for asynchronous RPC calls.
+            _comm_obj (CommRPCMessage): An instance of the `CommRPCMessage` class.
         """
+
         super().__init__(*args, **kwargs)
         self._rpc_name = rpc_name
         self._msg_type = msg_type
@@ -190,8 +277,7 @@ class BaseRPCClient(BaseEndpoint):
         self._comm_obj = CommRPCMessage()
 
     def call(
-        self, msg: RPCMessage.Request, timeout: float = 30.0
-    ) -> RPCMessage.Response:
+        self, msg: RPCMessage.Request, timeout: float = 30.0) -> RPCMessage.Response:
         """call.
         Synchronous RPC Call.
 
@@ -208,23 +294,35 @@ class BaseRPCClient(BaseEndpoint):
         self,
         msg: RPCMessage.Request,
         timeout: float = 30.0,
-        on_response: callable = None,
-    ):
+        on_response: callable = None) -> Future:
         """call_async.
-        Asynchrouns RPC Call. The on_response callback is fired when result is
-        received by the client.
+        Asynchronously call an RPC method and return a Future object.
 
         Args:
-            msg (RPCMessage.Request): msg
-            timeout (float): timeout
-            on_response (callable): on_response
+            msg (RPCMessage.Request): The RPC request message.
+            timeout (float): The timeout for the RPC call in seconds.
+            on_response (callable): An optional callback function to be called when the RPC response is received.
+
+        Returns:
+            Future: A Future object representing the asynchronous RPC call.
         """
+
         _future = self._executor.submit(self.call, msg, timeout)
         if on_response is not None:
             _future.add_done_callback(partial(self._done_callback, on_response))
         return _future
 
     def _done_callback(self, on_response: callable, _future):
+        """_done_callback.
+        Handles the completion of an asynchronous RPC call.
+
+        This function is used as a callback for the Future object returned by `call_async()`. It checks the status of the Future and, if successful, calls the provided `on_response` callback with the result.
+
+        Args:
+            on_response (callable): A callback function to be called with the RPC response.
+            _future (Future): The Future object representing the asynchronous RPC call.
+        """
+
         if _future.cancelled():
             pass
             # TODO: Implement Calcellation logic
@@ -239,18 +337,27 @@ class BaseRPCClient(BaseEndpoint):
                 return result
 
     def _serialize_data(self, payload: Dict[str, Any]) -> str:
+        """
+        Serialize the provided payload dictionary into a string representation.
+
+        Args:
+            payload (Dict[str, Any]): The dictionary to be serialized.
+
+        Returns:
+            str: The serialized representation of the payload.
+        """
+
         return self._serializer.serialize(payload)
 
     def _serialize_request(self, message: RPCMessage.Request) -> str:
+        """
+        Serialize the provided RPC request message into a string representation.
+
+        Args:
+            message (RPCMessage.Request): The RPC request message to be serialized.
+
+        Returns:
+            str: The serialized representation of the RPC request message.
+        """
+
         return self._serialize_data(message.dict())
-
-    def run(self):
-        if self._transport is not None:
-            self._transport.start()
-
-    def stop(self) -> None:
-        if self._transport is not None:
-            self._transport.stop()
-
-    def __del__(self):
-        self.stop()

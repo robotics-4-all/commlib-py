@@ -96,6 +96,16 @@ class JSONSerializer(Serializer):
 
     @staticmethod
     def make_primitive_value(val: Any):
+        """
+        Converts a value to a primitive type that can be serialized to JSON.
+
+        Args:
+            val (Any): The value to convert.
+
+        Returns:
+            Any: The converted value.
+        """
+
         if isinstance(val, dict):
             return JSONSerializer.make_primitives(val)
         elif isinstance(val, list) or isinstance(val, tuple):
@@ -113,6 +123,16 @@ class JSONSerializer(Serializer):
 
     @staticmethod
     def make_primitives(data: Dict[str, Any]):
+        """
+        Converts a dictionary to only contain primitive types that can be serialized to JSON.
+
+        Args:
+            data (Dict[str, Any]): The dictionary to convert.
+
+        Returns:
+            Dict[str, Any]: The dictionary with all values converted to primitive types.
+        """
+
         for key, val in data.items():
             data[key] = JSONSerializer.make_primitive_value(val)
         return data

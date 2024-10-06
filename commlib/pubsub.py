@@ -3,7 +3,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Dict, Optional
 
-from commlib.endpoints import BaseEndpoint
+from commlib.endpoints import BaseEndpoint, EndpointState
 from commlib.msg import PubSubMessage
 from commlib.utils import gen_random_id
 
@@ -20,17 +20,22 @@ class BasePublisher(BaseEndpoint):
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
 
-    def __init__(self, topic: str, msg_type: PubSubMessage = None, *args, **kwargs):
+    def __init__(self, topic: str, msg_type: PubSubMessage = None,
+                 *args, **kwargs):
         """__init__.
+        Initializes a new instance of the `BaseSubscriber` class.
 
         Args:
-            topic (str): topic
-            msg_type (PubSubMessage): msg_type
+            topic (str): The topic to subscribe to.
+            msg_type (PubSubMessage, optional): The type of message to expect for this subscription.
+            *args: Additional positional arguments to pass to the base class constructor.
+            **kwargs: Additional keyword arguments to pass to the base class constructor.
         """
+
         super().__init__(*args, **kwargs)
-        self._topic = topic
-        self._msg_type = msg_type
-        self._gen_random_id = gen_random_id
+        self._topic: str = topic
+        self._msg_type: PubSubMessage = msg_type
+        self._gen_random_id: str = gen_random_id
 
     @property
     def topic(self) -> str:
@@ -38,26 +43,7 @@ class BasePublisher(BaseEndpoint):
         return self._topic
 
     def publish(self, msg: PubSubMessage) -> None:
-        """publish.
-
-        Args:
-            msg (PubSubMessage): msg
-
-        Returns:
-            None:
-        """
         raise NotImplementedError()
-
-    def run(self):
-        if self._transport is not None:
-            self._transport.start()
-
-    def stop(self) -> None:
-        if self._transport is not None:
-            self._transport.stop()
-
-    def __del__(self):
-        self.stop()
 
 
 class BaseSubscriber(BaseEndpoint):
@@ -76,15 +62,18 @@ class BaseSubscriber(BaseEndpoint):
         msg_type: Optional[PubSubMessage] = None,
         on_message: Optional[Callable] = None,
         *args,
-        **kwargs,
-    ):
+        **kwargs):
         """__init__.
+        Initializes a new instance of the `BaseSubscriber` class.
 
         Args:
-            topic (str): topic
-            msg_type (PubSubMessage): msg_type
-            on_message (callable): on_message
+            topic (str): The topic to subscribe to.
+            msg_type (Optional[PubSubMessage]): The type of message to expect for this subscription.
+            on_message (Optional[Callable]): A callback function to be called when a message is received.
+            *args: Additional positional arguments to pass to the base class constructor.
+            **kwargs: Additional keyword arguments to pass to the base class constructor.
         """
+
         super().__init__(*args, **kwargs)
         self._topic = topic
         self._msg_type = msg_type
@@ -128,16 +117,30 @@ class BaseSubscriber(BaseEndpoint):
         raise NotImplementedError()
 
     def run(self) -> None:
-        """Execute subscriber in a separate thread."""
-        self._main_thread = threading.Thread(target=self.run_forever)
-        self._main_thread.daemon = True
-        self._t_stop_event = threading.Event()
-        self._main_thread.start()
+        """
+        Start the subscriber thread in the background without blocking
+        the main thread.
+        """
+        if self._transport is None:
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and \
+            self._state not in (EndpointState.CONNECTED,
+                                EndpointState.CONNECTING):
+            self._main_thread = threading.Thread(target=self.run_forever)
+            self._main_thread.daemon = True
+            self._t_stop_event = threading.Event()
+            self._main_thread.start()
+            self._state = EndpointState.CONNECTED
+        else:
+            self.logger().debug(
+                f"Transport already connected - cannot run {self.__class__.__name__}")
 
     def stop(self) -> None:
+        """
+        Stop the subscriber thread and disconnect the transport.
+        """
+
         if self._t_stop_event is not None:
             self._t_stop_event.set()
-        self._transport.stop()
-
-    def __del__(self):
-        self.stop()
+        super().stop()

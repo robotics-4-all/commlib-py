@@ -6,6 +6,12 @@ transport_logger = None
 
 
 class BaseTransport:
+    """BaseTransport.
+    The `BaseTransport` class provides a base implementation for a transport
+    layer in the `commlib` library. It defines common properties and methods
+    that should be implemented by concrete transport implementations.
+    """
+
     _connected = False
 
     @classmethod
@@ -15,7 +21,17 @@ class BaseTransport:
             transport_logger = logging.getLogger(__name__)
         return transport_logger
 
-    def __init__(self, conn_params: BaseConnectionParameters, debug: bool = False):
+    def __init__(self,
+                 conn_params: BaseConnectionParameters,
+                 debug: bool = False):
+        """__init__.
+        Initializes a new instance of the `BaseTransport` class.
+
+        Args:
+            conn_params (BaseConnectionParameters): The connection parameters to use for the transport.
+            debug (bool, optional): Whether to enable debug logging for the transport. Defaults to False.
+        """
+
         self._conn_params = conn_params
         self._debug = debug
 

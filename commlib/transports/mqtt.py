@@ -101,8 +101,8 @@ class MQTTTransport(BaseTransport):
         self._client = None
         self._serializer = serializer
         self._compression = compression
-
-        self.connect()
+        self._reconnect_attempts = 0
+        self._mqtt_properties = None
 
     def _connect_v3(self):
         properties = None
@@ -176,14 +176,22 @@ class MQTTTransport(BaseTransport):
 
     def connect(self):
         if self._connected:
-            raise Exception("Already connected")
+            raise ConnectionError("Transport already connected to broker")
         # Workaround for both v3 and v5 support
         # http://www.steves-internet-guide.com/python-mqtt-client-changes/
-        if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
-            properties = self._connect_v5()
-        else:
-            properties = self._connect_v3()
-        self._mqtt_properties = properties
+        try:
+            if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
+                properties = self._connect_v5()
+            else:
+                properties = self._connect_v3()
+            self._mqtt_properties = properties
+        except Exception:
+            if self._conn_params.reconnect_attempts == -1:
+                self._reconnect()
+            elif self._reconnect_attempts < self._conn_params.reconnect_attempts:
+                self._reconnect()
+            self._reconnect_attempts = 0
+            raise ConnectionError()
 
     def on_connect(
         self,
@@ -233,12 +241,17 @@ class MQTTTransport(BaseTransport):
             pass
         else:
             self.log.error(error_string(rc))
-        if self._conn_params.reconnect:
+        if self._conn_params.reconnect_attempts == -1:
             self._reconnect()
+        elif self._reconnect_attempts < self._conn_params.reconnect_attempts:
+            self._reconnect()
+        self._reconnect_attempts = 0
+        raise ConnectionError()
 
     def _reconnect(self):
-        self.log.info(f"Reconnecting in {self._conn_params.reconnect_wait} seconds")
-        time.sleep(self._conn_params.reconnect_wait)
+        self.log.info(f"Reconnecting in {self._conn_params.reconnect_delay} seconds")
+        self._reconnect_attempts += 1
+        time.sleep(self._conn_params.reconnect_delay)
         self.connect()
 
     def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -359,6 +372,7 @@ class Publisher(BasePublisher):
             serializer=self._serializer,
             compression=self._compression,
         )
+        self._transport.connect()
 
     def publish(self, msg: PubSubMessage) -> None:
         """publish.
@@ -425,6 +439,7 @@ class Subscriber(BaseSubscriber):
             serializer=self._serializer,
             compression=self._compression,
         )
+        self._transport.connect()
 
     def run(self):
         self._topic = self._transport.subscribe(self._topic, self._on_message)
@@ -505,6 +520,7 @@ class RPCService(BaseRPCService):
             serializer=self._serializer,
             compression=self._compression,
         )
+        self._transport.connect()
 
     def _send_response(self, data: Dict[str, Any], reply_to: str):
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
@@ -577,6 +593,7 @@ class RPCServer(BaseRPCServer):
             serializer=self._serializer,
             compression=self._compression,
         )
+        self._transport.connect()
         for uri in self._svc_map:
             callback = self._svc_map[uri][0]
             msg_type = self._svc_map[uri][1]
@@ -699,6 +716,7 @@ class RPCClient(BaseRPCClient):
             serializer=self._serializer,
             compression=self._compression,
         )
+        self._transport.connect()
 
     def _gen_queue_name(self):
         """_gen_queue_name."""
