@@ -3,12 +3,14 @@
 import sys
 import time
 
+from pydantic import Field
+
 from commlib.msg import MessageHeader, PubSubMessage
 from commlib.node import Node
 
 
 class SonarMessage(PubSubMessage):
-    header: MessageHeader = MessageHeader()
+    header: MessageHeader = Field(default_factory=lambda: MessageHeader())
     range: float = -1
     hfov: float = 30.6
     vfov: float = 14.2

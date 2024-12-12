@@ -3,7 +3,7 @@ from os import path
 from typing import Any, Dict, List, Union
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from commlib.utils import gen_timestamp
 
@@ -22,7 +22,7 @@ class MessageHeader(BaseModel):
     msg_id: Union[int, str, UUID] = -1
     node_id: Union[int, str, UUID] = ""
     agent: str = "commlib-py"
-    timestamp: int = gen_timestamp()
+    timestamp: int = Field(default_factory=lambda: gen_timestamp())
     properties: Dict[str, Any] = {}
 
 
