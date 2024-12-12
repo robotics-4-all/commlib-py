@@ -103,6 +103,7 @@ class MQTTTransport(BaseTransport):
         self._compression = compression
         self._reconnect_attempts = 0
         self._mqtt_properties = None
+        self._stopped = False
 
     def _connect_v3(self):
         properties = None
@@ -174,9 +175,10 @@ class MQTTTransport(BaseTransport):
         )
         return properties
 
-    def connect(self):
+    def connect(self) -> None:
         if self._connected:
             raise ConnectionError("Transport already connected to broker")
+        self._stopped = False
         # Workaround for both v3 and v5 support
         # http://www.steves-internet-guide.com/python-mqtt-client-changes/
         try:
@@ -186,10 +188,10 @@ class MQTTTransport(BaseTransport):
                 properties = self._connect_v3()
             self._mqtt_properties = properties
         except Exception:
-            if self._conn_params.reconnect_attempts == -1:
+            if (self._conn_params.reconnect_attempts == -1) or \
+                (self._reconnect_attempts < self._conn_params.reconnect_attempts):
                 self._reconnect()
-            elif self._reconnect_attempts < self._conn_params.reconnect_attempts:
-                self._reconnect()
+                return
             self._reconnect_attempts = 0
             raise ConnectionError()
 
@@ -215,7 +217,7 @@ class MQTTTransport(BaseTransport):
             self._connected = True
             self._report_on_connect()
 
-    def _report_on_connect(self):
+    def _report_on_connect(self) -> None:
         self.log.debug("MQTT Transport initiated:")
         self.log.debug(
             "- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}"
@@ -241,20 +243,22 @@ class MQTTTransport(BaseTransport):
             pass
         else:
             self.log.error(error_string(rc))
-        if self._conn_params.reconnect_attempts == -1:
+        if self._conn_params.reconnect_attempts == 0 or self._stopped == True:
+            return
+        elif (self._conn_params.reconnect_attempts == -1) or \
+            (self._reconnect_attempts < self._conn_params.reconnect_attempts):
             self._reconnect()
-        elif self._reconnect_attempts < self._conn_params.reconnect_attempts:
-            self._reconnect()
-        self._reconnect_attempts = 0
-        raise ConnectionError()
+        else:
+            self._reconnect_attempts = 0
+            raise ConnectionError()
 
-    def _reconnect(self):
+    def _reconnect(self) -> None:
         self.log.info(f"Reconnecting in {self._conn_params.reconnect_delay} seconds")
         self._reconnect_attempts += 1
         time.sleep(self._conn_params.reconnect_delay)
         self.connect()
 
-    def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]) -> None:
         """on_message.
 
         Callback for on-message event.
@@ -269,13 +273,9 @@ class MQTTTransport(BaseTransport):
     def on_log(self, client: Any, userdata: Any, level, buf):
         self.log.info(level, buf)
 
-    def publish(
-        self,
-        topic: str,
-        payload: Dict[str, Any],
-        qos: MQTTQoS = MQTTQoS.L0,
-        retain: bool = False,
-    ):
+    def publish(self, topic: str, payload: Dict[str, Any],
+                qos: MQTTQoS = MQTTQoS.L0,
+                retain: bool = False) -> None:
         """publish.
 
         Args:
@@ -293,9 +293,8 @@ class MQTTTransport(BaseTransport):
             topic, pl, qos=qos, retain=retain, properties=self._mqtt_properties
         )
 
-    def subscribe(
-        self, topic: str, callback: Callable, qos: MQTTQoS = MQTTQoS.L0
-    ) -> str:
+    def subscribe(self, topic: str, callback: Callable,
+                  qos: MQTTQoS = MQTTQoS.L0) -> str:
         """subscribe.
 
         Args:
@@ -315,9 +314,8 @@ class MQTTTransport(BaseTransport):
         self._client.message_callback_add(topic, _clb)
         return topic
 
-    def _on_msg_internal(
-        self, callback: Callable, client: Any, userdata: Any, msg: Any
-    ):
+    def _on_msg_internal(self, callback: Callable, client: Any,
+                         userdata: Any, msg: Any) -> None:
         _topic = msg.topic
         _payload = msg.payload
         _qos = msg.qos
@@ -342,6 +340,7 @@ class MQTTTransport(BaseTransport):
 
         Disconnects the client and stops the event loop.
         """
+        self._stopped = True
         self.disconnect()
         self._client.loop_stop(force=True)
 
