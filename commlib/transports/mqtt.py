@@ -191,9 +191,10 @@ class MQTTTransport(BaseTransport):
             if (self._conn_params.reconnect_attempts == -1) or \
                 (self._reconnect_attempts < self._conn_params.reconnect_attempts):
                 self._reconnect()
-                return
-            self._reconnect_attempts = 0
-            raise ConnectionError()
+            else:
+                raise ConnectionError()
+            # self._reconnect_attempts = 0
+            # raise ConnectionError()
 
     def on_connect(
         self,
@@ -216,6 +217,8 @@ class MQTTTransport(BaseTransport):
         if rc == MQTTReturnCode.CONNECTION_SUCCESS:
             self._connected = True
             self._report_on_connect()
+        else:
+            self.log.error(error_string(rc))
 
     def _report_on_connect(self) -> None:
         self.log.debug("MQTT Transport initiated:")
@@ -237,20 +240,24 @@ class MQTTTransport(BaseTransport):
         """
         self._connected = False
         self._client.loop_stop()
-        if rc == 5:
-            self.log.error("Authentication error with MQTT broker")
-        elif rc == 0:
+        err_msg = ""
+        if rc == MQTTReturnCode.AUTHORIZATION_ERROR or rc == MQTTReturnCode.AUTHENTICATION_ERROR:
+            err_msg = "Authentication error with MQTT broker"
+        elif rc == MQTTReturnCode.CONNECTION_SUCCESS:
             pass
         else:
-            self.log.error(error_string(rc))
-        if self._conn_params.reconnect_attempts == 0 or self._stopped == True:
+            err_msg = error_string(rc)
+        if self._stopped == True:
             return
+        elif self._conn_params.reconnect_attempts == 0:
+            pass
         elif (self._conn_params.reconnect_attempts == -1) or \
             (self._reconnect_attempts < self._conn_params.reconnect_attempts):
             self._reconnect()
-        else:
-            self._reconnect_attempts = 0
-            raise ConnectionError()
+            return
+        self._reconnect_attempts = 0
+        self.log.error(err_msg)
+        raise ConnectionError(err_msg)
 
     def _reconnect(self) -> None:
         self.log.info(f"Reconnecting in {self._conn_params.reconnect_delay} seconds")
