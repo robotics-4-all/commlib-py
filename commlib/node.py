@@ -6,7 +6,7 @@ from typing import Any, List, Optional
 from pydantic import BaseModel
 
 from commlib.compression import CompressionType
-from commlib.msg import HeartbeatMessage, RPCMessage
+from commlib.msg import HeartbeatMessage, PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher
 from commlib.utils import gen_random_id
 from concurrent.futures import ThreadPoolExecutor
@@ -416,6 +416,22 @@ class Node:
         self._publishers.append(pub)
         return pub
 
+    def create_wpublisher(self, mpub, topic: str, msg_type: PubSubMessage = None):
+        """create_mpublisher
+        Creates a new MPublisher (Multi-Topic Publisher) Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the MPublisher constructor.
+            **kwargs: Keyword arguments to be passed to the MPublisher constructor.
+
+        Returns:
+            The created MPublisher instance.
+        """
+
+        pub = self._transport_module.WPublisher(mpub, topic, msg_type)
+        self._publishers.append(pub)
+        return pub
+
     def create_subscriber(self, *args, **kwargs):
         """create_subscriber
         Creates a new Subscriber Endpoint.
@@ -450,6 +466,27 @@ class Node:
         """
 
         sub = self._transport_module.PSubscriber(
+            conn_params=self._conn_params,
+            compression=self._compression,
+            *args,
+            **kwargs,
+        )
+        self._subscribers.append(sub)
+        return sub
+
+    def create_wsubscriber(self, *args, **kwargs):
+        """create_psubscriber
+        Creates a new PSubscriber Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the PSubscriber constructor.
+            **kwargs: Keyword arguments to be passed to the PSubscriber constructor.
+
+        Returns:
+            The created PSubscriber instance.
+        """
+
+        sub = self._transport_module.WSubscriber(
             conn_params=self._conn_params,
             compression=self._compression,
             *args,

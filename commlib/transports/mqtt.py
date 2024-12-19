@@ -2,7 +2,7 @@ import functools
 import logging
 import time
 from enum import IntEnum
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict, Tuple, Union
 
 import paho.mqtt.client as mqtt
 from paho.mqtt.client import error_string
@@ -123,7 +123,6 @@ class MQTTTransport(BaseTransport):
         )
         if self._conn_params.ssl:
             import ssl
-
             ssl_ctx = ssl.create_default_context()
             ssl_ctx.check_hostname = False
             ssl_ctx.verify_mode = ssl.CERT_NONE
@@ -406,7 +405,7 @@ class MPublisher(Publisher):
     """
 
     def __init__(self, *args, **kwargs):
-        super(MPublisher, self).__init__(topic="*", *args, **kwargs)
+        super().__init__(topic="*", *args, **kwargs)
 
     def publish(self, msg: PubSubMessage, topic: str) -> None:
         """publish.
@@ -423,9 +422,32 @@ class MPublisher(Publisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.dict()
+            data = msg.model_dump()
         self._transport.publish(topic, data)
         self._msg_seq += 1
+
+
+class WPublisher:
+    """WPublisher.
+    MQTT Wrapped-Publisher
+    """
+    def __init__(self, mpub: MPublisher, topic: str,
+                 msg_type: Union[PubSubMessage, None] = None,):
+        """__init__.
+
+        Args:
+            mpub (MPublisher): Multi-Topic Publisher
+            topic (str): topic
+            msg_type (PubSubMessage, optional): Message Type
+        """
+        self._mpub = mpub
+        self._topic = topic
+        self._msg_type = msg_type
+
+    def publish(self, msg: Union[PubSubMessage, None]) -> None:
+        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
+            raise ValueError('Argument "msg" must be of type PubSubMessage')
+        self._mpub.publish(msg, self._topic)
 
 
 class Subscriber(BaseSubscriber):
@@ -447,11 +469,6 @@ class Subscriber(BaseSubscriber):
             compression=self._compression,
         )
 
-    def run(self):
-        super().run()
-        self._topic = self._transport.subscribe(self._topic, self._on_message)
-        self.log.debug(f"Started Subscriber: <{self._topic}>")
-
     def run_forever(self):
         self._transport.start()
         self._transport.subscribe(self._topic, self._on_message)
@@ -462,7 +479,6 @@ class Subscriber(BaseSubscriber):
                     break
             time.sleep(0.001)
         self._transport.stop()
-
 
     def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """_on_message.
@@ -480,6 +496,69 @@ class Subscriber(BaseSubscriber):
                     _clb = functools.partial(self.onmessage, data)
                 else:
                     _clb = functools.partial(self.onmessage, self._msg_type(**data))
+                _clb()
+        except Exception:
+            self.log.error("Exception caught in _on_message", exc_info=True)
+
+    def _unpack_comm_msg(self, msg: Any) -> Tuple:
+        _uri = msg.topic
+        _data = self._serializer.deserialize(msg.payload)
+        return _data, _uri
+
+
+class WSubscriber(BaseSubscriber):
+
+    def __init__(self, *args, **kwargs):
+        """__init__.
+
+        Args:
+            args: See BaseSubscriber
+            kwargs: See BaseSubscriber
+        """
+        super().__init__(topic=None, *args, **kwargs)
+        self._transport = MQTTTransport(
+            conn_params=self._conn_params,
+            serializer=self._serializer,
+            compression=self._compression,
+        )
+        self._subs: Dict[str, callable] = {}
+
+    def run_forever(self):
+        self._transport.start()
+        for topic, callback in self._subs.items():
+            self._transport.subscribe(topic, functools.partial(self._on_message, callback))
+        while True:
+            if self._t_stop_event is not None:
+                if self._t_stop_event.is_set():
+                    self.log.debug("Stop event caught in thread")
+                    break
+            time.sleep(0.001)
+        self._transport.stop()
+
+    def subscribe(self, topic, callback: callable):
+        """subscribe.
+
+        Args:
+            topic (str): topic
+            msg_type (PubSubMessage, optional): Message Type
+        """
+        self._subs[topic] = callback
+
+    def _on_message(self, callback: callable, client: Any, userdata: Any, msg: Dict[str, Any]):
+        """_on_message.
+
+        Args:
+            client (Any): client
+            userdata (Any): userdata
+            msg (Dict[str, Any]): msg
+        """
+        try:
+            data, uri = self._unpack_comm_msg(msg)
+            if callback is not None:
+                if self._msg_type is None:
+                    _clb = functools.partial(callback, data)
+                else:
+                    _clb = functools.partial(callback, self._msg_type(**data))
                 _clb()
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
@@ -680,22 +759,21 @@ class RPCServer(BaseRPCServer):
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
-    def _register_endpoint(
-        self, uri: str, callback: Callable, msg_type: RPCMessage = None
-    ):
+    def register_endpoint(self, uri: str, callback: Callable,
+                          msg_type: RPCMessage = None):
         self._svc_map[uri] = (callback, msg_type)
         if self._base_uri in (None, ""):
             full_uri = uri
         else:
             full_uri = f"{self._base_uri}.{uri}"
-        self.log.info(f"Registering endpoint <{full_uri}>")
+        self.log.info(f"Registering RPC endpoint <{full_uri}>")
         self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
 
     def _register_endpoints(self):
         for uri in self._svc_map:
             callback = self._svc_map[uri][0]
             msg_type = self._svc_map[uri][1]
-            self._register_endpoint(uri, callback, msg_type)
+            self.register_endpoint(uri, callback, msg_type)
 
     def run_forever(self):
         self._transport.start()
