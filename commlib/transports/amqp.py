@@ -471,7 +471,7 @@ class RPCService(BaseRPCService):
 
     def run_forever(self, raise_if_exists: bool = False):
         """Run RPC Service in normal mode. Blocking operation."""
-        status = self._transport.connect()
+        status = self._transport.start()
         if not status:
             raise ConnectionError("Failed to connect to AMQP broker")
 
@@ -670,6 +670,7 @@ class RPCClient(BaseRPCClient):
 
     def run(self):
         self._transport.detach_amqp_events_thread()
+        super().run()
 
     def gen_corr_id(self) -> str:
         """Generate correlationID."""
@@ -802,6 +803,7 @@ class Publisher(BasePublisher):
 
     def run(self) -> None:
         self._transport.detach_amqp_events_thread()
+        super().run()
 
     def publish(self, msg: PubSubMessage) -> None:
         """Publish message once.
@@ -924,7 +926,7 @@ class Subscriber(BaseSubscriber):
 
     def run_forever(self) -> None:
         """Start Subscriber. Blocking method."""
-        self._transport.connect()
+        self._transport.start()
         _exch_ex = self._transport.exchange_exists(self._topic_exchange)
         if _exch_ex.method.NAME != "Exchange.DeclareOk":
             self._transport.create_exchange(self._topic_exchange, ExchangeType.Topic)

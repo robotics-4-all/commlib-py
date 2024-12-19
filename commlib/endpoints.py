@@ -62,6 +62,11 @@ class BaseEndpoint:
         self._state = EndpointState.DISCONNECTED
 
     @property
+    def connected(self):
+        if self._transport.is_connected is None: return False
+        return self._transport.is_connected
+
+    @property
     def log(self):
         return self.logger()
 
@@ -89,8 +94,7 @@ class BaseEndpoint:
             self._transport.start()
             self._state = EndpointState.CONNECTED
         else:
-            self.logger().error(
-                f"Transport already connected - cannot run {self.__class__.__name__}")
+            self.log.error("Transport already connected - Skipping")
 
     def stop(self) -> None:
         """

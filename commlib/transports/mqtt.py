@@ -453,9 +453,16 @@ class Subscriber(BaseSubscriber):
         self.log.debug(f"Started Subscriber: <{self._topic}>")
 
     def run_forever(self):
+        self._transport.start()
         self._transport.subscribe(self._topic, self._on_message)
-        self.log.debug(f"Started Subscriber: <{self._topic}>")
-        self._transport.loop_forever()
+        while True:
+            if self._t_stop_event is not None:
+                if self._t_stop_event.is_set():
+                    self.log.debug("Stop event caught in thread")
+                    break
+            time.sleep(0.001)
+        self._transport.stop()
+
 
     def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """_on_message.
@@ -571,6 +578,7 @@ class RPCService(BaseRPCService):
 
     def run_forever(self):
         """run_forever."""
+        self._transport.start()
         self._transport.subscribe(
             self._rpc_name, self._on_request_handle, qos=MQTTQoS.L1
         )
@@ -690,6 +698,7 @@ class RPCServer(BaseRPCServer):
             self._register_endpoint(uri, callback, msg_type)
 
     def run_forever(self):
+        self._transport.start()
         self._register_endpoints()
         while True:
             if self._t_stop_event is not None:

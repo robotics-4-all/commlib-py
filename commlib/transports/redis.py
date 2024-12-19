@@ -222,6 +222,7 @@ class RPCService(BaseRPCService):
         self._send_response(resp, _req_msg.header.reply_to)
 
     def run_forever(self):
+        self._transport.start()
         if self._transport.queue_exists(self._rpc_name):
             self._transport.delete_queue(self._rpc_name)
         while True:
@@ -402,23 +403,23 @@ class Subscriber(BaseSubscriber):
             compression=self._compression,
         )
 
-    def run(self):
-        super().run()
-        self._subscriber_thread = self._transport.subscribe(
-            self._topic, self._on_message
-        )
-        self.log.debug(f"Started Subscriber: <{self._topic}>")
-
     def stop(self):
         """Stop background thread that handle subscribed topic messages"""
         if self._subscriber_thread is not None:
             self._subscriber_thread.stop()
         super().stop()
 
-    def run_forever(self):
-        self.run()
+    def run_forever(self, interval: float = 0.001):
+        self._transport.start()
+        self._subscriber_thread = self._transport.subscribe(
+            self._topic, self._on_message
+        )
         while True:
-            time.sleep(0.001)
+            if self._t_stop_event is not None:
+                if self._t_stop_event.is_set():
+                    self.log.debug("Stop event caught in thread")
+                    break
+            time.sleep(interval)
 
     def _on_message(self, payload: Dict[str, Any]):
         try:
