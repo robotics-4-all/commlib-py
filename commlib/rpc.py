@@ -70,6 +70,23 @@ class BaseRPCServer(BaseEndpoint):
         self._t_stop_event = None
         self._comm_obj = CommRPCMessage()
 
+    def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
+        """_validate_rpc_req_msg.
+        Validates the RPC request message by checking if the message header is present and the reply_to field is not empty or None.
+
+        Args:
+            msg (CommRPCMessage): The RPC request message to validate.
+
+        Returns:
+            bool: True if the RPC request message is valid, False otherwise.
+        """
+
+        if msg.header is None:
+            return False
+        elif msg.header.reply_to in ("", None):
+            return False
+        return True
+
     def run_forever(self):
         """run_forever.
         Run the RPC service in background and blocks the main thread.

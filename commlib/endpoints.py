@@ -121,6 +121,7 @@ class BaseEndpoint:
         try:
             self.stop()
         except:
+            # Silence
             pass
 
 

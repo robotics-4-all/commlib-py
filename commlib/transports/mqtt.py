@@ -652,7 +652,7 @@ class RPCServer(BaseRPCServer):
                 else:
                     resp = clb(msg_type.Request(**req_msg.data))
                     resp = resp.dict()
-            self._send_response(resp, req.header.reply_to)
+            self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:
             self.log.error(str(exc), exc_info=False)
             return
@@ -793,7 +793,7 @@ class RPCClient(BaseRPCClient):
         else:
             if not isinstance(msg, self._msg_type.Request):
                 raise ValueError("Message type not valid")
-            data = msg.dict()
+            data = msg.model_dump()
 
         self._response = None
 
