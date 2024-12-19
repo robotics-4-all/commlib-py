@@ -233,7 +233,7 @@ class BaseRPCService(BaseEndpoint):
             self._state = EndpointState.CONNECTED
         else:
             self.log.error(
-                f"Transport already connected - cannot run {self.__class__.__name__}")
+                "Transport already connected - Skipping")
 
     def stop(self):
         """

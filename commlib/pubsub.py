@@ -133,8 +133,7 @@ class BaseSubscriber(BaseEndpoint):
             self._main_thread.start()
             self._state = EndpointState.CONNECTED
         else:
-            self.logger().debug(
-                f"Transport already connected - cannot run {self.__class__.__name__}")
+            self.logger().debug("Transport already connected - Skipping")
 
     def stop(self) -> None:
         """
