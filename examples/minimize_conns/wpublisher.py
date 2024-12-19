@@ -33,7 +33,10 @@ if __name__ == "__main__":
     conn_params = ConnectionParameters()
 
     node = Node(
-        node_name="example5_publisher", connection_params=conn_params, debug=True
+        node_name="example5_publisher",
+        connection_params=conn_params,
+        debug=True,
+        heartbeats=False,
     )
 
     mpub = node.create_mpublisher()
