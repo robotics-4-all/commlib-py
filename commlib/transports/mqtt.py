@@ -195,14 +195,9 @@ class MQTTTransport(BaseTransport):
             # self._reconnect_attempts = 0
             # raise ConnectionError()
 
-    def on_connect(
-        self,
-        client: Any,
-        userdata: Any,
-        flags: Dict[str, Any],
-        rc: int,
-        properties: Any = None,
-    ):
+    def on_connect(self, client: Any, userdata: Any,
+                   flags: Dict[str, Any], rc: int,
+                   properties: Any = None):
         """on_connect.
 
         Callback for on-connect event.
@@ -240,7 +235,8 @@ class MQTTTransport(BaseTransport):
         self._connected = False
         self._client.loop_stop()
         err_msg = ""
-        if rc == MQTTReturnCode.AUTHORIZATION_ERROR or rc == MQTTReturnCode.AUTHENTICATION_ERROR:
+        if rc == MQTTReturnCode.AUTHORIZATION_ERROR or \
+            rc == MQTTReturnCode.AUTHENTICATION_ERROR:
             err_msg = "Authentication error with MQTT broker"
         elif rc == MQTTReturnCode.CONNECTION_SUCCESS:
             pass
@@ -821,7 +817,7 @@ class RPCClient(BaseRPCClient):
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.header.reply_to = self._gen_queue_name()
         self._comm_obj.data = data
-        return self._comm_obj.dict()
+        return self._comm_obj.model_dump()
 
     def _on_response_wrapper(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """_on_response_wrapper.

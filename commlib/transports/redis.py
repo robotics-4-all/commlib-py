@@ -44,6 +44,7 @@ class ConnectionParameters(BaseConnectionParameters):
     db: int = 0
     username: str = ""
     password: str = ""
+    socket_timeout: float = 10
 
 
 class RedisConnection(redis.Redis):
@@ -102,6 +103,9 @@ class RedisTransport(BaseTransport):
                 password=self._conn_params.password,
                 db=self._conn_params.db,
                 decode_responses=True,
+                socket_timeout=self._conn_params.socket_timeout,
+                socket_keep_alive=True,
+                retry_on_timeout=True,
             )
         else:
             self._redis = RedisConnection(
@@ -111,6 +115,8 @@ class RedisTransport(BaseTransport):
                 password=self._conn_params.password,
                 db=self._conn_params.db,
                 decode_responses=False,
+                socket_timeout=self._conn_params.socket_timeout,
+                retry_on_timeout=True,
             )
 
         self._rsub = self._redis.pubsub()
@@ -119,6 +125,8 @@ class RedisTransport(BaseTransport):
     def start(self) -> None:
         if not self.is_connected:
             self.connect()
+        while self.is_connected is False:
+            time.sleep(0.01)
 
     def stop(self) -> None:
         if self.is_connected:
@@ -148,7 +156,13 @@ class RedisTransport(BaseTransport):
     def subscribe(self, topic: str, callback: Callable):
         _clb = functools.partial(self._on_msg_internal, callback)
         self._sub = self._rsub.psubscribe(**{topic: _clb})
-        self._rsub.get_message()
+        t = self._rsub.run_in_thread(0.001, daemon=True)
+        return t
+
+    def msubscribe(self, topics: Dict[str, callable]):
+        for topic, callback in topics.items():
+            _clb = functools.partial(self._on_msg_internal, callback)
+            self._sub = self._rsub.psubscribe(**{topic: _clb})
         t = self._rsub.run_in_thread(0.001, daemon=True)
         return t
 
@@ -442,6 +456,8 @@ class Subscriber(BaseSubscriber):
                 if self._t_stop_event.is_set():
                     self.log.debug("Stop event caught in thread")
                     break
+            if self._transport._rsub is not None:
+                self._transport._rsub.ping()
             time.sleep(interval)
 
     def _on_message(self, payload: Dict[str, Any]):
@@ -506,6 +522,11 @@ class WSubscriber(BaseSubscriber):
                 if self._t_stop_event.is_set():
                     self.log.debug("Stop event caught in thread")
                     break
+            # if self._transport._rsub is not None:
+            #     try:
+            #         self._transport._rsub.ping()
+            #     except:
+            #         pass
             time.sleep(interval)
 
     def _on_message(self, callback: callable, payload: Dict[str, Any]):

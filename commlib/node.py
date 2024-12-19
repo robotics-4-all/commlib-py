@@ -429,7 +429,7 @@ class Node:
         """
 
         pub = self._transport_module.WPublisher(mpub, topic, msg_type)
-        self._publishers.append(pub)
+        # self._publishers.append(pub)
         return pub
 
     def create_subscriber(self, *args, **kwargs):

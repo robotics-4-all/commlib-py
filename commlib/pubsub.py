@@ -56,13 +56,8 @@ class BaseSubscriber(BaseEndpoint):
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
 
-    def __init__(
-        self,
-        topic: str,
-        msg_type: Optional[PubSubMessage] = None,
-        on_message: Optional[Callable] = None,
-        *args,
-        **kwargs):
+    def __init__(self, topic: str, msg_type: Optional[PubSubMessage] = None,
+                 on_message: Optional[Callable] = None, *args, **kwargs):
         """__init__.
         Initializes a new instance of the `BaseSubscriber` class.
 

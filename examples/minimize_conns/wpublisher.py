@@ -3,7 +3,18 @@
 import sys
 import time
 
+from pydantic import Field
+
+from commlib.msg import MessageHeader, PubSubMessage
 from commlib.node import Node
+
+
+class SonarMessage(PubSubMessage):
+    header: MessageHeader = Field(default_factory=lambda: MessageHeader())
+    range: float = -1
+    hfov: float = 30.6
+    vfov: float = 14.2
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -27,15 +38,28 @@ if __name__ == "__main__":
 
     mpub = node.create_mpublisher()
 
-    mpub.run()
-
-    topicA = "topic.a"
-    topicB = "topic.b"
+    topicA = "sonar.left"
+    topicB = "sonar.right"
+    topicC = "sonar.front"
 
     wpub_1 = node.create_wpublisher(mpub, topicA)
     wpub_2 = node.create_wpublisher(mpub, topicB)
+    wpub_3 = node.create_wpublisher(mpub, topicC)
+
+    node.run()
+
+    sonar_left_range = 1
+    sonar_right_range = 1
+    sonar_front_range = 1
 
     while True:
-        wpub_1.publish({"a": 1})
-        wpub_2.publish({"b": 1})
-        time.sleep(1)
+        sonar_left_msg = SonarMessage(range=sonar_left_range)
+        sonar_right_msg = SonarMessage(range=sonar_right_range)
+        sonar_front_mst = SonarMessage(range=sonar_front_range)
+        wpub_1.publish(sonar_left_msg)
+        wpub_2.publish(sonar_right_msg)
+        wpub_3.publish(sonar_front_mst)
+        time.sleep(0.5)
+        sonar_left_range += 1
+        sonar_right_range += 1
+        sonar_front_range += 1
