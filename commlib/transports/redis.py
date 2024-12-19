@@ -84,6 +84,7 @@ class RedisTransport(BaseTransport):
         self._serializer = serializer
         self._compression = compression
         self._connected = False
+        self._rsub = None
 
     @property
     def is_connected(self) -> bool:
@@ -225,7 +226,6 @@ class RPCService(BaseRPCService):
             self._transport.delete_queue(self._rpc_name)
         while True:
             msgq, payload = self._transport.wait_for_msg(self._rpc_name, timeout=0)
-
             self._detach_request_handler(payload)
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
@@ -396,7 +396,6 @@ class Subscriber(BaseSubscriber):
         self._subscriber_thread = None
         self._queue_size = queue_size
         super(Subscriber, self).__init__(*args, **kwargs)
-
         self._transport = RedisTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -404,6 +403,7 @@ class Subscriber(BaseSubscriber):
         )
 
     def run(self):
+        super().run()
         self._subscriber_thread = self._transport.subscribe(
             self._topic, self._on_message
         )

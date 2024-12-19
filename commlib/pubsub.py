@@ -127,6 +127,7 @@ class BaseSubscriber(BaseEndpoint):
         if not self._transport.is_connected and \
             self._state not in (EndpointState.CONNECTED,
                                 EndpointState.CONNECTING):
+            self._transport.start()
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
             self._t_stop_event = threading.Event()

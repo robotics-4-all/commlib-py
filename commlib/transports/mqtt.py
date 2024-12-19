@@ -340,7 +340,9 @@ class MQTTTransport(BaseTransport):
 
         Start the event loop. Cannot create any more endpoints from here on.
         """
-        self._client.loop_start()
+        if not self.is_connected:
+            self.connect()
+            self._client.loop_start()
 
     def stop(self) -> None:
         """stop.
@@ -378,7 +380,6 @@ class Publisher(BasePublisher):
             serializer=self._serializer,
             compression=self._compression,
         )
-        self._transport.connect()
 
     def publish(self, msg: PubSubMessage) -> None:
         """publish.
@@ -445,11 +446,10 @@ class Subscriber(BaseSubscriber):
             serializer=self._serializer,
             compression=self._compression,
         )
-        self._transport.connect()
 
     def run(self):
-        self._topic = self._transport.subscribe(self._topic, self._on_message)
         super().run()
+        self._topic = self._transport.subscribe(self._topic, self._on_message)
         self.log.debug(f"Started Subscriber: <{self._topic}>")
 
     def run_forever(self):
@@ -526,7 +526,6 @@ class RPCService(BaseRPCService):
             serializer=self._serializer,
             compression=self._compression,
         )
-        self._transport.connect()
 
     def _send_response(self, data: Dict[str, Any], reply_to: str):
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
@@ -575,7 +574,6 @@ class RPCService(BaseRPCService):
         self._transport.subscribe(
             self._rpc_name, self._on_request_handle, qos=MQTTQoS.L1
         )
-        self._transport.start()
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
@@ -599,11 +597,6 @@ class RPCServer(BaseRPCServer):
             serializer=self._serializer,
             compression=self._compression,
         )
-        self._transport.connect()
-        for uri in self._svc_map:
-            callback = self._svc_map[uri][0]
-            msg_type = self._svc_map[uri][1]
-            self._register_endpoint(uri, callback, msg_type)
 
     def _send_response(self, data: Dict[str, Any], reply_to: str):
         """_send_response.
@@ -690,9 +683,14 @@ class RPCServer(BaseRPCServer):
         self.log.info(f"Registering endpoint <{full_uri}>")
         self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
 
+    def _register_endpoints(self):
+        for uri in self._svc_map:
+            callback = self._svc_map[uri][0]
+            msg_type = self._svc_map[uri][1]
+            self._register_endpoint(uri, callback, msg_type)
+
     def run_forever(self):
-        """run_forever."""
-        self._transport.start()
+        self._register_endpoints()
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
@@ -722,7 +720,6 @@ class RPCClient(BaseRPCClient):
             serializer=self._serializer,
             compression=self._compression,
         )
-        self._transport.connect()
 
     def _gen_queue_name(self):
         """_gen_queue_name."""
