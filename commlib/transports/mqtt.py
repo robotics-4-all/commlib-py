@@ -394,7 +394,7 @@ class Publisher(BasePublisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.dict()
+            data = msg.model_dump()
         self._transport.publish(self._topic, data, qos=MQTTQoS.L0)
         self._msg_seq += 1
 
