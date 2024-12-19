@@ -209,13 +209,14 @@ class BaseRPCService(BaseEndpoint):
         if not self._transport.is_connected and \
             self._state not in (EndpointState.CONNECTED,
                                 EndpointState.CONNECTING):
+            self._transport.start()
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
             self._t_stop_event = threading.Event()
             self._main_thread.start()
             self._state = EndpointState.CONNECTED
         else:
-            self.logger().debug(
+            self.logger().error(
                 f"Transport already connected - cannot run {self.__class__.__name__}")
 
     def stop(self):

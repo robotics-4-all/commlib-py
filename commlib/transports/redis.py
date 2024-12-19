@@ -83,7 +83,7 @@ class RedisTransport(BaseTransport):
         super().__init__(*args, **kwargs)
         self._serializer = serializer
         self._compression = compression
-        self.connect()
+        self._connected = False
 
     @property
     def is_connected(self) -> bool:
@@ -236,7 +236,7 @@ class RPCService(BaseRPCService):
 
     def _detach_request_handler(self, payload: str):
         data, header = self._unpack_comm_msg(payload)
-        self.log.info(f"RPC Request <{self._rpc_name}>")
+        # self.log.info(f"RPC Request <{self._rpc_name}>")
         self._on_request_handle(data, header)
 
     def _unpack_comm_msg(self, payload: str) -> Tuple:

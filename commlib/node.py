@@ -344,8 +344,8 @@ class Node:
         try:
             while self.state != NodeState.EXITED:
                 time.sleep(sleep_rate)
-        except:
-            pass
+        except Exception as e:
+            self.log.error(f"Exception occurred during run_forever: {str(e)}")
         self.stop()
 
     def stop(self):
