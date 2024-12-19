@@ -118,7 +118,10 @@ class BaseEndpoint:
                 f"Transport is not connected - cannot stop {self.__class__.__name__}")
 
     def __del__(self):
-        self.stop()
+        try:
+            self.stop()
+        except:
+            pass
 
 
 class EndpointType(Enum):
