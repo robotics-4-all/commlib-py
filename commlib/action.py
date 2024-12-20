@@ -387,6 +387,10 @@ class BaseActionService:
             self._cancel_rpc.stop()
         if self._result_rpc is not None:
             self._result_rpc.stop()
+        if self._status_pub is not None:
+            self._status_pub.stop()
+        if self._feedback_pub is not None:
+            self._feedback_pub.stop()
 
     def _handle_send_goal(self, msg: _ActionGoalMessage.Request):
         """_handle_send_goal.
