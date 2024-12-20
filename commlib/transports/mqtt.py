@@ -296,7 +296,7 @@ class MQTTTransport(BaseTransport):
         )
 
     def subscribe(self, topic: str, callback: Callable,
-                  qos: MQTTQoS = MQTTQoS.L0) -> str:
+                  qos: MQTTQoS = MQTTQoS.L0):
         """subscribe.
 
         Args:
@@ -308,6 +308,9 @@ class MQTTTransport(BaseTransport):
             str:
         """
         # Adds subtopic specific callback handlers
+        if topic in (None, ""):
+            self.log.warning(f"Attempt to subscribe to empty topic - {topic}")
+            return
         topic = topic.replace(".", "/").replace("*", "#")
         self._client.subscribe(
             topic, qos=qos, options=None, properties=self._mqtt_properties

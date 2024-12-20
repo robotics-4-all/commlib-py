@@ -155,6 +155,9 @@ class RedisTransport(BaseTransport):
         self._redis.publish(queue_name, payload)
 
     def subscribe(self, topic: str, callback: Callable):
+        if topic in (None, ""):
+            self.log.warning(f"Attempt to subscribe to empty topic - {topic}")
+            return
         _clb = functools.partial(self._on_msg_internal, callback)
         self._sub = self._rsub.psubscribe(**{topic: _clb})
         t = self._rsub.run_in_thread(0.001, daemon=True)
@@ -165,6 +168,9 @@ class RedisTransport(BaseTransport):
         for topic, callback in topics.items():
             _clb = functools.partial(self._on_msg_internal, callback)
             _topics[topic] = _clb
+        if _topics in (None, {}):
+            self.log.warning(f"Attempt to subscribe to empty topics - {_topics}")
+            return
         self._sub = self._rsub.psubscribe(**_topics)
         t = self._rsub.run_in_thread(0.001, daemon=True)
         return t
@@ -240,17 +246,20 @@ class RPCService(BaseRPCService):
 
     def run_forever(self):
         self._transport.start()
+        while not self._transport.is_connected:
+            time.sleep(0.01)
         if self._transport.queue_exists(self._rpc_name):
             self._transport.delete_queue(self._rpc_name)
         while True:
-            msgq, payload = self._transport.wait_for_msg(self._rpc_name, timeout=0)
+            time.sleep(0.001)
+            msgq, payload = self._transport.wait_for_msg(self._rpc_name)
+            if payload is None: continue
             self._detach_request_handler(payload)
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
                     self.log.debug("Stop event caught in thread")
                     self._transport.delete_queue(self._rpc_name)
                     break
-            time.sleep(0.001)
 
     def _detach_request_handler(self, payload: str):
         data, header = self._unpack_comm_msg(payload)
@@ -452,8 +461,7 @@ class Subscriber(BaseSubscriber):
     def run_forever(self, interval: float = 0.001):
         self._transport.start()
         self._subscriber_thread = self._transport.subscribe(
-            self._topic, self._on_message
-        )
+            self._topic, self._on_message)
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
@@ -519,6 +527,7 @@ class WSubscriber(BaseSubscriber):
 
     def run_forever(self, interval: float = 0.001):
         self._transport.start()
+        # print(self._subs)
         _topics = {}
         for topic, callback in self._subs.items():
             _topics[topic] = functools.partial(self._on_message, callback)
