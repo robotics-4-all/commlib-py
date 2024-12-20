@@ -713,6 +713,7 @@ class RPCServer(BaseRPCServer):
             )
             return
         try:
+
             uri = uri.replace("/", ".")
             svc_uri = uri.replace(self._base_uri, "")
             if svc_uri[0] == ".":
@@ -758,22 +759,20 @@ class RPCServer(BaseRPCServer):
     def register_endpoint(self, uri: str, callback: Callable,
                           msg_type: RPCMessage = None):
         self._svc_map[uri] = (callback, msg_type)
-        if self._base_uri in (None, ""):
-            full_uri = uri
-        else:
-            full_uri = f"{self._base_uri}.{uri}"
-        self.log.info(f"Registering RPC endpoint <{full_uri}>")
-        self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
+        # self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
 
-    def _register_endpoints(self):
+    def _start_endpoints(self):
         for uri in self._svc_map:
-            callback = self._svc_map[uri][0]
-            msg_type = self._svc_map[uri][1]
-            self.register_endpoint(uri, callback, msg_type)
+            if self._base_uri in (None, ""):
+                        full_uri = uri
+            else:
+                full_uri = f"{self._base_uri}.{uri}"
+            self.log.info(f"Registering RPC endpoint <{full_uri}>")
+            self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
 
     def run_forever(self):
         self._transport.start()
-        self._register_endpoints()
+        self._start_endpoints()
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():

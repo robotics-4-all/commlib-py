@@ -136,7 +136,7 @@ class Node:
         heartbeat_uri: Optional[str] = None,
         compression: CompressionType = CompressionType.NO_COMPRESSION,
         ctrl_services: Optional[bool] = False,
-        workers_rpc: Optional[int] = 5,
+        workers_rpc: Optional[int] = 4,
     ):
         """__init__.
 
@@ -506,11 +506,33 @@ class Node:
         Returns:
             The created RPCService instance.
         """
-
+        _workers = kwargs.pop('workers', self._workers_rpc)
         rpc = self._transport_module.RPCService(
             conn_params=self._conn_params,
             compression=self._compression,
-            workers=self._workers_rpc,
+            workers=_workers,
+            *args,
+            **kwargs,
+        )
+        self._rpc_services.append(rpc)
+        return rpc
+
+    def create_rpc_server(self, *args, **kwargs):
+        """create_rpc.
+        Creates a new RPCService Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the RPCService constructor.
+            **kwargs: Keyword arguments to be passed to the RPCService constructor.
+
+        Returns:
+            The created RPCService instance.
+        """
+        _workers = kwargs.pop('workers', self._workers_rpc)
+        rpc = self._transport_module.RPCServer(
+            conn_params=self._conn_params,
+            compression=self._compression,
+            workers=_workers,
             *args,
             **kwargs,
         )

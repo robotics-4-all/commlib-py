@@ -44,7 +44,6 @@ if __name__ == "__main__":
     node = Node(
         node_name="myclient",
         connection_params=conn_params,
-        # heartbeat_uri='nodes.add_two_ints.heartbeat',
         debug=True,
     )
 

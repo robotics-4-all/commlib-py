@@ -3,6 +3,7 @@
 import sys
 
 from commlib.msg import RPCMessage
+from commlib.node import Node
 
 
 class AddTwoIntMessage(RPCMessage):
@@ -47,17 +48,24 @@ if __name__ == "__main__":
         raise ValueError("Not yet supported")
         from commlib.transports.amqp import ConnectionParameters
     elif broker == "mqtt":
-        from commlib.transports.mqtt import ConnectionParameters, RPCServer
+        from commlib.transports.mqtt import ConnectionParameters
     else:
         print("Not a valid broker-type was given!")
         sys.exit(1)
     conn_params = ConnectionParameters()
+    node = Node(
+        node_name="myRpcServer",
+        connection_params=conn_params,
+        heartbeats=False,
+        debug=True,
+    )
 
     svc_map = {
         "add_two_ints": (add_two_int_handler, AddTwoIntMessage),
-        "multiply_ints": (multiply_int_handler, MultiplyIntMessage),
+        # "multiply_ints": (multiply_int_handler, MultiplyIntMessage),
     }
     base_uri = "rpcserver.test"
 
-    server = RPCServer(base_uri=base_uri, svc_map=svc_map, conn_params=conn_params)
+    server = node.create_rpc_server(base_uri=base_uri, svc_map=svc_map, workers=4)
+    server.register_endpoint("multiply_ints", multiply_int_handler, MultiplyIntMessage)
     server.run_forever()

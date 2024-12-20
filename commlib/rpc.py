@@ -38,7 +38,7 @@ class BaseRPCServer(BaseEndpoint):
         self,
         base_uri: str = "",
         svc_map: dict = {},
-        workers: int = 2,
+        workers: int = 4,
         *args,
         **kwargs):
         """__init__.
