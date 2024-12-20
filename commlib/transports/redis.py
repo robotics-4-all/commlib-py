@@ -187,7 +187,7 @@ class RedisTransport(BaseTransport):
             if self._compression != CompressionType.NO_COMPRESSION:
                 payload = deflate(payload)
         except Exception:
-            self.log.error(f"Timeout after {timeout} seconds waiting for message")
+            # self.log.warning(f"Timeout after {timeout} seconds waiting for message")
             msgq = ""
             payload = None
         return msgq, payload
@@ -246,8 +246,6 @@ class RPCService(BaseRPCService):
 
     def run_forever(self):
         self._transport.start()
-        while not self._transport.is_connected:
-            time.sleep(0.01)
         if self._transport.queue_exists(self._rpc_name):
             self._transport.delete_queue(self._rpc_name)
         while True:
