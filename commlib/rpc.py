@@ -93,14 +93,25 @@ class BaseRPCServer(BaseEndpoint):
         """
         raise NotImplementedError()
 
-    def run(self):
-        """run.
-        Run the RPC service in background.
+    def run(self) -> None:
         """
-        self._main_thread = threading.Thread(target=self.run_forever)
-        self._main_thread.daemon = True
-        self._t_stop_event = threading.Event()
-        self._main_thread.start()
+        Start the subscriber thread in the background without blocking
+        the main thread.
+        """
+        if self._transport is None:
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and \
+            self._state not in (EndpointState.CONNECTED,
+                                EndpointState.CONNECTING):
+            self._main_thread = threading.Thread(target=self.run_forever)
+            self._main_thread.daemon = True
+            self._t_stop_event = threading.Event()
+            self._main_thread.start()
+            self._state = EndpointState.CONNECTED
+        else:
+            self.log.warning(
+                "Transport already connected - Skipping")
 
     def stop(self) -> None:
         self._transport.stop()
@@ -232,8 +243,7 @@ class BaseRPCService(BaseEndpoint):
             self._main_thread.start()
             self._state = EndpointState.CONNECTED
         else:
-            self.log.error(
-                "Transport already connected - Skipping")
+            self.log.warning("Transport already connected - Skipping")
 
     def stop(self):
         """

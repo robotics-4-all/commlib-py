@@ -94,7 +94,7 @@ class BaseEndpoint:
             self._transport.start()
             self._state = EndpointState.CONNECTED
         else:
-            self.log.error("Transport already connected - Skipping")
+            self.log.warning("Transport already connected - Skipping")
 
     def stop(self) -> None:
         """
@@ -114,7 +114,7 @@ class BaseEndpoint:
             self._transport.stop()
             self._state = EndpointState.DISCONNECTED
         else:
-            self.logger().error(
+            self.logger().warning(
                 f"Transport is not connected - cannot stop {self.__class__.__name__}")
 
     def __del__(self):
