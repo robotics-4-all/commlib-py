@@ -367,6 +367,10 @@ class BaseActionService:
             self._cancel_rpc.run()
         if self._result_rpc is not None:
             self._result_rpc.run()
+        if self._status_pub is not None:
+            self._status_pub.run()
+        if self._feedback_pub is not None:
+            self._feedback_pub.run()
 
     def stop(self):
         """
