@@ -857,7 +857,7 @@ class RPCClient(BaseRPCClient):
             time.sleep(0.001)
         return self._response
 
-    def call(self, msg: RPCMessage.Request, timeout: float = 30) -> RPCMessage.Response:
+    def call(self, msg: RPCMessage.Request, timeout: float = 10) -> RPCMessage.Response:
         """call.
 
         Args:

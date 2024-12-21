@@ -190,95 +190,6 @@ class Node:
         self._conn_params = connection_params
         self._select_transport()
 
-    def _select_transport(self):
-        type_str = str(type(self._conn_params)).split("'")[1]
-
-        if type_str == "commlib.transports.mqtt.ConnectionParameters":
-            import commlib.transports.mqtt as transport_module
-        elif type_str == "commlib.transports.redis.ConnectionParameters":
-            import commlib.transports.redis as transport_module
-        elif type_str == "commlib.transports.amqp.ConnectionParameters":
-            import commlib.transports.amqp as transport_module
-        elif type_str == "commlib.transports.kafka.ConnectionParameters":
-            import commlib.transports.kafka as transport_module
-        elif type_str == "commlib.transports.mock.ConnectionParameters":
-            import commlib.transports.mock as transport_module
-        else:
-            raise ValueError("Transport type is not supported!")
-        self._transport_module = transport_module
-
-    @property
-    def log(self) -> logging.Logger:
-        return self.logger()
-
-    def _init_heartbeat_thread(self) -> None:
-        hb_pub = self.create_publisher(
-            topic=self._heartbeat_uri, msg_type=HeartbeatMessage
-        )
-        hb_pub.run()
-        self._hb_thread = HeartbeatThread(hb_pub, interval=self._heartbeat_interval)
-        work = self._executor.submit(self._hb_thread.start).add_done_callback(
-            Node._worker_clb
-        )
-        self._workers.append(work)
-
-    @staticmethod
-    def _worker_clb(f):
-        e = f.exception()
-        if e is None:
-            return
-        trace = []
-        tb = e.__traceback__
-        while tb is not None:
-            trace.append(
-                {
-                    "filename": tb.tb_frame.f_code.co_filename,
-                    "name": tb.tb_frame.f_code.co_name,
-                    "lineno": tb.tb_lineno,
-                }
-            )
-            tb = tb.tb_next
-        print(str({"type": type(e).__name__, "message": str(e), "trace": trace}))
-
-    def create_stop_service(self, uri: str = "") -> None:
-        if uri in (None, ""):
-            uri = f"{self._namespace}.stop"
-        self.create_rpc(
-            rpc_name=uri, msg_type=_NodeStopMessage, on_request=self._stop_rpc_callback
-        )
-
-    def _stop_rpc_callback(
-        self, msg: _NodeStopMessage.Request
-    ) -> _NodeStopMessage.Response:
-        resp = _NodeStopMessage.Response()
-        if self.state == NodeState.RUNNING:
-            self.state = NodeState.STOPPED
-            self.stop()
-        else:
-            resp.status = 1
-            resp.error = "Cannot make the transition from current state!"
-        return resp
-
-    def create_start_service(self, uri: str = "") -> None:
-        if uri in ("", None):
-            uri = f"{self._namespace}.start"
-        self.create_rpc(
-            rpc_name=uri,
-            msg_type=_NodeStartMessage,
-            on_request=self._start_rpc_callback,
-        )
-
-    def _start_rpc_callback(
-        self, msg: _NodeStartMessage.Request
-    ) -> _NodeStartMessage.Response:
-        resp = _NodeStartMessage.Response()
-        if self.state == NodeState.STOPPED:
-            self.run()
-        else:
-            resp.status = 1
-            resp.error = "Cannot make the transition from current state!"
-        return resp
-
     @property
     def input_ports(self) -> dict:
         return {
@@ -299,27 +210,114 @@ class Node:
     def ports(self):
         return {"input": self.input_ports, "output": self.output_ports}
 
+    @property
+    def endpoints(self):
+        return self._subscribers + self._publishers + self._rpc_services + self._rpc_clients + \
+            self._action_services + self._action_clients
+
+    @property
+    def health(self):
+        return  set([e._transport.is_connected for e in self.endpoints]) == {True}
+
+    @property
+    def log(self) -> logging.Logger:
+        return self.logger()
+
+    @staticmethod
+    def _worker_clb(f):
+        e = f.exception()
+        if e is None:
+            return
+        trace = []
+        tb = e.__traceback__
+        while tb is not None:
+            trace.append(
+                {
+                    "filename": tb.tb_frame.f_code.co_filename,
+                    "name": tb.tb_frame.f_code.co_name,
+                    "lineno": tb.tb_lineno,
+                }
+            )
+            tb = tb.tb_next
+        print(str({"type": type(e).__name__, "message": str(e), "trace": trace}))
+
+    def _select_transport(self):
+        type_str = str(type(self._conn_params)).split("'")[1]
+
+        if type_str == "commlib.transports.mqtt.ConnectionParameters":
+            import commlib.transports.mqtt as transport_module
+        elif type_str == "commlib.transports.redis.ConnectionParameters":
+            import commlib.transports.redis as transport_module
+        elif type_str == "commlib.transports.amqp.ConnectionParameters":
+            import commlib.transports.amqp as transport_module
+        elif type_str == "commlib.transports.kafka.ConnectionParameters":
+            import commlib.transports.kafka as transport_module
+        elif type_str == "commlib.transports.mock.ConnectionParameters":
+            import commlib.transports.mock as transport_module
+        else:
+            raise ValueError("Transport type is not supported!")
+        self._transport_module = transport_module
+
+    def _init_heartbeat_thread(self) -> None:
+        hb_pub = self.create_publisher(
+            topic=self._heartbeat_uri, msg_type=HeartbeatMessage
+        )
+        hb_pub.run()
+        self._hb_thread = HeartbeatThread(hb_pub, interval=self._heartbeat_interval)
+        work = self._executor.submit(self._hb_thread.start).add_done_callback(
+            Node._worker_clb
+        )
+        self._workers.append(work)
+
+    def _start_rpc_callback(self, msg: _NodeStartMessage.Request) -> _NodeStartMessage.Response:
+        resp = _NodeStartMessage.Response()
+        if self.state == NodeState.STOPPED:
+            self.run()
+        else:
+            resp.status = 1
+            resp.error = "Cannot make the transition from current state!"
+        return resp
+
+    def _stop_rpc_callback(self, msg: _NodeStopMessage.Request) -> _NodeStopMessage.Response:
+        resp = _NodeStopMessage.Response()
+        if self.state == NodeState.RUNNING:
+            self.state = NodeState.STOPPED
+            self.stop()
+        else:
+            resp.status = 1
+            resp.error = "Cannot make the transition from current state!"
+        return resp
+
+    def create_stop_service(self, uri: str = "") -> None:
+        if uri in (None, ""):
+            uri = f"{self._namespace}.stop"
+        self.create_rpc(
+            rpc_name=uri, msg_type=_NodeStopMessage, on_request=self._stop_rpc_callback
+        )
+
+    def create_start_service(self, uri: str = "") -> None:
+        if uri in ("", None):
+            uri = f"{self._namespace}.start"
+        self.create_rpc(
+            rpc_name=uri,
+            msg_type=_NodeStartMessage,
+            on_request=self._start_rpc_callback,
+        )
+
     def run(self) -> None:
         """run
-        Starts the node by running all its subscribers, publishers, RPC services, RPC clients, action services, and action clients. If the node has control services, it also creates the start and stop services. If the node has heartbeats, it initializes the heartbeat thread. Finally, it sets the node state to RUNNING.
+        Starts the node by running all its subscribers, publishers, RPC services,
+        RPC clients, action services, and action clients. If the node has control services,
+        it also creates the start and stop services. If the node has heartbeats, it
+        initializes the heartbeat thread. Finally, it sets the node state to RUNNING.
         """
 
         self.log.info(f"Starting Node <{self._node_name}>")
         if self._has_ctrl_services:
             self.create_start_service()
             self.create_stop_service()
-        for c in self._subscribers:
-            c.run()
-        for c in self._publishers:
-            c.run()
-        for c in self._rpc_services:
-            c.run()
-        for c in self._rpc_clients:
-            c.run()
-        for c in self._action_services:
-            c.run()
-        for c in self._action_clients:
-            c.run()
+        for e in self.endpoints:
+            e.run()
         if self._heartbeats:
             self._init_heartbeat_thread()
         self.state = NodeState.RUNNING
@@ -356,18 +354,8 @@ class Node:
         it is shut down. Finally, the node state is set to EXITED.
         """
 
-        for c in self._subscribers:
-            c.stop()
-        for c in self._publishers:
-            c.stop()
-        for c in self._rpc_services:
-            c.stop()
-        for c in self._rpc_clients:
-            c.stop()
-        for c in self._action_services:
-            c.stop()
-        for c in self._action_clients:
-            c.stop()
+        for e in self.endpoints:
+            e.run()
         if self._hb_thread:
             self._hb_thread.stop()
         if self._executor:

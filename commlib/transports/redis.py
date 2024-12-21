@@ -297,7 +297,7 @@ class RPCClient(BaseRPCClient):
         self._comm_obj.data = data
         return self._comm_obj.model_dump()
 
-    def call(self, msg: RPCMessage.Request, timeout: float = 30) -> RPCMessage.Response:
+    def call(self, msg: RPCMessage.Request, timeout: float = 10) -> RPCMessage.Response:
         # TODO: Evaluate msg type passed here.
         if self._msg_type is None:
             data = msg
