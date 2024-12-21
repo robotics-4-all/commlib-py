@@ -1,5 +1,6 @@
 import logging
 from enum import Enum
+import time
 
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
@@ -74,7 +75,7 @@ class BaseEndpoint:
     def debug(self):
         return self._debug
 
-    def run(self):
+    def run(self, wait: bool = False) -> None:
         """
         Starts the subscriber and connects to the transport if it is not already connected.
 
@@ -92,6 +93,9 @@ class BaseEndpoint:
             self._state not in (EndpointState.CONNECTED,
                                 EndpointState.CONNECTING):
             self._transport.start()
+            if wait:
+                while not self._transport.is_connected:
+                    time.sleep(0.001)
             self._state = EndpointState.CONNECTED
         else:
             self.log.warning("Transport already connected - Skipping")

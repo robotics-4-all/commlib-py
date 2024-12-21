@@ -217,7 +217,7 @@ class Node:
 
     @property
     def health(self):
-        return  set([e._transport.is_connected for e in self.endpoints]) == {True}
+        return  set([e.connected for e in self.endpoints]) == {True}
 
     @property
     def log(self) -> logging.Logger:
@@ -304,7 +304,7 @@ class Node:
             on_request=self._start_rpc_callback,
         )
 
-    def run(self) -> None:
+    def run(self, wait: bool = False) -> None:
         """run
         Starts the node by running all its subscribers, publishers, RPC services,
         RPC clients, action services, and action clients. If the node has control services,
@@ -320,6 +320,9 @@ class Node:
             e.run()
         if self._heartbeats:
             self._init_heartbeat_thread()
+        if wait:
+            while not self.health:
+                time.sleep(0.001)
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.01) -> None:
