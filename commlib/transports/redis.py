@@ -238,7 +238,7 @@ class RPCService(BaseRPCService):
                 resp = resp.model_dump()
         except RPCRequestError:
             self.log.error(str(exc), exc_info=False)
-            return
+            resp = {}
         except Exception as exc:
             self.log.error(str(exc), exc_info=False)
             resp = {}
@@ -488,9 +488,12 @@ class Subscriber(BaseSubscriber):
 
 
 class WSubscriber(BaseSubscriber):
+    """WSubscriber class for subscribing to topics and handling messages using a.
+    single connection."""
 
     def __init__(self, *args, **kwargs):
-        """__init__.
+        """
+        Initialize the WSubscriber.
 
         Args:
             args: See BaseSubscriber
@@ -507,16 +510,17 @@ class WSubscriber(BaseSubscriber):
         self._subscriber_thread = None
 
     def subscribe(self, topic, callback: callable):
-        """subscribe.
+        """
+        Subscribe to a topic with a callback function.
 
         Args:
-            topic (str): topic
-            msg_type (PubSubMessage, optional): Message Type
+            topic (str): The topic to subscribe to.
+            callback (callable): The callback function to handle the received messages.
         """
         self._subs[topic] = callback
 
     def stop(self):
-        """Stop background thread that handle subscribed topic messages"""
+        """Stop the background thread that handles subscribed topic messages."""
         for sub_thread in self._subscriber_threads:
             sub_thread.stop()
         if self._subscriber_thread is not None:
@@ -524,8 +528,13 @@ class WSubscriber(BaseSubscriber):
         super().stop()
 
     def run_forever(self, interval: float = 0.001):
+        """
+        Start the subscriber and run forever, continuously handling incoming messages.
+
+        Args:
+            interval (float, optional): The interval between checking for new messages.
+        """
         self._transport.start()
-        # print(self._subs)
         _topics = {}
         for topic, callback in self._subs.items():
             _topics[topic] = functools.partial(self._on_message, callback)
@@ -538,6 +547,13 @@ class WSubscriber(BaseSubscriber):
             time.sleep(interval)
 
     def _on_message(self, callback: callable, payload: Dict[str, Any]):
+        """
+        Internal method to handle incoming messages and invoke the callback function.
+
+        Args:
+            callback (callable): The callback function to handle the message.
+            payload (Dict[str, Any]): The payload of the received message.
+        """
         try:
             data, uri = self._unpack_comm_msg(payload)
             if callback is not None:
@@ -550,6 +566,15 @@ class WSubscriber(BaseSubscriber):
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+        """
+        Internal method to unpack the communication message.
+
+        Args:
+            msg (Dict[str, Any]): The communication message to unpack.
+
+        Returns:
+            Tuple: A tuple containing the unpacked data and URI.
+        """
         _uri = msg["channel"]
         _data = self._serializer.deserialize(msg["data"])
         return _data, _uri

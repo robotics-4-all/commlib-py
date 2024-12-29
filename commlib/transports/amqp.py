@@ -553,7 +553,7 @@ class RPCService(BaseRPCService):
             except Exception as exc:
                 self.log.error(str(exc), exc_info=False)
                 resp = self._msg_type.Response()
-            resp = resp.dict()
+            resp = resp.model_dump()
         return resp
 
     def _send_response(
@@ -686,7 +686,7 @@ class RPCClient(BaseRPCClient):
         if self._msg_type is None:
             data = msg
         else:
-            data = msg.dict()
+            data = msg.model_dump()
 
         self._response = None
         if self._use_corr_id:
@@ -816,7 +816,7 @@ class Publisher(BasePublisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.dict()
+            data = msg.model_dump()
         # Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data, self._topic)
 
@@ -865,7 +865,7 @@ class MPublisher(Publisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.dict()
+            data = msg.model_dump()
         # Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data, topic)
 

@@ -399,22 +399,9 @@ class BaseActionService:
             msg (_ActionGoalMessage.Request): Set Goal Request Message
         """
         resp = _ActionGoalMessage.Response()
-        if self._current_goal is None:
-            self._current_goal = GoalHandler(
-                self._msg_type,
-                self._status_pub,
-                self._feedback_pub,
-                self._on_goal,
-                self._on_cancel,
-            )
-            if self._msg_type is not None:
-                self._current_goal.data = self._msg_type.Goal(**msg.goal_data)
-            else:
-                self._current_goal.data = msg.goal_data
-        elif self._current_goal.status in (GoalStatus.SUCCEDED,
-                                           GoalStatus.CANCELED,
-                                           GoalStatus.ABORTED):
-            # Final States - Completed Goal Task
+
+        if self._current_goal is None or self._current_goal.status in (
+            GoalStatus.SUCCEDED, GoalStatus.CANCELED, GoalStatus.ABORTED):
             self._current_goal = GoalHandler(
                 self._msg_type,
                 self._status_pub,
@@ -472,7 +459,7 @@ class BaseActionService:
         resp.status = self._current_goal.status
         # Set Result data
         if self._msg_type is not None:
-            resp.result = self._current_goal.result.dict()
+            resp.result = self._current_goal.result.model_dump()
         else:
             resp.result = self._current_goal.result
         return resp
@@ -567,7 +554,7 @@ class BaseActionClient:
         if isinstance(goal_msg, dict) or isinstance(goal_msg, Dict):
             _data = goal_msg
         elif isinstance(goal_msg, ActionMessage.Goal):
-            _data = goal_msg.dict()
+            _data = goal_msg.model_dump()
         req = _ActionGoalMessage.Request(goal_data=_data)
         self._status = _ActionStatusMessage()
         resp = self._goal_client.call(req, timeout=timeout)

@@ -163,7 +163,7 @@ class Publisher(BasePublisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.dict()
+            data = msg.model_dump()
         if key in (None, ""):
             key = self._key
 
@@ -198,7 +198,7 @@ class MPublisher(Publisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.dict()
+            data = msg.model_dump()
         if key in (None, ""):
             key = self._key
         self._producer.poll(0)
@@ -333,7 +333,7 @@ class RPCService(BaseRPCService):
     def _send_response(self, data: Dict[str, Any], reply_to: str):
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
-        _resp = self._comm_obj.dict()
+        _resp = self._comm_obj.model_dump()
         self._transport.publish(reply_to, _resp)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -354,7 +354,7 @@ class RPCService(BaseRPCService):
             else:
                 resp = self.on_request(self._msg_type.Request(**req_msg.data))
                 # RPCMessage.Response object here
-                resp = resp.dict()
+                resp = resp.model_dump()
             self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:
             self.log.error(str(exc), exc_info=True)
@@ -413,7 +413,7 @@ class RPCServer(BaseRPCServer):
         """
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
-        _resp = self._comm_obj.dict()
+        _resp = self._comm_obj.model_dump()
         self._transport.publish(reply_to, _resp)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -449,7 +449,7 @@ class RPCServer(BaseRPCServer):
                     resp = clb(req_msg.data)
                 else:
                     resp = clb(msg_type.Request(**req_msg.data))
-                    resp = resp.dict()
+                    resp = resp.model_dump()
             self._send_response(resp, req.header.reply_to)
         except Exception as exc:
             self.log.error(str(exc), exc_info=False)
@@ -534,7 +534,7 @@ class RPCClient(BaseRPCClient):
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.header.reply_to = self._gen_queue_name()
         self._comm_obj.data = data
-        return self._comm_obj.dict()
+        return self._comm_obj.model_dump()
 
     def _on_response_wrapper(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """_on_response_wrapper.
@@ -586,7 +586,7 @@ class RPCClient(BaseRPCClient):
         else:
             if not isinstance(msg, self._msg_type.Request):
                 raise ValueError("Message type not valid")
-            data = msg.dict()
+            data = msg.model_dump()
 
         self._response = None
 

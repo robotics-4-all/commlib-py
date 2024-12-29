@@ -615,7 +615,7 @@ class RPCService(BaseRPCService):
     def _send_response(self, data: Dict[str, Any], reply_to: str):
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
-        _resp = self._comm_obj.dict()
+        _resp = self._comm_obj.model_dump()
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -636,7 +636,7 @@ class RPCService(BaseRPCService):
             else:
                 resp = self.on_request(self._msg_type.Request(**req_msg.data))
                 # RPCMessage.Response object here
-                resp = resp.dict()
+                resp = resp.model_dump()
             self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:
             self.log.error(str(exc), exc_info=True)
@@ -693,7 +693,7 @@ class RPCServer(BaseRPCServer):
         """
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
-        _resp = self._comm_obj.dict()
+        _resp = self._comm_obj.model_dump()
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -730,7 +730,7 @@ class RPCServer(BaseRPCServer):
                     resp = clb(req_msg.data)
                 else:
                     resp = clb(msg_type.Request(**req_msg.data))
-                    resp = resp.dict()
+                    resp = resp.model_dump()
             self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:
             self.log.error(str(exc), exc_info=False)
