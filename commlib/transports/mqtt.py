@@ -296,7 +296,7 @@ class MQTTTransport(BaseTransport):
         )
 
     def subscribe(self, topic: str, callback: Callable,
-                  qos: MQTTQoS = MQTTQoS.L0):
+                  qos: MQTTQoS = MQTTQoS.L0) -> str:
         """subscribe.
 
         Args:
@@ -318,6 +318,9 @@ class MQTTTransport(BaseTransport):
         _clb = functools.partial(self._on_msg_internal, callback)
         self._client.message_callback_add(topic, _clb)
         return topic
+
+    def unsubscribe(self, topic: str) -> None:
+        self._client.unsubscribe(topic)
 
     def _on_msg_internal(self, callback: Callable, client: Any,
                          userdata: Any, msg: Any) -> None:
@@ -834,7 +837,8 @@ class RPCClient(BaseRPCClient):
         except Exception as exc:
             self.log.error(exc, exc_info=True)
             data = {}
-        self._response = data
+        finally:
+            self._response = data
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
         _uri = msg.topic
@@ -884,6 +888,7 @@ class RPCClient(BaseRPCClient):
         _resp = self._wait_for_response(timeout=timeout)
         elapsed_t = time.time() - start_t
         self._delay = elapsed_t
+        self._transport.unsubscribe(_reply_to)
 
         if self._msg_type is None:
             return _resp
