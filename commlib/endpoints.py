@@ -118,7 +118,7 @@ class BaseEndpoint:
             self._transport.stop()
             self._state = EndpointState.DISCONNECTED
         else:
-            self.logger().warning(
+            self.log.warning(
                 f"Transport is not connected - cannot stop {self.__class__.__name__}")
 
     def __del__(self):

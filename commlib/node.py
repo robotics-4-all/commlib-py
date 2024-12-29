@@ -14,22 +14,6 @@ from concurrent.futures import ThreadPoolExecutor
 n_logger: logging.Logger = None
 
 
-class NodePort(BaseModel):
-    endpoints: List[Any] = []
-
-
-class NodePorts(BaseModel):
-    input: List[NodePort] = []
-    output: List[NodePort] = []
-
-
-class NodePortType(IntEnum):
-    """NodePortType."""
-
-    Input = 1
-    Output = 2
-
-
 class NodeExecutorType(IntEnum):
     """NodeExecutorType."""
 
@@ -125,19 +109,17 @@ class Node:
             n_logger = logging.getLogger(__name__)
         return n_logger
 
-    def __init__(
-        self,
-        node_name: Optional[str] = "",
-        connection_params: Optional[Any] = None,
-        transport_connection_params: Optional[Any] = None,
-        debug: Optional[bool] = False,
-        heartbeats: Optional[bool] = True,
-        heartbeat_interval: Optional[float] = 10.0,
-        heartbeat_uri: Optional[str] = None,
-        compression: CompressionType = CompressionType.NO_COMPRESSION,
-        ctrl_services: Optional[bool] = False,
-        workers_rpc: Optional[int] = 4,
-    ):
+    def __init__(self,
+                 node_name: Optional[str] = "",
+                 connection_params: Optional[Any] = None,
+                 transport_connection_params: Optional[Any] = None,
+                 debug: Optional[bool] = False,
+                 heartbeats: Optional[bool] = True,
+                 heartbeat_interval: Optional[float] = 10.0,
+                 heartbeat_uri: Optional[str] = None,
+                 compression: CompressionType = CompressionType.NO_COMPRESSION,
+                 ctrl_services: Optional[bool] = False,
+                 workers_rpc: Optional[int] = 4):
         """__init__.
 
         Args:
@@ -180,7 +162,6 @@ class Node:
         self._action_services = []
         self._action_clients = []
         self._event_emitters = []
-        self._ports: List[NodePort] = []
         self._executor = ThreadPoolExecutor()
         self._workers: List[Any] = []
 
@@ -343,7 +324,7 @@ class Node:
         if self.state != NodeState.RUNNING:
             self.run()
         try:
-            while self.state != NodeState.EXITED:
+            while self.state not in (NodeState.EXITED, NodeState.STOPPED):
                 time.sleep(sleep_rate)
         except Exception as e:
             self.log.error(f"Exception occurred during run_forever: {str(e)}")
@@ -363,7 +344,7 @@ class Node:
             self._hb_thread.stop()
         if self._executor:
             self._executor.shutdown(wait=False, cancel_futures=True)
-        self.state = NodeState.EXITED
+        self.state = NodeState.STOPPED
 
     def create_publisher(self, *args, **kwargs):
         """create_publisher
