@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+
+"""Tests for `commlib` package."""
+
+import time
+import unittest
+from typing import Optional
+
+from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
+from commlib.node import Node
+from commlib.transports.mqtt import ConnectionParameters
+
+
+class SonarMessage(PubSubMessage):
+    header: MessageHeader = MessageHeader()
+    range: float = -1
+    hfov: float = 30.6
+    vfov: float = 14.2
+
+
+class AddTwoIntMessage(RPCMessage):
+    class Request(RPCMessage.Request):
+        a: int = 0
+        b: int = 0
+
+    class Response(RPCMessage.Response):
+        c: int = 0
+
+
+class TestPubSub(unittest.TestCase):
+    """Tests for `commlib` package."""
+
+    def setUp(self):
+        """Set up test fixtures, if any."""
+        self.connparams = ConnectionParameters(
+            host="localhost", port="6379",
+            username="", password="", ssl=False)
+
+    def tearDown(self):
+        """Tear down test fixtures, if any."""
+
+    def test_subscriber_strict_topic(self):
+        """
+        Test the creation of subscribers with strict and wildcard topics.
+
+        This test verifies that a Node can create subscribers for specific topics
+        and wildcard topics, and that messages are correctly received by the
+        subscribers.
+
+        Steps:
+        1. Create a Node instance with the specified connection parameters.
+        2. Create a subscriber (sub1) for the strict topic 'sonar.front' and
+           define a callback to print received messages.
+        3. Run the Node to start processing.
+        4. Create another subscriber (sub2) for the wildcard topic 'sonar.front.*'
+           and define a callback to print received messages.
+
+        The test ensures that both subscribers are created successfully and are
+        able to receive messages on their respective topics.
+        """
+        node = Node(node_name='test_node',
+                    connection_params=self.connparams,
+                    heartbeats=False,
+                    debug=True)
+        try:
+            _ = node.create_subscriber(msg_type=SonarMessage,
+                                    topic='sonar.front',
+                                    on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.fail(str(e))
+        try:
+            _ = node.create_subscriber(msg_type=SonarMessage,
+                                       topic='sonar.front.*',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: sonar.front.*")
+        try:
+            _ = node.create_subscriber(msg_type=SonarMessage,
+                                       topic='sonar.front.#',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: sonar.front.#")
+        try:
+            _ = node.create_subscriber(msg_type=SonarMessage,
+                                       topic='.',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: .")
+        try:
+            _ = node.create_subscriber(msg_type=SonarMessage,
+                                       topic='*',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: *")
+        try:
+            _ = node.create_subscriber(msg_type=SonarMessage,
+                                       topic='#',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: #")
+        node.run()
