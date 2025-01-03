@@ -1,5 +1,6 @@
 import functools
 import logging
+import re
 import time
 from enum import IntEnum
 from typing import Any, Callable, Dict, Tuple, Union
@@ -22,7 +23,7 @@ from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCClientTimeoutError, RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
-from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.pubsub import TOPIC_PATTERN_REGEX, TOPIC_REGEX, BasePublisher, BaseSubscriber, validate_pubsub_topic, validate_pubsub_topic_strict
 from commlib.rpc import (
     BaseRPCClient,
     BaseRPCServer,
@@ -222,7 +223,8 @@ class MQTTTransport(BaseTransport):
         self.log.debug(f"- Data Serialization: {self._serializer}")
         self.log.debug(f"- Data Compression: {self._compression}")
 
-    def on_disconnect(self, client: Any, userdata: Any, rc: int, unk: Any = None):
+    def on_disconnect(self, client: Any, userdata: Any,
+                      rc: int, unk: Any = None) -> None:
         """on_disconnect.
 
         Callback for on-disconnect event.
@@ -310,7 +312,7 @@ class MQTTTransport(BaseTransport):
         # Adds subtopic specific callback handlers
         if topic in (None, ""):
             self.log.warning(f"Attempt to subscribe to empty topic - {topic}")
-            return
+            return None
         topic = topic.replace(".", "/").replace("*", "#")
         self._client.subscribe(
             topic, qos=qos, options=None, properties=self._mqtt_properties
@@ -407,7 +409,7 @@ class MPublisher(Publisher):
     """
 
     def __init__(self, *args, **kwargs):
-        super().__init__(topic="*", *args, **kwargs)
+        super().__init__(topic=None, *args, **kwargs)
 
     def publish(self, msg: PubSubMessage, topic: str) -> None:
         """publish.
@@ -419,6 +421,7 @@ class MPublisher(Publisher):
         Returns:
             None:
         """
+        validate_pubsub_topic_strict(topic)
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
@@ -445,8 +448,19 @@ class WPublisher:
         self._mpub = mpub
         self._topic = topic
         self._msg_type = msg_type
+        validate_pubsub_topic_strict(self._topic)
 
     def publish(self, msg: Union[PubSubMessage, None]) -> None:
+        """
+        Publish a message to the specified topic.
+
+        Args:
+            msg (Union[PubSubMessage, None]): The message to be published.
+            Must be of type PubSubMessage if self._msg_type is not None.
+
+        Raises:
+            ValueError: If the msg is not of type PubSubMessage when self._msg_type is not None.
+        """
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         self._mpub.publish(msg, self._topic)
@@ -464,12 +478,13 @@ class Subscriber(BaseSubscriber):
             args: See BaseSubscriber
             kwargs: See BaseSubscriber
         """
-        super(Subscriber, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
             compression=self._compression,
         )
+        validate_pubsub_topic_strict(self._topic)
 
     def run_forever(self):
         self._transport.start()
@@ -526,6 +541,27 @@ class WSubscriber(BaseSubscriber):
         self._subs: Dict[str, callable] = {}
 
     def run_forever(self):
+        """
+        Runs the MQTT transport in a loop, subscribing to topics and handling messages.
+
+        This method starts the MQTT transport, subscribes to the topics with their respective
+        callbacks, and enters an infinite loop to keep the transport running. The loop can be
+        stopped by setting the `_t_stop_event`.
+
+        The method performs the following steps:
+        1. Starts the MQTT transport.
+        2. Subscribes to the topics with their respective callbacks.
+        3. Enters an infinite loop to keep the transport running.
+        4. Checks for the `_t_stop_event` to break the loop and stop the transport.
+
+        Note:
+            The loop runs indefinitely until the `_t_stop_event` is set. The sleep interval
+            within the loop is set to 0.001 seconds to avoid high CPU usage.
+
+        Raises:
+            Any exceptions raised by the transport's `start` or `stop` methods.
+
+        """
         self._transport.start()
         for topic, callback in self._subs.items():
             self._transport.subscribe(topic, functools.partial(self._on_message, callback))
@@ -537,16 +573,22 @@ class WSubscriber(BaseSubscriber):
             time.sleep(0.001)
         self._transport.stop()
 
-    def subscribe(self, topic, callback: callable):
-        """subscribe.
+    def subscribe(self, topic: str, callback: callable) -> None:
+        """
+        Subscribe to a given MQTT topic with a callback function.
 
         Args:
-            topic (str): topic
-            msg_type (PubSubMessage, optional): Message Type
+            topic (str): The MQTT topic to subscribe to. Must match the TOPIC_PATTERN_REGEX.
+            callback (callable): The function to be called when a message is received on the subscribed topic.
+
+        Raises:
+            ValueError: If the topic is invalid (i.e., it is '.', '*', '-', '_', None, or does not match the TOPIC_PATTERN_REGEX).
         """
+        validate_pubsub_topic(topic)
         self._subs[topic] = callback
 
-    def _on_message(self, callback: callable, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def _on_message(self, callback: callable, client: Any,
+                    userdata: Any, msg: Dict[str, Any]) -> None:
         """_on_message.
 
         Args:
@@ -565,23 +607,41 @@ class WSubscriber(BaseSubscriber):
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
-    def _unpack_comm_msg(self, msg: Any) -> Tuple:
+    def _unpack_comm_msg(self, msg: Any) -> Tuple[Dict[str, Any], str]:
         _uri = msg.topic
         _data = self._serializer.deserialize(msg.payload)
         return _data, _uri
 
 
-class PSubscriber(Subscriber):
+class PSubscriber(BaseSubscriber):
     """PSubscriber."""
-
-    def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        """_on_message.
+    def __init__(self, *args, **kwargs):
+        """__init__.
 
         Args:
-            client (Any): client
-            userdata (Any): userdata
-            msg (Dict[str, Any]): msg
+            args: See BaseSubscriber
+            kwargs: See BaseSubscriber
         """
+        super().__init__(*args, **kwargs)
+        self._transport = MQTTTransport(
+            conn_params=self._conn_params,
+            serializer=self._serializer,
+            compression=self._compression,
+        )
+        validate_pubsub_topic(self._topic)
+
+    def run_forever(self):
+        self._transport.start()
+        self._transport.subscribe(self._topic, self._on_message)
+        while True:
+            if self._t_stop_event is not None:
+                if self._t_stop_event.is_set():
+                    self.log.debug("Stop event caught in thread")
+                    break
+            time.sleep(0.001)
+        self._transport.stop()
+
+    def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         try:
             data, topic = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
@@ -594,6 +654,11 @@ class PSubscriber(Subscriber):
                 _clb()
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
+
+    def _unpack_comm_msg(self, msg: Any) -> Tuple:
+        _uri = msg.topic
+        _data = self._serializer.deserialize(msg.payload)
+        return _data, _uri
 
 
 class RPCService(BaseRPCService):

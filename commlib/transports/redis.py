@@ -1,5 +1,6 @@
 import functools
 import logging
+import re
 import time
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
@@ -18,7 +19,11 @@ from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
-from commlib.pubsub import BasePublisher, BaseSubscriber
+from commlib.pubsub import (
+    TOPIC_PATTERN_REGEX, TOPIC_REGEX,
+    BasePublisher, BaseSubscriber,
+    validate_pubsub_topic, validate_pubsub_topic_strict
+)
 from commlib.rpc import (
     BaseRPCClient,
     BaseRPCService,
@@ -245,6 +250,20 @@ class RPCService(BaseRPCService):
         self._send_response(resp, _req_msg.header.reply_to)
 
     def run_forever(self):
+        """
+        Continuously runs the transport, processing messages and handling stop events.
+
+        This method starts the transport and enters an infinite loop where it waits for
+        messages on the specified RPC queue. When a message is received, it detaches the
+        request handler to process the payload. If a stop event is set, it breaks the loop,
+        deletes the RPC queue, and stops the transport.
+
+        Note:
+            This method blocks indefinitely until a stop event is set.
+
+        Raises:
+            Exception: If there is an error starting the transport or processing messages.
+        """
         self._transport.start()
         if self._transport.queue_exists(self._rpc_name):
             self._transport.delete_queue(self._rpc_name)
@@ -298,11 +317,22 @@ class RPCClient(BaseRPCClient):
         return self._comm_obj.model_dump()
 
     def call(self, msg: RPCMessage.Request, timeout: float = 10) -> RPCMessage.Response:
-        # TODO: Evaluate msg type passed here.
-        if self._msg_type is None:
+        """
+        Sends an RPC request message and waits for a response.
+
+        Args:
+            msg (RPCMessage.Request): The RPC request message to be sent.
+            timeout (float, optional): The maximum time to wait for a response in seconds. Defaults to 10.
+
+        Returns:
+            RPCMessage.Response: The response message received. If no response is received within the timeout period, returns None.
+        """
+        if self._msg_type is None and isinstance(msg, dict):
             data = msg
-        else:
+        elif self._msg_type is not None and isinstance(msg, self._msg_type.Request):
             data = msg.model_dump()
+        else:
+            raise RPCRequestError("Invalid message type passed to RPC call")
 
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
@@ -327,21 +357,19 @@ class RPCClient(BaseRPCClient):
 
 class Publisher(BasePublisher):
     """Publisher.
-    MQTT Publisher (Single Topic).
+    Redis Publisher (Single Topic).
     """
 
-    def __init__(self, queue_size: int = 10, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
-            queue_size (int): queue_size
             args:
             kwargs:
         """
-        self._queue_size = queue_size
         self._msg_seq = 0
 
-        super(Publisher, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._transport = RedisTransport(
             conn_params=self._conn_params,
@@ -382,7 +410,7 @@ class MPublisher(Publisher):
             args: See Publisher class
             kwargs: See Publisher class
         """
-        super(MPublisher, self).__init__(topic="*", *args, **kwargs)
+        super().__init__(topic=None, *args, **kwargs)
 
     def publish(self, msg: PubSubMessage, topic: str) -> None:
         """publish.
@@ -394,6 +422,7 @@ class MPublisher(Publisher):
         Returns:
             None:
         """
+        validate_pubsub_topic_strict(topic)
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
@@ -407,7 +436,7 @@ class MPublisher(Publisher):
 
 class WPublisher:
     """WPublisher.
-    MQTT Wrapped-Publisher
+    Redis Wrapped-Publisher
     """
     def __init__(self, mpub: MPublisher, topic: str,
                  msg_type: Union[PubSubMessage, None] = None,):
@@ -421,6 +450,7 @@ class WPublisher:
         self._mpub = mpub
         self._topic = topic
         self._msg_type = msg_type
+        validate_pubsub_topic_strict(self._topic)
 
     def publish(self, msg: Union[PubSubMessage, None]) -> None:
         if self._msg_type is not None and not isinstance(msg, self._msg_type):
@@ -433,7 +463,7 @@ class Subscriber(BaseSubscriber):
     Redis Subscriber
     """
 
-    def __init__(self, queue_size: Optional[int] = 1, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """__init__.
 
         Args:
@@ -442,21 +472,44 @@ class Subscriber(BaseSubscriber):
             kwargs:
         """
         self._subscriber_thread = None
-        self._queue_size = queue_size
-        super(Subscriber, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
             compression=self._compression,
         )
+        validate_pubsub_topic_strict(self._topic)
 
     def stop(self):
-        """Stop background thread that handle subscribed topic messages"""
+        """
+        Stops the subscriber thread if it is running and then calls the
+        stop method of the superclass to perform any additional cleanup.
+
+        This method ensures that the subscriber thread is properly stopped
+        before the transport is stopped, preventing any potential issues
+        with lingering threads.
+        """
         if self._subscriber_thread is not None:
             self._subscriber_thread.stop()
         super().stop()
 
     def run_forever(self, interval: float = 0.001):
+        """
+        Runs the subscriber thread indefinitely, with periodic checks for a stop event.
+
+        This method starts the transport and subscribes to a topic, then enters an
+        infinite loop where it periodically checks for a stop event and sends a ping
+        to the Redis server to keep the connection alive.
+
+        Args:
+            interval (float): The time interval (in seconds) to wait between each
+                              iteration of the loop. Default is 0.001 seconds.
+
+        Notes:
+            - The method will break out of the loop if the stop event is set.
+            - The method sends a ping to the Redis server on each iteration to keep
+              the connection alive.
+        """
         self._transport.start()
         self._subscriber_thread = self._transport.subscribe(
             self._topic, self._on_message)
@@ -509,18 +562,28 @@ class WSubscriber(BaseSubscriber):
         self._subscriber_threads = []
         self._subscriber_thread = None
 
-    def subscribe(self, topic, callback: callable):
+    def subscribe(self, topic, callback: callable) -> None:
         """
-        Subscribe to a topic with a callback function.
+        Subscribe to a given topic with a callback function.
 
         Args:
             topic (str): The topic to subscribe to.
-            callback (callable): The callback function to handle the received messages.
+            callback (callable): The function to be called when a message is received on the subscribed topic.
+
+        Returns:
+            None
         """
+        validate_pubsub_topic(topic)
         self._subs[topic] = callback
 
     def stop(self):
-        """Stop the background thread that handles subscribed topic messages."""
+        """
+        Stops the transport by stopping all subscriber threads and the main subscriber thread if they exist.
+
+        This method iterates through all threads in the `_subscriber_threads` list and calls their `stop` method.
+        If the `_subscriber_thread` is not `None`, it also calls its `stop` method.
+        Finally, it calls the `stop` method of the superclass.
+        """
         for sub_thread in self._subscriber_threads:
             sub_thread.stop()
         if self._subscriber_thread is not None:
@@ -580,10 +643,53 @@ class WSubscriber(BaseSubscriber):
         return _data, _uri
 
 
-class PSubscriber(Subscriber):
+class PSubscriber(BaseSubscriber):
     """PSubscriber.
     Redis Pattern-based Subscriber.
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = RedisTransport(
+            conn_params=self._conn_params,
+            serializer=self._serializer,
+            compression=self._compression,
+        )
+        validate_pubsub_topic(self._topic)
+
+    def stop(self):
+        """
+        Stops the Redis transport by stopping the subscriber thread if it exists,
+        and then calls the stop method of the superclass.
+
+        This method ensures that any active subscriber thread is properly stopped
+        before the transport itself is stopped.
+        """
+        if self._subscriber_thread is not None:
+            self._subscriber_thread.stop()
+        super().stop()
+
+    def run_forever(self, interval: float = 0.001):
+        """
+        Starts the transport and subscribes to the topic, then continuously pings
+        the Redis subscription to keep the connection alive until a stop event is set.
+
+        Args:
+            interval (float): The time to wait between each ping to the Redis subscription.
+                              Default is 0.001 seconds.
+
+        The method will run indefinitely until the stop event (`self._t_stop_event`) is set.
+        """
+        self._transport.start()
+        self._subscriber_thread = self._transport.subscribe(
+            self._topic, self._on_message)
+        while True:
+            if self._t_stop_event is not None:
+                if self._t_stop_event.is_set():
+                    self.log.debug("Stop event caught in thread")
+                    break
+            if self._transport._rsub is not None:
+                self._transport._rsub.ping()
+            time.sleep(interval)
 
     def _on_message(self, payload: Dict[str, Any]) -> None:
         try:
@@ -598,6 +704,20 @@ class PSubscriber(Subscriber):
                 _clb()
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
+
+    def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
+        """
+        Internal method to unpack the communication message.
+
+        Args:
+            msg (Dict[str, Any]): The communication message to unpack.
+
+        Returns:
+            Tuple: A tuple containing the unpacked data and URI.
+        """
+        _uri = msg["channel"].decode("utf-8")
+        _data = self._serializer.deserialize(msg["data"])
+        return _data, _uri
 
 
 class ActionService(BaseActionService):

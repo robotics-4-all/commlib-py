@@ -1,16 +1,27 @@
 import logging
 from enum import Enum
+import re
 import time
 
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
 from commlib.serializer import JSONSerializer, Serializer
+from commlib.transports import TransportType
 from commlib.transports.base_transport import BaseTransport
 
 e_logger = None
 
 
 class EndpointState(Enum):
+    """
+    Enum representing the state of an endpoint.
+
+    Attributes:
+        DISCONNECTED (int): The endpoint is disconnected (value 0).
+        CONNECTED (int): The endpoint is connected (value 1).
+        CONNECTING (int): The endpoint is in the process of connecting (value 2).
+        DISCONNECTING (int): The endpoint is in the process of disconnecting (value 3).
+    """
     DISCONNECTED = 0
     CONNECTED = 1
     CONNECTING = 2
@@ -30,7 +41,6 @@ class BaseEndpoint:
     Subclasses of `BaseEndpoint` should implement the specific functionality for their
     endpoint type, such as RPC, publish/subscribe, etc.
     """
-
     _transport: BaseTransport = None
 
     @classmethod
@@ -85,7 +95,6 @@ class BaseEndpoint:
 
         Finally, it sets the subscriber state to `CONNECTED`.
         """
-
         if self._transport is None:
             raise RuntimeError(
                 f"Transport not initialized - cannot run {self.__class__.__name__}")
@@ -108,7 +117,6 @@ class BaseEndpoint:
 
         If the transport is connected and the subscriber is not in the `DISCONNECTED` or `DISCONNECTING` state, it stops the transport.
         """
-
         if self._transport is None:
             raise RuntimeError(
                 f"Transport not initialized - cannot stop {self.__class__.__name__}")
@@ -121,19 +129,29 @@ class BaseEndpoint:
             self.log.warning(
                 f"Transport is not connected - cannot stop {self.__class__.__name__}")
 
+
     def __del__(self):
         try:
             self.stop()
-        except:
+        except Exception:
             # Silence
             pass
 
 
 class EndpointType(Enum):
-    """EndpointType.
-    Types of supported Endpoints.
     """
+    Enum representing different types of endpoints in a communication library.
 
+    Attributes:
+        RPCService (int): Represents a Remote Procedure Call (RPC) service endpoint.
+        RPCClient (int): Represents a Remote Procedure Call (RPC) client endpoint.
+        Publisher (int): Represents a publisher endpoint for publishing messages.
+        Subscriber (int): Represents a subscriber endpoint for receiving messages.
+        ActionService (int): Represents an action service endpoint.
+        ActionClient (int): Represents an action client endpoint.
+        MPublisher (int): Represents a multi-publisher endpoint.
+        PSubscriber (int): Represents a persistent subscriber endpoint.
+    """
     RPCService = 1
     RPCClient = 2
     Publisher = 3
@@ -144,26 +162,32 @@ class EndpointType(Enum):
     PSubscriber = 8
 
 
-class TransportType(Enum):
-    """TransportType.
-    Types of supported Transports
-    """
-
-    AMQP = 1
-    REDIS = 2
-    MQTT = 3
-    KAFKA = 4
-
-
 def endpoint_factory(etype: EndpointType, etransport: TransportType):
-    """endpoint_factory.
-    Create an instance of an endpoint
-        (RPCClient, RPCService, Publisher, Subscriber etc..),
-        by simply giving its type and transport (MQTT, AMQP, Redis)
+    """
+    Factory function to create endpoint instances based on the specified endpoint type and transport type.
 
     Args:
-        etype (EndpointType): Endpoint type
-        etransport (TransportType): Transport type
+        etype (EndpointType): The type of the endpoint to create.
+            Possible values include:
+            - EndpointType.RPCService
+            - EndpointType.RPCClient
+            - EndpointType.Publisher
+            - EndpointType.Subscriber
+            - EndpointType.ActionService
+            - EndpointType.ActionClient
+            - EndpointType.MPublisher
+            - EndpointType.PSubscriber
+        etransport (TransportType): The type of transport to use for the endpoint.
+            Possible values include:
+            - TransportType.AMQP
+            - TransportType.REDIS
+            - TransportType.MQTT
+
+    Returns:
+        The corresponding endpoint class based on the provided endpoint type and transport type.
+
+    Raises:
+        ValueError: If an unsupported transport type or endpoint type is provided.
     """
     if etransport == TransportType.AMQP:
         import commlib.transports.amqp as comm
