@@ -49,7 +49,7 @@ class ConnectionParameters(BaseConnectionParameters):
     db: int = 0
     username: str = ""
     password: str = ""
-    socket_timeout: float = 10
+    socket_timeout: float = None
 
 
 class RedisConnection(redis.Redis):
