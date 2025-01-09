@@ -73,24 +73,31 @@ class RedisTransport(BaseTransport):
             redis_logger = logging.getLogger(__name__)
         return redis_logger
 
-    def __init__(
-        self,
-        compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
-        serializer: Serializer = JSONSerializer(),
-        *args,
-        **kwargs,
-    ):
-        """__init__.
+    def __init__(self,
+                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
+                 serializer: Serializer = JSONSerializer(),
+                 *args,
+                 **kwargs):
+        """
+        Initialize the RedisTransport.
 
         Args:
-            serializer (Serializer): serializer
-            compression (CompressionType): compression
+            compression (CompressionType): The compression type to use for message compression.
+                Defaults to CompressionType.DEFAULT_COMPRESSION.
+            serializer (Serializer): The serializer to use for message serialization.
+                Defaults to JSONSerializer().
+            *args: Variable length argument list to be passed to the parent class constructor.
+            **kwargs: Arbitrary keyword arguments to be passed to the parent class constructor.
         """
         super().__init__(*args, **kwargs)
         self._serializer = serializer
         self._compression = compression
         self._connected = False
         self._rsub = None
+        self._redis_pubsub_join_timeout = 1  # sec
+        self._rsub_thread = None
+        self._wait_for_connection_init = 0.01  # sec
+        self._wait_for_pubsub_stop = 0.1  # sec
 
     @property
     def is_connected(self) -> bool:
@@ -131,12 +138,14 @@ class RedisTransport(BaseTransport):
         if not self.is_connected:
             self.connect()
         while self.is_connected is False:
-            time.sleep(0.01)
+            time.sleep(self._wait_for_connection_init)
 
     def stop(self) -> None:
         if self.is_connected:
-            self._redis.connection_pool.disconnect()
+            self._rsub_thread.stop()
+            time.sleep(self._wait_for_pubsub_stop)
             self._rsub.close()
+            self._redis.connection_pool.disconnect()
             self._redis.close()
             self._connected = False
 
@@ -164,9 +173,22 @@ class RedisTransport(BaseTransport):
             self.log.warning(f"Attempt to subscribe to empty topic - {topic}")
             return
         _clb = functools.partial(self._on_msg_internal, callback)
-        self._sub = self._rsub.psubscribe(**{topic: _clb})
-        t = self._rsub.run_in_thread(0.001, daemon=True)
-        return t
+        if self._rsub is None:
+            self.log.warning("Redis pubsub not initialized - Cannot proceed to subscriptions!")
+            return
+        if self._rsub_thread is not None:
+            self._rsub_thread.stop()
+            time.sleep(self._wait_for_pubsub_stop)
+        self._rsub.psubscribe(**{topic: _clb})
+        self._rsub_thread = self._rsub.run_in_thread(0.001, daemon=True,
+                                                     exception_handler=self.exception_handler)
+        return self._rsub_thread
+
+    def exception_handler(self, ex, pubsub, thread):
+        self.log.error(f"Redis PubSub error in thread: {thread}, exception: {ex}")
+        thread.stop()
+        thread.join(timeout=self._redis_pubsub_join_timeout)
+        pubsub.close()
 
     def msubscribe(self, topics: Dict[str, callable]):
         _topics = {}
@@ -176,9 +198,16 @@ class RedisTransport(BaseTransport):
         if _topics in (None, {}):
             self.log.warning(f"Attempt to subscribe to empty topics - {_topics}")
             return
-        self._sub = self._rsub.psubscribe(**_topics)
-        t = self._rsub.run_in_thread(0.001, daemon=True)
-        return t
+        if self._rsub is None:
+            self.log.warning("Redis pubsub not initialized - Cannot proceed to subscriptions!")
+            return
+        if self._rsub_thread is not None:
+            self._rsub_thread.stop()
+            time.sleep(self._wait_for_pubsub_stop)
+        self._rsub.psubscribe(**_topics)
+        self._rsub_thread = self._rsub.run_in_thread(0.001, daemon=True,
+                                                     exception_handler=self.exception_handler)
+        return self._rsub_thread
 
     def _on_msg_internal(self, callback: Callable, data: Any):
         if self._compression != CompressionType.NO_COMPRESSION:
