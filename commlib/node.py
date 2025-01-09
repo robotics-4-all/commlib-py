@@ -339,7 +339,7 @@ class Node:
         """
 
         for e in self.endpoints:
-            e.run()
+            e.stop()
         if self._hb_thread:
             self._hb_thread.stop()
         if self._executor:
