@@ -313,10 +313,14 @@ class MQTTTransport(BaseTransport):
         if topic in (None, ""):
             self.log.warning(f"Attempt to subscribe to empty topic - {topic}")
             return None
-        topic = topic.replace(".", "/").replace("*", "#")
-        self._client.subscribe(
-            topic, qos=qos, options=None, properties=self._mqtt_properties
-        )
+        topic = topic.replace(".", "/").replace("/*/", "/+/").replace("*", "#")
+
+        try:
+            self._client.subscribe(
+                topic, qos=qos, options=None, properties=self._mqtt_properties
+            )
+        except Exception:
+            raise SubscriberError(f"Failed to subscribe to topic {topic}", exc_info=True)
         _clb = functools.partial(self._on_msg_internal, callback)
         self._client.message_callback_add(topic, _clb)
         return topic
@@ -564,10 +568,7 @@ class WSubscriber(BaseSubscriber):
         """
         self._transport.start()
         for topic, callback in self._subs.items():
-            try:
-                self._transport.subscribe(topic, functools.partial(self._on_message, callback))
-            except Exception:
-                raise SubscriberError(f"<{self.__class__.__name__}> Failed to subscribe to topic {self.topic}", exc_info=True)
+            self._transport.subscribe(topic, functools.partial(self._on_message, callback))
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
