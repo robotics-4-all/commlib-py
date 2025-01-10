@@ -320,7 +320,7 @@ class MQTTTransport(BaseTransport):
                 topic, qos=qos, options=None, properties=self._mqtt_properties
             )
         except Exception:
-            raise SubscriberError(f"Failed to subscribe to topic {topic}", exc_info=True)
+            raise SubscriberError(f"Failed to subscribe to topic {topic}")
         _clb = functools.partial(self._on_msg_internal, callback)
         self._client.message_callback_add(topic, _clb)
         return topic
