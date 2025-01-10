@@ -292,11 +292,14 @@ class Node:
         it also creates the start and stop services. If the node has heartbeats, it
         initializes the heartbeat thread. Finally, it sets the node state to RUNNING.
         """
-
+        self._executor = ThreadPoolExecutor()
         self.log.info(f"Starting Node <{self._node_name}>")
         if self._has_ctrl_services:
             self.create_start_service()
             self.create_stop_service()
+
+        # if self._heartbeats:
+        #     self._init_heartbeat_thread()
         for e in self.endpoints:
             e.run()
         if self._heartbeats:
@@ -337,11 +340,10 @@ class Node:
         heartbeat thread, it is also stopped. If the node has an executor,
         it is shut down. Finally, the node state is set to EXITED.
         """
-
-        for e in self.endpoints:
-            e.stop()
         if self._hb_thread:
             self._hb_thread.stop()
+        for e in self.endpoints:
+            e.stop()
         if self._executor:
             self._executor.shutdown(wait=False, cancel_futures=True)
         self.state = NodeState.STOPPED

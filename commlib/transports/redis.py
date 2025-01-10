@@ -141,13 +141,17 @@ class RedisTransport(BaseTransport):
             time.sleep(self._wait_for_connection_init)
 
     def stop(self) -> None:
-        if self.is_connected:
+        if not self.is_connected:
+            self.log.warning("Attempting to stop transport while not connected")
+        if self._rsub_thread is not None:
             self._rsub_thread.stop()
             time.sleep(self._wait_for_pubsub_stop)
+        if self._rsub is not None:
             self._rsub.close()
+        if self._redis is not None:
             self._redis.connection_pool.disconnect()
             self._redis.close()
-            self._connected = False
+        self._connected = False
 
     def delete_queue(self, queue_name: str) -> bool:
         # self.log.debug('Removing message queue: <{}>'.format(queue_name))
