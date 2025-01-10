@@ -34,8 +34,7 @@ class TestPubSub(unittest.TestCase):
         """Set up test fixtures, if any."""
         self.connparams = ConnectionParameters(
             host="localhost", port="6379", db=0,
-            username="", password="",
-            )
+            username="", password="", socket_timeout=None)
 
     def tearDown(self):
         """Tear down test fixtures, if any."""
@@ -62,7 +61,7 @@ class TestPubSub(unittest.TestCase):
         node = Node(node_name='test_node',
                     connection_params=self.connparams,
                     heartbeats=False,
-                    debug=True)
+                    debug=False)
         try:
             _ = node.create_subscriber(msg_type=SonarMessage,
                                     topic='sonar.front',
@@ -124,7 +123,7 @@ class TestPubSub(unittest.TestCase):
         node = Node(node_name='test_node',
                     connection_params=self.connparams,
                     heartbeats=False,
-                    debug=True)
+                    debug=False)
         sub = node.create_wsubscriber(msg_type=SonarMessage)
         try:
 

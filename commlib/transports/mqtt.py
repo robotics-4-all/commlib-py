@@ -21,7 +21,7 @@ from commlib.action import (
 )
 from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
-from commlib.exceptions import RPCClientTimeoutError, RPCRequestError
+from commlib.exceptions import RPCClientTimeoutError, RPCRequestError, SubscriberError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import TOPIC_PATTERN_REGEX, TOPIC_REGEX, BasePublisher, BaseSubscriber, validate_pubsub_topic, validate_pubsub_topic_strict
 from commlib.rpc import (
@@ -564,7 +564,10 @@ class WSubscriber(BaseSubscriber):
         """
         self._transport.start()
         for topic, callback in self._subs.items():
-            self._transport.subscribe(topic, functools.partial(self._on_message, callback))
+            try:
+                self._transport.subscribe(topic, functools.partial(self._on_message, callback))
+            except Exception:
+                raise SubscriberError(f"<{self.__class__.__name__}> Failed to subscribe to topic {self.topic}", exc_info=True)
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():

@@ -62,11 +62,17 @@ class TestPubSub(unittest.TestCase):
         node = Node(node_name='test_node',
                     connection_params=self.connparams,
                     heartbeats=False,
-                    debug=True)
+                    debug=False)
         try:
             _ = node.create_subscriber(msg_type=SonarMessage,
-                                    topic='sonar.front',
-                                    on_message=lambda msg: print(msg))
+                                       topic='sonar.front',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.fail(str(e))
+        try:
+            _ = node.create_subscriber(msg_type=SonarMessage,
+                                       topic='sonar.front.123',
+                                       on_message=lambda msg: print(msg))
         except ValueError as e:
             self.fail(str(e))
         try:
@@ -124,11 +130,14 @@ class TestPubSub(unittest.TestCase):
         node = Node(node_name='test_node',
                     connection_params=self.connparams,
                     heartbeats=False,
-                    debug=True)
+                    debug=False)
         sub = node.create_wsubscriber(msg_type=SonarMessage)
         try:
-
             sub.subscribe('sonar.front', lambda msg: print(msg))
+        except ValueError as e:
+            self.fail(str(e))
+        try:
+            sub.subscribe('sonar.front.123', lambda msg: print(msg))
         except ValueError as e:
             self.fail(str(e))
         try:
