@@ -157,6 +157,7 @@ class Node:
 
         self._publishers = []
         self._subscribers = []
+        self._wsubscribers = []
         self._rpc_services = []
         self._rpc_clients = []
         self._action_services = []
@@ -194,7 +195,7 @@ class Node:
     @property
     def endpoints(self):
         return self._subscribers + self._publishers + self._rpc_services + self._rpc_clients + \
-            self._action_services + self._action_clients
+            self._action_services + self._action_clients + self._wsubscribers
 
     @property
     def health(self):
@@ -466,7 +467,7 @@ class Node:
             *args,
             **kwargs,
         )
-        self._subscribers.append(sub)
+        self._wsubscribers.append(sub)
         return sub
 
     def create_rpc(self, *args, **kwargs):
