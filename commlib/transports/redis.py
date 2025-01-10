@@ -20,7 +20,6 @@ from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import (
-    TOPIC_PATTERN_REGEX, TOPIC_REGEX,
     BasePublisher, BaseSubscriber,
     validate_pubsub_topic, validate_pubsub_topic_strict
 )
@@ -606,7 +605,7 @@ class WSubscriber(BaseSubscriber):
         Returns:
             None
         """
-        validate_pubsub_topic(topic)
+        validate_pubsub_topic_strict(topic)
         self._subs[topic] = callback
 
     def stop(self):

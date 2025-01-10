@@ -584,7 +584,7 @@ class WSubscriber(BaseSubscriber):
         Raises:
             ValueError: If the topic is invalid (i.e., it is '.', '*', '-', '_', None, or does not match the TOPIC_PATTERN_REGEX).
         """
-        validate_pubsub_topic(topic)
+        validate_pubsub_topic_strict(topic)
         self._subs[topic] = callback
 
     def _on_message(self, callback: callable, client: Any,
