@@ -48,7 +48,7 @@ class ConnectionParameters(BaseConnectionParameters):
     db: int = 0
     username: str = ""
     password: str = ""
-    socket_timeout: float = None
+    socket_timeout: Union[float, None] = None
 
 
 class RedisConnection(redis.Redis):
