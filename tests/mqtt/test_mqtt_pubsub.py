@@ -77,6 +77,18 @@ class TestPubSub(unittest.TestCase):
             self.fail(str(e))
         try:
             _ = node.create_subscriber(msg_type=SonarMessage,
+                                       topic='sonar.front.*.test',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: sonar.front.*.test")
+        try:
+            _ = node.create_subscriber(msg_type=SonarMessage,
+                                       topic='sonar.front.*.*.test',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: sonar.front.*.*.test")
+        try:
+            _ = node.create_subscriber(msg_type=SonarMessage,
                                        topic='sonar.front.*',
                                        on_message=lambda msg: print(msg))
         except ValueError as e:
@@ -107,6 +119,85 @@ class TestPubSub(unittest.TestCase):
             self.assertEqual(str(e), "Invalid topic: #")
         node.run(wait=True)
         # node.stop()
+
+    def test_psubscriber_topics(self):
+        """
+        Test the creation of subscribers with strict and wildcard topics.
+
+        This test verifies that a Node can create subscribers for specific topics
+        and wildcard topics, and that messages are correctly received by the
+        subscribers.
+
+        Steps:
+        1. Create a Node instance with the specified connection parameters.
+        2. Create a subscriber (sub1) for the strict topic 'sonar.front' and
+           define a callback to print received messages.
+        3. Run the Node to start processing.
+        4. Create another subscriber (sub2) for the wildcard topic 'sonar.front.*'
+           and define a callback to print received messages.
+
+        The test ensures that both subscribers are created successfully and are
+        able to receive messages on their respective topics.
+        """
+        node = Node(node_name='test_node',
+                    connection_params=self.connparams,
+                    heartbeats=False,
+                    debug=False)
+        try:
+            _ = node.create_psubscriber(msg_type=SonarMessage,
+                                       topic='sonar.front',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.fail(str(e))
+        try:
+            _ = node.create_psubscriber(msg_type=SonarMessage,
+                                       topic='sonar.front.123',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.fail(str(e))
+        try:
+            _ = node.create_psubscriber(msg_type=SonarMessage,
+                                       topic='sonar.front.*.test',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.fail(str(e))
+        try:
+            _ = node.create_psubscriber(msg_type=SonarMessage,
+                                       topic='sonar.front.*.*.test',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.fail(str(e))
+        try:
+            _ = node.create_psubscriber(msg_type=SonarMessage,
+                                       topic='sonar.front.*',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.fail(str(e))
+        try:
+            _ = node.create_psubscriber(msg_type=SonarMessage,
+                                       topic='sonar.front.#',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: sonar.front.#")
+        try:
+            _ = node.create_psubscriber(msg_type=SonarMessage,
+                                       topic='.',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: .")
+        try:
+            _ = node.create_psubscriber(msg_type=SonarMessage,
+                                       topic='*',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: *")
+        try:
+            _ = node.create_psubscriber(msg_type=SonarMessage,
+                                       topic='#',
+                                       on_message=lambda msg: print(msg))
+        except ValueError as e:
+            self.assertEqual(str(e), "Invalid topic: #")
+        node.run(wait=True)
 
     def test_wsubscriber_strict_topic(self):
         """
