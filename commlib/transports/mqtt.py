@@ -313,8 +313,7 @@ class MQTTTransport(BaseTransport):
         if topic in (None, ""):
             self.log.warning(f"Attempt to subscribe to empty topic - {topic}")
             return None
-        topic = topic.replace(".", "/").replace("/*/", "/+/").replace("*", "#")
-
+        topic = self._transform_topic(topic)
         try:
             self._client.subscribe(
                 topic, qos=qos, options=None, properties=self._mqtt_properties
@@ -323,6 +322,17 @@ class MQTTTransport(BaseTransport):
             raise SubscriberError(f"Failed to subscribe to topic {topic}")
         _clb = functools.partial(self._on_msg_internal, callback)
         self._client.message_callback_add(topic, _clb)
+        return topic
+
+    def _transform_topic(self, topic):
+        # topic = topic.replace(".", "/").replace("/*/*/*/", "/+/+/+/").replace(
+        #     "/*/*/", "/+/+/").replace("/*/", "/+/").replace("*", "#")
+        # Replace trailing single asterisk with MQTT's single-level wildcard
+        if topic.endswith("*"): topic = topic[:-1] + "#"
+        # Replace dots with forward slashes
+        # Replace single asterisk wildcards with MQTT's single-level wildcard
+        # Replace remaining asterisks with MQTT's multi-level wildcard
+        topic = topic.replace(".", "/").replace("/*", "/+").replace("*", "#")
         return topic
 
     def unsubscribe(self, topic: str) -> None:
