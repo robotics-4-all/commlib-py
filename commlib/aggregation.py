@@ -32,10 +32,9 @@ class TopicMerge:
 
     def on_msg_internal(self, processors: Dict[str, callable],
                         payload: Dict[str, Any], topic: str):
-        print(f"TO KAKO TO POSE: {payload}")
         for proc in processors:
-            print(f"TO KALO TO POSE: {proc(payload)}")
-        self.pub.publish(topic=self.output_topic, msg=payload)
+            payload = proc(payload)
+            self.pub.publish(topic=self.output_topic, msg=payload)
 
     def start(self):
         self.create_publisher()
