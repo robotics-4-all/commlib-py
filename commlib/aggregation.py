@@ -103,7 +103,6 @@ class TopicMerge:
                     self.log.warning("Processor did not return a dict")
                     continue
                 self.pub.publish(topic=self.output_topic, msg=payload)
-                self.log.info(f"Processed message: {payload}")
             except Exception as e:
                 self.log.error(f"Error processing message: {e}")
                 continue
