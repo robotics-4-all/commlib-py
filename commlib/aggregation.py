@@ -1,8 +1,10 @@
 import functools
+import logging
 from typing import Any, Dict, List
 from commlib.connection import BaseConnectionParameters
 from commlib.node import Node
 
+aggregation_logger = None
 
 
 class TopicMerge:
@@ -17,6 +19,16 @@ class TopicMerge:
         self.node = Node(node_name="TopicMerge",
                          connection_params=self.broker_params,
                          debug=False, heartbeats=False)
+    @classmethod
+    def logger(cls) -> logging.Logger:
+        global aggregation_logger
+        if aggregation_logger is None:
+            aggregation_logger = logging.getLogger(__name__)
+        return aggregation_logger
+
+    @property
+    def log(self):
+        return self.logger()
 
     def create_subscriptions(self):
         for topic in self.input_topics:
@@ -33,8 +45,13 @@ class TopicMerge:
     def on_msg_internal(self, processors: Dict[str, callable],
                         payload: Dict[str, Any], topic: str):
         for proc in processors:
-            payload = proc(payload)
-            self.pub.publish(topic=self.output_topic, msg=payload)
+            try:
+                payload = proc(payload)
+                self.pub.publish(topic=self.output_topic, msg=payload)
+                self.log.info(f"Processed message: {payload}")
+            except Exception as e:
+                self.log.error(f"Error processing message: {e}")
+                continue
 
     def start(self):
         self.create_publisher()

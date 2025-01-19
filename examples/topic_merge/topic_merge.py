@@ -7,11 +7,6 @@ from commlib.node import Node
 from commlib.aggregation import TopicMerge
 
 
-def on_message(msg):
-    # pass
-    print(f"Received front sonar data: {msg}")
-
-
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         broker = "redis"
@@ -30,10 +25,10 @@ if __name__ == "__main__":
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    input_topics = ["goaldsl.*.event"]
-    output_topic = "merged_goal_event_topic"
+    input_topics = ["goaldsl.1.event"]
+    output_topic = "goaldsl.1.event"
     processors = {
-        "goaldsl.*.event": [
+        "goaldsl.1.event": [
             lambda msg: {
                 "position": {
                     "x": msg["x"], "y": msg["y"], "z": 0
