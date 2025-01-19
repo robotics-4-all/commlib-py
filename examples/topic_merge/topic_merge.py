@@ -14,7 +14,7 @@ def on_message(msg):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        broker = "mqtt"
+        broker = "redis"
     else:
         broker = str(sys.argv[1])
     if broker == "redis":

@@ -22,7 +22,9 @@ class TopicMerge:
         for topic in self.input_topics:
             if topic in self.data_processors:
                 _procs = self.data_processors[topic]
-            _clb = functools.partial(self.on_msg_internal, _procs)
+                _clb = functools.partial(self.on_msg_internal, _procs)
+            else:
+                _clb = self.on_msg_internal
             self.node.create_psubscriber(topic=topic, on_message=_clb)
 
     def create_publisher(self):
