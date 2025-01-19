@@ -341,6 +341,8 @@ class Node:
         heartbeat thread, it is also stopped. If the node has an executor,
         it is shut down. Finally, the node state is set to EXITED.
         """
+        if self.state == NodeState.STOPPED or self.state == NodeState.EXITED:
+            return
         if self._hb_thread:
             self._hb_thread.stop()
         for e in self.endpoints:
