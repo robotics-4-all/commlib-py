@@ -91,8 +91,8 @@ class RedisTransport(BaseTransport):
         super().__init__(*args, **kwargs)
         self._serializer = serializer
         self._compression = compression
-        self._connected = False
         self._rsub = None
+        self._redis = None
         self._redis_pubsub_join_timeout = 1  # sec
         self._rsub_thread = None
         self._wait_for_connection_init = 0.01  # sec
@@ -100,7 +100,13 @@ class RedisTransport(BaseTransport):
 
     @property
     def is_connected(self) -> bool:
-        return self._connected
+        try:
+            if self._redis is None:
+                return False
+            self._redis.ping()
+            return True
+        except Exception as e:
+            return False
 
     @property
     def log(self) -> logging.Logger:
@@ -131,12 +137,11 @@ class RedisTransport(BaseTransport):
             )
 
         self._rsub = self._redis.pubsub()
-        self._connected = True
 
     def start(self) -> None:
         if not self.is_connected:
             self.connect()
-        while self.is_connected is False:
+        while not self.is_connected:
             time.sleep(self._wait_for_connection_init)
 
     def stop(self) -> None:
@@ -148,16 +153,18 @@ class RedisTransport(BaseTransport):
         if self._rsub is not None:
             self._rsub.close()
         if self._redis is not None:
-            self._redis.connection_pool.disconnect()
+            self._redis.connection_pool.disconnect(inuse_connections=True)
             self._redis.close()
-        self._connected = False
+            del self._redis
 
     def delete_queue(self, queue_name: str) -> bool:
-        # self.log.debug('Removing message queue: <{}>'.format(queue_name))
         return True if self._redis.delete(queue_name) else False
 
     def queue_exists(self, queue_name: str) -> bool:
         return True if self._redis.exists(queue_name) else False
+
+    def create_queue(self, queue_name: str) -> bool:
+        self._redis.rpush(queue_name, "QueueInit")
 
     def push_msg_to_queue(self, queue_name: str, data: Dict[str, Any]):
         payload = self._serializer.serialize(data)
@@ -221,6 +228,8 @@ class RedisTransport(BaseTransport):
     def wait_for_msg(self, queue_name: str, timeout=10):
         try:
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
+            if isinstance(payload, bytes) and payload == b'QueueInit':
+                return self.wait_for_msg(queue_name, timeout)
             if self._compression != CompressionType.NO_COMPRESSION:
                 payload = deflate(payload)
         except Exception:
@@ -256,7 +265,10 @@ class RPCService(BaseRPCService):
         self._transport.push_msg_to_queue(reply_to, _resp)
 
     def _on_request_handle(self, data: Dict[str, Any], header: Dict[str, Any]):
-        self._executor.submit(self._on_request_internal, data, header)
+        try:
+            self._executor.submit(self._on_request_internal, data, header)
+        except Exception as exc:
+            self.log.error(str(exc), exc_info=False)
 
     def _on_request_internal(self, data: Dict[str, Any], header: Dict[str, Any]):
         if "reply_to" not in header:
@@ -297,18 +309,16 @@ class RPCService(BaseRPCService):
             Exception: If there is an error starting the transport or processing messages.
         """
         self._transport.start()
-        if self._transport.queue_exists(self._rpc_name):
-            self._transport.delete_queue(self._rpc_name)
+        # if self._transport.queue_exists(self._rpc_name):
+        #     self._transport.delete_queue(self._rpc_name)
+        # self._transport.create_queue(self._rpc_name)
         while True:
             time.sleep(0.001)
             msgq, payload = self._transport.wait_for_msg(self._rpc_name)
             if payload is None: continue
             self._detach_request_handler(payload)
-            if self._t_stop_event is not None:
-                if self._t_stop_event.is_set():
-                    self.log.debug("Stop event caught in thread")
-                    self._transport.delete_queue(self._rpc_name)
-                    break
+            if self.t_stop_event.is_set():
+                break
 
     def _detach_request_handler(self, payload: str):
         data, header = self._unpack_comm_msg(payload)
@@ -365,9 +375,12 @@ class RPCClient(BaseRPCClient):
             data = msg.model_dump()
         else:
             raise RPCRequestError("Invalid message type passed to RPC call")
-
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
+        # print(f"Waiting for queue {self._rpc_name}...")
+        # while not self._transport.queue_exists(self._rpc_name):
+        #     time.sleep(0.001)
+        # print("Queue exists!")
         self._transport.push_msg_to_queue(self._rpc_name, _msg)
         _, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
         self._transport.delete_queue(_reply_to)

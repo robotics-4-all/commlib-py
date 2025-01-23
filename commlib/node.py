@@ -300,8 +300,6 @@ class Node:
             self.create_start_service()
             self.create_stop_service()
 
-        # if self._heartbeats:
-        #     self._init_heartbeat_thread()
         for e in self.endpoints:
             e.run()
         if self._heartbeats:
@@ -335,7 +333,7 @@ class Node:
             self.log.error(f"Exception occurred during run_forever: {str(e)}")
         self.stop()
 
-    def stop(self, wait: bool = True, force: bool = False):
+    def stop(self, wait: bool = False, force: bool = True):
         """stop
         Stops the node by stopping all its subscribers, publishers, RPC services,
         RPC clients, action services, and action clients. If the node has a

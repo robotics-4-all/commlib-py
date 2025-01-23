@@ -7,7 +7,7 @@ from commlib.transports.redis import ConnectionParameters as RedisConnectionPara
 IDS = []
 
 
-class Test(Node):
+class TestRPCRapidReconnections(Node):
     def __init__(self):
         super().__init__(
             connection_params=RedisConnectionParameters(),
@@ -27,7 +27,7 @@ class Test(Node):
         Deposit callback
         """
 
-        print(f"TestNode instance ID: {id(self)}")
+        # print(f"TestNode instance ID: {id(self)}")
         IDS.append(id(self))
         return {"id": id(self)}
 
@@ -39,13 +39,20 @@ cnode = Node(
 client = cnode.create_rpc_client(rpc_name = "skata.bank.action")
 cnode.run(wait=True)
 
-for i in range(0, 10):
+ITERATIONS = 200
+
+for i in range(0, ITERATIONS):
     print(f"Running TestNode instance {i+1}")
-    a = Test()
-
+    a = TestRPCRapidReconnections()
+    # time.sleep(0.05)
     resp = client.call({"action": "buy", "coin": "usdt", "price": 1, "amount": 10}, timeout=2)
-    print(f"Response: {resp}")
-
+    # print(f"Response: {resp}")
+    # if resp is None:
+    #     print(f"TestNode instance {i+1} response was None!")
+    time.sleep(0.1)
     a.stop(wait=True)
 
-print(IDS)
+print(f">>> Length of TestNode IDs: {len(IDS)}")
+print(f">>> Length of Unique IDS: {len(set(IDS))}")
+if len(IDS) == len(set(IDS)) == ITERATIONS:
+    print(">>> All Test Node instances and Responses were unique!")

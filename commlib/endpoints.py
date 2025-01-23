@@ -41,7 +41,6 @@ class BaseEndpoint:
     Subclasses of `BaseEndpoint` should implement the specific functionality for their
     endpoint type, such as RPC, publish/subscribe, etc.
     """
-    _transport: BaseTransport = None
 
     @classmethod
     def logger(cls) -> logging.Logger:
@@ -71,10 +70,11 @@ class BaseEndpoint:
         self._compression = compression
         self._conn_params = conn_params
         self._state = EndpointState.DISCONNECTED
+        self._transport: BaseTransport = None
 
     @property
     def connected(self):
-        if self._transport.is_connected is None: return False
+        # if self._transport.is_connected is None: return False
         return self._transport.is_connected
 
     @property
@@ -85,7 +85,7 @@ class BaseEndpoint:
     def debug(self):
         return self._debug
 
-    def run(self, wait: bool = False) -> None:
+    def run(self, wait: bool = True) -> None:
         """
         Starts the subscriber and connects to the transport if it is not already connected.
 
@@ -98,18 +98,16 @@ class BaseEndpoint:
         if self._transport is None:
             raise RuntimeError(
                 f"Transport not initialized - cannot run {self.__class__.__name__}")
-        if not self._transport.is_connected and \
-            self._state not in (EndpointState.CONNECTED,
-                                EndpointState.CONNECTING):
+        if not self.connected:
             self._transport.start()
             if wait:
-                while not self._transport.is_connected:
+                while not self.connected:
                     time.sleep(0.001)
             self._state = EndpointState.CONNECTED
         else:
             self.log.warning("Transport already connected - Skipping")
 
-    def stop(self) -> None:
+    def stop(self, wait: bool = True) -> None:
         """
         Stops the subscriber and disconnects from the transport if it is connected.
 
@@ -120,22 +118,15 @@ class BaseEndpoint:
         if self._transport is None:
             raise RuntimeError(
                 f"Transport not initialized - cannot stop {self.__class__.__name__}")
-        if self._transport.is_connected and \
-            self._state not in (EndpointState.DISCONNECTED,
-                                EndpointState.DISCONNECTING):
+        if self._transport.is_connected:
             self._transport.stop()
+            if wait:
+                while self.connected:
+                    time.sleep(0.001)
             self._state = EndpointState.DISCONNECTED
         else:
             self.log.warning(
                 f"Transport is not connected - cannot stop {self.__class__.__name__}")
-
-
-    def __del__(self):
-        try:
-            self.stop()
-        except Exception:
-            # Silence
-            pass
 
 
 class EndpointType(Enum):

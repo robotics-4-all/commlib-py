@@ -2,6 +2,7 @@ import logging
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from functools import partial
+import time
 from typing import Any, Callable, Dict, Optional
 
 from pydantic import BaseModel
@@ -67,7 +68,7 @@ class BaseRPCServer(BaseEndpoint):
         self._gen_random_id = gen_random_id
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._main_thread = None
-        self._t_stop_event = None
+        self.t_stop_event = threading.Event()
         self._comm_obj = CommRPCMessage()
 
     def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
@@ -93,7 +94,7 @@ class BaseRPCServer(BaseEndpoint):
         """
         raise NotImplementedError()
 
-    def run(self) -> None:
+    def run(self, wait: bool = True) -> None:
         """
         Start the subscriber thread in the background without blocking
         the main thread.
@@ -106,8 +107,10 @@ class BaseRPCServer(BaseEndpoint):
                                 EndpointState.CONNECTING):
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
-            self._t_stop_event = threading.Event()
             self._main_thread.start()
+            if wait:
+                while not self.connected:
+                    time.sleep(0.001)
             self._state = EndpointState.CONNECTED
         else:
             self.log.warning(
@@ -174,7 +177,7 @@ class BaseRPCService(BaseEndpoint):
         self._max_workers = workers
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._main_thread = None
-        self._t_stop_event = None
+        self.t_stop_event = threading.Event()
         self._comm_obj = CommRPCMessage()
 
     def _serialize_data(self, payload: Dict[str, Any]) -> str:
@@ -226,7 +229,7 @@ class BaseRPCService(BaseEndpoint):
         """
         raise NotImplementedError()
 
-    def run(self) -> None:
+    def run(self, wait: bool = True) -> None:
         """
         Start the subscriber thread in the background without blocking
         the main thread.
@@ -239,22 +242,30 @@ class BaseRPCService(BaseEndpoint):
                                 EndpointState.CONNECTING):
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
-            self._t_stop_event = threading.Event()
             self._main_thread.start()
+            self.t_stop_event.clear()
+            # self._executor.submit(self.run_forever)
+            if wait:
+                while not self.connected:
+                    time.sleep(0.001)
+
             self._state = EndpointState.CONNECTED
         else:
             self.log.warning("Transport already connected - Skipping")
 
-    def stop(self):
+    def stop(self, wait: bool = True) -> None:
         """
         Stop the RPC service and the main thread.
 
         This method sets the `_t_stop_event` flag, which is used to signal the main thread to stop running. It then calls the `stop()` method of the parent class to perform any additional cleanup or shutdown logic.
         """
-
-        if self._t_stop_event is not None:
-            self._t_stop_event.set()
-        super().stop()
+        if self.t_stop_event:
+            self.t_stop_event.set()
+        # if wait:
+        #     self._main_thread.join()
+        super().stop(wait=wait)
+        if self._executor:
+            self._executor.shutdown(wait=wait, cancel_futures=True)
 
 
 class BaseRPCClient(BaseEndpoint):

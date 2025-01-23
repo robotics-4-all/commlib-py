@@ -12,8 +12,6 @@ class BaseTransport:
     that should be implemented by concrete transport implementations.
     """
 
-    _connected = False
-
     @classmethod
     def logger(cls) -> logging.Logger:
         global transport_logger
@@ -34,6 +32,7 @@ class BaseTransport:
 
         self._conn_params = conn_params
         self._debug = debug
+        self._connected = False
 
     @property
     def log(self):
