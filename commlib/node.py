@@ -63,7 +63,7 @@ class HeartbeatThread:
                 # Wait for n seconds or until stop event is raised
                 self._stop_event.wait(self._rate_secs)
                 msg.ts = self.get_ts()
-            self.logger().debug("Heartbeat Thread Ended")
+            self.logger().info("Heartbeat Thread terminated successfully")
         except Exception as exc:
             self.logger().error(f"Exception in Heartbeat-Thread: {exc}")
 
@@ -155,16 +155,16 @@ class Node:
         self._compression = compression
         self.state = NodeState.IDLE
 
-        self._publishers = []
-        self._subscribers = []
-        self._wsubscribers = []
-        self._rpc_services = []
-        self._rpc_clients = []
-        self._action_services = []
-        self._action_clients = []
-        self._event_emitters = []
-        self._executor = ThreadPoolExecutor()
+        self._publishers: List[Any] = []
+        self._subscribers: List[Any] = []
+        self._wsubscribers: List[Any] = []
+        self._rpc_services: List[Any] = []
+        self._rpc_clients: List[Any] = []
+        self._action_services: List[Any] = []
+        self._action_clients: List[Any] = []
+        self._event_emitters: List[Any] = []
         self._workers: List[Any] = []
+        self._executor = None
 
         # Set default ConnectionParameters ---->
         if transport_connection_params is not None and connection_params is None:
@@ -286,14 +286,15 @@ class Node:
             on_request=self._start_rpc_callback,
         )
 
-    def run(self, wait: bool = False) -> None:
+    def run(self, wait: bool = True) -> None:
         """run
         Starts the node by running all its subscribers, publishers, RPC services,
         RPC clients, action services, and action clients. If the node has control services,
         it also creates the start and stop services. If the node has heartbeats, it
         initializes the heartbeat thread. Finally, it sets the node state to RUNNING.
         """
-        self._executor = ThreadPoolExecutor()
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(max_workers=self._workers_rpc)
         self.log.info(f"Starting Node <{self._node_name}>")
         if self._has_ctrl_services:
             self.create_start_service()
@@ -326,7 +327,7 @@ class Node:
         """
 
         if self.state != NodeState.RUNNING:
-            self.run()
+            self.run(wait=True)
         try:
             while self.state not in (NodeState.EXITED, NodeState.STOPPED):
                 time.sleep(sleep_rate)
@@ -334,7 +335,7 @@ class Node:
             self.log.error(f"Exception occurred during run_forever: {str(e)}")
         self.stop()
 
-    def stop(self):
+    def stop(self, wait: bool = True, force: bool = False):
         """stop
         Stops the node by stopping all its subscribers, publishers, RPC services,
         RPC clients, action services, and action clients. If the node has a
@@ -348,7 +349,7 @@ class Node:
         for e in self.endpoints:
             e.stop()
         if self._executor:
-            self._executor.shutdown(wait=False, cancel_futures=True)
+            self._executor.shutdown(wait=wait, cancel_futures=force)
         self.state = NodeState.STOPPED
 
     def create_publisher(self, *args, **kwargs):
