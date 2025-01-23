@@ -68,7 +68,7 @@ class BaseRPCServer(BaseEndpoint):
         self._gen_random_id = gen_random_id
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._main_thread = None
-        self.t_stop_event = threading.Event()
+        self._t_stop_event = threading.Event()
         self._comm_obj = CommRPCMessage()
 
     def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
@@ -117,6 +117,8 @@ class BaseRPCServer(BaseEndpoint):
                 "Transport already connected - Skipping")
 
     def stop(self) -> None:
+        if self._t_stop_event:
+            self._t_stop_event.set()
         self._transport.stop()
 
 
@@ -177,7 +179,7 @@ class BaseRPCService(BaseEndpoint):
         self._max_workers = workers
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._main_thread = None
-        self.t_stop_event = threading.Event()
+        self._t_stop_event = threading.Event()
         self._comm_obj = CommRPCMessage()
 
     def _serialize_data(self, payload: Dict[str, Any]) -> str:
@@ -243,7 +245,6 @@ class BaseRPCService(BaseEndpoint):
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
             self._main_thread.start()
-            self.t_stop_event.clear()
             # self._executor.submit(self.run_forever)
             if wait:
                 while not self.connected:
@@ -259,8 +260,8 @@ class BaseRPCService(BaseEndpoint):
 
         This method sets the `_t_stop_event` flag, which is used to signal the main thread to stop running. It then calls the `stop()` method of the parent class to perform any additional cleanup or shutdown logic.
         """
-        if self.t_stop_event:
-            self.t_stop_event.set()
+        if self._t_stop_event:
+            self._t_stop_event.set()
         # if wait:
         #     self._main_thread.join()
         super().stop(wait=wait)
