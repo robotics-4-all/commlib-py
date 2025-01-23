@@ -309,6 +309,7 @@ class RPCService(BaseRPCService):
             Exception: If there is an error starting the transport or processing messages.
         """
         self._transport.start()
+        self.t_stop_event.clear()
         # if self._transport.queue_exists(self._rpc_name):
         #     self._transport.delete_queue(self._rpc_name)
         # self._transport.create_queue(self._rpc_name)
