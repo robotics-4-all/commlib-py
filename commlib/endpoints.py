@@ -74,7 +74,6 @@ class BaseEndpoint:
 
     @property
     def connected(self):
-        # if self._transport.is_connected is None: return False
         return self._transport.is_connected
 
     @property

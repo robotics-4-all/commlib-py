@@ -352,6 +352,12 @@ class BaseActionService:
     def log(self):
         return self.logger()
 
+    @property
+    def connected(self):
+        return self._goal_rpc.connected and self._cancel_rpc.connected and \
+            self._result_rpc.connected and self._status_pub.connected and \
+            self._feedback_pub.connected
+
     def run(self):
         """
         Start the Action Service RPC handlers.
@@ -534,6 +540,12 @@ class BaseActionClient:
     def log(self):
         return self.logger()
 
+    @property
+    def connected(self):
+        return self._status_sub.connected and self._feedback_sub.connected and \
+            self._goal_client.connected and self._cancel_client.connected and \
+            self._result_client.connected
+
     def send_goal(
         self,
         goal_msg: ActionMessage.Goal,
@@ -684,12 +696,16 @@ class BaseActionClient:
 
         This method starts the execution of the action client endpoints, including the status subscriber, feedback subscriber, goal client, cancel client, and result client. These endpoints are responsible for communicating with the action server and handling the various stages of the action execution.
         """
-
-        self._status_sub.run()
-        self._feedback_sub.run()
-        self._goal_client.run()
-        self._cancel_client.run()
-        self._result_client.run()
+        if self._status_sub is not None:
+            self._status_sub.run()
+        if self._feedback_sub is not None:
+            self._feedback_sub.run()
+        if self._goal_client is not None:
+            self._goal_client.run()
+        if self._cancel_client is not None:
+            self._cancel_client.run()
+        if self._result_client is not None:
+            self._result_client.run()
 
     def stop(self) -> None:
         """stop.
