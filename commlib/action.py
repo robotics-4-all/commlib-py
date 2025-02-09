@@ -5,7 +5,7 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from enum import IntEnum
 from functools import partial
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
@@ -28,7 +28,7 @@ class GoalStatus(IntEnum):
     """
 
     ACCEPTED = 1
-    EXECUTING = 2
+    RUNNING = 2
     CANCELING = 3
     SUCCEDED = 4
     ABORTED = 5
@@ -48,6 +48,7 @@ class _ActionGoalMessage(RPCMessage):
         status: int = 0
         timestamp: int = -1
         goal_id: str = ""
+        error: str = ""
 
         def __post_init__(self):
             self.timestamp = int(time.time())
@@ -65,6 +66,7 @@ class _ActionResultMessage(RPCMessage):
         status: int = 0
         timestamp: int = -1
         result: Dict[str, Any] = {}
+        error: str = ""
 
         def __post_init__(self):
             self.timestamp = int(time.time())
@@ -83,6 +85,7 @@ class _ActionCancelMessage(RPCMessage):
         status: int = 0
         timestamp: int = gen_timestamp()
         result: Dict[str, Any]
+        error: str = ""
 
 
 class _ActionStatusMessage(PubSubMessage):
@@ -99,8 +102,19 @@ class _ActionFeedbackMessage(PubSubMessage):
     Internal Action Feedback Message
     """
 
-    feedback_data: Dict[str, Any]
-    goal_id: str = ""
+    feedback_data: Optional[Dict[str, Any]] = {}
+    goal_id: Optional[str] = ""
+
+
+class _ActionNotifyMessage(PubSubMessage):
+    """_ActionStatusMessage.
+    Internal Action Status Message.
+    """
+    msg: Optional[str] = ""
+    status: Optional[int] = 0
+    goal_id: Optional[str] = ""
+    goal_data: Optional[Dict[str, Any]] = {}
+    goal_description: Optional[str] = ""
 
 
 class GoalHandler:
@@ -132,7 +146,7 @@ class GoalHandler:
         """
 
         self._msg_type = msg_type
-        self.status = GoalStatus.ACCEPTED
+        self.status = None
         self.id = gen_random_id()
         self.data = msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
         self._pub_status = status_publisher
@@ -143,6 +157,7 @@ class GoalHandler:
         self._on_cancel = on_cancel
         self._cancel_event = threading.Event()
         self._executor = ThreadPoolExecutor(max_workers=2)
+        self.set_status(GoalStatus.ACCEPTED)
 
     @property
     def log(self):
@@ -195,6 +210,7 @@ class GoalHandler:
         self._goal_task = self._executor.submit(partial(self._on_goal, self))
         # self._cancel_task = self._executor.submit(self._on_cancel, self)
         self._goal_task.add_done_callback(self._done_callback)
+        self.set_status(GoalStatus.RUNNING)
 
     def cancel(self):
         """
@@ -302,28 +318,9 @@ class BaseActionService:
             on_goal (callable, optional): A callback function to be called when a goal is received.
             on_cancel (callable, optional): A callback function to be called when a goal is canceled.
             on_getresult (callable, optional): A callback function to be called when a result is requested.
-
-        Attributes:
-            _msg_type (ActionMessage): The type of action message to use.
-            _debug (bool): Whether debug mode is enabled.
-            _compression (CompressionType): The type of compression to use.
-            _action_name (str): The name of the action.
-            _on_goal (callable): The callback function to be called when a goal is received.
-            _on_cancel (callable): The callback function to be called when a goal is canceled.
-            _on_getresult (callable): The callback function to be called when a result is requested.
-            _conn_params (BaseConnectionParameters): The connection parameters to use.
-            _status_topic (str): The topic for publishing status messages.
-            _feedback_topic (str): The topic for publishing feedback messages.
-            _goal_rpc_uri (str): The URI for the "send_goal" RPC.
-            _cancel_rpc_uri (str): The URI for the "cancel_goal" RPC.
-            _result_rpc_uri (str): The URI for the "get_result" RPC.
-            _feedback_pub (None): The publisher for feedback messages.
-            _status_pub (None): The publisher for status messages.
-            _goal_rpc (None): The RPC handler for "send_goal" requests.
-            _cancel_rpc (None): The RPC handler for "cancel_goal" requests.
-            _result_rpc (None): The RPC handler for "get_result" requests.
-            _current_goal (None): The current goal being handled.
         """
+        if on_goal is None:
+            raise ValueError("No on_goal callback provided")
         self._msg_type = msg_type
         self._debug = debug
         self._compression = compression
@@ -333,6 +330,7 @@ class BaseActionService:
         self._on_getresult = on_getresult
         self._conn_params = conn_params
 
+        self._notify_topic = f"{self._action_name}.notify"
         self._status_topic = f"{self._action_name}.status"
         self._feedback_topic = f"{self._action_name}.feedback"
         self._goal_rpc_uri = f"{self._action_name}.send_goal"
@@ -341,12 +339,23 @@ class BaseActionService:
 
         # To be instantiated by the child classes
         self._mpublisher = None
+        self._notify_pub = None
         self._feedback_pub = None
         self._status_pub = None
         self._goal_rpc = None
         self._cancel_rpc = None
         self._result_rpc = None
         self._current_goal = None
+
+        self.log.info("Initiating Action Service:\n" \
+            f" - Name: {self._action_name}\n" \
+            f" - Status Topic: {self._status_topic}\n" \
+            f" - Feedback Topic: {self._feedback_topic}\n" \
+            f" - Notify Topic: {self._notify_topic}\n" \
+            f" - Goal RPC: {self._goal_rpc_uri}\n" \
+            f" - Cancel RPC: {self._cancel_rpc_uri}\n" \
+            f" - Result RPC: {self._result_rpc_uri}" \
+        )
 
     @property
     def debug(self):
@@ -414,6 +423,11 @@ class BaseActionService:
         Args:
             msg (_ActionGoalMessage.Request): Set Goal Request Message
         """
+        self._notify(
+            msg="Set Goal Request",
+            data=msg.goal_data,
+            description=msg.description
+        )
         resp = _ActionGoalMessage.Response()
 
         if self._current_goal is None or self._current_goal.status in (
@@ -432,14 +446,18 @@ class BaseActionService:
         elif self._current_goal.status == GoalStatus.ACCEPTED:
             pass
         else:
+            resp.error = f"Cannot make the transition - Goal {self._current_goal.id} is running!"
             return resp
         # Execute user-defined callback
-        if self._on_goal is not None:
-            resp.status = 1
-            resp.goal_id = self._current_goal.id
-            self._current_goal.start()
-        else:
-            resp.goal_id = self._current_goal.id
+        self._current_goal.start()
+        resp.status = 1
+        resp.goal_id = self._current_goal.id
+        self._notify(
+            msg="Goal Started",
+            goal_id=self._current_goal.id,
+            data=msg.goal_data,
+            description=msg.description
+        )
         return resp
 
     def _handle_cancel_goal(self, msg: _ActionCancelMessage.Request):
@@ -456,6 +474,11 @@ class BaseActionService:
             return resp
         _status = self._current_goal.cancel()
         resp.status = _status
+        self._notify(
+            msg="Goal Cancelled",
+            goal_id=_goal_id,
+            status = _status
+        )
         return resp
 
     def _handle_get_result(self, msg: _ActionResultMessage.Request):
@@ -479,6 +502,15 @@ class BaseActionService:
         else:
             resp.result = self._current_goal.result
         return resp
+
+    def _notify(self, msg: str = "", description: str = "", goal_id: str = "",
+                status: int = 0, data: Dict[str, Any] = {}):
+        if self._notify_pub is not None:  # TODO CHECK IF CONNECTED!
+            _msg = _ActionNotifyMessage(
+                msg=msg, goal_description=description, status=status,
+                goal_data=data, goal_id=goal_id
+            )
+            self._notify_pub.publish(_msg)
 
     def __del__(self):
         self.stop()

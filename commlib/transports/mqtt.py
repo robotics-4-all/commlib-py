@@ -1014,24 +1014,13 @@ class ActionService(BaseActionService):
             on_request=self._handle_get_result,
             debug=self.debug,
         )
-        # self._feedback_pub = Publisher(
-        #     msg_type=_ActionFeedbackMessage,
-        #     topic=self._feedback_topic,
-        #     conn_params=self._conn_params,
-        #     debug=self.debug,
-        # )
-        # self._status_pub = Publisher(
-        #     msg_type=_ActionStatusMessage,
-        #     topic=self._status_topic,
-        #     conn_params=self._conn_params,
-        #     debug=self.debug,
-        # )
         self._mpublisher = MPublisher(
             conn_params=self._conn_params,
             debug=self.debug,
         )
         self._feedback_pub = WPublisher(self._mpublisher, self._feedback_topic)
         self._status_pub = WPublisher(self._mpublisher, self._status_topic)
+        self._notify_pub = WPublisher(self._mpublisher, self._notify_topic)
 
 
 class ActionClient(BaseActionClient):
