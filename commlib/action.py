@@ -142,8 +142,11 @@ class GoalHandler:
         self._on_goal = on_goal
         self._on_cancel = on_cancel
         self._cancel_event = threading.Event()
-
         self._executor = ThreadPoolExecutor(max_workers=2)
+
+    @property
+    def log(self):
+        return self.logger()
 
     @property
     def cancel_event(self):
@@ -162,7 +165,7 @@ class GoalHandler:
         elif future.done():
             self.set_status(GoalStatus.SUCCEDED)
         else:
-            print("Whaaaaaat?..")
+            self.log.warning("Unknown future state for goal %s", self.id)
         res = future.result()
         self.result = res
 
@@ -225,7 +228,7 @@ class GoalHandler:
             self._executor._threads.clear()
             concurrent.futures.thread._threads_queues.clear()
         except Exception as exc:
-            print(exc)
+            self.log.error(f"Error canceling goal: {exc}")
             return 0
         return 1
 
@@ -337,6 +340,7 @@ class BaseActionService:
         self._result_rpc_uri = f"{self._action_name}.get_result"
 
         # To be instantiated by the child classes
+        self._mpublisher = None
         self._feedback_pub = None
         self._status_pub = None
         self._goal_rpc = None
@@ -373,10 +377,13 @@ class BaseActionService:
             self._cancel_rpc.run()
         if self._result_rpc is not None:
             self._result_rpc.run()
-        if self._status_pub is not None:
-            self._status_pub.run()
-        if self._feedback_pub is not None:
-            self._feedback_pub.run()
+        if self._mpublisher is not None:
+            self._mpublisher.run()
+        else:
+            if self._status_pub is not None:
+                self._status_pub.run()
+            if self._feedback_pub is not None:
+                self._feedback_pub.run()
 
     def stop(self):
         """
@@ -393,10 +400,13 @@ class BaseActionService:
             self._cancel_rpc.stop()
         if self._result_rpc is not None:
             self._result_rpc.stop()
-        if self._status_pub is not None:
-            self._status_pub.stop()
-        if self._feedback_pub is not None:
-            self._feedback_pub.stop()
+        if self._mpublisher is not None:
+            self._mpublisher.stop()
+        else:
+            if self._status_pub is not None:
+                self._status_pub.stop()
+            if self._feedback_pub is not None:
+                self._feedback_pub.stop()
 
     def _handle_send_goal(self, msg: _ActionGoalMessage.Request):
         """_handle_send_goal.

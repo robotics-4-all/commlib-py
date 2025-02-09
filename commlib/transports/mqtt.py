@@ -464,6 +464,10 @@ class WPublisher:
         self._msg_type = msg_type
         validate_pubsub_topic_strict(self._topic)
 
+    @property
+    def connected(self):
+        return self._mpub.connected
+
     def publish(self, msg: Union[PubSubMessage, None]) -> None:
         """
         Publish a message to the specified topic.
@@ -1010,18 +1014,24 @@ class ActionService(BaseActionService):
             on_request=self._handle_get_result,
             debug=self.debug,
         )
-        self._feedback_pub = Publisher(
-            msg_type=_ActionFeedbackMessage,
-            topic=self._feedback_topic,
+        # self._feedback_pub = Publisher(
+        #     msg_type=_ActionFeedbackMessage,
+        #     topic=self._feedback_topic,
+        #     conn_params=self._conn_params,
+        #     debug=self.debug,
+        # )
+        # self._status_pub = Publisher(
+        #     msg_type=_ActionStatusMessage,
+        #     topic=self._status_topic,
+        #     conn_params=self._conn_params,
+        #     debug=self.debug,
+        # )
+        self._mpublisher = MPublisher(
             conn_params=self._conn_params,
             debug=self.debug,
         )
-        self._status_pub = Publisher(
-            msg_type=_ActionStatusMessage,
-            topic=self._status_topic,
-            conn_params=self._conn_params,
-            debug=self.debug,
-        )
+        self._feedback_pub = WPublisher(self._mpublisher, self._feedback_topic)
+        self._status_pub = WPublisher(self._mpublisher, self._status_topic)
 
 
 class ActionClient(BaseActionClient):
