@@ -5,6 +5,13 @@ import time
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import redis
+from redis.backoff import ExponentialBackoff
+from redis.retry import Retry
+from redis.exceptions import (
+   BusyLoadingError,
+   ConnectionError,
+   TimeoutError
+)
 
 from commlib.action import (
     BaseActionClient,
@@ -49,6 +56,7 @@ class ConnectionParameters(BaseConnectionParameters):
     username: str = ""
     password: str = ""
     socket_timeout: Union[float, None] = None
+    healthcheck_interval: Union[float, None] = None
 
 
 class RedisConnection(redis.Redis):
@@ -65,6 +73,7 @@ class RedisConnection(redis.Redis):
 
 
 class RedisTransport(BaseTransport):
+
     @classmethod
     def logger(cls) -> logging.Logger:
         global redis_logger
@@ -97,6 +106,7 @@ class RedisTransport(BaseTransport):
         self._rsub_thread = None
         self._wait_for_connection_init = 0.01  # sec
         self._wait_for_pubsub_stop = 0.1  # sec
+        self._subscription_sleep_interval = 0.001  # sec
 
     @property
     def is_connected(self) -> bool:
@@ -113,6 +123,10 @@ class RedisTransport(BaseTransport):
         return self.logger()
 
     def connect(self) -> None:
+        retry = Retry(ExponentialBackoff(self._conn_params.reconnect_attempts), 3) \
+            if self._conn_params.reconnect_attempts > 0 else None
+        retry_on_error = [ConnectionError, TimeoutError, BusyLoadingError] \
+            if self._conn_params.reconnect_attempts > 0 else None
         if self._conn_params.unix_socket not in ("", None):
             self._redis = RedisConnection(
                 unix_socket_path=self._conn_params.unix_socket,
@@ -122,7 +136,9 @@ class RedisTransport(BaseTransport):
                 decode_responses=True,
                 socket_timeout=self._conn_params.socket_timeout,
                 socket_keep_alive=True,
-                retry_on_timeout=True,
+                retry=retry,
+                retry_on_error=retry_on_error,
+                # retry_on_timeout=True,
             )
         else:
             self._redis = RedisConnection(
@@ -133,18 +149,46 @@ class RedisTransport(BaseTransport):
                 db=self._conn_params.db,
                 decode_responses=False,
                 socket_timeout=self._conn_params.socket_timeout,
-                retry_on_timeout=True,
+                retry=retry,
+                retry_on_error=retry_on_error,
+                # retry_on_timeout=True,
             )
 
         self._rsub = self._redis.pubsub()
 
     def start(self) -> None:
+        """
+        Starts the transport connection.
+
+        This method ensures that the transport is connected before proceeding.
+        If the transport is not connected, it attempts to establish a connection
+        and waits until the connection is successfully initialized.
+
+        Raises:
+            Exception: If the connection cannot be established after multiple attempts.
+        """
         if not self.is_connected:
             self.connect()
         while not self.is_connected:
             time.sleep(self._wait_for_connection_init)
 
     def stop(self) -> None:
+        """
+        Stops the Redis transport by disconnecting and cleaning up resources.
+
+        This method ensures that the transport is properly stopped by:
+        - Stopping the Redis subscription thread if it exists.
+        - Closing the Redis subscription object if it exists.
+        - Disconnecting and closing the Redis client, ensuring all in-use connections
+          are released.
+
+        Note:
+            A small delay is introduced to allow the subscription thread to stop
+            gracefully.
+
+        Raises:
+            Any exceptions raised during the cleanup process will propagate to the caller.
+        """
         if not self.is_connected:
             self.log.warning("Attempting to stop transport while not connected")
         if self._rsub_thread is not None:
@@ -190,8 +234,10 @@ class RedisTransport(BaseTransport):
             self._rsub_thread.stop()
             time.sleep(self._wait_for_pubsub_stop)
         self._rsub.psubscribe(**{topic: _clb})
-        self._rsub_thread = self._rsub.run_in_thread(0.001, daemon=True,
-                                                     exception_handler=self.exception_handler)
+        # Run the subscription in a background thread
+        self._rsub_thread = self._rsub.run_in_thread(sleep_time=self._subscription_sleep_interval,
+                                                     exception_handler=self.exception_handler,
+                                                     daemon=True)
         return self._rsub_thread
 
     def exception_handler(self, ex, pubsub, thread):
@@ -314,7 +360,6 @@ class RPCService(BaseRPCService):
         #     self._transport.delete_queue(self._rpc_name)
         # self._transport.create_queue(self._rpc_name)
         while True:
-            time.sleep(0.001)
             msgq, payload = self._transport.wait_for_msg(self._rpc_name)
             if payload is None: continue
             self._detach_request_handler(payload)
@@ -323,7 +368,6 @@ class RPCService(BaseRPCService):
 
     def _detach_request_handler(self, payload: str):
         data, header = self._unpack_comm_msg(payload)
-        # self.log.info(f"RPC Request <{self._rpc_name}>")
         self._on_request_handle(data, header)
 
     def _unpack_comm_msg(self, payload: str) -> Tuple:
