@@ -73,6 +73,16 @@ class RedisConnection(redis.Redis):
 
 
 class RedisTransport(BaseTransport):
+    _redis_pool = None
+
+    @classmethod
+    def set_redis_pool(cls, pool):
+        cls._redis_pool = pool
+
+    @classmethod
+    def get_redis_pool(cls):
+        print(cls._redis_pool.__hash__())
+        return cls._redis_pool
 
     @classmethod
     def logger(cls) -> logging.Logger:
@@ -108,6 +118,13 @@ class RedisTransport(BaseTransport):
         self._wait_for_pubsub_stop = 0.1  # sec
         self._subscription_sleep_interval = 0.001  # sec
 
+        if self._redis_pool is None:
+            self.set_redis_pool(self._build_conn_pool())
+
+    @property
+    def pubsub_alive(self):
+        return self._rsub_thread.is_alive() if self._rsub_thread else False
+
     @property
     def is_connected(self) -> bool:
         try:
@@ -122,13 +139,13 @@ class RedisTransport(BaseTransport):
     def log(self) -> logging.Logger:
         return self.logger()
 
-    def connect(self) -> None:
+    def _build_conn_pool(self):
         retry = Retry(ExponentialBackoff(self._conn_params.reconnect_attempts), 3) \
             if self._conn_params.reconnect_attempts > 0 else None
         retry_on_error = [ConnectionError, TimeoutError, BusyLoadingError] \
             if self._conn_params.reconnect_attempts > 0 else None
         if self._conn_params.unix_socket not in ("", None):
-            self._redis = RedisConnection(
+            return redis.ConnectionPool(
                 unix_socket_path=self._conn_params.unix_socket,
                 username=self._conn_params.username,
                 password=self._conn_params.password,
@@ -138,10 +155,10 @@ class RedisTransport(BaseTransport):
                 socket_keep_alive=True,
                 retry=retry,
                 retry_on_error=retry_on_error,
-                # retry_on_timeout=True,
+                max_connections=None
             )
         else:
-            self._redis = RedisConnection(
+            return redis.ConnectionPool(
                 host=self._conn_params.host,
                 port=self._conn_params.port,
                 username=self._conn_params.username,
@@ -151,10 +168,21 @@ class RedisTransport(BaseTransport):
                 socket_timeout=self._conn_params.socket_timeout,
                 retry=retry,
                 retry_on_error=retry_on_error,
-                # retry_on_timeout=True,
+                max_connections=None
             )
 
-        self._rsub = self._redis.pubsub()
+    def connect(self) -> None:
+        if self._conn_params.unix_socket not in ("", None):
+            self._redis = RedisConnection(
+                connection_pool=self.get_redis_pool(),
+            )
+        else:
+            self._redis = RedisConnection(
+                connection_pool=self.get_redis_pool(),
+            )
+        self._rsub = self._redis.pubsub(
+            ignore_subscribe_messages=True,
+        )
 
     def start(self) -> None:
         """
@@ -245,6 +273,7 @@ class RedisTransport(BaseTransport):
         thread.stop()
         thread.join(timeout=self._redis_pubsub_join_timeout)
         pubsub.close()
+        pubsub.connection_pool.disconnect(inuse_connections=True)
 
     def msubscribe(self, topics: Dict[str, callable]):
         _topics = {}
@@ -257,10 +286,12 @@ class RedisTransport(BaseTransport):
         if self._rsub is None:
             self.log.warning("Redis pubsub not initialized - Cannot proceed to subscriptions!")
             return
+        # If already in subscription, close and append new topics
         if self._rsub_thread is not None:
             self._rsub_thread.stop()
             time.sleep(self._wait_for_pubsub_stop)
         self._rsub.psubscribe(**_topics)
+        # Run the subscription in a background thread
         self._rsub_thread = self._rsub.run_in_thread(0.001, daemon=True,
                                                      exception_handler=self.exception_handler)
         return self._rsub_thread
