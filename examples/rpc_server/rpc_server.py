@@ -42,7 +42,6 @@ if __name__ == "__main__":
     else:
         broker = str(sys.argv[1])
     if broker == "redis":
-        raise ValueError("Not yet supported")
         from commlib.transports.redis import ConnectionParameters
     elif broker == "amqp":
         raise ValueError("Not yet supported")

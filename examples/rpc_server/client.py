@@ -63,11 +63,11 @@ if __name__ == "__main__":
     while True:
         # returns AddTwoIntMessage.Response instance
         resp = rpc_a.call(msg_a)
-        print(resp)
+        print(f'SUM: {msg_a.a} + {msg_a.b} = {resp}')
         msg_a.a += 1
         msg_a.b += 1
         resp = rpc_b.call(msg_b)
-        print(resp)
+        print(f'MULTIPLY: {msg_b.a} * {msg_b.b} = {resp}')
         msg_b.a += 1
         msg_b.b += 1
         time.sleep(1)
