@@ -783,16 +783,12 @@ class RPCServer(BaseRPCServer):
         self._transport.publish(reply_to, _resp, qos=MQTTQoS.L1)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        self._executor.submit(self._on_request_internal, client, userdata, msg)
+        try:
+            self._executor.submit(self._on_request_internal, client, userdata, msg)
+        except Exception as exc:
+            self.log.error(str(exc), exc_info=False)
 
     def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        """_on_request_internal.
-
-        Args:
-            client (Any): client
-            userdata (Any): userdata
-            msg (Dict[str, Any]): msg
-        """
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
@@ -802,7 +798,6 @@ class RPCServer(BaseRPCServer):
             )
             return
         try:
-
             uri = uri.replace("/", ".")
             svc_uri = uri.replace(self._base_uri, "")
             if svc_uri[0] == ".":
@@ -821,6 +816,15 @@ class RPCServer(BaseRPCServer):
         except Exception as exc:
             self.log.error(str(exc), exc_info=False)
             return
+
+    def start_endpoints(self):
+        for uri in self._svc_map:
+            if self._base_uri in (None, ""):
+                full_uri = uri
+            else:
+                full_uri = f"{self._base_uri}.{uri}"
+            self.log.info(f"Registering RPC endpoint <{full_uri}>")
+            self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[CommRPCMessage, str]:
         """_unpack_comm_msg.
@@ -845,44 +849,12 @@ class RPCServer(BaseRPCServer):
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
-    def register_endpoint(self, uri: str, callback: Callable,
-                          msg_type: RPCMessage = None):
-        self._svc_map[uri] = (callback, msg_type)
-        # self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
-
-    def _start_endpoints(self):
-        for uri in self._svc_map:
-            if self._base_uri in (None, ""):
-                        full_uri = uri
-            else:
-                full_uri = f"{self._base_uri}.{uri}"
-            self.log.info(f"Registering RPC endpoint <{full_uri}>")
-            self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
-
-    def run_forever(self):
-        self._transport.start()
-        self._start_endpoints()
-        while True:
-            if self._t_stop_event is not None:
-                if self._t_stop_event.is_set():
-                    self.log.debug("Stop event caught in thread")
-                    break
-            time.sleep(0.001)
-        self._transport.stop()
-
-
 class RPCClient(BaseRPCClient):
     """RPCClient.
     MQTT RPC Client
     """
 
     def __init__(self, *args, **kwargs):
-        """__init__.
-
-        Args:
-            args: See BaseRPCClient
-            kwargs: See BaseRPCClient
-        """
         self._response = None
 
         super(RPCClient, self).__init__(*args, **kwargs)

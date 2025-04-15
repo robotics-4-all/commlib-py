@@ -32,6 +32,7 @@ from commlib.pubsub import (
 )
 from commlib.rpc import (
     BaseRPCClient,
+    BaseRPCServer,
     BaseRPCService,
     CommRPCHeader,
     CommRPCMessage,
@@ -81,7 +82,6 @@ class RedisTransport(BaseTransport):
 
     @classmethod
     def get_redis_pool(cls):
-        print(cls._redis_pool.__hash__())
         return cls._redis_pool
 
     @classmethod
@@ -150,7 +150,7 @@ class RedisTransport(BaseTransport):
                 username=self._conn_params.username,
                 password=self._conn_params.password,
                 db=self._conn_params.db,
-                decode_responses=True,
+                decode_responses=False,
                 socket_timeout=self._conn_params.socket_timeout,
                 socket_keep_alive=True,
                 retry=retry,
@@ -390,12 +390,10 @@ class RPCService(BaseRPCService):
         # if self._transport.queue_exists(self._rpc_name):
         #     self._transport.delete_queue(self._rpc_name)
         # self._transport.create_queue(self._rpc_name)
-        while True:
+        while not self._t_stop_event.is_set():
             msgq, payload = self._transport.wait_for_msg(self._rpc_name)
             if payload is None: continue
             self._detach_request_handler(payload)
-            if self._t_stop_event.is_set():
-                break
 
     def _detach_request_handler(self, payload: str):
         data, header = self._unpack_comm_msg(payload)
@@ -453,10 +451,8 @@ class RPCClient(BaseRPCClient):
             raise RPCRequestError("Invalid message type passed to RPC call")
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
-        # print(f"Waiting for queue {self._rpc_name}...")
         # while not self._transport.queue_exists(self._rpc_name):
         #     time.sleep(0.001)
-        # print("Queue exists!")
         self._transport.push_msg_to_queue(self._rpc_name, _msg)
         _, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
         self._transport.delete_queue(_reply_to)
@@ -933,3 +929,88 @@ class ActionClient(BaseActionClient):
             topic=self._feedback_topic,
             on_message=self._on_feedback,
         )
+
+
+class RPCServer(BaseRPCServer):
+
+    def __init__(self, *args, **kwargs):
+        super(RPCServer, self).__init__(*args, **kwargs)
+        self._transport = RedisTransport(
+            conn_params=self._conn_params,
+            serializer=self._serializer,
+            compression=self._compression,
+        )
+
+    def _on_request_handle(self, rpc_uri: str, data: Dict[str, Any], header: Dict[str, Any]):
+        # Guard against bad requests
+        try:
+            self._executor.submit(self._on_request_internal, rpc_uri, data, header)
+        except Exception as exc:
+            self.log.error(str(exc), exc_info=False)
+
+    def _on_request_internal(self, rpc_uri: str, data: Dict[str, Any], header: Dict[str, Any]):
+        if "reply_to" not in header:
+            return
+        try:
+            _req_msg = CommRPCMessage(
+                header=CommRPCHeader(reply_to=header["reply_to"]), data=data
+            )
+
+            if not self._validate_rpc_req_msg(_req_msg):
+                raise RPCRequestError("Request Message is invalid!")
+            if self._base_uri not in (None, ""):
+                rpc_uri = rpc_uri.replace(self._base_uri, "")
+                rpc_uri = rpc_uri.lstrip(".")
+            if self._svc_map[rpc_uri][1] is None:
+                resp = self._svc_map[rpc_uri][0](data)
+            else:
+                resp = self._svc_map[rpc_uri][0](self._svc_map[rpc_uri][1].Request(**data))
+                # RPCMessage.Response object here
+                resp = resp.model_dump()
+        except RPCRequestError:
+            self.log.error(str(exc), exc_info=False)
+            resp = {}
+        except Exception as exc:
+            self.log.error(str(exc), exc_info=False)
+            resp = {}
+        self._send_response(resp, _req_msg.header.reply_to)
+
+    def _send_response(self, data: Dict[str, Any], reply_to: str):
+        self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
+        self._comm_obj.data = data
+        _resp = self._comm_obj.model_dump()
+        self._transport.push_msg_to_queue(reply_to, _resp)
+
+    def start_endpoints(self):
+        for uri in self._svc_map:
+            if self._base_uri in (None, ""):
+                full_uri = uri
+            else:
+                full_uri = f"{self._base_uri}.{uri}"
+            self.log.info(f"Registering RPC endpoint <{full_uri}>")
+            self._executor.submit(self._monitor_queue_for_requests, full_uri)
+            # self._monitor_queue_for_requests(full_uri)
+        # self._subscriber_thread = self._transport.msubscribe(
+        #     {uri: self._on_request_handle for uri in self._svc_map.keys()})
+
+    def _monitor_queue_for_requests(self, rpc_uri: str, timeout: float = 10):
+        """
+        Waits for a request message on the specified RPC queue.
+
+        Args:
+            timeout (float): The maximum time to wait for a request message in seconds.
+
+        Returns:
+            Tuple: A tuple containing the request message and the header.
+        """
+        while not self._t_stop_event.is_set():
+            _, payload = self._transport.wait_for_msg(rpc_uri, timeout=timeout)
+            if payload is None: continue
+            data, header = self._unpack_comm_msg(payload)
+            self._on_request_handle(rpc_uri, data, header)
+
+    def _unpack_comm_msg(self, payload: str) -> Tuple:
+        _payload = self._serializer.deserialize(payload)
+        _data = _payload["data"]
+        _header = _payload["header"]
+        return _data, _header
