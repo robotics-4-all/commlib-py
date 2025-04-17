@@ -4,7 +4,7 @@ import sys
 
 from commlib.msg import MessageHeader, PubSubMessage
 from commlib.node import Node
-from commlib.aggregation import TopicMerge
+from commlib.aggregation import TopicAggregator
 
 
 if __name__ == "__main__":
@@ -25,8 +25,8 @@ if __name__ == "__main__":
         sys.exit(1)
     conn_params = ConnectionParameters()
 
-    input_topics = ["goaldsl.1.event"]
-    output_topic = "goaldsl.1.event"
+    input_topics = ["goaldsl.1.event", "goaldsl.2.event"]
+    output_topic = "goaldsl.events"
     processors = {
         "goaldsl.1.event": [
             lambda msg: {
@@ -39,6 +39,6 @@ if __name__ == "__main__":
             }
         ]
     }
-    topicmerge = TopicMerge(conn_params, input_topics, output_topic,
-                            data_processors=processors)
+    topicmerge = TopicAggregator(conn_params, input_topics, output_topic,
+                                 data_processors=processors)
     topicmerge.start()
