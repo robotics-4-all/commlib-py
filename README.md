@@ -67,6 +67,7 @@
 - [🤝 Contributing](#-contributing)
 - [📜 License](#-license)
 - [🎩 Acknowledgments](#-acknowledgments)
+- [🌟 Star History](#-star-history)
 
 ---
 
@@ -1573,3 +1574,7 @@ Commlib-py is protected under the [MIT ](https://choosealicense.com/licenses/mit
 
 
 ---
+
+## 🌟 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=robotics-4-all/commlib-py&type=Date)](https://www.star-history.com/#robotics-4-all/commlib-py&Date)
