@@ -1,73 +1,918 @@
-[![PyPI version](https://badge.fury.io/py/commlib-py.svg)](https://badge.fury.io/py/commlib-py) [![Downloads](https://static.pepy.tech/badge/commlib-py)](https://pepy.tech/project/commlib-py) [![Downloads](https://static.pepy.tech/badge/commlib-py/month)](https://pepy.tech/project/commlib-py) [![Downloads](https://static.pepy.tech/badge/commlib-py/week)](https://pepy.tech/project/commlib-py)
+<div id="top">
+
+<!-- HEADER STYLE: CLASSIC -->
+<div align="center">
 
 ![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/0dc3db01-eb5e-40a2-9d3a-07d25613fc86)
 
 
-# commlib-py
+[![PyPI version](https://badge.fury.io/py/commlib-py.svg)](https://badge.fury.io/py/commlib-py) [![Downloads](https://static.pepy.tech/badge/commlib-py)](https://pepy.tech/project/commlib-py) [![Downloads](https://static.pepy.tech/badge/commlib-py/month)](https://pepy.tech/project/commlib-py) [![Downloads](https://static.pepy.tech/badge/commlib-py/week)](https://pepy.tech/project/commlib-py)
 
-Commlib is an **internal DSL** for communication and messaging in **Cyber-Physical Systems**. Can be used for
-rapid development of the communication layer on-device, at the Edge and on the Cloud.
+<em></em>
 
-The goal of this project is to implement a simple Protocol-agnostic API (AMQP, Kafka, Redis, MQTT, etc)
-for common communication patterns in the context of Cyber-Physical Systems, using message broker
-technologies. Such patterns include PubSub, RPC and Preemptive Services (aka Actions), among others.
+<!-- BADGES -->
+<!-- local repository, no metadata badges. -->
 
-![Broker_A](https://github.com/robotics-4-all/commlib-py/assets/4770702/ab009804-75aa-4272-a471-b3f966e4011c)
+<em>Built with the tools and technologies:</em>
+
+<img src="https://img.shields.io/badge/Redis-FF4438.svg?style=default&logo=Redis&logoColor=white" alt="Redis">
+<img src="https://img.shields.io/badge/MQTT-606?logo=mqtt&logoColor=fff&style=plastic" alt="MQTT">
+<img src="https://img.shields.io/badge/RabbitMQ-F60?logo=rabbitmq&logoColor=fff&style=plastic" alt="RabbitMQ">
+<img src="https://img.shields.io/badge/Apache%20Kafka-231F20?logo=apachekafka&logoColor=fff&style=plastic" alt="Kafka">
+<br>
+<img src="https://img.shields.io/badge/Anaconda-44A833.svg?style=default&logo=Anaconda&logoColor=white" alt="Anaconda">
+<img src="https://img.shields.io/badge/Pytest-0A9EDC.svg?style=default&logo=Pytest&logoColor=white" alt="Pytest">
+<img src="https://img.shields.io/badge/Docker-2496ED.svg?style=default&logo=Docker&logoColor=white" alt="Docker">
+<img src="https://img.shields.io/badge/Python-3776AB.svg?style=default&logo=Python&logoColor=white" alt="Python">
+<img src="https://img.shields.io/badge/Pydantic-E92063.svg?style=default&logo=Pydantic&logoColor=white" alt="Pydantic">
+
+</div>
+<br>
+
+---
+
+## 📜 Table of Contents
+
+- [📜 Table of Contents](#-table-of-contents)
+- [📖 Overview](#-overview)
+- [👾 Features](#-features)
+- [📜 Project Index](#-project-index)
+- [🚀 Getting Started](#-getting-started)
+	- [🔖 Prerequisites](#-prerequisites)
+	- [🛠️ Installation](#️-installation)
+		- [PyPi Releases](#pypi-releases)
+		- [From Source](#from-source)
+		- [JSON Serialization](#json-serialization)
+	- [📺 Concepts](#-concepts)
+		- [Node](#node)
+		- [Req/Resp - RPCs](#reqresp---rpcs)
+			- [Server Side Example](#server-side-example)
+			- [Client Side Example](#client-side-example)
+		- [Pub/Sub](#pubsub)
+			- [Write a Simple Publisher](#write-a-simple-publisher)
+			- [Write a Simple Subscriber](#write-a-simple-subscriber)
+		- [Wildcard Subscriptions](#wildcard-subscriptions)
+		- [Preemptive Services with Feedback (Actions)](#preemptive-services-with-feedback-actions)
+			- [Write an Action Service](#write-an-action-service)
+			- [Write an Action Client](#write-an-action-client)
+	- [📺 Usage](#-usage)
+- [🧪 Testing](#-testing)
+- [🎞️ Roadmap](#️-roadmap)
+- [🤝 Contributing](#-contributing)
+- [📜 License](#-license)
+- [🎩 Acknowledgments](#-acknowledgments)
+
+---
+
+## 📖 Overview
+
+Commlib is a **Domain-specific Language** for communication and messaging in **Cyber-Physical Systems**. Can be used for rapid development of the communication layer on-device, at the Edge and on the Cloud, or using a mixed multi-level multi-broker schema.
+
+The goal of this project is to implement a simple Protocol-agnostic API (AMQP, Kafka, Redis, MQTT, etc) for common communication patterns in the context of Cyber-Physical Systems, using message broker technologies. Such patterns include PubSub, RPC and Preemptive Services (aka Actions), among others.
 
 
+<div align="center">
+<img src="https://github.com/robotics-4-all/commlib-py/assets/4770702/ab009804-75aa-4272-a471-b3f966e4011c">
+</div>
 
-# Installation
+---
 
-Install from PyPi:
 
-```bash
-pip install commlib-py
+## 👾 Features
+
+|      | Feature         | Summary       |
+| :--- | :---:           | :---          |
+| ⚙️  | **Protocol-Agnostic**  | <ul><li>Protocol/Transport-level abstraction</li><li>Currently supports Redis, AMQP, MQTT and Kafka</li></ul> |
+| 📄 | **Documentation** | <ul><li>Rich documentation in various formats (YAML, TOML, Markdown)</li><li>Includes detailed installation commands for different package managers</li><li>Utilizes MkDocs for generating documentation</li></ul> |
+| 🧩 | **Modularity**    | <ul><li>Well-structured codebase with clear separation of concerns</li><li>Encourages code reusability and maintainability</li><li>Utilizes dependency management with Poetry</li></ul> |
+| ⚡️  | **Performance**   | <ul><li>Optimized code for efficiency</li><li>Scalable architecture for handling high loads</li></ul> |
+| 📦 | **Dependencies**  | <ul><li>Manages dependencies with Poetry and dependency lock files</li><li>Includes a variety of libraries for different functionalities</li><li>Dependency management with conda for environment setup</li><li>Dynamic imports of underlying transport libraries</li></ul> |
+
+---
+
+<!-- ## 📚 Project Structure
+
+```sh
+└── commlib-py/
+    ├── brokers
+    │   ├── amqp
+    │   ├── dragonfly
+    │   ├── kafka
+    │   ├── mqtt
+    │   └── redis
+    ├── commlib
+    │   ├── __init__.py
+    │   ├── action.py
+    │   ├── aggregation.py
+    │   ├── async_utils.py
+    │   ├── bridges.py
+    │   ├── compression.py
+    │   ├── connection.py
+    │   ├── endpoints.py
+    │   ├── exceptions.py
+    │   ├── msg.py
+    │   ├── node.py
+    │   ├── pubsub.py
+    │   ├── rpc.py
+    │   ├── serializer.py
+    │   ├── tcp_proxy.py
+    │   ├── timer.py
+    │   ├── transports
+    │   └── utils.py
+    ├── examples
+    │   ├── bridges
+    │   ├── endpoint_factory
+    │   ├── minimize_conns
+    │   ├── multitopic_publisher
+    │   ├── node
+    │   ├── node_decorators
+    │   ├── node_inherit
+    │   ├── perf_test
+    │   ├── ptopic_bridge
+    │   ├── rpc_server
+    │   ├── simple_action
+    │   ├── simple_pubsub
+    │   ├── simple_rpc
+    │   ├── test_rpc_deletion
+    │   └── topic_aggregator
+    ├── requirements.txt
+    ├── set_version.sh
+    ├── setup.cfg
+    ├── setup.py
+    ├── tests
+    │   ├── __init__.py
+    │   ├── mqtt
+    │   ├── redis
+    │   ├── test_msgs.py
+    │   ├── test_node.py
+    │   ├── test_pubsub.py
+    │   ├── test_rpc.py
+    │   └── test_timer.py
+    └── tox.ini
+``` -->
+
+## 📜 Project Index
+
+<details open>
+	<!-- brokers Submodule -->
+		<summary><b>brokers</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ brokers</b></code>
+			<!-- redis Submodule -->
+			<details>
+				<summary><b>redis</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ brokers.redis</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/brokers/redis/redis.conf'>redis.conf</a></b></td>
+							<td style='padding: 8px;'>- The <code>redis.conf</code> file in the <code>brokers/redis</code> directory configures the Redis server instance used within the larger application<br>- It dictates settings such as memory allocation and potentially includes other configuration files for customized server behavior<br>- Essentially, this file is crucial for setting up and controlling the Redis message broker within the overall system architecture.</td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/brokers/redis/launch_redis_docker.sh'>launch_redis_docker.sh</a></b></td>
+							<td style='padding: 8px;'>- The script launches a Redis instance within a Docker container<br>- It utilizes a provided configuration file (<code>redis.conf</code>) and maps port 6379 for external access<br>- This facilitates the use of Redis as a message broker within the larger application architecture, enabling efficient data exchange between application components<br>- The containers ephemeral nature ensures clean resource management.</td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- mqtt Submodule -->
+			<details>
+				<summary><b>mqtt</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ brokers.mqtt</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/brokers/mqtt/launch_emqx_docker.sh'>launch_emqx_docker.sh</a></b></td>
+							<td style='padding: 8px;'>- The script launches an EMQX MQTT broker instance within a Docker container<br>- It exposes several ports for various MQTT protocols, including the management UI, enabling communication and administration<br>- This facilitates message queuing and data exchange within the broader application architecture<br>- The script simplifies deployment and management of the broker.</td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- kafka Submodule -->
+			<details>
+				<summary><b>kafka</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ brokers.kafka</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/brokers/kafka/start.sh'>start.sh</a></b></td>
+							<td style='padding: 8px;'>- The <code>start.sh</code> script initiates the Kafka broker within the projects dockerized environment<br>- It leverages docker-compose to manage the lifecycle of the Kafka containers, ensuring a clean startup by first stopping any existing instances and then starting them, removing any orphaned containers<br>- This script is crucial for deploying and managing the Kafka message broker infrastructure.</td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/brokers/kafka/docker-compose.yml'>docker-compose.yml</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/brokers/kafka/docker-compose-2.yml'>docker-compose-2.yml</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- dragonfly Submodule -->
+			<details>
+				<summary><b>dragonfly</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ brokers.dragonfly</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/brokers/dragonfly/start.sh'>start.sh</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/brokers/dragonfly/docker-compose.yml'>docker-compose.yml</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- amqp Submodule -->
+			<details>
+				<summary><b>amqp</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ brokers.amqp</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/brokers/amqp/launch_rabbitmq_docker.sh'>launch_rabbitmq_docker.sh</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/brokers/amqp/docker-compose.yml'>docker-compose.yml</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+		</blockquote>
+	</details>
+	<details>
+	<!-- examples Submodule -->
+		<summary><b>examples</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ examples</b></code>
+			<!-- topic_aggregator Submodule -->
+			<details>
+				<summary><b>topic_aggregator</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.topic_aggregator</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/topic_aggregator/topic_merge.py'>topic_merge.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/topic_aggregator/producers.py'>producers.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- test_rpc_deletion Submodule -->
+			<details>
+				<summary><b>test_rpc_deletion</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.test_rpc_deletion</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/test_rpc_deletion/test.py'>test.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- minimize_conns Submodule -->
+			<details>
+				<summary><b>minimize_conns</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.minimize_conns</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/minimize_conns/wsubscriber.py'>wsubscriber.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/minimize_conns/wpublisher.py'>wpublisher.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- simple_rpc Submodule -->
+			<details>
+				<summary><b>simple_rpc</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.simple_rpc</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/simple_rpc/simple_rpc_service.py'>simple_rpc_service.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/simple_rpc/simple_rpc_client.py'>simple_rpc_client.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- simple_pubsub Submodule -->
+			<details>
+				<summary><b>simple_pubsub</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.simple_pubsub</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/simple_pubsub/subscriber.py'>subscriber.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/simple_pubsub/publisher.py'>publisher.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- simple_action Submodule -->
+			<details>
+				<summary><b>simple_action</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.simple_action</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/simple_action/action_service.py'>action_service.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/simple_action/action_client.py'>action_client.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- rpc_server Submodule -->
+			<details>
+				<summary><b>rpc_server</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.rpc_server</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/rpc_server/rpc_server.py'>rpc_server.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/rpc_server/client.py'>client.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- ptopic_bridge Submodule -->
+			<details>
+				<summary><b>ptopic_bridge</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.ptopic_bridge</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/ptopic_bridge/redis_pub.py'>redis_pub.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/ptopic_bridge/mqtt_sub.py'>mqtt_sub.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/ptopic_bridge/bridge.py'>bridge.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- perf_test Submodule -->
+			<details>
+				<summary><b>perf_test</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.perf_test</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/perf_test/perf_test.py'>perf_test.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- node_inherit Submodule -->
+			<details>
+				<summary><b>node_inherit</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.node_inherit</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/node_inherit/node_inherit_example.py'>node_inherit_example.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- node_decorators Submodule -->
+			<details>
+				<summary><b>node_decorators</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.node_decorators</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/node_decorators/decor_node.py'>decor_node.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/node_decorators/client.py'>client.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- node Submodule -->
+			<details>
+				<summary><b>node</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.node</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/node/node_with_features.py'>node_with_features.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- multitopic_publisher Submodule -->
+			<details>
+				<summary><b>multitopic_publisher</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.multitopic_publisher</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/multitopic_publisher/psubscriber.py'>psubscriber.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/multitopic_publisher/mpublisher.py'>mpublisher.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- endpoint_factory Submodule -->
+			<details>
+				<summary><b>endpoint_factory</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.endpoint_factory</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/endpoint_factory/example.py'>example.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+			<!-- bridges Submodule -->
+			<details>
+				<summary><b>bridges</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ examples.bridges</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/bridges/typed_bridge_example.py'>typed_bridge_example.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/examples/bridges/bridge_example.py'>bridge_example.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+		</blockquote>
+	</details>
+	<!-- commlib Submodule -->
+	<details>
+		<summary><b>commlib</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ commlib</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+					<th style='text-align: left; padding: 8px;'>Summary</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/utils.py'>utils.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/timer.py'>timer.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/tcp_proxy.py'>tcp_proxy.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/serializer.py'>serializer.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/rpc.py'>rpc.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/pubsub.py'>pubsub.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/node.py'>node.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/msg.py'>msg.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/exceptions.py'>exceptions.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/endpoints.py'>endpoints.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/connection.py'>connection.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/bridges.py'>bridges.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/async_utils.py'>async_utils.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/aggregation.py'>aggregation.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/action.py'>action.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/compression.py'>compression.py</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/.editorconfig'>.editorconfig</a></b></td>
+					<td style='padding: 8px;'>TODO</code></td>
+				</tr>
+			</table>
+			<!-- transports Submodule -->
+			<details>
+				<summary><b>transports</b></summary>
+				<blockquote>
+					<div class='directory-path' style='padding: 8px 0; color: #666;'>
+						<code><b>⦿ commlib.transports</b></code>
+					<table style='width: 100%; border-collapse: collapse;'>
+					<thead>
+						<tr style='background-color: #f8f9fa;'>
+							<th style='width: 30%; text-align: left; padding: 8px;'>File Name</th>
+							<th style='text-align: left; padding: 8px;'>Summary</th>
+						</tr>
+					</thead>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/transports/redis.py'>redis.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/transports/mqtt.py'>mqtt.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/transports/mock.py'>mock.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/transports/kafka.py'>kafka.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/transports/base_transport.py'>base_transport.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+						<tr style='border-bottom: 1px solid #eee;'>
+							<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/transports/amqp.py'>amqp.py</a></b></td>
+							<td style='padding: 8px;'>TODO</code></td>
+						</tr>
+					</table>
+				</blockquote>
+			</details>
+		</blockquote>
+	</details>
+</details>
+
+---
+
+## 🚀 Getting Started
+
+### 🔖 Prerequisites
+
+This project requires the following dependencies:
+
+- **Programming Language:** Python
+- **Packages:** Pydantic2, orjson|ujson (Optional for fast json serialization), paho-mqtt (Optional for MQTT support), redis-py (Optional for Redis Support), pika (Optional for AMQP support)
+- **Package Manager:** Pip, Poetry, Conda, Tox
+
+### 🛠️ Installation
+
+Build commlib-py from the source and install dependencies:
+
+#### PyPi Releases
+
+1. **Using pip**
+
+```sh
+❯ pip install commlib-py
 ```
 
-Alternatively, download this repo and install using setuptools:
+Or select version explicitly
 
-```
-git clone git@github.com:robotics-4-all/commlib-py.git
-cd commlib-py && python setup.py install
-```
-
-Commlib can also be used in a virtual envirtonment
-
-```
-python -m venv myvenv
-pip install commlib-py
+```sh
+❯ pip install commlib-py==0.11.5
 ```
 
-## JSON Serialization
+1. **Using pipx**
 
-It is recommended to use a fast json library, such as [orjson](https://github.com/ijl/orjson) 
-or [ujson](https://github.com/ultrajson/ultrajson).
+```sh
+❯ pipx install commlib-py
+```
 
-The framework will load and use the most performance optimal library based
-on installations. The default is `ujson`.
+#### From Source
 
-# Guide
+1. **Clone the repository:**
 
-## Node
+    ```sh
+    ❯ git clone git@github.com:robotics-4-all/commlib-py.git
+    ```
 
-A **Node** is a software component that follows the Component-Port-Connector model.
-It has input and output ports for communicating with the world. Each
-port defines an endpoint and can be of the following types.
+2. **Navigate to the project directory:**
 
-**Input Port**:
-  - Subscriber
-  - RPC Service
-  - Action Service
+    ```sh
+    ❯ cd commlib-py
+    ```
 
-**Output Port**:
-  - Publisher
-  - RPC Client
-  - Action Client
+3. **Install the dependencies:**
 
-**InOut Port**:
-  - RPCBridge: Bridge RPC Communication between two brokers. Directional.
-  - TopicBridge: Bridge PubSub Communication between two brokers. Directional.
-  - PTopicBridge: Bridge PubSub Communication between two brokers, based on a topic pattern. Directional.
+
+<!-- SHIELDS BADGE CURRENTLY DISABLED -->
+	<!-- [![pip][pip-shield]][pip-link] -->
+	<!-- REFERENCE LINKS -->
+	<!-- [pip-shield]: https://img.shields.io/badge/Pip-3776AB.svg?style={badge_style}&logo=pypi&logoColor=white -->
+	<!-- [pip-link]: https://pypi.org/project/pip/ -->
+
+	**Using [pip](https://pypi.org/project/pip/):**
+
+	```sh
+	❯ pip install .
+	```
+<!-- SHIELDS BADGE CURRENTLY DISABLED -->
+	<!-- [![poetry][poetry-shield]][poetry-link] -->
+	<!-- REFERENCE LINKS -->
+	<!-- [poetry-shield]: https://img.shields.io/endpoint?url=https://python-poetry.org/badge/v0.json -->
+	<!-- [poetry-link]: https://python-poetry.org/ -->
+
+	**Using [poetry](https://python-poetry.org/):**
+
+	```sh
+	❯ poetry install
+	```
+<!-- SHIELDS BADGE CURRENTLY DISABLED -->
+	<!-- [![conda][conda-shield]][conda-link] -->
+	<!-- REFERENCE LINKS -->
+	<!-- [conda-shield]: https://img.shields.io/badge/conda-342B029.svg?style={badge_style}&logo=anaconda&logoColor=white -->
+	<!-- [conda-link]: https://docs.conda.io/ -->
+
+	**Using [conda](https://docs.conda.io/):**
+
+	```sh
+	❯ conda env create -f environment.yml
+	```
+<!-- SHIELDS BADGE CURRENTLY DISABLED -->
+	<!-- [![tox][tox-shield]][tox-link] -->
+	<!-- REFERENCE LINKS -->
+	<!-- [tox-shield]: None -->
+	<!-- [tox-link]: None -->
+
+
+#### JSON Serialization
+
+It is recommended to use a fast json library, such as [orjson](https://github.com/ijl/orjson) or [ujson](https://github.com/ultrajson/ultrajson).
+
+The framework will load and use the most performance optimal library based on installations, using the below priority:
+- [ujson](https://github.com/ultrajson/ultrajson)
+- [orjson](https://github.com/ijl/orjson)
+- json
+
+### 📺 Concepts
+
+#### Node
+
+A **Node** is a software component that follows the **Component-Port-Connector** model. It has input and output ports for communicating with the world. Each port defines an endpoint and can be of the following types.
+<div align="center">
+
+<table>
+	<thead>
+		<tr>
+			<th><b>Port Type</b></th>
+			<th><b>Description</b></th>
+		</tr>
+	</thead>
+	<tbody>
+		<tr>
+			<td rowspan="4"><b>Input Port</b></td>
+			<td><b>Subscriber</b>: Listens for messages on a specific topic.</td>
+		</tr>
+		<tr>
+			<td><b>RPC Service</b>: Provides a Remote Procedure Call (RPC) service for handling requests.</td>
+		</tr>
+		<tr>
+			<td><b>Action Service</b>: Executes long-running tasks and provides feedback during execution.</td>
+		</tr>
+		<tr>
+			<td><b>RPC Server</b>: Handles RPC requests and sends responses.</td>
+		</tr>
+		<tr>
+			<td rowspan="3"><b>Output Port</b></td>
+			<td><b>Publisher</b>: Sends messages to a specific topic.</td>
+		</tr>
+		<tr>
+			<td><b>RPC Client</b>: Sends RPC requests and waits for responses.</td>
+		</tr>
+		<tr>
+			<td><b>Action Client</b>: Initiates actions and receives feedback during execution.</td>
+		</tr>
+		<tr>
+			<td rowspan="3"><b>InOut Port</b></td>
+			<td><b>RPCBridge</b>: Bridges RPC communication between two brokers. Directional.</td>
+		</tr>
+		<tr>
+			<td><b>TopicBridge</b>: Bridges PubSub communication between two brokers. Directional.</td>
+		</tr>
+		<tr>
+			<td><b>PTopicBridge</b>: Bridges PubSub communication between two brokers based on a topic pattern. Directional.</td>
+		</tr>
+	</tbody>
+</table>
+
+</div>
 
 
 Furthermore, it implements several features:
@@ -82,7 +927,6 @@ from commlib.msg import RPCMessage
 ## Imports are lazy handled internally
 from commlib.transports.redis import ConnectionParameters
 
-
 class AddTwoIntMessage(RPCMessage):
     class Request(RPCMessage.Request):
         a: int = 0
@@ -91,43 +935,49 @@ class AddTwoIntMessage(RPCMessage):
     class Response(RPCMessage.Response):
         c: int = 0
 
-
-def on_request(msg):
+def add_two_int_handler(msg):
     print(f'On-Request: {msg}')
     resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
     return resp
 
-
 if __name__ == '__main__':
-    conn_params = ConnectionParameters()
-    node = Node(node_name='add_two_ints_node',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
-    rpc = node.create_rpc(msg_type=AddTwoIntMessage,
-                          # rpc_name='add_two_ints_node.add_two_ints',
-                          on_request=add_two_int_handler)
-    node.run_forever(sleep_rate=1)
+	conn_params = ConnectionParameters()
+	node = Node(
+		node_name='add_two_ints_node',
+		connection_params=conn_params,
+		heartbeats=True,
+		heartbeat_uri='nodes.add_two_ints.heartbeat',
+		heartbeat_interval=10,
+		ctrl_services=True,
+		debug=False
+	)
+	rpc = node.create_rpc(
+		msg_type=AddTwoIntMessage,
+		rpc_name='add_two_ints_node.add_two_ints',
+		on_request=add_two_int_handler
+	)
+	node.run_forever(sleep_rate=1)
 ```
 
 A Node always binds to a specific broker for implementing the input and
-output ports. Of course you can instantiate and run several Nodes in a single-process 
+output ports. Of course you can instantiate and run several Nodes in a single-process
 application.
 
 **Node class:**
 
 ```py
 class Node:
-    
+
     def __init__(self,
-                 node_name: Optional[str] = '',
+                 node_name: Optional[str] = "",
                  connection_params: Optional[Any] = None,
-                 transport_connection_params: Optional[Any] = None,
                  debug: Optional[bool] = False,
                  heartbeats: Optional[bool] = True,
+                 heartbeat_interval: Optional[float] = 10.0,
                  heartbeat_uri: Optional[str] = None,
                  compression: CompressionType = CompressionType.NO_COMPRESSION,
-                 ctrl_services: Optional[bool] = False):
+                 ctrl_services: Optional[bool] = False,
+                 workers_rpc: Optional[int] = 4):
 ```
 
 Node methods to create and run Endpoints::
@@ -151,75 +1001,30 @@ Node:
    stop(self)
 ```
 
-## Endpoint (Low-level API)
+<!-- #### Communication Patters
 
-It is possible to construct endpoints without binding them to a specific
-Node. This is a feature to support a wider range of applications, where the
-concept Node might not be usable.
-
-One can create endpoint instances by using the following classes of each
-supported transport
-
-- RPCClient
-- RPCServer
-- Publisher
-- Subscriber
-- MPublisher (Multi-topic Publisher)
-- PSubscriber (Pattern-based Subscriber)
-- ActionService (Preemptable Services with feedback)
-- ActionClient
+![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/b1a27e08-0ddd-4498-a882-1c255e36a1c4) -->
 
 
-```python
-from commlib.transports.redis import RPCService
-from commlib.transports.amqp import Subscriber
-from commlib.transports.mqtt import Publisher, RPCClient
-...
-```
+#### Req/Resp - RPCs
 
-Or use the `endpoint_factory` to construct endpoints.
+This README provides an introduction to using **Remote Procedure Calls (RPCs)** with `commlib-py`.
+RPCs allow you to execute functions or methods on a remote system as if they were local, enabling seamless communication between distributed systems. Commlib simplifies the implementation of RPCs by providing a high-level API for defining, invoking, and managing remote procedures.
 
-```python
-import time
-from commlib.endpoints import endpoint_factory, EndpointType, TransportType
+With `commlib`, you can:
+- Define RPC endpoints for exposing specific functionalities.
+- Call remote procedures from clients with minimal setup.
+- Handle asynchronous responses using callbacks.
 
-
-def callback(data):
-    print(data)
+The following simple example  will walk you through the basic setup and usage of RPCs using `commlib-py`, helping you build scalable and efficient distributed applications.
 
 
-if __name__ == '__main__':
-    topic = 'factory_test_topic'
-    mqtt_sub = endpoint_factory(
-        EndpointType.Subscriber,
-        TransportType.MQTT
-    )(topic=topic, on_message=callback)
-    mqtt_sub.run()
-    mqtt_pub = endpoint_factory(
-        EndpointType.Publisher,
-        TransportType.MQTT
-    )(topic=topic, debug=True)
-
-    data = {'a': 1, 'b': 2}
-    while True:
-        mqtt_pub.publish(data)
-        time.sleep(1)
-```
-
-## Communication Patters
-
-![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/b1a27e08-0ddd-4498-a882-1c255e36a1c4)
-
-
-### Req/Resp (RPC) Communication
-
-#### Server Side Example
+##### Server Side Example
 
 ```python
 from commlib.msg import RPCMessage
 from commlib.node import Node
 from commlib.transports.mqtt import ConnectionParameters
-
 
 class AddTwoIntMessage(RPCMessage):
     class Request(RPCMessage.Request):
@@ -229,12 +1034,10 @@ class AddTwoIntMessage(RPCMessage):
     class Response(RPCMessage.Response):
         c: int = 0
 
-
 def add_two_int_handler(msg):
     print(f'Request Message: {msg.__dict__}')
     resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
     return resp
-
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
@@ -252,7 +1055,7 @@ if __name__ == '__main__':
     node.run_forever(sleep_rate=1)
 ```
 
-#### Client Side Example
+##### Client Side Example
 
 ```python
 import time
@@ -260,7 +1063,6 @@ import time
 from commlib.msg import RPCMessage
 from commlib.node import Node
 from commlib.transports.mqtt import ConnectionParameters
-
 
 class AddTwoIntMessage(RPCMessage):
     class Request(RPCMessage.Request):
@@ -270,13 +1072,9 @@ class AddTwoIntMessage(RPCMessage):
     class Response(RPCMessage.Response):
         c: int = 0
 
-
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
-    node = Node(node_name='myclient',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
+    node = Node(node_name='myclient', connection_params=conn_params)
     rpc = node.create_rpc_client(
         msg_type=AddTwoIntMessage,
         rpc_name='add_two_ints_node.add_two_ints'
@@ -294,16 +1092,21 @@ if __name__ == '__main__':
         time.sleep(1)
 ```
 
+#### Pub/Sub
 
-### PubSub Communicaton
+Publish/Subscribe (PubSub) is a messaging pattern where senders (publishers) send messages to a topic without knowing the recipients (subscribers). Subscribers express interest in specific topics and receive messages published to those topics. This decouples the producers and consumers, enabling scalable and flexible communication.
 
-Traditional Topic-based Publish-Subscribe pattern for asynchronous communication as depicted below.
+With `commlib-py`, implementing PubSub is straightforward. The library provides high-level abstractions for creating publishers and subscribers, allowing you to focus on your application's logic rather than the underlying transport mechanisms. You can define custom message types, publish data to topics, and handle incoming messages with ease.
 
+Key features of PubSub in `commlib-py`:
+- **Topic-based Communication**: Messages are categorized by topics, enabling selective subscription.
+- **Broker Agnostic**: Supports multiple brokers like MQTT, Redis, and AMQP.
+- **Typed Message-driven Communication**: Define structured messages using Python classes.
+- **Ease of Use**: Simplified APIs for creating publishers and subscribers.
 
-An example of using PubSub communication is located at [examples/simple_pubsub](https://github.com/robotics-4-all/commlib-py/tree/docs/examples/simple_pubsub).
+This section will guide you through creating a simple publisher and subscriber using `commlib-py`. You'll learn how to define message types, publish data, and process received messages effectively.
 
-
-#### Write a Simple Topic Publisher
+##### Write a Simple Publisher
 
 ```python
 from commlib.msg import MessageHeader, PubSubMessage
@@ -316,24 +1119,16 @@ class SonarMessage(PubSubMessage):
     hfov: float = 30.6
     vfov: float = 14.2
 
-
 class SonarMessage(PubSubMessage):
     distance: float = 0.001
     horizontal_fov: float = 30.0
     vertical_fov: float = 14.0
 
-
 if __name__ == "__main__":
     conn_params = ConnectionParameters(host='localhost', port=1883)
-    node = Node(node_name='sensors.sonar.front',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
-
-    pub = node.create_publisher(msg_type=SonarMessage,
-                                topic='sensors.sonar.front')
+    node = Node(node_name='sensors.sonar.front', connection_params=conn_params)
+    pub = node.create_publisher(msg_type=SonarMessage, topic='sensors.sonar.front')
     node.run()
-
     msg = SonarMessage()
     while True:
         pub.publish(msg)
@@ -341,17 +1136,15 @@ if __name__ == "__main__":
         time.sleep(1)
 ```
 
-#### Write a Simple Topic Subscriber
+##### Write a Simple Subscriber
 
 ```python
 #!/usr/bin/env python
 
 import time
-
 from commlib.msg import MessageHeader, PubSubMessage
 from commlib.node import Node
 from commlib.transports.mqtt import ConnectionParameters
-
 
 class SonarMessage(PubSubMessage):
     header: MessageHeader = MessageHeader()
@@ -359,79 +1152,45 @@ class SonarMessage(PubSubMessage):
     hfov: float = 30.6
     vfov: float = 14.2
 
-
 def on_message(msg):
     print(f'Received front sonar data: {msg}')
-
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
 
-    node = Node(node_name='obstacle_avoidance_node',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
+    node = Node(node_name='node.obstacle_avoidance', connection_params=conn_params)
 
     node.create_subscriber(msg_type=SonarMessage,
                            topic='sensors.sonar.front',
-                           on_message=on_message)
+                           on_message=on_message)  # Define a callback function
 
-    node.run_forever(sleep_rate=1)
+    node.run_forever(sleep_rate=1)  # Define a process-level sleep rate in hz
 ```
 
-### Pattern-based Topic Subscription
+#### Wildcard Subscriptions
 
-For pattern-based topic subscription one can also use the `PSubscriber` class directly.
+For pattern-based topic subscriptions using **wildcards** one can also use the `PSubscriber` class directly.
 
 For multi-topic publisher one can also use the `MPublisher` class directly.
 
 
 ```python
-#!/usr/bin/env python
-
-##
-# Pattern-based Subscriber
-##
-
 from commlib.node import Node
 from commlib.transports.mqtt import ConnectionParameters
 
-def on_message(msg, topic):
+def on_msg_callback(msg, topic):
     print(f'Message at topic <{topic}>: {msg}')
-
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
-    node = Node(node_name='example5_listener',
-                connection_params=conn_params,
-                debug=True)
+    node = Node(node_name='wildcard_subscription_example',
+                connection_params=conn_params)
 
-    node.create_psubscriber(topic='topic.*', on_message=on_message)
-    node.run_forever()
-```
-
-```python
-#!/usr/bin/env python
-
-##
-# Multi-Topic Puiblisher
-##
-
-from commlib.node import Node
-from commlib.transports.mqtt import ConnectionParameters
-
-def on_message(msg, topic):
-    print(f'Message at topic <{topic}>: {msg}')
-
-
-if __name__ == '__main__':
-    conn_params = ConnectionParameters()
-    node = Node(node_name='example5_publisher',
-                connection_params=conn_params,
-                debug=True)
-
+    # Create a pattern subscriber
+    node.create_psubscriber(topic='topic.*', on_message=on_msg_callback)
+    # Create a multi-topic publisher instance.
     pub = node.create_mpublisher()
-    node.run()
+    node.run(wait=True)
 
     topicA = 'topic.a'
     topicB = 'topic.b'
@@ -442,61 +1201,13 @@ if __name__ == '__main__':
         time.sleep(1)
 ```
 
-### Pythonic implementation of Subscribers and RPCs using decorators
+#### Preemptive Services with Feedback (Actions)
 
-```python
-from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
-from commlib.node import Node, TransportType
-from commlib.transports.redis import ConnectionParameters
+Actions are [pre-emptive services](https://en.wikipedia.org/wiki/Preemption_(computing)) with support for asynchronous feedback publishing. This communication pattern is used to implement services which can be stopped and can provide feedback data, such as the move command service of a robot.
 
+The example below shows how to use Actions to implement preemptive robot motion services, with integrated feedback functionality. In this example we implement the `MoveByDistance` command service for our custom Lab robot. The message structure (`MoveByDistanceMsg`) is defined by the `Goal`, `Result` and `Feedback` classes. The logic is that we set a distance goal (in cm) and we monitor the progress through the feedback channel, which for commlib-py it is automatically captured.
 
-class SonarMessage(PubSubMessage):
-    header: MessageHeader = MessageHeader()
-    range: float = -1
-    hfov: float = 30.6
-    vfov: float = 14.2
-
-
-class AddTwoIntMessage(RPCMessage):
-    class Request(RPCMessage.Request):
-        a: int = 0
-        b: int = 0
-
-    class Response(RPCMessage.Response):
-        c: int = 0
-
-
-conn_params = ConnectionParameters()
-
-node = Node(node_name='obstacle_avoidance_node',
-            connection_params=conn_params,
-            debug=True)
-
-
-@node.subscribe('sensors.sonar.front', SonarMessage)
-def on_message(msg):
-    print(f'Received front sonar data: {msg}')
-
-
-@node.rpc('add_two_ints_node.add_two_ints', AddTwoIntMessage)
-def add_two_int_handler(msg):
-    print(f'Request Message: {msg.__dict__}')
-    resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
-    return resp
-
-
-node.run_forever(sleep_rate=0.01)
-```
-
-### Preemptable Services with Feedback (Actions)
-
-Actions are [pre-emptable services](https://en.wikipedia.org/wiki/Preemption_(computing)) 
-with support for asynchronous feedback publishing. This communication pattern
-is used to implement services which can be stopped and can provide feedback data, such 
-as the move command service of a robot.
-
-
-#### Write an Action Service
+##### Write an Action Service
 
 ```python
 import time
@@ -506,8 +1217,7 @@ from commlib.msg import ActionMessage
 from commlib.transports.redis import ConnectionParameters
 )
 
-
-class ExampleAction(ActionMessage):
+class MoveByDistanceMsg(ActionMessage):
     class Goal(ActionMessage.Goal):
         target_cm: int = 0
 
@@ -517,34 +1227,31 @@ class ExampleAction(ActionMessage):
     class Feedback(ActionMessage.Feedback):
         current_cm: int = 0
 
-
-def on_goal(goal_h):
+def on_goal_request(goal_h):
     c = 0
-    res = ExampleAction.Result()
+	goal_req_data = goal_h.data  # Retrieve goal request data from goal handler
+    res = MoveByDistanceMsg.Result()  # Goal Result Message
     while c < goal_h.data.target_cm:
-        if goal_h.cancel_event.is_set():
+        if goal_h.cancel_event.is_set():  # Use the cancel_event property of goal handler instance
             break
-        goal_h.send_feedback(ExampleAction.Feedback(current_cm=c))
+        goal_h.send_feedback(MoveByDistanceMsg.Feedback(current_cm=c))
         c += 1
         time.sleep(1)
     res.dest_cm = c
     return res
 
-
 if __name__ == '__main__':
-    action_name = 'testaction'
+    action_name = 'myrobot.move.distance'
     conn_params = ConnectionParameters()
-    node = Node(node_name='action_service_example_node',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
-    node.create_action(msg_type=ExampleAction,
+    node = Node(node_name='myrobot.node.motion',  # A node can provide several motion interfaces
+                connection_params=conn_params)
+    node.create_action(msg_type=MoveByDistanceMsg,
                        action_name=action_name,
-                       on_goal=on_goal)
+                       on_goal=on_goal_request)
     node.run_forever()
 ```
 
-#### Write an Action Client
+##### Write an Action Client
 
 ```python
 import time
@@ -554,7 +1261,7 @@ from commlib.msg import ActionMessage
 from commlib.transports.redis import ActionClient, ConnectionParameters
 
 
-class ExampleAction(ActionMessage):
+class MoveByDistanceMsg(ActionMessage):
     class Goal(ActionMessage.Goal):
         target_cm: int = 0
 
@@ -581,278 +1288,121 @@ if __name__ == '__main__':
     action_name = 'testaction'
     conn_params = ConnectionParameters()
     node = Node(node_name='action_client_example_node',
-                connection_params=conn_params,
-                # heartbeat_uri='nodes.add_two_ints.heartbeat',
-                debug=True)
+                connection_params=conn_params)
     action_client = node.create_action_client(
-        msg_type=ExampleAction,
+        msg_type=MoveByDistanceMsg,
         action_name=action_name,
         on_goal_reached=on_goal_reached,
         on_feedback=on_feedback,
         on_result=on_result
     )
     node.run()
-    goal_msg = ExampleAction.Goal(target_cm=5)
+    goal_msg = MoveByDistanceMsg.Goal(target_cm=5)
     action_client.send_goal(goal_msg)
     resp = action_client.get_result(wait=True)
     print(f'Action Result: {resp}')
     node.stop()
 ```
 
-## Broker-to-broker (B2B) bridges
-
-In the context of IoT and CPS, it is a common requirement to bridge messages
-between message brokers, based on application-specific rules. An example is to 
-bridge analytics (preprocessed) data from the Edge to the Cloud. And what happens
-if the brokers use different communication protocols?
-
-![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/98993090-abfd-4e9f-b16e-ad9b7f436987)
+### 📺 Usage
 
 
-Below are examples of an MQTT Redis-to-MQTT Bridge and a Redis-to-MQTT
-Topic Bridge.
 
-```python
-#!/usr/bin/env python
+## 🧪 Testing
 
-import time
+Commlib-py uses the pytest framework. Run the test suite with:
 
-import commlib.transports.amqp as acomm
-import commlib.transports.redis as rcomm
-import commlib.transports.mqtt as mcomm
-
-from commlib.bridges import (
-    RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
-)
-
-
-def redis_to_mqtt_rpc_bridge():
-    """
-    [RPC Client] ----> [Broker A] ------> [Broker B] ---> [RPC Service]
-    """
-    bA_params = rcomm.ConnectionParameters()
-    bB_params = mcomm.ConnectionParameters()
-    bA_uri = 'ops.start_navigation'
-    bB_uri = 'thing.robotA.ops.start_navigation'
-    br = RPCBridge(RPCBridgeType.REDIS_TO_MQTT,
-                   from_uri=bA_uri, to_uri=bB_uri,
-                   from_broker_params=bA_params,
-                   to_broker_params=bB_params,
-                   debug=False)
-    br.run()
-
-
-def redis_to_mqtt_topic_bridge():
-    """
-    [Producer Endpoint] ---> [Broker A] ---> [Broker B] ---> [Consumer Endpoint]
-    """
-    bA_params = rcomm.ConnectionParameters()
-    bB_params = mcomm.ConnectionParameters()
-    bA_uri = 'sonar.front'
-    bB_uri = 'thing.robotA.sensors.sonar.font'
-    br = TopicBridge(TopicBridgeType.REDIS_TO_MQTT,
-                     from_uri=bA_uri, to_uri=bB_uri,
-                     from_broker_params=bA_params,
-                     to_broker_params=bB_params,
-                     debug=False)
-    br.run()
-
-
-if __name__ == '__main__':
-    redis_to_mqtt_rpc_bridge()
-    redis_to_mqtt_topic_bridge()
+**Using [pip](https://pypi.org/project/pip/):**
+```sh
+pytest
+```
+**Using [poetry](https://python-poetry.org/):**
+```sh
+poetry run pytest
+```
+**Using [conda](https://docs.conda.io/):**
+```sh
+conda activate {venv}
+pytest
+```
+**Using [tox](None):**
+```sh
+echo 'INSERT-TEST-COMMAND-HERE'
 ```
 
-A Pattern-based Topic Bridge (PTopicBridge) example is also shown below.
-In this example, we use static definition of messages (`SonarMessage`), also
-referred as `typed communication`.
+---
+
+## 🎞️ Roadmap
+
+- [X] **`Task 1`**: <strike>Protocol-agnostic architecture</strike>
+- [x] **`Task 2`**: <strike>Support the AMQP and MQTT protocols</strike>
+- [x] **`Task 3`**: <strike>Support Redis protocol</strike>
+- [ ] **`Task 4`**: Support Kafka protocol (Under development / Partial Support)
+- [ ] **`Task 5`**: RPCServer implementation for AMQP and Kafka transports
+
+---
+
+## 🤝 Contributing
+
+- **💬 [Join the Discussions](https://github.com/robotics-4-all/commlib-py/discussions)**: Share your insights, provide feedback, or ask questions.
+- **🐛 [Report Issues](https://github.com/robotics-4-all/commlib-py/issues)**: Submit bugs found or log feature requests for the `commlib-py-2` project.
+- **💡 [Submit Pull Requests](https://github.com/robotics-4-all/commlib-py/blob/main/CONTRIBUTING.md)**: Review open PRs, and submit your own PRs.
+
+<details closed>
+<summary>Contributing Guidelines</summary>
+
+1. **Fork the Repository**: Start by forking the project repository to your LOCAL account.
+2. **Clone Locally**: Clone the forked repository to your local machine using a git client.
+   ```sh
+   git clone https://github.com/{FORKED_ACCOUNT}/commlib-py.git
+   ```
+3. **Create a New Branch**: Always work on a new branch, giving it a descriptive name.
+   ```sh
+   git checkout -b new-feature-x
+   ```
+4. **Make Your Changes**: Develop and test your changes locally.
+5. **Commit Your Changes**: Commit with a clear message describing your updates.
+   ```sh
+   git commit -m 'Implemented new feature x.'
+   ```
+6. **Push to LOCAL**: Push the changes to your forked repository.
+   ```sh
+   git push origin new-feature-x
+   ```
+7. **Submit a Pull Request**: Create a PR against the original project repository. Clearly describe the changes and their motivations.
+8. **Review**: Once your PR is reviewed and approved, it will be merged into the main branch. Congratulations on your contribution!
+</details>
+
+<details closed>
+<summary>Contributor Graph</summary>
+<br>
+<p align="left">
+   <a href="https://github.com/robotics-4-all/commlib-py/graphs/contributors">
+      <img src="https://contrib.rocks/image?repo=robotics-4-all/commlib-py">
+   </a>
+</p>
+</details>
+
+---
+
+## 📜 License
+
+Commlib-py is protected under the [MIT ](https://choosealicense.com/licenses/mit/) License. For more details, refer to the [MIT LICENSE](https://choosealicense.com/licenses/mit/) uri.
+
+---
+
+## 🎩 Acknowledgments
+
+- Credit `contributors`, `inspiration`, `references`, etc.
+
+<div align="right">
+
+[![][back-to-top]](#top)
+
+</div>
 
 
-```python
-#!/usr/bin/env python
-
-import time
-
-from commlib.msg import PubSubMessage
-from commlib.bridges import PTopicBridge
-import commlib.transports.amqp as acomm
-import commlib.transports.redis as rcomm
+[back-to-top]: https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square
 
 
-class SonarMessage(PubSubMessage):
-    distance: float = 0.001
-    horizontal_fov: float = 30.0
-    vertical_fov: float = 14.0
-
-
-if __name__ == '__main__':
-    """
-    [Broker A] ------------> [Broker B] ---> [Consumer Endpoint]
-    """
-    bA_uri = 'sensors.*'
-    bB_namespace = 'myrobot'
-
-    bA_params = rcomm.ConnectionParameters()
-    bB_params = mcomm.ConnectionParameters()
-
-    br = PTopicBridge(TopicBridgeType.REDIS_TO_MQTT,
-                      bA_uri,
-                      bB_namespace,
-                      bA_params,
-                      bB_params,
-                      msg_type=SonarMessage,
-                      debug=False)
-    br.run()
-```
-
-### Action bridges
-
-### TCP Bridge
-
-TCP bridge forwards tcp packages between two endpoints:
-
-```
-
-[Client] -------> [TCPBridge, port=xxxx] ---------> [TCP endpoint, port=xxxx]
-
-```
-
-A one-to-one connection is performed between the bridge and the endpoint. 
-
-
-## REST Proxy
-
-Implements a REST proxy, that enables invocation of REST services via
-broker communication. The proxy uses an RPCService to run the broker endpoint and
-an http client for calling REST services. An RPC call is transformed into proper,
-REST-compliant, http request, based on the input parameters.
-
-![image](https://github.com/robotics-4-all/commlib-py/assets/4770702/1507cb10-00ec-49ce-8159-967c23d1ba72)
-
-
-
-```python
-class RESTProxyMessage(RPCMessage):
-    class Request(RPCMessage.Request):
-        base_url: str
-        path: str = '/'
-        verb: str = 'GET'
-        query_params: Dict = {}
-        path_params: Dict = {}
-        body_params: Dict = {}
-        headers: Dict = {}
-
-    class Response(RPCMessage.Response):
-        data: Union[str, Dict, int]
-        headers: Dict[str, Any]
-        status_code: int = 200
-```
-
-Responses from the REST services are returned to clients in the form of a 
-`RPCMessage.Response` message.
-
-
-## Transports
-
-### AMQP / RabbitMQ
-
-RPC (request/reply) and PubSub Endpoints are supported by the protocol itself (AMQP), using dedicated exchanges.
-
-For RPC enpoints a `Direct Exchange` is used to route requests and responses,
-optionally using the [Direct Reply-to](https://www.rabbitmq.com/direct-reply-to.html).
-If the `Direct Reply-to` feature is used, then RPC endpoints must publish
-to the default exchange `""`.
-
-To use `Direct Reply-to`, an RPC client should:
-- Consume from the pseudo-queue `amq.rabbitmq.reply-to` in no-ack mode.
-- Set the `reply-to` property in their request message to `amq.rabbitmq.reply-to`.
-
-Meta-information such as the serialization method used, is passed through the
-[message properties](https://www.rabbitmq.com/consumers.html#message-properties)
-metadata, as specified my AMQP.
-
-
-### Redis
-
-Req/Resp communication (RPC) is not supported out-of-the-box. To support
-RPC communication over Redis, a custom layer implements the pattern for both endpoints 
-using Redis Lists to represent queues. RPC server listens for requests from
-a list (LPOP / BLPOP), while an RPC client sends request messages to that list (RPUSH).
-In order for the client to be able to receive responses, he must listen to a temporary queue.
-To achieve this, the request message must include a `reply_to` property that is 
-used by the RPCServer implementation to send the response message. Furthermore,
-`serialization` and `encoding` properties are defined. Finally, the header
-includes a `timestamp`, that indicates the time that the message was sent to to wire.
-
-
-Below is the  data model of the request message.
-
-```
-{
-  'data': {},
-  'header': {
-    'timestamp': <int>,
-    'reply_to': <str>,
-    'content_type': 'application/json',
-    'content_encoding': 'utf8',
-    'agent': 'commlib'
-  }
-}
-```
-
-**Note**: The **RPC Client** implementation is responsible to remove any created 
-temporary queues!
-
-
-### MQTT
-
-Req/Resp communication (RPC) is not supported out-of-the-box. To support
-RPC communication over MQTT, a custom layer implements the pattern for both endpoints 
-using MQTT topics. RPC server listens for requests at a specific topic,
-while an RPC client listens to a temporary topic for response messages.
-For the server to know where to send the response, the request message must include a `reply_to` property that is 
-used by the RPCServer implementation to send the response message. Furthermore,
-`serialization` and `encoding` properties are defined. Finally, the header
-includes a `timestamp`, that indicates the time that the message was sent to to wire.
-
-Below is the data model of the Request message.
-
-```
-{
-  'data': {},
-  'header': {
-    'timestamp': -1,
-    'reply_to': "UNIQUE_NAME",
-    'content_type': 'application/json',
-    'content_encoding': 'utf8',
-    'agent': 'commlib',
-  }
-}
-```
-
-# Examples
-
-Examples can be found at the [examples/](./examples) directory of this repository.
-
-
-# Tests
-
-Run tests by executing `tox` command under this repo directory:
-
-```bash
-make tests
-```
-
-# Development
-
-Starting from 2024 (>0.11.3) only PRs from the `devel` branch are merged into the `master` branch.
-
-Other branches are merged into `devel` first.
-
-Types of branches:
-
-- Bug fix: `fix/<bug_short_name>`
-- New feature: `feat/<feature_short_name>`
-- Documentation: `doc/<doc_short_name>`
-
-New versions will be released from the `master` branch after a PR request from `devel`.
+---
