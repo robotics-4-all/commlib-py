@@ -813,46 +813,23 @@ Or select version explicitly
 
 3. **Install the dependencies:**
 
+**Using [pip](https://pypi.org/project/pip/):**
 
-<!-- SHIELDS BADGE CURRENTLY DISABLED -->
-	<!-- [![pip][pip-shield]][pip-link] -->
-	<!-- REFERENCE LINKS -->
-	<!-- [pip-shield]: https://img.shields.io/badge/Pip-3776AB.svg?style={badge_style}&logo=pypi&logoColor=white -->
-	<!-- [pip-link]: https://pypi.org/project/pip/ -->
+```sh
+❯ pip install .
+```
 
-	**Using [pip](https://pypi.org/project/pip/):**
+ **Using [poetry](https://python-poetry.org/):**
 
-	```sh
-	❯ pip install .
-	```
-<!-- SHIELDS BADGE CURRENTLY DISABLED -->
-	<!-- [![poetry][poetry-shield]][poetry-link] -->
-	<!-- REFERENCE LINKS -->
-	<!-- [poetry-shield]: https://img.shields.io/endpoint?url=https://python-poetry.org/badge/v0.json -->
-	<!-- [poetry-link]: https://python-poetry.org/ -->
+```sh
+❯ poetry install
+```
 
-	**Using [poetry](https://python-poetry.org/):**
+**Using [conda](https://docs.conda.io/):**
 
-	```sh
-	❯ poetry install
-	```
-<!-- SHIELDS BADGE CURRENTLY DISABLED -->
-	<!-- [![conda][conda-shield]][conda-link] -->
-	<!-- REFERENCE LINKS -->
-	<!-- [conda-shield]: https://img.shields.io/badge/conda-342B029.svg?style={badge_style}&logo=anaconda&logoColor=white -->
-	<!-- [conda-link]: https://docs.conda.io/ -->
-
-	**Using [conda](https://docs.conda.io/):**
-
-	```sh
-	❯ conda env create -f environment.yml
-	```
-<!-- SHIELDS BADGE CURRENTLY DISABLED -->
-	<!-- [![tox][tox-shield]][tox-link] -->
-	<!-- REFERENCE LINKS -->
-	<!-- [tox-shield]: None -->
-	<!-- [tox-link]: None -->
-
+```sh
+❯ conda env create -f environment.yml
+```
 
 #### JSON Serialization
 
