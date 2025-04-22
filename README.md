@@ -43,7 +43,7 @@
 		- [PyPi Releases](#pypi-releases)
 		- [From Source](#from-source)
 		- [JSON Serialization](#json-serialization)
-	- [📺 Concepts](#-concepts)
+	- [⚙️ Concepts](#️-concepts)
 		- [Node](#node)
 		- [Req/Resp - RPCs](#reqresp---rpcs)
 			- [Server Side Example](#server-side-example)
@@ -55,11 +55,13 @@
 		- [Preemptive Services with Feedback (Actions)](#preemptive-services-with-feedback-actions)
 			- [Write an Action Service](#write-an-action-service)
 			- [Write an Action Client](#write-an-action-client)
-- [📺 Advanced](#-advanced)
+- [🏗️ Advanced](#️-advanced)
 	- [Endpoints (Low-level API)](#endpoints-low-level-api)
 	- [B2B bridges](#b2b-bridges)
 	- [TCP Bridge](#tcp-bridge)
-- [REST Proxy](#rest-proxy)
+	- [REST Proxy](#rest-proxy)
+	- [Web Gateway](#web-gateway)
+- [🤖 Examples](#-examples)
 - [🧪 Testing](#-testing)
 - [🎞️ Roadmap](#️-roadmap)
 - [🤝 Contributing](#-contributing)
@@ -767,8 +769,8 @@ The goal of this project is to implement a simple Protocol-agnostic API (AMQP, K
 
 This project requires the following dependencies:
 
-- **Programming Language:** Python
-- **Packages:** Pydantic2, orjson|ujson (Optional for fast json serialization), paho-mqtt (Optional for MQTT support), redis-py (Optional for Redis Support), pika (Optional for AMQP support)
+- **Programming Language:** Python 3.7+
+- **Packages:** Pydantic, orjson|ujson (Optional for fast json serialization), paho-mqtt (Optional for MQTT support), redis-py (Optional for Redis Support), pika (Optional for AMQP support)
 - **Package Manager:** Pip, Poetry, Conda, Tox
 
 ### 🛠️ Installation
@@ -861,7 +863,7 @@ The framework will load and use the most performance optimal library based on in
 - [orjson](https://github.com/ijl/orjson)
 - json
 
-### 📺 Concepts
+### ⚙️ Concepts
 
 #### Node
 
@@ -1273,7 +1275,6 @@ from commlib.action import GoalStatus
 from commlib.msg import ActionMessage
 from commlib.transports.redis import ActionClient, ConnectionParameters
 
-
 class MoveByDistanceMsg(ActionMessage):
     class Goal(ActionMessage.Goal):
         target_cm: int = 0
@@ -1284,18 +1285,14 @@ class MoveByDistanceMsg(ActionMessage):
     class Feedback(ActionMessage.Feedback):
         current_cm: int = 0
 
-
 def on_feedback(feedback):
     print(f'ActionClient <on-feedback> callback: {feedback}')
-
 
 def on_result(result):
     print(f'ActionClient <on-result> callback: {result}')
 
-
 def on_goal_reached(result):
     print(f'ActionClient <on-goal-reached> callback: {result}')
-
 
 if __name__ == '__main__':
     action_name = 'testaction'
@@ -1318,7 +1315,7 @@ if __name__ == '__main__':
 ```
 
 
-## 📺 Advanced
+## 🏗️ Advanced
 
 ### Endpoints (Low-level API)
 
@@ -1400,7 +1397,6 @@ from commlib.bridges import (
     RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
 )
 
-
 def redis_to_mqtt_rpc_bridge():
     """
     [RPC Client] ----> [Broker A] ------> [Broker B] ---> [RPC Service]
@@ -1416,7 +1412,6 @@ def redis_to_mqtt_rpc_bridge():
                    debug=False)
     br.run()
 
-
 def redis_to_mqtt_topic_bridge():
     """
     [Producer Endpoint] ---> [Broker A] ---> [Broker B] ---> [Consumer Endpoint]
@@ -1431,7 +1426,6 @@ def redis_to_mqtt_topic_bridge():
                      to_broker_params=bB_params,
                      debug=False)
     br.run()
-
 
 if __name__ == '__main__':
     redis_to_mqtt_rpc_bridge()
@@ -1452,7 +1446,7 @@ TCP bridge forwards tcp packages between two endpoints:
 
 A one-to-one connection is performed between the bridge and the endpoint.
 
-## REST Proxy
+### REST Proxy
 
 Implements a **REST proxy**, that enables ***invocation of REST services via message brokers***. The proxy uses an RPCService to run the broker endpoint and an http client for calling REST services. An RPC call is transformed into proper, REST-compliant, http request, based on the input parameters.
 
@@ -1479,12 +1473,24 @@ class RESTProxyMessage(RPCMessage):
         status_code: int = 200
 ```
 
-Head to [this repo](https://github.com/robotics-4-all/commlib-rest-proxy) for an implementation of a dockerized application that implements a REST Proxy using commlib-py.
+Head to the [commlib-rest-proxy repo](https://github.com/robotics-4-all/commlib-rest-proxy) for a dockerized application that implements a REST Proxy using commlib-py.
+
+### Web Gateway
+
+Head to the [commlib-web-gw repo](https://github.com/robotics-4-all/commlib-web-gw) for a dockerized application that implements a Web Gateway for message brokers, using commlib-py.
+
+## 🤖 Examples
+
+The [examples/](./examples) directory of this repository includes various usage and application examples of using commlib-py.
 
 ## 🧪 Testing
 
 Commlib-py uses the pytest framework. Run the test suite with:
 
+**Using [make](https://pypi.org/project/pip/) (Makefile included in this repo):**
+```sh
+make test
+```
 **Using [pip](https://pypi.org/project/pip/):**
 ```sh
 pytest
@@ -1497,6 +1503,20 @@ poetry run pytest
 ```sh
 conda activate {venv}
 pytest
+```
+
+Furthermore, the Makefile provides coverage commands:
+
+**Coverage**
+
+```sh
+make cov
+```
+
+**Coverage Diff**
+
+```sh
+make diff
 ```
 
 ---
