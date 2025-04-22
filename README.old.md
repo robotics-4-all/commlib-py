@@ -737,10 +737,10 @@ class RESTProxyMessage(RPCMessage):
         base_url: str
         path: str = '/'
         verb: str = 'GET'
-        query_params: Dict = {}
-        path_params: Dict = {}
-        body_params: Dict = {}
-        headers: Dict = {}
+        query_params: Dict[str, Any] = {}
+        path_params: Dict[str, Any] = {}
+        body_params: Dict[str, Any] = {}
+        headers: Dict[str, Any] = {}
 
     class Response(RPCMessage.Response):
         data: Union[str, Dict, int]

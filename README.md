@@ -55,7 +55,11 @@
 		- [Preemptive Services with Feedback (Actions)](#preemptive-services-with-feedback-actions)
 			- [Write an Action Service](#write-an-action-service)
 			- [Write an Action Client](#write-an-action-client)
-	- [📺 Usage](#-usage)
+- [📺 Advanced](#-advanced)
+	- [Endpoints (Low-level API)](#endpoints-low-level-api)
+	- [B2B bridges](#b2b-bridges)
+	- [TCP Bridge](#tcp-bridge)
+- [REST Proxy](#rest-proxy)
 - [🧪 Testing](#-testing)
 - [🎞️ Roadmap](#️-roadmap)
 - [🤝 Contributing](#-contributing)
@@ -710,10 +714,6 @@ The goal of this project is to implement a simple Protocol-agnostic API (AMQP, K
 					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/compression.py'>compression.py</a></b></td>
 					<td style='padding: 8px;'>TODO</code></td>
 				</tr>
-				<tr style='border-bottom: 1px solid #eee;'>
-					<td style='padding: 8px;'><b><a href='https://github.com/robotics-4-all/commlib-py/commlib/.editorconfig'>.editorconfig</a></b></td>
-					<td style='padding: 8px;'>TODO</code></td>
-				</tr>
 			</table>
 			<!-- transports Submodule -->
 			<details>
@@ -959,9 +959,22 @@ if __name__ == '__main__':
 	node.run_forever(sleep_rate=1)
 ```
 
-A Node always binds to a specific broker for implementing the input and
-output ports. Of course you can instantiate and run several Nodes in a single-process
-application.
+**A Node always binds to a specific broker** via where it provides input and output ports to the functionality. Of course, **several Nodes can be created and executed in a single-process application**.
+
+Below is the list of currently supported interface/endpoint types and protocol transports.
+
+| Interface Type          | Description                                      | Required Parameters                                                                 | Supported transports       |
+|-------------------------|--------------------------------------------------|-------------------------------------------------------------------------------------|---------------------------|
+| **RPCClient**          | Sends RPC requests and waits for responses.      | `rpc_name`, `connection_params`                                         | MQTT, Redis, AMQP, Kafka  |
+| **RPCServer**          | Handles RPC requests and sends responses.        | `rpc_name`, `on_request`, `connection_params`                           | MQTT, Redis, AMQP, Kafka  |
+| **Publisher**          | Sends messages to a specific topic.              | `topic`, `connection_params`                                           | MQTT, Redis, AMQP, Kafka  |
+| **Subscriber**         | Listens for messages on a specific topic.        | `topic`, `on_message`, `connection_params`                              | MQTT, Redis, AMQP, Kafka  |
+| **MPublisher**         | Publishes messages to multiple topics.           | `connection_params`                                                                 | MQTT, Redis, AMQP, Kafka  |
+| **WPublisher**         | A wrapped publisher with additional features.    | `topic`, `connection_params`                                           | MQTT, Redis  |
+| **PSubscriber**        | Subscribes to topics using patterns.             | `topic_pattern`, `on_message`, `connection_params`                                  | MQTT, Redis, AMQP, Kafka  |
+| **WSubscriber**        | A wrapped subscriber with additional features.   | `topic`, `on_message`, `connection_params`                              | MQTT, Redis  |
+| **ActionService**      | Provides preemptive services with feedback.      | `msg_type`, `action_name`, `on_goal`, `connection_params`                           | MQTT, Redis, AMQP  |
+| **ActionClient**       | Sends goals to an action service and receives feedback. | `msg_type`, `action_name`, `on_feedback`, `on_result`, `connection_params`          | MQTT, Redis, AMQP  |
 
 **Node class:**
 
@@ -1304,9 +1317,169 @@ if __name__ == '__main__':
     node.stop()
 ```
 
-### 📺 Usage
+
+## 📺 Advanced
+
+### Endpoints (Low-level API)
+
+It is possible to construct endpoints without binding them to a specific Node. This is a feature to support a wider range of applications, where the concept Node might not be usable.
+
+One can create endpoint instances by using the following classes of each supported transport:
+
+| Endpoint Type          | Description                                      | Required Parameters                                                                 | Supported Protocols       |
+|-------------------------|--------------------------------------------------|-------------------------------------------------------------------------------------|---------------------------|
+| **RPCClient**          | Sends RPC requests and waits for responses.      | `msg_type`, `rpc_name`, `connection_params`                                         | MQTT, Redis, AMQP, Kafka  |
+| **RPCServer**          | Handles RPC requests and sends responses.        | `msg_type`, `rpc_name`, `on_request`, `connection_params`                           | MQTT, Redis, AMQP, Kafka  |
+| **Publisher**          | Sends messages to a specific topic.              | `msg_type`, `topic`, `connection_params`                                           | MQTT, Redis, AMQP, Kafka  |
+| **Subscriber**         | Listens for messages on a specific topic.        | `msg_type`, `topic`, `on_message`, `connection_params`                              | MQTT, Redis, AMQP, Kafka  |
+| **MPublisher**         | Publishes messages to multiple topics.           | `connection_params`                                                                 | MQTT, Redis, AMQP, Kafka  |
+| **WPublisher**         | A wrapped publisher with additional features.    | `msg_type`, `topic`, `connection_params`                                           | MQTT, Redis  |
+| **PSubscriber**        | Subscribes to topics using patterns.             | `topic_pattern`, `on_message`, `connection_params`                                  | MQTT, Redis, AMQP, Kafka  |
+| **WSubscriber**        | A wrapped subscriber with additional features.   | `msg_type`, `topic`, `on_message`, `connection_params`                              | MQTT, Redis  |
+| **ActionService**      | Provides preemptive services with feedback.      | `msg_type`, `action_name`, `on_goal`, `connection_params`                           | MQTT, Redis, AMQP  |
+| **ActionClient**       | Sends goals to an action service and receives feedback. | `msg_type`, `action_name`, `on_feedback`, `on_result`, `connection_params`          | MQTT, Redis, AMQP  |
+
+```python
+from commlib.transports.redis import RPCService
+from commlib.transports.amqp import Subscriber
+from commlib.transports.mqtt import Publisher, RPCClient
+...
+```
+
+Or use the `endpoint_factory` to construct endpoints.
+
+```python
+import time
+from commlib.endpoints import endpoint_factory, EndpointType, TransportType
+
+def callback(data):
+    print(data)
+
+if __name__ == '__main__':
+    topic = 'endpoints_factory_example'
+
+    mqtt_sub = endpoint_factory(
+        EndpointType.Subscriber,
+        TransportType.MQTT)(topic=topic, on_message=callback)
+    mqtt_sub.run()
+
+    mqtt_pub = endpoint_factory(
+        EndpointType.Publisher,
+        TransportType.MQTT)(topic=topic, debug=True)
+	mqtt_pub.run()
+
+    data = {'a': 1, 'b': 2}
+    while True:
+        mqtt_pub.publish(data)
+        time.sleep(1)
+```
+
+### B2B bridges
+In the context of IoT and CPS, it is a common requirement to bridge messages between message brokers, based on application-specific rules. An example is to bridge analytics (preprocessed) data from the Edge to the Cloud. And what happens if the brokers use different communication protocols?
+
+Commlib builds a thin layer on top of the internal PubSub and RPC API to provide a protocol-agnostic implementation of Broker-to-Broker bridges.
+
+<div align="center">
+<img src="https://github.com/robotics-4-all/commlib-py/assets/4770702/98993090-abfd-4e9f-b16e-ad9b7f436987">
+</div>
+
+Below are examples of:
+1. A Redis-to-MQTT RPC Bridge
+2. A Redis-to-MQTT Topic Bridge.
+
+```python
+#!/usr/bin/env python
+
+import time
+
+import commlib.transports.amqp as acomm
+import commlib.transports.redis as rcomm
+import commlib.transports.mqtt as mcomm
+
+from commlib.bridges import (
+    RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
+)
 
 
+def redis_to_mqtt_rpc_bridge():
+    """
+    [RPC Client] ----> [Broker A] ------> [Broker B] ---> [RPC Service]
+    """
+    bA_params = rcomm.ConnectionParameters()
+    bB_params = mcomm.ConnectionParameters()
+    bA_uri = 'ops.start_navigation'
+    bB_uri = 'thing.robotA.ops.start_navigation'
+    br = RPCBridge(RPCBridgeType.REDIS_TO_MQTT,
+                   from_uri=bA_uri, to_uri=bB_uri,
+                   from_broker_params=bA_params,
+                   to_broker_params=bB_params,
+                   debug=False)
+    br.run()
+
+
+def redis_to_mqtt_topic_bridge():
+    """
+    [Producer Endpoint] ---> [Broker A] ---> [Broker B] ---> [Consumer Endpoint]
+    """
+    bA_params = rcomm.ConnectionParameters()
+    bB_params = mcomm.ConnectionParameters()
+    bA_uri = 'sonar.front'
+    bB_uri = 'thing.robotA.sensors.sonar.font'
+    br = TopicBridge(TopicBridgeType.REDIS_TO_MQTT,
+                     from_uri=bA_uri, to_uri=bB_uri,
+                     from_broker_params=bA_params,
+                     to_broker_params=bB_params,
+                     debug=False)
+    br.run()
+
+
+if __name__ == '__main__':
+    redis_to_mqtt_rpc_bridge()
+    redis_to_mqtt_topic_bridge()
+```
+
+A Pattern-based Topic Bridge (PTopicBridge) example is also shown below. In this example, we use static definition of messages (`SonarMessage`), also referred as `typed communication`.
+
+### TCP Bridge
+
+TCP bridge forwards tcp packages between two endpoints:
+
+```
+
+[Client] -------> [TCPBridge, port=xxxx] ---------> [TCP endpoint, port=xxxx]
+
+```
+
+A one-to-one connection is performed between the bridge and the endpoint.
+
+## REST Proxy
+
+Implements a **REST proxy**, that enables ***invocation of REST services via message brokers***. The proxy uses an RPCService to run the broker endpoint and an http client for calling REST services. An RPC call is transformed into proper, REST-compliant, http request, based on the input parameters.
+
+<div align="center">
+<img src="https://github.com/robotics-4-all/commlib-py/assets/4770702/1507cb10-00ec-49ce-8159-967c23d1ba72">
+</div>
+
+Responses from the REST services have the following **RESTProxyMessage** schema:
+
+```python
+class RESTProxyMessage(RPCMessage):
+    class Request(RPCMessage.Request):
+        base_url: str
+        path: str = '/'
+        verb: str = 'GET'
+        query_params: Dict[str, Any] = {}
+        path_params: Dict[str, Any] = {}
+        body_params: Dict[str, Any] = {}
+        headers: Dict[str, Any] = {}
+
+    class Response(RPCMessage.Response):
+        data: Union[str, Dict, int]
+        headers: Dict[str, Any]
+        status_code: int = 200
+```
+
+Head to [this repo](https://github.com/robotics-4-all/commlib-rest-proxy) for an implementation of a dockerized application that implements a REST Proxy using commlib-py.
 
 ## 🧪 Testing
 
@@ -1325,10 +1498,6 @@ poetry run pytest
 conda activate {venv}
 pytest
 ```
-**Using [tox](None):**
-```sh
-echo 'INSERT-TEST-COMMAND-HERE'
-```
 
 ---
 
@@ -1339,6 +1508,7 @@ echo 'INSERT-TEST-COMMAND-HERE'
 - [x] **`Task 3`**: <strike>Support Redis protocol</strike>
 - [ ] **`Task 4`**: Support Kafka protocol (Under development / Partial Support)
 - [ ] **`Task 5`**: RPCServer implementation for AMQP and Kafka transports
+- [ ] **`Task 6`**: Comprehensive testing
 
 ---
 
