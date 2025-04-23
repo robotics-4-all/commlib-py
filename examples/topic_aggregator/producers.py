@@ -9,11 +9,18 @@ from commlib.msg import MessageHeader, PubSubMessage
 from commlib.node import Node
 
 
-class SonarMessage(PubSubMessage):
+# class Position(PubSubMessage):
+#     header: MessageHeader = Field(default_factory=lambda: MessageHeader())
+#     position: dict = Field(default_factory=lambda: {"x": 0, "y": 0, "z": 0})
+#     orientation: dict = Field(default_factory=lambda: {"roll": 0, "pitch": 0, "yaw": 0})
+
+
+class Position(PubSubMessage):
     header: MessageHeader = Field(default_factory=lambda: MessageHeader())
-    range: float = -1
-    hfov: float = 30.6
-    vfov: float = 14.2
+    x: float = 0
+    y: float = 0
+    z: float = 0
+    theta: float = 0
 
 
 if __name__ == "__main__":
@@ -41,22 +48,26 @@ if __name__ == "__main__":
     )
 
     node = Node(
-        node_name="sensors.sonar.front",
+        node_name="goaldsl_clients",
         connection_params=conn_params,
         # heartbeat_uri='nodes.add_two_ints.heartbeat',
         debug=True,
     )
 
-    pub = node.create_publisher(msg_type=SonarMessage, topic="sensors.sonar.front")
+    pub = node.create_mpublisher(msg_type=Position)
 
     node.run()
 
-    range = 1
     try:
+        msg_1 = Position()
+        msg_2 = Position()
+        topic_1 = "goaldsl.1.event"
+        topic_2 = "goaldsl.2.event"
         while True:
-            msg = SonarMessage(range=range)
-            pub.publish(msg)
-            range += 1
+            msg_1.x += 1
+            msg_2.theta += 2
+            pub.publish(msg_1, topic_1)
+            pub.publish(msg_2, topic_2)
             time.sleep(1)
     except Exception as e:
         print(e)

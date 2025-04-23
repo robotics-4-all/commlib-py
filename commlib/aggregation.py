@@ -16,7 +16,7 @@ class TopicMessageProcessor:
         self.output_topic = output_topic
         self.data_processors = data_processors  # List of functions to process incoming data
 
-        self.node = Node(node_name="TopicMerge",
+        self.node = Node(node_name="TopicMessageProcessor",
                          connection_params=self.broker_params,
                          debug=False, heartbeats=False)
 
@@ -58,7 +58,7 @@ class TopicMessageProcessor:
         self.node.run_forever()
 
 
-class TopicMerge:
+class TopicAggregator:
     def __init__(self, broker_params: BaseConnectionParameters,
                  input_topics: List[str], output_topic: str,
                  data_processors: Dict[str, callable] = {}):
@@ -67,7 +67,7 @@ class TopicMerge:
         self.output_topic = output_topic
         self.data_processors = data_processors  # List of functions to process incoming data
 
-        self.node = Node(node_name="TopicMerge",
+        self.node = Node(node_name="TopicAggregator",
                          connection_params=self.broker_params,
                          debug=False, heartbeats=False)
 
@@ -86,7 +86,7 @@ class TopicMerge:
         for topic in self.input_topics:
             if topic in self.data_processors:
                 _procs = self.data_processors[topic]
-                _clb = functools.partial(self.on_msg_internal, _procs)
+                _clb = functools.partial(self.on_msg_internal, processors=_procs)
             else:
                 _clb = self.on_msg_internal
             self.node.create_psubscriber(topic=topic, on_message=_clb)
@@ -94,8 +94,12 @@ class TopicMerge:
     def create_publisher(self):
         self.pub = self.node.create_mpublisher()
 
-    def on_msg_internal(self, processors: Dict[str, callable],
-                        payload: Dict[str, Any], topic: str):
+    def on_msg_internal(self,
+                        payload: Dict[str, Any],
+                        topic: str,
+                        processors: Dict[str, callable] = {}
+                        ):
+        print(f"Received message on topic {topic}: {payload}")
         for proc in processors:
             try:
                 payload = proc(payload)
