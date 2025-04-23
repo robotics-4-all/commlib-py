@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from commlib.compression import CompressionType
 from commlib.msg import HeartbeatMessage, PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher
-from commlib.utils import gen_random_id
+from commlib.utils import gen_random_id, get_timestamp_ns
 from concurrent.futures import ThreadPoolExecutor
 
 n_logger: logging.Logger = None
@@ -33,7 +33,7 @@ class HeartbeatThread:
     def logger(cls) -> logging.Logger:
         global n_logger
         if n_logger is None:
-            n_logger = logging.getLogger(__name__)
+            n_logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
         return n_logger
 
     def __init__(
@@ -49,9 +49,22 @@ class HeartbeatThread:
         self._heartbeat_pub = pub_instance
 
     def start(self):
-        """start"""
+        """
+        Starts the heartbeat thread for the node.
+
+        This method continuously sends heartbeat messages at a specified rate
+        while the node is running. The heartbeat message contains a timestamp
+        indicating the current time. The method also handles exceptions that
+        may occur during the execution of the thread.
+
+        The thread will terminate gracefully when the `running()` method returns
+        `False` or when the stop event is triggered.
+
+        Raises:
+            Exception: If an error occurs during the execution of the heartbeat thread.
+        """
         try:
-            msg = HeartbeatMessage(ts=self.get_ts())
+            msg = HeartbeatMessage(ts=self.get_current_ts())
             while self.running():
                 self.logger().debug(
                     f"Sending heartbeat message - {self._heartbeat_pub._topic}"
@@ -62,23 +75,35 @@ class HeartbeatThread:
                     self._heartbeat_pub.publish(msg)
                 # Wait for n seconds or until stop event is raised
                 self._stop_event.wait(self._rate_secs)
-                msg.ts = self.get_ts()
+                msg.ts = self.get_current_ts()
             self.logger().info("Heartbeat Thread terminated successfully")
         except Exception as exc:
             self.logger().error(f"Exception in Heartbeat-Thread: {exc}")
 
     def stop(self):
-        """stop."""
+        """
+        Signals the heartbeat thread to stop by setting the internal stop event.
+
+        This method is typically used to gracefully shut down the node's
+        operations by triggering the stop event, which can be monitored
+        by other parts of the system.
+        """
         self._stop_event.set()
 
     def running(self):
-        """stopped."""
+        """
+        Check if the heartbeat thread is currently running.
+
+        This method returns `True` if the stop event has not been set,
+        indicating that the heartbeat thread is still running. Otherwise, it returns `False`.
+
+        Returns:
+            bool: `True` if the heartbeat thread is running, `False` otherwise.
+        """
         return not self._stop_event.is_set()
 
-    def get_ts(self):
-        """get_ts."""
-        timestamp = (time.time() + 0.5) * 1000000
-        return int(timestamp)
+    def get_current_ts(self):
+        return get_timestamp_ns()
 
 
 class _NodeStartMessage(RPCMessage):
@@ -221,7 +246,6 @@ class Node:
                 }
             )
             tb = tb.tb_next
-        print(str({"type": type(e).__name__, "message": str(e), "trace": trace}))
 
     def _select_transport(self):
         type_str = str(type(self._conn_params)).split("'")[1]

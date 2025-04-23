@@ -30,7 +30,19 @@ def gen_timestamp() -> int:
         int: Timestamp in integer representation. User `str()` to
             transform to string.
     """
-    return int(1.0 * (time.time_ns() + 0.5) * 1000)
+    return time.time_ns()
+
+
+def get_timestamp_ns() -> int:
+    return gen_timestamp()
+
+
+def get_timestamp_us() -> int:
+    return int(gen_timestamp_ns() / 1e3)
+
+
+def get_timestamp_ms() -> int:
+    return int(gen_timestamp_ns() / 1e6)
 
 
 def gen_random_id() -> str:

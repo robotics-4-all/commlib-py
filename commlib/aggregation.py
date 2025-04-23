@@ -99,7 +99,6 @@ class TopicAggregator:
                         topic: str,
                         processors: Dict[str, callable] = {}
                         ):
-        print(f"Received message on topic {topic}: {payload}")
         for proc in processors:
             try:
                 payload = proc(payload)
