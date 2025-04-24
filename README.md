@@ -973,25 +973,41 @@ class Node:
                  workers_rpc: Optional[int] = 4):
 ```
 
+- **`node_name`** *(Optional[str])*: The name of the node. Defaults to an empty string.
+- **`connection_params`** *(Optional[Any])*: Connection parameters for the broker. Defaults to `None`.
+- **`debug`** *(Optional[bool])*: Enables debug mode if set to `True`. Defaults to `False`.
+- **`heartbeats`** *(Optional[bool])*: Enables heartbeat messages if set to `True`. Defaults to `True`.
+- **`heartbeat_interval`** *(Optional[float])*: Interval in seconds for sending heartbeat messages. Defaults to `10.0`.
+- **`heartbeat_uri`** *(Optional[str])*: URI for publishing heartbeat messages. Defaults to `None`.
+- **`compression`** *(CompressionType)*: Compression type for messages. Defaults to `CompressionType.NO_COMPRESSION`.
+- **`ctrl_services`** *(Optional[bool])*: Enables control services (`start`/`stop`) if set to `True`. Defaults to `False`.
+- **`workers_rpc`** *(Optional[int])*: Number of worker threads for handling RPC requests. Defaults to `4`.
+
+
 Node methods to create and run Endpoints::
 
 ```py
 Node:
-   create_action(self, *args, **kwargs)
-   create_action_client(self, *args, **kwargs)
-   create_event_emitter(self, *args, **kwargs)
-   create_heartbeat_thread(self)
-   create_mpublisher(self, *args, **kwargs)
-   create_psubscriber(self, *args, **kwargs)
-   create_publisher(self, *args, **kwargs)
-   create_rpc(self, *args, **kwargs)
-   create_rpc_client(self, *args, **kwargs)
-   create_start_service(self, uri: str = None)
-   create_stop_service(self, uri: str = None)
-   create_subscriber(self, *args, **kwargs)
-   run_forever(self, sleep_rate: float = 0.001)
-   run(self)
-   stop(self)
+	# Properties
+	endpoints: List
+	health: bool
+	state: NodeState
+
+	# Functions
+	create_subscriber(self, *args, **kwargs)
+	create_publisher(self, *args, **kwargs)
+	create_rpc(self, *args, **kwargs)
+   	create_rpc_client(self, *args, **kwargs)
+	create_rpc_server(self, *args, **kwargs)
+   	create_action(self, *args, **kwargs)
+   	create_action_client(self, *args, **kwargs)
+   	create_mpublisher(self, *args, **kwargs)
+   	create_psubscriber(self, *args, **kwargs)
+	create_wpublisher(self, *args, **kwargs)
+   	create_wsubscriber(self, *args, **kwargs)
+   	run_forever(self, sleep_rate: float = 0.001)
+   	run(self, wait: bool = True) -> None
+   	stop(self)
 ```
 
 <!-- #### Communication Patters
@@ -1027,24 +1043,26 @@ class AddTwoIntMessage(RPCMessage):
     class Response(RPCMessage.Response):
         c: int = 0
 
-def add_two_int_handler(msg):
+# Callback function of the add_two_ints RPC
+def add_two_int_handler(msg) -> AddTwoIntMessage.Response:
     print(f'Request Message: {msg.__dict__}')
+	# Create the Response msg
     resp = AddTwoIntMessage.Response(c = msg.a + msg.b)
+	# Return the Response msg
     return resp
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
-    node = Node(
-        node_name='add_two_ints_node',
-        connection_params=conn_params,
-        # heartbeat_uri='nodes.add_two_ints.heartbeat',
-        debug=True
-    )
+	# Create a node instance
+    node = Node(node_name='add_two_ints_node',
+        		connection_params=conn_params)
+	# Create the add_two_ints RPC
     rpc = node.create_rpc(
         msg_type=AddTwoIntMessage,
         rpc_name='add_two_ints_node.add_two_ints',
         on_request=add_two_int_handler
     )
+	# Run the node.
     node.run_forever(sleep_rate=1)
 ```
 
@@ -1067,11 +1085,14 @@ class AddTwoIntMessage(RPCMessage):
 
 if __name__ == '__main__':
     conn_params = ConnectionParameters()
+	# Create a node instance
     node = Node(node_name='myclient', connection_params=conn_params)
+	# Create an RPC client
     rpc = node.create_rpc_client(
         msg_type=AddTwoIntMessage,
         rpc_name='add_two_ints_node.add_two_ints'
     )
+	# Run the node to instantiate communication handling resources
     node.run()
 
     # Create an instance of the request object
