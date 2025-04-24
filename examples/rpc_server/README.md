@@ -23,7 +23,6 @@ Key components:
         class Response(RPCMessage.Response):
             c: int = 0
 
-
     class MultiplyIntMessage(RPCMessage):
         class Request(RPCMessage.Request):
             a: int = 0
@@ -41,7 +40,6 @@ Key components:
         resp = MultiplyIntMessage.Response(c=msg.a * msg.b)
         return resp
 
-
     def add_two_int_handler(msg):
         print(f"Request Message: {msg}")
         resp = AddTwoIntMessage.Response(c=msg.a + msg.b)
@@ -50,34 +48,40 @@ Key components:
     These functions implement the core logic of the RPC services.  They take the request message as input and return the corresponding response message.
 
 * **Server Setup:**
-    ```python
-    if __name__ == "__main__":
-        # ... (Broker selection)
+  ```python
+  if __name__ == "__main__":
+      # ... (Broker selection)
 
-        node = Node(
-            node_name="myRpcServer",
-            connection_params=conn_params,
-            heartbeats=False,
-            debug=True,
-        )
+      node = Node(
+          node_name="myRpcServer",
+          connection_params=conn_params,
+          heartbeats=False,
+          debug=True,
+      )
 
-        svc_map = {
-            "add_two_ints": (add_two_int_handler, AddTwoIntMessage),
-            # "multiply_ints": (multiply_int_handler, MultiplyIntMessage),
-        }
-        base_uri = "rpcserver.test"
+      base_uri = "rpcserver.example.com"
+      svc_map = {
+          "add_two_ints": (add_two_int_handler, AddTwoIntMessage),
+          "multiply_ints": (multiply_int_handler, MultiplyIntMessage),
+      }
 
-        server = node.create_rpc_server(base_uri=base_uri, svc_map=svc_map, workers=4)
-        server.register_endpoint("multiply_ints", multiply_int_handler, MultiplyIntMessage)
-        server.run_forever()
-    ```
-    This code block:
-    1.  Sets up the message broker connection.
-    2.  Creates a `Node` instance.
-    3.  Defines a service map (`svc_map`) that maps RPC service names to their handler functions and message types.
-    4.  Creates an `rpc_server` using `node.create_rpc_server()`, specifying the base URI, service map, and number of worker threads.
-    5.  Registers an additional endpoint.
-    6.  Starts the server's event loop.
+      # Create the RPC server. Preregister the RPC endpoints via the svc_map.
+      # The svc_map is a dictionary where the key is the RPC name and the value is a tuple
+      # containing the handler function and the message type.
+      # The base_uri is the base URI for the RPC server.
+      # The workers parameter specifies the number of worker threads to use for handling requests.
+      server = node.create_rpc_server(base_uri=base_uri, svc_map=svc_map, workers=4)
+      # Register the RPC endpoints with the server.
+      # server.register_endpoint("multiply_ints", multiply_int_handler, MultiplyIntMessage)
+      server.run_forever()
+  ```
+  This code block:
+  1.  Sets up the message broker connection.
+  2.  Creates a `Node` instance.
+  3.  Defines a service map (`svc_map`) that maps RPC service names to their handler functions and message types.
+  4.  Creates an `rpc_server` using `node.create_rpc_server()`, specifying the base URI, service map, and number of worker threads.
+  5.  Registers an additional endpoint.
+  6.  Starts the server's event loop.
 
 ### RPC Client (`RPC Client Example`)
 
@@ -94,7 +98,6 @@ Key components:
 
         class Response(RPCMessage.Response):
             c: int = 0
-
 
     class MultiplyIntMessage(RPCMessage):
         class Request(RPCMessage.Request):

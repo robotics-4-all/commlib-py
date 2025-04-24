@@ -44,7 +44,6 @@ if __name__ == "__main__":
     node = Node(
         node_name="myclient",
         connection_params=conn_params,
-        debug=True,
     )
 
     rpc_a = node.create_rpc_client(

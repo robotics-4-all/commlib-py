@@ -50,27 +50,34 @@ class Bridge:
             br_logger = logging.getLogger(__name__)
         return br_logger
 
-    def __init__(
-        self,
-        from_uri: str,
-        to_uri: str,
-        from_broker_params: BaseConnectionParameters,
-        to_broker_params: BaseConnectionParameters,
-        auto_transform_uris: bool = True,
-        debug: bool = False,
-    ):
-        """__init__.
+    def __init__(self,
+                 from_uri: str,
+                 to_uri: str,
+                 from_broker_params: BaseConnectionParameters,
+                 to_broker_params: BaseConnectionParameters,
+                 auto_transform_uris: bool = True,
+                 debug: bool = False):
+        """
+        Initializes an RPCBridge instance, which facilitates communication between
+        two brokers of potentially different types (e.g., Redis, AMQP, MQTT).
 
         Args:
-            btype:
-            debug (bool): debug
+            from_uri (str): The URI of the source broker.
+            to_uri (str): The URI of the destination broker.
+            from_broker_params (BaseConnectionParameters): Connection parameters for the source broker.
+            to_broker_params (BaseConnectionParameters): Connection parameters for the destination broker.
+            auto_transform_uris (bool, optional): Whether to automatically transform the destination URI
+                based on the broker type. Defaults to True.
+            debug (bool, optional): Enables debug mode for additional logging. Defaults to False.
         """
-        self._from_broker_params = from_broker_params
-        self._to_broker_params = to_broker_params
-        self._from_uri = from_uri
-        self._to_uri = to_uri
-        self._debug = debug
-        self._auto_transform_uris = auto_transform_uris
+        self._from_broker_params: str = from_broker_params
+        self._to_broker_params: str = to_broker_params
+        self._from_uri: str = from_uri
+        self._to_uri: str = to_uri
+        self._debug: bool = debug
+        self._btype: RPCBridgeType = None
+        self._auto_transform_uris: str = auto_transform_uris
+
 
         bA_type_str = str(type(self._from_broker_params)).split("'")[1]
         bB_type_str = str(type(self._to_broker_params)).split("'")[1]
@@ -347,12 +354,11 @@ class PTopicBridge(Bridge):
     endpoints using the appropriate endpoint factory functions.
     """
 
-    def __init__(
-        self,
-        msg_type: PubSubMessage = None,
-        uri_transform: List = [],
-        *args,
-        **kwargs):
+    def __init__(self,
+                 msg_type: PubSubMessage = None,
+                 uri_transform: List = [],
+                 *args,
+                 **kwargs):
         """
         Initializes a PTopicBridge instance with the specified parameters.
 

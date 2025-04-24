@@ -1,36 +1,17 @@
-#!/usr/bin/env python
+## Simple Bridge Example
 
-import time
+This example demonstrates how to create bridges between different message brokers (Redis and AMQP) using `commlib-py` to forward both topic-based messages and RPC calls.
 
-import commlib.transports.amqp as acomm
-import commlib.transports.redis as rcomm
-from commlib.bridges import RPCBridge, RPCBridgeType, TopicBridge, TopicBridgeType
-from commlib.msg import PubSubMessage, RPCMessage
+The example defines two primary functions:
 
+* `redis_to_amqp_topic_bridge()`: Creates a topic bridge that forwards messages from a Redis topic to an AMQP topic.
+* `redis_to_amqp_rpc_bridge()`: Creates an RPC bridge that forwards RPC calls from a Redis RPC client to an AMQP RPC service.
 
-class TopicMessage(PubSubMessage):
-    a: int = 0
+###   `redis_to_amqp_topic_bridge()`
 
+This function sets up a topic bridge that forwards messages from a publisher on a Redis broker to a subscriber on an AMQP broker.
 
-class ExampleRPCMessage(RPCMessage):
-    class Request(RPCMessage.Request):
-        a: int = 0
-        b: int = 0
-
-    class Response(RPCMessage.Response):
-        c: int = 0
-
-
-def on_request(msg):
-    print(f"[Broker-B] - RPC Service received request: {msg}")
-    resp = ExampleRPCMessage.Response(c=msg.a + msg.b)
-    return resp
-
-
-def on_message(msg):
-    print(f"[Broker-B] - Data received at topic - {msg}")
-
-
+```python
 def redis_to_amqp_topic_bridge():
     """
     [Broker A] ------------> [Broker B] ---> [Consumer Endpoint]
@@ -41,12 +22,7 @@ def redis_to_amqp_topic_bridge():
     bB_uri = "rpc.bridge.testB"
 
     # Create and run the bridge
-    br = TopicBridge(
-        msg_type=TopicMessage,
-        from_uri=bA_uri,
-        to_uri=bB_uri,
-        from_broker_params=bA_params,
-        to_broker_params=bB_params)
+    br = TopicBridge(TopicMessage, bA_uri, bB_uri, bA_params, bB_params)
     br.run()
 
     ## For Testing Bridge ------------------>
@@ -73,8 +49,14 @@ def redis_to_amqp_topic_bridge():
     sub.stop()
     ## <-------------------------------------
     br.stop()
+```
 
 
+###   `redis_to_amqp_topic_bridge()`
+
+This function sets up a topic bridge that forwards messages from a publisher on a Redis broker to a subscriber on an AMQP broker.
+
+```python
 def redis_to_amqp_rpc_bridge():
     """
     [Broker A] ------------> [Broker B] ---> [Consumer Endpoint]
@@ -84,21 +66,23 @@ def redis_to_amqp_rpc_bridge():
     bA_uri = "rpc.bridge.testA"
     bB_uri = "rpc.bridge.testB"
     br = RPCBridge(
+        btype=RPCBridgeType.REDIS_TO_AMQP,
         msg_type=ExampleRPCMessage,
         from_uri=bA_uri,
         to_uri=bB_uri,
         from_broker_params=bA_params,
-        to_broker_params=bB_params)
+        to_broker_params=bB_params,
+        debug=False,
+    )
     br.run()
 
     ## For Testing Bridge ------------------>
-    # Create and run the RPC client on Broker A
+    ## BrokerA
     client = rcomm.RPCClient(
         msg_type=ExampleRPCMessage, conn_params=bA_params, rpc_name=bA_uri
     )
-    client.run()
 
-    # Create and run the RPC service on Broker B
+    # Create
     server = acomm.RPCService(
         msg_type=ExampleRPCMessage,
         conn_params=bB_params,
@@ -109,7 +93,6 @@ def redis_to_amqp_rpc_bridge():
 
     count = 0
     req_msg = ExampleRPCMessage.Request()
-    # Call the RPC service on Broker B from Broker A
     while count < 5:
         req_msg.a = count
         resp = client.call(req_msg)
@@ -119,8 +102,4 @@ def redis_to_amqp_rpc_bridge():
     server.stop()
     ## <-------------------------------------
     br.stop()
-
-
-if __name__ == "__main__":
-    redis_to_amqp_rpc_bridge()
-    redis_to_amqp_topic_bridge()
+```

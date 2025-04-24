@@ -33,10 +33,9 @@ if __name__ == "__main__":
     conn_params = ConnectionParameters()
 
     node = Node(
-        node_name="myclient",
+        node_name="add_two_ints_client",
         connection_params=conn_params,
         heartbeats=False,
-        # heartbeat_uri='nodes.add_two_ints.heartbeat',
         debug=True,
     )
 

@@ -39,8 +39,6 @@ if __name__ == "__main__":
     node = Node(
         node_name="obstacle_avoidance",
         connection_params=conn_params,
-        # heartbeat_uri='nodes.add_two_ints.heartbeat',
-        debug=True,
     )
 
     _ = node.create_subscriber(

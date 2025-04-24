@@ -1383,8 +1383,7 @@ def redis_to_mqtt_rpc_bridge():
     bB_params = mcomm.ConnectionParameters()
     bA_uri = 'ops.start_navigation'
     bB_uri = 'thing.robotA.ops.start_navigation'
-    br = RPCBridge(RPCBridgeType.REDIS_TO_MQTT,
-                   from_uri=bA_uri, to_uri=bB_uri,
+    br = RPCBridge(from_uri=bA_uri, to_uri=bB_uri,
                    from_broker_params=bA_params,
                    to_broker_params=bB_params,
                    debug=False)
@@ -1398,8 +1397,7 @@ def redis_to_mqtt_topic_bridge():
     bB_params = mcomm.ConnectionParameters()
     bA_uri = 'sonar.front'
     bB_uri = 'thing.robotA.sensors.sonar.font'
-    br = TopicBridge(TopicBridgeType.REDIS_TO_MQTT,
-                     from_uri=bA_uri, to_uri=bB_uri,
+    br = TopicBridge(from_uri=bA_uri, to_uri=bB_uri,
                      from_broker_params=bA_params,
                      to_broker_params=bB_params,
                      debug=False)
@@ -1410,7 +1408,95 @@ if __name__ == '__main__':
     redis_to_mqtt_topic_bridge()
 ```
 
-A Pattern-based Topic Bridge (PTopicBridge) example is also shown below. In this example, we use static definition of messages (`SonarMessage`), also referred as `typed communication`.
+
+The **Base Bridge Class** is inherited by the **RPCBridge**, **TopicBridge** and **PTopicBridge** classes.
+
+```py
+class Bridge:
+    """Bridge.
+    Base Bridge Class.
+    """
+    def __init__(self,
+                 from_uri: str,
+                 to_uri: str,
+                 from_broker_params: BaseConnectionParameters,
+                 to_broker_params: BaseConnectionParameters,
+                 auto_transform_uris: bool = True,
+                 debug: bool = False):
+```
+
+The **TopicBridge** and **RPCBridge** classes have an extra argument to define the message type of the communication channel.
+
+```py
+
+class RPCBridge(Bridge):
+    def __init__(self, msg_type: RPCMessage = None, *args, **kwargs):
+        ...
+
+
+class TopicBridge(Bridge):
+    def __init__(self, msg_type: PubSubMessage = None, *args, **kwargs):
+        ...
+```
+
+Finally, the PTopicBridge is used for bridging topics using wildcards.
+
+```py
+ class PTopicBridge(Bridge):
+    """PTopicBridge.
+
+    Args:
+        msg_type (PubSubMessage): The message type to be used for the subscriber and publisher.
+        uri_transform (List): A list of tuples containing the from and to strings for transforming the topic URIs.
+
+    The constructor determines the type of the topic bridge based on the types of
+    the from and to broker parameters. It then creates the subscriber and publisher
+    endpoints using the appropriate endpoint factory functions.
+    """
+
+    def __init__(self,
+                 msg_type: PubSubMessage = None,
+                 uri_transform: List = [],
+                 *args,
+                 **kwargs):
+```
+
+A Pattern-based Topic Bridge (**PTopicBridge**) example is also shown below. In this example, we use static definition of messages (`SonarMessage`), also referred as `typed communication`.
+
+```python
+#!/usr/bin/env python
+
+import time
+
+from commlib.msg import PubSubMessage
+from commlib.bridges import PTopicBridge
+import commlib.transports.amqp as acomm
+import commlib.transports.redis as rcomm
+
+class SonarMessage(PubSubMessage):
+    distance: float = 0.001
+    horizontal_fov: float = 30.0
+    vertical_fov: float = 14.0
+
+if __name__ == '__main__':
+    """
+    [Broker A] ------------> [Broker B] ---> [Consumer Endpoint]
+    """
+    bA_uri = 'sensors.*'
+    bB_namespace = 'myrobot'
+
+    bA_params = rcomm.ConnectionParameters()
+    bB_params = mcomm.ConnectionParameters()
+
+    br = PTopicBridge(bA_uri,
+                      bB_namespace,
+                      bA_params,
+                      bB_params,
+                      msg_type=SonarMessage,
+                      debug=False)
+    br.run()
+```
+
 
 ### TCP Bridge
 

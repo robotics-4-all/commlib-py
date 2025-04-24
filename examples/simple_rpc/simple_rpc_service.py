@@ -42,7 +42,6 @@ if __name__ == "__main__":
         node_name="add_two_ints_node",
         connection_params=conn_params,
         heartbeats=False,
-        # heartbeat_uri='nodes.add_two_ints.heartbeat',
         debug=True,
     )
 
