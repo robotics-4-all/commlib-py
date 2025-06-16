@@ -5,4 +5,4 @@ rich
 redis[hiredis]
 paho-mqtt<2.0.0
 pika>=1.3.1
-requests>=2.1.0
+requests>=2.32.4
