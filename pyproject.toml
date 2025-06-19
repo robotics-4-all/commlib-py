@@ -1,6 +1,6 @@
 [project]
 name = "commlib-py"
-version = "0.11.5"
+version = "0.12.0"
 dynamic = ["dependencies", "readme", "license",
     "description", "authors", "classifiers"]
 
@@ -10,7 +10,7 @@ optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
 
 [tool.poetry]
 name = "commlib-py"
-version = "0.11.5"
+version = "0.12.0"
 description = "Internal DSL for communication and messaging in CyberPhysical Systems"
 authors = ["Konstantinos Panayiotou <klpanagi@gmail.com>"]
 packages = [{include = "commlib"}]
