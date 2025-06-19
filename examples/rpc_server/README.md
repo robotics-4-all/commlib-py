@@ -11,7 +11,7 @@ This example demonstrates the implementation of Remote Procedure Call (RPC) func
 
 The server script defines the structure of the request and response messages using `RPCMessage` classes: `AddTwoIntMessage` and `MultiplyIntMessage`.  It then defines handler functions (`add_two_int_handler` and `multiply_int_handler`) that implement the service logic.
 
-Key components:
+
 
 * **Message Definitions:**
     ```python
