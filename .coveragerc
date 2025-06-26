@@ -2,9 +2,10 @@
 source_pkgs = commlib
 omit =
   tests/*
-  ; commlib/transports/mqtt/*
-  ; commlib/transports/amqp/*
-  ; commlib/transports/redis/*
+  commlib/transports/mqtt.py
+  commlib/transports/amqp.py
+  commlib/transports/redis.py
+  commlib/transports/kafka.py
 
 dynamic_context = test_function
 branch = true

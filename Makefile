@@ -61,7 +61,7 @@ lint: ## check style with flake8
 	flake8 commlib tests
 
 test: ## run tests quickly with the default Python
-	coverage run -m unittest discover
+	coverage run -m pytest --ignore tests/mqtt --ignore tests/redis
 
 cov: test ## check code coverage quickly with the default Python
 	coverage report -m
