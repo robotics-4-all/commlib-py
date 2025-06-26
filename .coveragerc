@@ -1,9 +1,10 @@
 [run]
 source_pkgs = commlib
 omit =
-        commlib/transports/mqtt/*
-        commlib/transports/amqp/*
-        commlib/transports/redis/*
+  tests/*
+  ; commlib/transports/mqtt/*
+  ; commlib/transports/amqp/*
+  ; commlib/transports/redis/*
 
 dynamic_context = test_function
 branch = true
@@ -11,6 +12,7 @@ branch = true
 [report]
 fail_under = 10
 precision = 2
+show_missing = true
 skip_empty = true
 
 [html]
