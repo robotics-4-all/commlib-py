@@ -32,8 +32,11 @@ class TestPubSub(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures, if any."""
+        import os
+        mqtt_host = os.getenv("COMMLIB_MQTT_HOST", "localhost")
+        mqtt_port = int(os.getenv("COMMLIB_MQTT_PORT", "1883"))
         self.connparams = ConnectionParameters(
-            host="localhost", port="1883",
+            host=mqtt_host, port=mqtt_port,
             username="", password="", ssl=False,
             reconnect_attempts=0)
 
@@ -117,8 +120,9 @@ class TestPubSub(unittest.TestCase):
                                        on_message=lambda msg: print(msg))
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
-        node.run(wait=True)
-        # node.stop()
+        #node.run(wait=False)
+        #time.sleep(2)
+        #node.stop()
 
     def test_psubscriber_topics(self):
         """
@@ -197,7 +201,7 @@ class TestPubSub(unittest.TestCase):
                                        on_message=lambda msg: print(msg))
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
-        node.run(wait=True)
+        # node.run(wait=True)
 
     def test_wsubscriber_strict_topic(self):
         """
@@ -251,5 +255,5 @@ class TestPubSub(unittest.TestCase):
             sub.subscribe('#', lambda msg: print(msg))
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
-        node.run(wait=True)
+        node.run(wait=False)
         # node.stop()

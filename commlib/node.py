@@ -330,7 +330,7 @@ class Node:
             self._init_heartbeat_thread()
         if wait:
             while not self.health:
-                time.sleep(0.001)
+                time.sleep(0.01)
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.01) -> None:

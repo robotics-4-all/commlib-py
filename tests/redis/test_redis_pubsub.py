@@ -32,8 +32,11 @@ class TestPubSub(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures, if any."""
+        import os
+        redis_host = os.getenv("COMMLIB_REDIS_HOST", "localhost")
+        redis_port = int(os.getenv("COMMLIB_REDIS_PORT", "6379"))
         self.connparams = ConnectionParameters(
-            host="localhost", port="6379", db=0,
+            host=redis_host, port=redis_port, db=0,
             username="", password="", socket_timeout=None)
 
     def tearDown(self):
