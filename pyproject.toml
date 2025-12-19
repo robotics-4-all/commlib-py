@@ -1,38 +1,54 @@
 [project]
 name = "commlib-py"
 version = "0.12.0"
-dynamic = ["dependencies", "readme", "license",
-    "description", "authors", "classifiers"]
+description = "Communication Library for Python implementing the most common communication patterns for CyberPhysical Systems."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [{name = "Konstantinos Panayiotou", email = "klpanagi@gmail.com"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "wheel>=0.38.0",
+    "pydantic>=2.0.0",
+    "ujson>=5.7.0",
+    "rich>=13.7.0",
+    "redis[hiredis]>=5.0.1",
+    "paho-mqtt>=1.6.1",
+    "pika>=1.3.1",
+    "requests>=2.1.0",
+]
 
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
-optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
+[project.optional-dependencies]
+dev = [
+    "bump2version>=0.5.11",
+    "wheel>=0.42.0",
+    "flake8>=3.7.8",
+    "coverage>=7.0.1",
+    "pip>=23",
+]
 
-[tool.poetry]
-name = "commlib-py"
-version = "0.12.0"
-description = "Internal DSL for communication and messaging in CyberPhysical Systems"
-authors = ["Konstantinos Panayiotou <klpanagi@gmail.com>"]
-packages = [{include = "commlib"}]
-
-[tool.poetry.dependencies]
-python = "^3.8"
-wheel = ">=0.38.0"
-pydantic = "^2.0.0"
-ujson = "^5.7.0"
-rich = "^13.7.0"
-redis = {extras = ["hiredis"], version = "^5.0.1"}
-paho-mqtt = "^1.6.1"
-pika = "^1.3.1"
-requests = "^2.1.0"
-
-[tool.poetry.group.dev.dependencies]
-bump2version = "^0.5.11"
-wheel = "0.42.0"
-flake8 = "^3.7.8"
-coverage = "^7.0.1"
-pip = ">=23"
+[project.urls]
+Repository = "https://github.com/robotics-4-all/commlib-py"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["commlib"]
+
+[tool.setuptools.package-data]
+commlib = ["py.typed"]
