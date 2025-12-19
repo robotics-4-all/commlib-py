@@ -114,9 +114,11 @@ class RedisTransport(BaseTransport):
         self._redis = None
         self._redis_pubsub_join_timeout = 1  # sec
         self._rsub_thread = None
-        self._wait_for_connection_init = 0.01  # sec
+        self._wait_for_connection_init = 0.1  # sec
         self._wait_for_pubsub_stop = 0.1  # sec
         self._subscription_sleep_interval = 0.001  # sec
+        self._subscriptions = {}  # Track subscriptions for reconnection
+        self._retry_count = 0
 
         if self._redis_pool is None:
             self.set_redis_pool(self._build_conn_pool())
@@ -140,9 +142,12 @@ class RedisTransport(BaseTransport):
         return self.logger()
 
     def _build_conn_pool(self):
-        retry = Retry(ExponentialBackoff(self._conn_params.reconnect_attempts), 3) \
+        retry = Retry(ExponentialBackoff(
+            self._conn_params.reconnect_attempts * self._conn_params.reconnect_delay),
+                      self._conn_params.reconnect_delay) \
             if self._conn_params.reconnect_attempts > 0 else None
-        retry_on_error = [ConnectionError, TimeoutError, BusyLoadingError] \
+        retry_on_error = [ConnectionError, TimeoutError,
+                          BusyLoadingError, ConnectionRefusedError] \
             if self._conn_params.reconnect_attempts > 0 else None
         if self._conn_params.unix_socket not in ("", None):
             return redis.ConnectionPool(
@@ -154,8 +159,8 @@ class RedisTransport(BaseTransport):
                 socket_timeout=self._conn_params.socket_timeout,
                 socket_keep_alive=True,
                 health_check_interval=self._conn_params.healthcheck_interval,
-                retry=retry,
-                retry_on_error=retry_on_error,
+                # retry=retry,
+                # retry_on_error=retry_on_error,
                 max_connections=None
             )
         else:
@@ -168,8 +173,8 @@ class RedisTransport(BaseTransport):
                 decode_responses=False,
                 socket_timeout=self._conn_params.socket_timeout,
                 health_check_interval=self._conn_params.healthcheck_interval,
-                retry=retry,
-                retry_on_error=retry_on_error,
+                # retry=retry,
+                # retry_on_error=retry_on_error,
                 max_connections=None
             )
 
@@ -185,6 +190,11 @@ class RedisTransport(BaseTransport):
         self._rsub = self._redis.pubsub(
             ignore_subscribe_messages=True,
         )
+        try:
+            self._redis.ping()
+        except Exception as e:
+            raise ConnectionError(f"Could not connect to Redis server: {e}")
+        self._retry_count = 0
 
     def start(self) -> None:
         """
@@ -198,9 +208,37 @@ class RedisTransport(BaseTransport):
             Exception: If the connection cannot be established after multiple attempts.
         """
         if not self.is_connected:
-            self.connect()
-        while not self.is_connected:
+            try:
+                self.connect()
+            except Exception as e:
+                self.log.error(f"Could not establish connection to Redis: {e}")
             time.sleep(self._wait_for_connection_init)
+        while not self.is_connected:
+            self._attempt_reconnect()
+
+    def _max_retries_exceeded(self) -> bool:
+        max_retries = self._conn_params.reconnect_attempts
+        if max_retries <= 0:
+            return False
+        return self._retry_count >= max_retries
+
+    def _attempt_reconnect(self) -> bool:
+        """Attempt to reconnect to Redis."""
+        if self._max_retries_exceeded():
+            raise ConnectionError("Maximum connection attempts exceeded")
+        self._retry_count += 1
+        try:
+            self.log.info(f"Attempting to reconnect to Redis (attempt {self._retry_count}/"
+                         f"{self._conn_params.reconnect_attempts})...")
+            time.sleep(self._conn_params.reconnect_delay)
+            self.connect()
+            if self.is_connected:
+                self.log.info("Successfully reconnected to Redis")
+                self._retry_count = 0  # Reset counter on successful connection
+                return True
+        except Exception as e:
+            self.log.warning(f"Reconnection attempt failed: {e}")
+        return False
 
     def stop(self) -> None:
         """
@@ -241,22 +279,42 @@ class RedisTransport(BaseTransport):
         self._redis.rpush(queue_name, "QueueInit")
 
     def push_msg_to_queue(self, queue_name: str, data: Dict[str, Any]):
-        payload = self._serializer.serialize(data)
-        if self._compression != CompressionType.NO_COMPRESSION:
-            payload = inflate_str(payload)
-        self._redis.rpush(queue_name, payload)
+        if not self.is_connected:
+            self.log.warning("Transport not connected - Cannot push message to queue!")
+            self._attempt_reconnect()
+            return self.push_msg_to_queue(queue_name, data)
+        try:
+            payload = self._serializer.serialize(data)
+            if self._compression != CompressionType.NO_COMPRESSION:
+                payload = inflate_str(payload)
+            self._redis.rpush(queue_name, payload)
+        except redis.exceptions.ConnectionError as e:
+            self.log.warning(f"Redis connection error while pushing to queue: {e}")
+            self._attempt_reconnect()
+            return self.push_msg_to_queue(queue_name, data)
 
     def publish(self, queue_name: str, data: Dict[str, Any]):
-        payload = self._serializer.serialize(data)
-        if self._compression != CompressionType.NO_COMPRESSION:
-            payload = inflate_str(payload)
-        self._redis.publish(queue_name, payload)
+        if not self.is_connected:
+            self.log.warning("Transport not connected - Cannot publish message!")
+            self._attempt_reconnect()
+            return self.publish(queue_name, data)
+        try:
+            payload = self._serializer.serialize(data)
+            if self._compression != CompressionType.NO_COMPRESSION:
+                payload = inflate_str(payload)
+            self._redis.publish(queue_name, payload)
+        except redis.exceptions.ConnectionError as e:
+            self.log.warning(f"Redis connection error while publishing: {e}")
+            self._attempt_reconnect()
+            return self.publish(queue_name, data)
 
     def subscribe(self, topic: str, callback: Callable):
         if topic in (None, ""):
             self.log.warning(f"Attempt to subscribe to empty topic - {topic}")
             return
         _clb = functools.partial(self._on_msg_internal, callback)
+        # Track subscription for reconnection
+        self._subscriptions[topic] = callback
         if self._rsub is None:
             self.log.warning("Redis pubsub not initialized - Cannot proceed to subscriptions!")
             return
@@ -276,6 +334,74 @@ class RedisTransport(BaseTransport):
         # thread.join(timeout=self._redis_pubsub_join_timeout)
         pubsub.close()
         pubsub.connection_pool.disconnect(inuse_connections=True)
+
+        # Attempt to reconnect with retries
+        self._attempt_pubsub_reconnect()
+
+    def _attempt_pubsub_reconnect(self):
+        """Attempt to reconnect the pubsub connection and re-subscribe to topics."""
+        if not self._subscriptions:
+            self.log.debug("No subscriptions to restore")
+            return
+
+        retry_count = self._retry_count
+        max_retries = self._conn_params.reconnect_attempts
+        
+        # If reconnect_attempts is 0, don't attempt reconnection
+        if max_retries <= 0:
+            self.log.warning("Reconnection disabled (reconnect_attempts=0)")
+            return
+        
+        if retry_count >= max_retries:
+            self.log.error(f"Maximum reconnection attempts ({max_retries}) reached. "
+                           "Will not attempt further reconnections.")
+            return
+
+        delay = self._conn_params.reconnect_delay  # Use configured delay
+
+        while self._retry_count < max_retries:
+            try:
+                self.log.info(f"Attempting pubsub reconnection (attempt {retry_count + 1}/{max_retries})...")
+
+                self._retry_count += 1
+
+                # Re-initialize the pubsub
+                self._rsub = None
+                time.sleep(self._wait_for_connection_init)
+
+                # Ping to check connection
+                if not self.is_connected:
+                    time.sleep(delay)
+                    self.connect()
+
+                if self.is_connected:
+                    # Recreate pubsub
+                    self.log.info("Successfully reconnected to Redis")
+                    self._rsub = self._redis.pubsub(
+                        ignore_subscribe_messages=True,
+                    )
+
+                    # Re-subscribe to all topics
+                    for topic in self._subscriptions.keys():
+                        callback = self._subscriptions[topic]
+                        _clb = functools.partial(self._on_msg_internal, callback)
+                        self._rsub.psubscribe(**{topic: _clb})
+
+                    # Restart the subscription thread
+                    self._rsub_thread = self._rsub.run_in_thread(
+                        sleep_time=self._subscription_sleep_interval,
+                        exception_handler=self.exception_handler,
+                        daemon=True
+                    )
+
+                    self.log.info("Pubsub reconnection successful")
+                    return True
+
+            except Exception as e:
+                self.log.warning(f"Pubsub reconnection attempt failed: {e}")
+
+        self.log.error(f"Failed to reconnect pubsub after {max_retries} attempts")
+        return False
 
     def msubscribe(self, topics: Dict[str, callable]):
         _topics = {}
@@ -306,16 +432,25 @@ class RedisTransport(BaseTransport):
 
     def wait_for_msg(self, queue_name: str, timeout=10):
         try:
+            if not self.is_connected:
+                self.log.warning("Transport not connected - Cannot push message to queue!")
+                self._attempt_reconnect()
+                return self.wait_for_msg(queue_name, timeout)
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
             if isinstance(payload, bytes) and payload == b'QueueInit':
                 return self.wait_for_msg(queue_name, timeout)
             if self._compression != CompressionType.NO_COMPRESSION:
                 payload = deflate(payload)
-        except Exception:
-            self.log.debug(f"Timeout after {timeout} seconds waiting for message")
+            return msgq, payload
+        except redis.exceptions.TimeoutError as e:
+            # Check if it's a timeout or actual connection error
             msgq = ""
             payload = None
-        return msgq, payload
+            return msgq, payload
+        except redis.exceptions.ConnectionError as e:
+            self.log.warning(f"Redis connection error: {e}")
+            self._attempt_reconnect()
+            return self.wait_for_msg(queue_name, timeout)
 
 
 class RPCService(BaseRPCService):
@@ -513,6 +648,7 @@ class Publisher(BasePublisher):
         elif isinstance(msg, PubSubMessage):
             data = msg.model_dump()
         self.log.debug(f"Publishing Message to topic <{self._topic}>")
+
         self._transport.publish(self._topic, data)
         self._msg_seq += 1
 
@@ -641,8 +777,9 @@ class Subscriber(BaseSubscriber):
                 if self._t_stop_event.is_set():
                     self.log.debug("Stop event caught in thread")
                     break
-            if self._transport._rsub is not None:
-                self._transport._rsub.ping()
+            if not self._transport.is_connected:
+                pass
+                # self.log.debug("Transport is not connected...")
             time.sleep(interval)
 
     def _on_message(self, payload: Dict[str, Any]):
@@ -730,6 +867,9 @@ class WSubscriber(BaseSubscriber):
                 if self._t_stop_event.is_set():
                     self.log.debug("Stop event caught in thread")
                     break
+            if not self._transport.is_connected:
+                pass
+                # self.log.debug("Transport is not connected...")
             time.sleep(interval)
 
     def _on_message(self, callback: callable, payload: Dict[str, Any]):
@@ -810,8 +950,9 @@ class PSubscriber(BaseSubscriber):
                 if self._t_stop_event.is_set():
                     self.log.debug("Stop event caught in thread")
                     break
-            if self._transport._rsub is not None:
-                self._transport._rsub.ping()
+            if not self._transport.is_connected:
+                pass
+                # self.log.debug("Transport is not connected...")
             time.sleep(interval)
 
     def _on_message(self, payload: Dict[str, Any]) -> None:
