@@ -33,11 +33,9 @@ class TestAsyncUtils(unittest.TestCase):
             raise ValueError("test error")
 
         async def run_test():
-            try:
-                result = await safe_wrapper(test_coro())
-                return False  # Should not reach here
-            except ValueError:
-                return True  # Expected
+            # safe_wrapper logs exceptions but doesn't re-raise them
+            result = await safe_wrapper(test_coro())
+            return result is None  # Exception is swallowed, returns None
 
         result = asyncio.run(run_test())
         self.assertTrue(result)

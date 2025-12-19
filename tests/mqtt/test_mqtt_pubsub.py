@@ -4,6 +4,7 @@
 
 import time
 import unittest
+import pytest
 from typing import Optional
 
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
@@ -27,6 +28,7 @@ class AddTwoIntMessage(RPCMessage):
         c: int = 0
 
 
+@pytest.mark.mqtt
 class TestPubSub(unittest.TestCase):
     """Tests for `commlib` package."""
 
