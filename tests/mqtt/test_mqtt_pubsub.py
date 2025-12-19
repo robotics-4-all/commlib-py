@@ -120,9 +120,9 @@ class TestPubSub(unittest.TestCase):
                                        on_message=lambda msg: print(msg))
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
-        #node.run(wait=False)
-        #time.sleep(2)
-        #node.stop()
+        node.run(wait=True)
+        time.sleep(1)
+        node.stop()
 
     def test_psubscriber_topics(self):
         """
@@ -201,7 +201,9 @@ class TestPubSub(unittest.TestCase):
                                        on_message=lambda msg: print(msg))
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
-        # node.run(wait=True)
+        node.run(wait=True)
+        time.sleep(1)
+        node.stop()
 
     def test_wsubscriber_strict_topic(self):
         """
@@ -255,5 +257,6 @@ class TestPubSub(unittest.TestCase):
             sub.subscribe('#', lambda msg: print(msg))
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
-        node.run(wait=False)
-        # node.stop()
+        node.run(wait=True)
+        time.sleep(1)
+        node.stop()

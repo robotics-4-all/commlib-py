@@ -102,6 +102,7 @@ class TestPubSub(unittest.TestCase):
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
         node.run(wait=True)
+        time.sleep(1)
         node.stop()
 
     def test_wsubscriber_strict_topic(self):
@@ -154,6 +155,7 @@ class TestPubSub(unittest.TestCase):
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
         node.run(wait=True)
+        time.sleep(1)
         node.stop()
 
     def test_psubscriber_topics(self):
@@ -234,3 +236,5 @@ class TestPubSub(unittest.TestCase):
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
         node.run(wait=True)
+        time.sleep(1)
+        node.stop()

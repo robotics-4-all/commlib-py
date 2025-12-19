@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   mqtt:
-    image: eclipse-mosquitto:2
+    image: emqx/emqx:latest
     ports:
       - "1883:1883"
     
@@ -11,15 +9,15 @@ services:
     ports:
       - "6379:6379"
 
-  # tests:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.test
-  #   depends_on:
-  #     - mqtt
-  #     - redis
-  #   environment:
-  #     - COMMLIB_MQTT_HOST=mqtt
-  #     - COMMLIB_REDIS_HOST=redis
-  #   volumes:
-  #     - ./htmlcov_docker:/app/htmlcov
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      - mqtt
+      - redis
+    environment:
+      - COMMLIB_MQTT_HOST=mqtt
+      - COMMLIB_REDIS_HOST=redis
+    volumes:
+      - ./htmlcov_docker:/app/htmlcov
