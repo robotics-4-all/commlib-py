@@ -4,6 +4,7 @@
 
 import time
 import unittest
+import pytest
 from typing import Optional
 
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
@@ -27,13 +28,17 @@ class AddTwoIntMessage(RPCMessage):
         c: int = 0
 
 
+@pytest.mark.mqtt
 class TestPubSub(unittest.TestCase):
     """Tests for `commlib` package."""
 
     def setUp(self):
         """Set up test fixtures, if any."""
+        import os
+        mqtt_host = os.getenv("COMMLIB_MQTT_HOST", "localhost")
+        mqtt_port = int(os.getenv("COMMLIB_MQTT_PORT", "1883"))
         self.connparams = ConnectionParameters(
-            host="localhost", port="1883",
+            host=mqtt_host, port=mqtt_port,
             username="", password="", ssl=False,
             reconnect_attempts=0)
 
@@ -118,7 +123,8 @@ class TestPubSub(unittest.TestCase):
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
         node.run(wait=True)
-        # node.stop()
+        time.sleep(1)
+        node.stop()
 
     def test_psubscriber_topics(self):
         """
@@ -198,6 +204,8 @@ class TestPubSub(unittest.TestCase):
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
         node.run(wait=True)
+        time.sleep(1)
+        node.stop()
 
     def test_wsubscriber_strict_topic(self):
         """
@@ -252,4 +260,5 @@ class TestPubSub(unittest.TestCase):
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
         node.run(wait=True)
-        # node.stop()
+        time.sleep(1)
+        node.stop()

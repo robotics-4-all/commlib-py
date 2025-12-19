@@ -4,6 +4,7 @@
 
 import time
 import unittest
+import pytest
 from typing import Optional
 
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
@@ -27,13 +28,17 @@ class AddTwoIntMessage(RPCMessage):
         c: int = 0
 
 
+@pytest.mark.redis
 class TestPubSub(unittest.TestCase):
     """Tests for `commlib` package."""
 
     def setUp(self):
         """Set up test fixtures, if any."""
+        import os
+        redis_host = os.getenv("COMMLIB_REDIS_HOST", "localhost")
+        redis_port = int(os.getenv("COMMLIB_REDIS_PORT", "6379"))
         self.connparams = ConnectionParameters(
-            host="localhost", port="6379", db=0,
+            host=redis_host, port=redis_port, db=0,
             username="", password="", socket_timeout=None)
 
     def tearDown(self):
@@ -99,6 +104,7 @@ class TestPubSub(unittest.TestCase):
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
         node.run(wait=True)
+        time.sleep(1)
         node.stop()
 
     def test_wsubscriber_strict_topic(self):
@@ -151,6 +157,7 @@ class TestPubSub(unittest.TestCase):
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
         node.run(wait=True)
+        time.sleep(1)
         node.stop()
 
     def test_psubscriber_topics(self):
@@ -231,3 +238,5 @@ class TestPubSub(unittest.TestCase):
         except ValueError as e:
             self.assertEqual(str(e), "Invalid topic: #")
         node.run(wait=True)
+        time.sleep(1)
+        node.stop()
