@@ -368,7 +368,7 @@ class MQTTTransport(BaseTransport):
         """
         self._stopped = True
         self.disconnect()
-        self._client.loop_stop(force=True)
+        self._client.loop_stop()
 
     def loop_forever(self):
         """loop_forever.

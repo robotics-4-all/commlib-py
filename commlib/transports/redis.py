@@ -153,6 +153,7 @@ class RedisTransport(BaseTransport):
                 decode_responses=False,
                 socket_timeout=self._conn_params.socket_timeout,
                 socket_keep_alive=True,
+                health_check_interval=self._conn_params.healthcheck_interval,
                 retry=retry,
                 retry_on_error=retry_on_error,
                 max_connections=None
@@ -166,6 +167,7 @@ class RedisTransport(BaseTransport):
                 db=self._conn_params.db,
                 decode_responses=False,
                 socket_timeout=self._conn_params.socket_timeout,
+                health_check_interval=self._conn_params.healthcheck_interval,
                 retry=retry,
                 retry_on_error=retry_on_error,
                 max_connections=None
@@ -271,7 +273,7 @@ class RedisTransport(BaseTransport):
     def exception_handler(self, ex, pubsub, thread):
         self.log.error(f"Redis PubSub error in thread: {thread}, exception: {ex}")
         thread.stop()
-        thread.join(timeout=self._redis_pubsub_join_timeout)
+        # thread.join(timeout=self._redis_pubsub_join_timeout)
         pubsub.close()
         pubsub.connection_pool.disconnect(inuse_connections=True)
 
@@ -310,7 +312,7 @@ class RedisTransport(BaseTransport):
             if self._compression != CompressionType.NO_COMPRESSION:
                 payload = deflate(payload)
         except Exception:
-            # self.log.warning(f"Timeout after {timeout} seconds waiting for message")
+            self.log.debug(f"Timeout after {timeout} seconds waiting for message")
             msgq = ""
             payload = None
         return msgq, payload
