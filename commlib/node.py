@@ -1,9 +1,14 @@
+"""Communication node implementation.
+
+Provides the Node class for creating communication nodes with
+pub/sub, RPC, and action capabilities.
+"""
+
 import logging
 import threading
 import time
 from enum import IntEnum
 from typing import Any, List, Optional
-from pydantic import BaseModel
 
 from commlib.compression import CompressionType
 from commlib.msg import HeartbeatMessage, PubSubMessage, RPCMessage
@@ -33,7 +38,7 @@ class HeartbeatThread:
     def logger(cls) -> logging.Logger:
         global n_logger
         if n_logger is None:
-            n_logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
+            n_logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         return n_logger
 
     def __init__(
@@ -66,9 +71,7 @@ class HeartbeatThread:
         try:
             msg = HeartbeatMessage(ts=self.get_current_ts())
             while self.running():
-                self.logger().debug(
-                    f"Sending heartbeat message - {self._heartbeat_pub._topic}"
-                )
+                self.logger().debug(f"Sending heartbeat message - {self._heartbeat_pub._topic}")
                 if self._heartbeat_pub._msg_type is None:
                     self._heartbeat_pub.publish(msg.model_dump())
                 else:
@@ -134,17 +137,19 @@ class Node:
             n_logger = logging.getLogger(__name__)
         return n_logger
 
-    def __init__(self,
-                 node_name: Optional[str] = "",
-                 connection_params: Optional[Any] = None,
-                 transport_connection_params: Optional[Any] = None,
-                 debug: Optional[bool] = False,
-                 heartbeats: Optional[bool] = True,
-                 heartbeat_interval: Optional[float] = 10.0,
-                 heartbeat_uri: Optional[str] = None,
-                 compression: CompressionType = CompressionType.NO_COMPRESSION,
-                 ctrl_services: Optional[bool] = False,
-                 workers_rpc: Optional[int] = 4):
+    def __init__(
+        self,
+        node_name: Optional[str] = "",
+        connection_params: Optional[Any] = None,
+        transport_connection_params: Optional[Any] = None,
+        debug: Optional[bool] = False,
+        heartbeats: Optional[bool] = True,
+        heartbeat_interval: Optional[float] = 10.0,
+        heartbeat_uri: Optional[str] = None,
+        compression: CompressionType = CompressionType.NO_COMPRESSION,
+        ctrl_services: Optional[bool] = False,
+        workers_rpc: Optional[int] = 4,
+    ):
         """__init__.
 
         Args:
@@ -173,9 +178,7 @@ class Node:
         self._heartbeats = heartbeats
         self._heartbeat_interval = heartbeat_interval
         self._heartbeat_uri = (
-            heartbeat_uri
-            if heartbeat_uri is not None
-            else f"{self._namespace}.heartbeat"
+            heartbeat_uri if heartbeat_uri is not None else f"{self._namespace}.heartbeat"
         )
         self._compression = compression
         self.state = NodeState.IDLE
@@ -219,12 +222,19 @@ class Node:
 
     @property
     def endpoints(self):
-        return self._subscribers + self._publishers + self._rpc_services + self._rpc_clients + \
-            self._action_services + self._action_clients + self._wsubscribers
+        return (
+            self._subscribers
+            + self._publishers
+            + self._rpc_services
+            + self._rpc_clients
+            + self._action_services
+            + self._action_clients
+            + self._wsubscribers
+        )
 
     @property
     def health(self):
-        return  set([e.connected for e in self.endpoints]) == {True}
+        return set([e.connected for e in self.endpoints]) == {True}
 
     @property
     def log(self) -> logging.Logger:
@@ -265,14 +275,10 @@ class Node:
         self._transport_module = transport_module
 
     def _init_heartbeat_thread(self) -> None:
-        hb_pub = self.create_publisher(
-            topic=self._heartbeat_uri, msg_type=HeartbeatMessage
-        )
+        hb_pub = self.create_publisher(topic=self._heartbeat_uri, msg_type=HeartbeatMessage)
         hb_pub.run()
         self._hb_thread = HeartbeatThread(hb_pub, interval=self._heartbeat_interval)
-        work = self._executor.submit(self._hb_thread.start).add_done_callback(
-            Node._worker_clb
-        )
+        work = self._executor.submit(self._hb_thread.start).add_done_callback(Node._worker_clb)
         self._workers.append(work)
 
     def _start_rpc_callback(self, msg: _NodeStartMessage.Request) -> _NodeStartMessage.Response:
@@ -297,9 +303,7 @@ class Node:
     def create_stop_service(self, uri: str = "") -> None:
         if uri in (None, ""):
             uri = f"{self._namespace}.stop"
-        self.create_rpc(
-            rpc_name=uri, msg_type=_NodeStopMessage, on_request=self._stop_rpc_callback
-        )
+        self.create_rpc(rpc_name=uri, msg_type=_NodeStopMessage, on_request=self._stop_rpc_callback)
 
     def create_start_service(self, uri: str = "") -> None:
         if uri in ("", None):
@@ -506,7 +510,7 @@ class Node:
         Returns:
             The created RPCService instance.
         """
-        _workers = kwargs.pop('workers', self._workers_rpc)
+        _workers = kwargs.pop("workers", self._workers_rpc)
         rpc = self._transport_module.RPCService(
             conn_params=self._conn_params,
             compression=self._compression,
@@ -528,7 +532,7 @@ class Node:
         Returns:
             The created RPCService instance.
         """
-        _workers = kwargs.pop('workers', self._workers_rpc)
+        _workers = kwargs.pop("workers", self._workers_rpc)
         rpc = self._transport_module.RPCServer(
             conn_params=self._conn_params,
             compression=self._compression,
@@ -615,11 +619,7 @@ class Node:
         """
 
         def wrapper(func):
-            _ = self.create_subscriber(
-                on_message=func,
-                msg_type=msg_type,
-                topic=topic
-            )
+            _ = self.create_subscriber(on_message=func, msg_type=msg_type, topic=topic)
             return func
 
         return wrapper
@@ -637,11 +637,7 @@ class Node:
         """
 
         def wrapper(func):
-            _ = self.create_rpc(
-                on_request=func,
-                msg_type=msg_type,
-                rpc_name=rpc_name
-            )
+            _ = self.create_rpc(on_request=func, msg_type=msg_type, rpc_name=rpc_name)
             return func
 
         return wrapper

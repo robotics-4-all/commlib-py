@@ -1,3 +1,9 @@
+"""Asynchronous utilities and helpers.
+
+Provides utilities for safe coroutine execution, async event handling,
+and thread-async synchronization.
+"""
+
 import asyncio
 import inspect
 import logging
@@ -104,9 +110,7 @@ async def run_command(*args):
         The stdout output of the command as a string, with any trailing whitespace removed.
     """
 
-    process = await asyncio.create_subprocess_exec(
-        *args, stdout=asyncio.subprocess.PIPE
-    )
+    process = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
     return stdout.decode().strip()
 

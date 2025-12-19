@@ -1,3 +1,9 @@
+"""AMQP transport implementation.
+
+Provides AMQP-based pub/sub, RPC, and action communication using the pika library.
+Supports RabbitMQ and other AMQP brokers.
+"""
+
 import functools
 import json
 import logging
@@ -108,9 +114,7 @@ class ConnectionParameters(BaseConnectionParameters):
         return pika.ConnectionParameters(
             host=self.host,
             port=str(self.port),
-            credentials=pika.PlainCredentials(
-                username=self.username, password=self.password
-            ),
+            credentials=pika.PlainCredentials(username=self.username, password=self.password),
             connection_attempts=self.reconnect_attempts,
             retry_delay=self.retry_delay,
             blocked_connection_timeout=self.blocked_connection_timeout,
@@ -287,9 +291,7 @@ class AMQPTransport(BaseTransport):
         self.log.debug(f"Exchange exists result: {resp}")
         return resp
 
-    def create_exchange(
-        self, exchange_name: str, exchange_type: ExchangeType, internal=None
-    ):
+    def create_exchange(self, exchange_name: str, exchange_type: ExchangeType, internal=None):
         """
         Create a new exchange.
 
@@ -307,9 +309,7 @@ class AMQPTransport(BaseTransport):
             exchange_type=exchange_type,
         )
 
-        self.log.debug(
-            f"Created exchange: [name={exchange_name}, type={exchange_type}]"
-        )
+        self.log.debug(f"Created exchange: [name={exchange_name}, type={exchange_type}]")
 
     def create_queue(
         self,
@@ -363,9 +363,7 @@ class AMQPTransport(BaseTransport):
             arguments=args,
         )
         queue_name = result.method.queue
-        self.log.debug(
-            f"Created queue [{queue_name}] [size={queue_size}, ttl={message_ttl}]"
-        )
+        self.log.debug(f"Created queue [{queue_name}] [size={queue_size}, ttl={message_ttl}]")
         return queue_name
 
     def delete_queue(self, queue_name):
@@ -406,9 +404,7 @@ class AMQPTransport(BaseTransport):
         @type bind_key: string
         """
         try:
-            self._channel.queue_bind(
-                exchange=exchange_name, queue=queue_name, routing_key=bind_key
-            )
+            self._channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=bind_key)
         except Exception:
             raise AMQPError("Error while trying to bind queue to exchange")
 
@@ -450,9 +446,7 @@ class RPCService(BaseRPCService):
         on_request (function): The on-request callback function to register.
     """
 
-    def __init__(
-        self, exchange: str = "", connection: Connection = None, *args, **kwargs
-    ):
+    def __init__(self, exchange: str = "", connection: Connection = None, *args, **kwargs):
         """__init__.
 
         Args:
@@ -492,9 +486,7 @@ class RPCService(BaseRPCService):
         return self._transport.queue_exists(self._rpc_name)
 
     def _on_request_handle(self, ch, method, properties, body):
-        self._executor.submit(
-            self._on_request_callback, ch, method, properties, body
-        )
+        self._executor.submit(self._on_request_callback, ch, method, properties, body)
         # TODO handle tasks
 
     def _on_request_callback(self, ch, method, properties, body):
@@ -514,9 +506,7 @@ class RPCService(BaseRPCService):
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
-            _req_msg = CommRPCMessage(
-                header=CommRPCHeader(reply_to=_reply_to), data=_data
-            )
+            _req_msg = CommRPCMessage(header=CommRPCHeader(reply_to=_reply_to), data=_data)
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
         except Exception:
@@ -601,9 +591,7 @@ class RPCService(BaseRPCService):
         if self._transport.channel.is_closed:
             self.log.warning("Channel was already closed!")
             return False
-        self._transport.add_threadsafe_callback(
-            self._transport.delete_queue, self._rpc_queue
-        )
+        self._transport.add_threadsafe_callback(self._transport.delete_queue, self._rpc_queue)
         super(RPCService, self).stop()
         return True
 
@@ -629,12 +617,7 @@ class RPCClient(BaseRPCClient):
             (BaseRPCClient).
     """
 
-    def __init__(
-        self,
-        use_corr_id=False,
-        connection: Connection = None,
-        *args,
-        **kwargs):
+    def __init__(self, use_corr_id=False, connection: Connection = None, *args, **kwargs):
         self._use_corr_id = use_corr_id
         self._corr_id = None
         self._response = None
@@ -954,9 +937,7 @@ class Subscriber(BaseSubscriber):
             self.log.warning("Channel was already closed!")
             return False
         self._closing = True
-        self._transport.add_threadsafe_callback(
-            self._transport.delete_queue, self._queue_name
-        )
+        self._transport.add_threadsafe_callback(self._transport.delete_queue, self._queue_name)
 
     def _consume(self, reliable: bool = False) -> None:
         """Start AMQP consumer."""
@@ -1063,9 +1044,7 @@ class PSubscriber(Subscriber):
             _topic = method.routing_key
             _topic = _topic.replace("#", "").replace("*", "")
         except Exception:
-            self.log.error(
-                "Routing key could not be retrieved for message", exc_info=True
-            )
+            self.log.error("Routing key could not be retrieved for message", exc_info=True)
             return
 
         try:
@@ -1073,9 +1052,7 @@ class PSubscriber(Subscriber):
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, _data, _topic)
                 else:
-                    _clb = functools.partial(
-                        self.onmessage, self._msg_type(**_data), _topic
-                    )
+                    _clb = functools.partial(self.onmessage, self._msg_type(**_data), _topic)
                 _clb()
         except Exception:
             self.log.error("Error in on_msg_callback", exc_info=True)

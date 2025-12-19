@@ -1,3 +1,9 @@
+"""Message types and serialization.
+
+Defines message classes for Pub/Sub, RPC, and Action communication patterns.
+Provides serialization and deserialization utilities.
+"""
+
 import base64
 from os import path
 from typing import Any, Dict, List, Union
@@ -15,6 +21,7 @@ class Message(BaseModel):
     """Message Class.
     Base class for all message types. Provides methods for serialization and deserialization.
     """
+
     @classmethod
     def from_json(cls, json_str: str) -> "Message":
         """Create a Message instance from a JSON string.

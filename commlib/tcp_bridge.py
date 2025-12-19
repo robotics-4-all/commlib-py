@@ -1,3 +1,9 @@
+"""TCP bridge for message forwarding.
+
+Provides TCP server and client for forwarding messages between
+remote nodes.
+"""
+
 import socket
 import socketserver
 

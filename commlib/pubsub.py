@@ -1,3 +1,9 @@
+"""Pub/Sub publisher and subscriber implementations.
+
+Provides base classes for publish-subscribe messaging patterns with
+topic validation and endpoint management.
+"""
+
 import logging
 import re
 import threading
@@ -11,8 +17,8 @@ from commlib.utils import gen_random_id
 pubsub_logger = None
 
 
-TOPIC_REGEX = r'^[a-zA-Z0-9\/\.\-\_]+$'
-TOPIC_PATTERN_REGEX = r'^[a-zA-Z0-9\/\*\.\-\_]+$'
+TOPIC_REGEX = r"^[a-zA-Z0-9\/\.\-\_]+$"
+TOPIC_PATTERN_REGEX = r"^[a-zA-Z0-9\/\*\.\-\_]+$"
 
 
 def validate_pubsub_topic(topic: str) -> None:
@@ -31,8 +37,9 @@ def validate_pubsub_topic(topic: str) -> None:
     """
     if topic is None:
         return
-    if topic in ('.', '*', '-', '_', "", " ") or not re.match(TOPIC_PATTERN_REGEX, topic):
+    if topic in (".", "*", "-", "_", "", " ") or not re.match(TOPIC_PATTERN_REGEX, topic):
         raise ValueError(f"Invalid topic: {topic}")
+
 
 def validate_pubsub_topic_strict(topic: str) -> None:
     """
@@ -51,7 +58,7 @@ def validate_pubsub_topic_strict(topic: str) -> None:
     """
     if topic is None:
         return
-    if topic in ('.', '-', '_', "", " ") or not re.match(TOPIC_REGEX, topic):
+    if topic in (".", "-", "_", "", " ") or not re.match(TOPIC_REGEX, topic):
         raise ValueError(f"Invalid topic: {topic}")
 
 
@@ -65,8 +72,7 @@ class BasePublisher(BaseEndpoint):
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
 
-    def __init__(self, topic: str, msg_type: PubSubMessage = None,
-                 *args, **kwargs):
+    def __init__(self, topic: str, msg_type: PubSubMessage = None, *args, **kwargs):
         """__init__.
         Initializes a new instance of the `BaseSubscriber` class.
 
@@ -95,6 +101,7 @@ class BasePublisher(BaseEndpoint):
 
 class BaseSubscriber(BaseEndpoint):
     """BaseSubscriber."""
+
     LOOP_INTERVAL = 0.001
 
     @classmethod
@@ -104,9 +111,15 @@ class BaseSubscriber(BaseEndpoint):
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
 
-    def __init__(self, topic: str, msg_type: Optional[PubSubMessage] = None,
-                 on_message: Optional[Callable] = None, workers: int = 2,
-                 *args, **kwargs):
+    def __init__(
+        self,
+        topic: str,
+        msg_type: Optional[PubSubMessage] = None,
+        on_message: Optional[Callable] = None,
+        workers: int = 2,
+        *args,
+        **kwargs,
+    ):
         """__init__.
         Initializes a new instance of the `BaseSubscriber` class.
 
@@ -168,11 +181,11 @@ class BaseSubscriber(BaseEndpoint):
         the main thread.
         """
         if self._transport is None:
-            raise RuntimeError(
-                f"Transport not initialized - cannot run {self.__class__.__name__}")
-        if not self._transport.is_connected and \
-            self._state not in (EndpointState.CONNECTED,
-                                EndpointState.CONNECTING):
+            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and self._state not in (
+            EndpointState.CONNECTED,
+            EndpointState.CONNECTING,
+        ):
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
             self._t_stop_event = threading.Event()

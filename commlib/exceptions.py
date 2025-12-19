@@ -10,6 +10,7 @@ These exceptions can be raised by various components of the commlib module to
 indicate specific error conditions.
 """
 
+
 class BaseException(Exception):
     def __init__(self, message, errors=None):
         super().__init__(message)
@@ -18,7 +19,7 @@ class BaseException(Exception):
 
 class ConnectionError(BaseException):
     def __init__(self, message, errors=None):
-       super().__init__(message, errors)
+        super().__init__(message, errors)
 
 
 class AMQPError(BaseException):

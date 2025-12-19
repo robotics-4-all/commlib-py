@@ -1,14 +1,19 @@
+"""RPC client and service implementations.
+
+Provides request-reply pattern for synchronous and asynchronous
+remote procedure calls with timeout and error handling.
+"""
+
 import logging
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from functools import partial
 import time
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional
 
 from pydantic import BaseModel
 
 from commlib.endpoints import BaseEndpoint, EndpointState
-from commlib.exceptions import RPCRequestError
 from commlib.msg import RPCMessage
 from commlib.utils import gen_random_id, gen_timestamp
 
@@ -43,7 +48,8 @@ class BaseRPCServer(BaseEndpoint):
         workers: int = 4,
         interval: float = 0.001,
         *args,
-        **kwargs):
+        **kwargs,
+    ):
         """__init__.
         Initializes a BaseRPCService instance with the provided configuration.
 
@@ -99,8 +105,7 @@ class BaseRPCServer(BaseEndpoint):
             return False
         return True
 
-    def register_endpoint(self, uri: str, callback: Callable,
-                          msg_type: RPCMessage = None):
+    def register_endpoint(self, uri: str, callback: Callable, msg_type: RPCMessage = None):
         self._svc_map[uri] = (callback, msg_type)
 
     def run_forever(self):
@@ -118,11 +123,11 @@ class BaseRPCServer(BaseEndpoint):
         the main thread.
         """
         if self._transport is None:
-            raise RuntimeError(
-                f"Transport not initialized - cannot run {self.__class__.__name__}")
-        if not self._transport.is_connected and \
-            self._state not in (EndpointState.CONNECTED,
-                                EndpointState.CONNECTING):
+            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and self._state not in (
+            EndpointState.CONNECTED,
+            EndpointState.CONNECTING,
+        ):
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
             self._main_thread.start()
@@ -131,8 +136,7 @@ class BaseRPCServer(BaseEndpoint):
                     time.sleep(self.interval)
             self._state = EndpointState.CONNECTED
         else:
-            self.log.warning(
-                "Transport already connected - Skipping")
+            self.log.warning("Transport already connected - Skipping")
 
     def stop(self) -> None:
         if self._t_stop_event:
@@ -167,7 +171,8 @@ class BaseRPCService(BaseEndpoint):
         on_request: Callable = None,
         workers: int = 5,
         *args,
-        **kwargs):
+        **kwargs,
+    ):
         """__init__.
         Initializes a new instance of the `BaseRPCService` class.
 
@@ -257,11 +262,11 @@ class BaseRPCService(BaseEndpoint):
         the main thread.
         """
         if self._transport is None:
-            raise RuntimeError(
-                f"Transport not initialized - cannot run {self.__class__.__name__}")
-        if not self._transport.is_connected and \
-            self._state not in (EndpointState.CONNECTED,
-                                EndpointState.CONNECTING):
+            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and self._state not in (
+            EndpointState.CONNECTED,
+            EndpointState.CONNECTING,
+        ):
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
             self._main_thread.start()
@@ -302,12 +307,8 @@ class BaseRPCClient(BaseEndpoint):
         return rpc_logger
 
     def __init__(
-        self,
-        rpc_name: str,
-        msg_type: RPCMessage = None,
-        workers: int = 5,
-        *args,
-        **kwargs):
+        self, rpc_name: str, msg_type: RPCMessage = None, workers: int = 5, *args, **kwargs
+    ):
         """
         Initializes a new instance of the `BaseRPCClient` class.
 
@@ -335,8 +336,7 @@ class BaseRPCClient(BaseEndpoint):
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._comm_obj = CommRPCMessage()
 
-    def call(
-        self, msg: RPCMessage.Request, timeout: float = 30.0) -> RPCMessage.Response:
+    def call(self, msg: RPCMessage.Request, timeout: float = 30.0) -> RPCMessage.Response:
         """call.
         Synchronous RPC Call.
 
@@ -350,10 +350,8 @@ class BaseRPCClient(BaseEndpoint):
         raise NotImplementedError()
 
     def call_async(
-        self,
-        msg: RPCMessage.Request,
-        timeout: float = 30.0,
-        on_response: callable = None) -> Future:
+        self, msg: RPCMessage.Request, timeout: float = 30.0, on_response: callable = None
+    ) -> Future:
         """call_async.
         Asynchronously call an RPC method and return a Future object.
 

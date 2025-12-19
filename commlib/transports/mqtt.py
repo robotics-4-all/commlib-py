@@ -1,6 +1,11 @@
+"""MQTT transport implementation.
+
+Provides MQTT-based pub/sub and RPC communication using paho-mqtt library.
+Supports MQTT 3.1.1 and MQTT 5.0 protocols with automatic reconnection.
+"""
+
 import functools
 import logging
-import re
 import time
 from enum import IntEnum
 from typing import Any, Callable, Dict, Tuple, Union
@@ -23,7 +28,12 @@ from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCClientTimeoutError, RPCRequestError, SubscriberError
 from commlib.msg import PubSubMessage, RPCMessage
-from commlib.pubsub import TOPIC_PATTERN_REGEX, TOPIC_REGEX, BasePublisher, BaseSubscriber, validate_pubsub_topic, validate_pubsub_topic_strict
+from commlib.pubsub import (
+    BasePublisher,
+    BaseSubscriber,
+    validate_pubsub_topic,
+    validate_pubsub_topic_strict,
+)
 from commlib.rpc import (
     BaseRPCClient,
     BaseRPCServer,
@@ -133,11 +143,10 @@ class MQTTTransport(BaseTransport):
         max_delay = min_delay * 10 if min_delay > 0 else 120
         self._client.reconnect_delay_set(min_delay=min_delay, max_delay=max_delay)
 
-        self._client.username_pw_set(
-            self._conn_params.username, self._conn_params.password
-        )
+        self._client.username_pw_set(self._conn_params.username, self._conn_params.password)
         if self._conn_params.ssl:
             import ssl
+
             ssl_ctx = ssl.create_default_context()
             ssl_ctx.check_hostname = False
             ssl_ctx.verify_mode = ssl.CERT_NONE
@@ -172,9 +181,7 @@ class MQTTTransport(BaseTransport):
         max_delay = min_delay * 10 if min_delay > 0 else 120
         self._client.reconnect_delay_set(min_delay=min_delay, max_delay=min_delay)
 
-        self._client.username_pw_set(
-            self._conn_params.username, self._conn_params.password
-        )
+        self._client.username_pw_set(self._conn_params.username, self._conn_params.password)
         if self._conn_params.ssl:
             import ssl
 
@@ -207,9 +214,9 @@ class MQTTTransport(BaseTransport):
         self._mqtt_properties = properties
         self._client.loop_start()
 
-    def on_connect(self, client: Any, userdata: Any,
-                   flags: Dict[str, Any], rc: int,
-                   properties: Any = None):
+    def on_connect(
+        self, client: Any, userdata: Any, flags: Dict[str, Any], rc: int, properties: Any = None
+    ):
         """on_connect.
 
         Callback for on-connect event.
@@ -230,14 +237,11 @@ class MQTTTransport(BaseTransport):
     def _report_on_connect(self) -> None:
         self.log.info("Connected to MQTT Broker")
         self.log.debug("MQTT Transport initiated:")
-        self.log.debug(
-            "- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}"
-        )
+        self.log.debug("- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}")
         self.log.debug(f"- Data Serialization: {self._serializer}")
         self.log.debug(f"- Data Compression: {self._compression}")
 
-    def on_disconnect(self, client: Any, userdata: Any,
-                      rc: int, unk: Any = None) -> None:
+    def on_disconnect(self, client: Any, userdata: Any, rc: int, unk: Any = None) -> None:
         """on_disconnect.
 
         Callback for on-disconnect event.
@@ -252,10 +256,9 @@ class MQTTTransport(BaseTransport):
             self.log.info("Transport stopped, not attempting reconnection")
             self._client.loop_stop()
             return
-            
+
         err_msg = ""
-        if rc == MQTTReturnCode.AUTHORIZATION_ERROR or \
-            rc == MQTTReturnCode.AUTHENTICATION_ERROR:
+        if rc == MQTTReturnCode.AUTHORIZATION_ERROR or rc == MQTTReturnCode.AUTHENTICATION_ERROR:
             err_msg = "Authentication error with MQTT broker"
             self.log.error(err_msg)
         elif rc == MQTTReturnCode.CONNECTION_SUCCESS:
@@ -265,7 +268,7 @@ class MQTTTransport(BaseTransport):
             err_msg = error_string(rc)
             self.log.warning(f"Disconnected from MQTT broker with: {err_msg}. ")
             self.log.warning(f"Attempting reconnection in {self._conn_params.reconnect_delay}....")
-        
+
         # paho-mqtt will automatically reconnect when loop is running
 
     def _restore_subscriptions(self) -> None:
@@ -299,9 +302,9 @@ class MQTTTransport(BaseTransport):
     def on_log(self, client: Any, userdata: Any, level, buf):
         self.log.info(level, buf)
 
-    def publish(self, topic: str, payload: Dict[str, Any],
-                qos: MQTTQoS = MQTTQoS.L0,
-                retain: bool = False) -> None:
+    def publish(
+        self, topic: str, payload: Dict[str, Any], qos: MQTTQoS = MQTTQoS.L0, retain: bool = False
+    ) -> None:
         """publish.
 
         Args:
@@ -315,12 +318,9 @@ class MQTTTransport(BaseTransport):
         pl = self._serializer.serialize(payload)
         if self._compression != CompressionType.NO_COMPRESSION:
             pl = inflate_str(pl)
-        self._client.publish(
-            topic, pl, qos=qos, retain=retain, properties=self._mqtt_properties
-        )
+        self._client.publish(topic, pl, qos=qos, retain=retain, properties=self._mqtt_properties)
 
-    def subscribe(self, topic: str, callback: Callable,
-                  qos: MQTTQoS = MQTTQoS.L0) -> str:
+    def subscribe(self, topic: str, callback: Callable, qos: MQTTQoS = MQTTQoS.L0) -> str:
         """subscribe.
 
         Args:
@@ -352,7 +352,8 @@ class MQTTTransport(BaseTransport):
         # topic = topic.replace(".", "/").replace("/*/*/*/", "/+/+/+/").replace(
         #     "/*/*/", "/+/+/").replace("/*/", "/+/").replace("*", "#")
         # Replace trailing single asterisk with MQTT's single-level wildcard
-        if topic.endswith("*"): topic = topic[:-1] + "#"
+        if topic.endswith("*"):
+            topic = topic[:-1] + "#"
         # Replace dots with forward slashes
         # Replace single asterisk wildcards with MQTT's single-level wildcard
         # Replace remaining asterisks with MQTT's multi-level wildcard
@@ -362,8 +363,7 @@ class MQTTTransport(BaseTransport):
     def unsubscribe(self, topic: str) -> None:
         self._client.unsubscribe(topic)
 
-    def _on_msg_internal(self, callback: Callable, client: Any,
-                         userdata: Any, msg: Any) -> None:
+    def _on_msg_internal(self, callback: Callable, client: Any, userdata: Any, msg: Any) -> None:
         _topic = msg.topic
         _payload = msg.payload
         _qos = msg.qos
@@ -478,8 +478,13 @@ class WPublisher:
     """WPublisher.
     MQTT Wrapped-Publisher
     """
-    def __init__(self, mpub: MPublisher, topic: str,
-                 msg_type: Union[PubSubMessage, None] = None,):
+
+    def __init__(
+        self,
+        mpub: MPublisher,
+        topic: str,
+        msg_type: Union[PubSubMessage, None] = None,
+    ):
         """__init__.
 
         Args:
@@ -633,8 +638,9 @@ class WSubscriber(BaseSubscriber):
         validate_pubsub_topic_strict(topic)
         self._subs[topic] = callback
 
-    def _on_message(self, callback: callable, client: Any,
-                    userdata: Any, msg: Dict[str, Any]) -> None:
+    def _on_message(
+        self, callback: callable, client: Any, userdata: Any, msg: Dict[str, Any]
+    ) -> None:
         """_on_message.
 
         Args:
@@ -661,6 +667,7 @@ class WSubscriber(BaseSubscriber):
 
 class PSubscriber(BaseSubscriber):
     """PSubscriber."""
+
     def __init__(self, *args, **kwargs):
         """__init__.
 
@@ -694,9 +701,7 @@ class PSubscriber(BaseSubscriber):
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, data, topic)
                 else:
-                    _clb = functools.partial(
-                        self.onmessage, self._msg_type(**data), topic
-                    )
+                    _clb = functools.partial(self.onmessage, self._msg_type(**data), topic)
                 _clb()
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
@@ -771,9 +776,7 @@ class RPCService(BaseRPCService):
     def run_forever(self):
         """run_forever."""
         self._transport.start()
-        self._transport.subscribe(
-            self._rpc_name, self._on_request_handle, qos=MQTTQoS.L1
-        )
+        self._transport.subscribe(self._rpc_name, self._on_request_handle, qos=MQTTQoS.L1)
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
@@ -877,6 +880,7 @@ class RPCServer(BaseRPCServer):
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
+
 class RPCClient(BaseRPCClient):
     """RPCClient.
     MQTT RPC Client
@@ -963,9 +967,7 @@ class RPCClient(BaseRPCClient):
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
 
-        self._transport.subscribe(
-            _reply_to, callback=self._on_response_wrapper, qos=MQTTQoS.L1
-        )
+        self._transport.subscribe(_reply_to, callback=self._on_response_wrapper, qos=MQTTQoS.L1)
         start_t = time.time()
         self._transport.publish(self._rpc_name, _msg, qos=MQTTQoS.L1)
         _resp = self._wait_for_response(timeout=timeout)

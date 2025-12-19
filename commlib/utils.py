@@ -1,3 +1,9 @@
+"""Utility functions and helpers.
+
+Provides common utilities for ID generation, string transformation,
+and time management.
+"""
+
 import os
 import re
 import time

@@ -1,3 +1,9 @@
+"""Message aggregation and topic processing.
+
+Provides topic message aggregators for combining and processing messages
+from multiple input topics into a single output topic.
+"""
+
 import functools
 import logging
 from typing import Any, Dict, List
@@ -8,17 +14,24 @@ aggregation_logger = None
 
 
 class TopicMessageProcessor:
-    def __init__(self, broker_params: BaseConnectionParameters,
-                 input_topic: List[str], output_topic: str,
-                 data_processors: List[callable] = []):
+    def __init__(
+        self,
+        broker_params: BaseConnectionParameters,
+        input_topic: List[str],
+        output_topic: str,
+        data_processors: List[callable] = [],
+    ):
         self.broker_params = broker_params
         self.input_topic = input_topic
         self.output_topic = output_topic
         self.data_processors = data_processors  # List of functions to process incoming data
 
-        self.node = Node(node_name="TopicMessageProcessor",
-                         connection_params=self.broker_params,
-                         debug=False, heartbeats=False)
+        self.node = Node(
+            node_name="TopicMessageProcessor",
+            connection_params=self.broker_params,
+            debug=False,
+            heartbeats=False,
+        )
 
     @classmethod
     def logger(cls) -> logging.Logger:
@@ -38,8 +51,7 @@ class TopicMessageProcessor:
     def create_publisher(self):
         self.pub = self.node.create_mpublisher()
 
-    def on_msg_internal(self, processors: Dict[str, callable],
-                        payload: Dict[str, Any], topic: str):
+    def on_msg_internal(self, processors: Dict[str, callable], payload: Dict[str, Any], topic: str):
         for proc in processors:
             try:
                 payload = proc(payload)
@@ -59,17 +71,24 @@ class TopicMessageProcessor:
 
 
 class TopicAggregator:
-    def __init__(self, broker_params: BaseConnectionParameters,
-                 input_topics: List[str], output_topic: str,
-                 data_processors: Dict[str, callable] = {}):
+    def __init__(
+        self,
+        broker_params: BaseConnectionParameters,
+        input_topics: List[str],
+        output_topic: str,
+        data_processors: Dict[str, callable] = {},
+    ):
         self.broker_params = broker_params
         self.input_topics = input_topics
         self.output_topic = output_topic
         self.data_processors = data_processors  # List of functions to process incoming data
 
-        self.node = Node(node_name="TopicAggregator",
-                         connection_params=self.broker_params,
-                         debug=False, heartbeats=False)
+        self.node = Node(
+            node_name="TopicAggregator",
+            connection_params=self.broker_params,
+            debug=False,
+            heartbeats=False,
+        )
 
     @classmethod
     def logger(cls) -> logging.Logger:
@@ -94,11 +113,9 @@ class TopicAggregator:
     def create_publisher(self):
         self.pub = self.node.create_mpublisher()
 
-    def on_msg_internal(self,
-                        payload: Dict[str, Any],
-                        topic: str,
-                        processors: Dict[str, callable] = {}
-                        ):
+    def on_msg_internal(
+        self, payload: Dict[str, Any], topic: str, processors: Dict[str, callable] = {}
+    ):
         for proc in processors:
             try:
                 payload = proc(payload)

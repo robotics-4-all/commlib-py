@@ -1,17 +1,18 @@
+"""Redis transport implementation.
+
+Provides Redis-based pub/sub and RPC communication with automatic reconnection
+and subscription restoration on connection loss.
+"""
+
 import functools
 import logging
-import re
 import time
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Tuple, Union
 
 import redis
 from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
-from redis.exceptions import (
-   BusyLoadingError,
-   ConnectionError,
-   TimeoutError
-)
+from redis.exceptions import BusyLoadingError, ConnectionError, TimeoutError
 
 from commlib.action import (
     BaseActionClient,
@@ -27,8 +28,10 @@ from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import (
-    BasePublisher, BaseSubscriber,
-    validate_pubsub_topic, validate_pubsub_topic_strict
+    BasePublisher,
+    BaseSubscriber,
+    validate_pubsub_topic,
+    validate_pubsub_topic_strict,
 )
 from commlib.rpc import (
     BaseRPCClient,
@@ -91,11 +94,13 @@ class RedisTransport(BaseTransport):
             redis_logger = logging.getLogger(__name__)
         return redis_logger
 
-    def __init__(self,
-                 compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
-                 serializer: Serializer = JSONSerializer(),
-                 *args,
-                 **kwargs):
+    def __init__(
+        self,
+        compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
+        serializer: Serializer = JSONSerializer(),
+        *args,
+        **kwargs,
+    ):
         """
         Initialize the RedisTransport.
 
@@ -142,13 +147,21 @@ class RedisTransport(BaseTransport):
         return self.logger()
 
     def _build_conn_pool(self):
-        retry = Retry(ExponentialBackoff(
-            self._conn_params.reconnect_attempts * self._conn_params.reconnect_delay),
-                      self._conn_params.reconnect_delay) \
-            if self._conn_params.reconnect_attempts > 0 else None
-        retry_on_error = [ConnectionError, TimeoutError,
-                          BusyLoadingError, ConnectionRefusedError] \
-            if self._conn_params.reconnect_attempts > 0 else None
+        retry = (
+            Retry(
+                ExponentialBackoff(
+                    self._conn_params.reconnect_attempts * self._conn_params.reconnect_delay
+                ),
+                self._conn_params.reconnect_delay,
+            )
+            if self._conn_params.reconnect_attempts > 0
+            else None
+        )
+        retry_on_error = (
+            [ConnectionError, TimeoutError, BusyLoadingError, ConnectionRefusedError]
+            if self._conn_params.reconnect_attempts > 0
+            else None
+        )
         if self._conn_params.unix_socket not in ("", None):
             return redis.ConnectionPool(
                 unix_socket_path=self._conn_params.unix_socket,
@@ -161,7 +174,7 @@ class RedisTransport(BaseTransport):
                 health_check_interval=self._conn_params.healthcheck_interval,
                 # retry=retry,
                 # retry_on_error=retry_on_error,
-                max_connections=None
+                max_connections=None,
             )
         else:
             return redis.ConnectionPool(
@@ -175,7 +188,7 @@ class RedisTransport(BaseTransport):
                 health_check_interval=self._conn_params.healthcheck_interval,
                 # retry=retry,
                 # retry_on_error=retry_on_error,
-                max_connections=None
+                max_connections=None,
             )
 
     def connect(self) -> None:
@@ -228,8 +241,10 @@ class RedisTransport(BaseTransport):
             raise ConnectionError("Maximum connection attempts exceeded")
         self._retry_count += 1
         try:
-            self.log.info(f"Attempting to reconnect to Redis (attempt {self._retry_count}/"
-                         f"{self._conn_params.reconnect_attempts})...")
+            self.log.info(
+                f"Attempting to reconnect to Redis (attempt {self._retry_count}/"
+                f"{self._conn_params.reconnect_attempts})..."
+            )
             time.sleep(self._conn_params.reconnect_delay)
             self.connect()
             if self.is_connected:
@@ -323,9 +338,11 @@ class RedisTransport(BaseTransport):
             time.sleep(self._wait_for_pubsub_stop)
         self._rsub.psubscribe(**{topic: _clb})
         # Run the subscription in a background thread
-        self._rsub_thread = self._rsub.run_in_thread(sleep_time=self._subscription_sleep_interval,
-                                                     exception_handler=self.exception_handler,
-                                                     daemon=True)
+        self._rsub_thread = self._rsub.run_in_thread(
+            sleep_time=self._subscription_sleep_interval,
+            exception_handler=self.exception_handler,
+            daemon=True,
+        )
         return self._rsub_thread
 
     def exception_handler(self, ex, pubsub, thread):
@@ -346,22 +363,26 @@ class RedisTransport(BaseTransport):
 
         retry_count = self._retry_count
         max_retries = self._conn_params.reconnect_attempts
-        
+
         # If reconnect_attempts is 0, don't attempt reconnection
         if max_retries <= 0:
             self.log.warning("Reconnection disabled (reconnect_attempts=0)")
             return
-        
+
         if retry_count >= max_retries:
-            self.log.error(f"Maximum reconnection attempts ({max_retries}) reached. "
-                           "Will not attempt further reconnections.")
+            self.log.error(
+                f"Maximum reconnection attempts ({max_retries}) reached. "
+                "Will not attempt further reconnections."
+            )
             return
 
         delay = self._conn_params.reconnect_delay  # Use configured delay
 
         while self._retry_count < max_retries:
             try:
-                self.log.info(f"Attempting pubsub reconnection (attempt {retry_count + 1}/{max_retries})...")
+                self.log.info(
+                    f"Attempting pubsub reconnection (attempt {retry_count + 1}/{max_retries})..."
+                )
 
                 self._retry_count += 1
 
@@ -391,7 +412,7 @@ class RedisTransport(BaseTransport):
                     self._rsub_thread = self._rsub.run_in_thread(
                         sleep_time=self._subscription_sleep_interval,
                         exception_handler=self.exception_handler,
-                        daemon=True
+                        daemon=True,
                     )
 
                     self.log.info("Pubsub reconnection successful")
@@ -420,8 +441,9 @@ class RedisTransport(BaseTransport):
             time.sleep(self._wait_for_pubsub_stop)
         self._rsub.psubscribe(**_topics)
         # Run the subscription in a background thread
-        self._rsub_thread = self._rsub.run_in_thread(0.001, daemon=True,
-                                                     exception_handler=self.exception_handler)
+        self._rsub_thread = self._rsub.run_in_thread(
+            0.001, daemon=True, exception_handler=self.exception_handler
+        )
         return self._rsub_thread
 
     def _on_msg_internal(self, callback: Callable, data: Any):
@@ -437,7 +459,7 @@ class RedisTransport(BaseTransport):
                 self._attempt_reconnect()
                 return self.wait_for_msg(queue_name, timeout)
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
-            if isinstance(payload, bytes) and payload == b'QueueInit':
+            if isinstance(payload, bytes) and payload == b"QueueInit":
                 return self.wait_for_msg(queue_name, timeout)
             if self._compression != CompressionType.NO_COMPRESSION:
                 payload = deflate(payload)
@@ -488,9 +510,7 @@ class RPCService(BaseRPCService):
         if "reply_to" not in header:
             return
         try:
-            _req_msg = CommRPCMessage(
-                header=CommRPCHeader(reply_to=header["reply_to"]), data=data
-            )
+            _req_msg = CommRPCMessage(header=CommRPCHeader(reply_to=header["reply_to"]), data=data)
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
             if self._msg_type is None:
@@ -529,7 +549,8 @@ class RPCService(BaseRPCService):
         # self._transport.create_queue(self._rpc_name)
         while not self._t_stop_event.is_set():
             msgq, payload = self._transport.wait_for_msg(self._rpc_name)
-            if payload is None: continue
+            if payload is None:
+                continue
             self._detach_request_handler(payload)
 
     def _detach_request_handler(self, payload: str):
@@ -693,8 +714,13 @@ class WPublisher:
     """WPublisher.
     Redis Wrapped-Publisher
     """
-    def __init__(self, mpub: MPublisher, topic: str,
-                 msg_type: Union[PubSubMessage, None] = None,):
+
+    def __init__(
+        self,
+        mpub: MPublisher,
+        topic: str,
+        msg_type: Union[PubSubMessage, None] = None,
+    ):
         """__init__.
 
         Args:
@@ -770,8 +796,7 @@ class Subscriber(BaseSubscriber):
               the connection alive.
         """
         self._transport.start()
-        self._subscriber_thread = self._transport.subscribe(
-            self._topic, self._on_message)
+        self._subscriber_thread = self._transport.subscribe(self._topic, self._on_message)
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
@@ -910,6 +935,7 @@ class PSubscriber(BaseSubscriber):
     """PSubscriber.
     Redis Pattern-based Subscriber.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
@@ -943,8 +969,7 @@ class PSubscriber(BaseSubscriber):
         The method will run indefinitely until the stop event (`self._t_stop_event`) is set.
         """
         self._transport.start()
-        self._subscriber_thread = self._transport.subscribe(
-            self._topic, self._on_message)
+        self._subscriber_thread = self._transport.subscribe(self._topic, self._on_message)
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
@@ -962,9 +987,7 @@ class PSubscriber(BaseSubscriber):
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, data, topic)
                 else:
-                    _clb = functools.partial(
-                        self.onmessage, self._msg_type(**data), topic
-                    )
+                    _clb = functools.partial(self.onmessage, self._msg_type(**data), topic)
                 _clb()
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
@@ -1095,9 +1118,7 @@ class RPCServer(BaseRPCServer):
         if "reply_to" not in header:
             return
         try:
-            _req_msg = CommRPCMessage(
-                header=CommRPCHeader(reply_to=header["reply_to"]), data=data
-            )
+            _req_msg = CommRPCMessage(header=CommRPCHeader(reply_to=header["reply_to"]), data=data)
 
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
@@ -1148,7 +1169,8 @@ class RPCServer(BaseRPCServer):
         """
         while not self._t_stop_event.is_set():
             _, payload = self._transport.wait_for_msg(rpc_uri, timeout=timeout)
-            if payload is None: continue
+            if payload is None:
+                continue
             data, header = self._unpack_comm_msg(payload)
             self._on_request_handle(rpc_uri, data, header)
 

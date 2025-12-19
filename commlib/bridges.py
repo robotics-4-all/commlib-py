@@ -1,3 +1,9 @@
+"""Message bridges between different transports.
+
+Implements RPC and Pub/Sub bridges for forwarding messages between
+different communication transports (MQTT, AMQP, Redis).
+"""
+
 import logging
 import time
 from enum import IntEnum
@@ -50,13 +56,15 @@ class Bridge:
             br_logger = logging.getLogger(__name__)
         return br_logger
 
-    def __init__(self,
-                 from_uri: str,
-                 to_uri: str,
-                 from_broker_params: BaseConnectionParameters,
-                 to_broker_params: BaseConnectionParameters,
-                 auto_transform_uris: bool = True,
-                 debug: bool = False):
+    def __init__(
+        self,
+        from_uri: str,
+        to_uri: str,
+        from_broker_params: BaseConnectionParameters,
+        to_broker_params: BaseConnectionParameters,
+        auto_transform_uris: bool = True,
+        debug: bool = False,
+    ):
         """
         Initializes an RPCBridge instance, which facilitates communication between
         two brokers of potentially different types (e.g., Redis, AMQP, MQTT).
@@ -77,7 +85,6 @@ class Bridge:
         self._debug: bool = debug
         self._btype: RPCBridgeType = None
         self._auto_transform_uris: str = auto_transform_uris
-
 
         bA_type_str = str(type(self._from_broker_params)).split("'")[1]
         bB_type_str = str(type(self._to_broker_params)).split("'")[1]
@@ -354,11 +361,7 @@ class PTopicBridge(Bridge):
     endpoints using the appropriate endpoint factory functions.
     """
 
-    def __init__(self,
-                 msg_type: PubSubMessage = None,
-                 uri_transform: List = [],
-                 *args,
-                 **kwargs):
+    def __init__(self, msg_type: PubSubMessage = None, uri_transform: List = [], *args, **kwargs):
         """
         Initializes a PTopicBridge instance with the specified parameters.
 

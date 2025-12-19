@@ -1,3 +1,9 @@
+"""Message serialization and deserialization.
+
+Provides JSON and custom serialization backends for encoding and decoding
+message content and metadata.
+"""
+
 # Copyright (C) 2020  Panayiotou, Konstantinos <klpanagi@gmail.com>
 # Author: Panayiotou, Konstantinos <klpanagi@gmail.com>
 #
@@ -197,7 +203,9 @@ class TextSerializer(Serializer):
             str: The serialized plain text.
         """
         if not isinstance(data, (str, int, float, bool, list)):
-            raise ValueError("Input data must be a primitive type (str, int, float, bool) or a list.")
+            raise ValueError(
+                "Input data must be a primitive type (str, int, float, bool) or a list."
+            )
         if isinstance(data, list):
             return ",".join(map(str, data))
         return str(data)
@@ -215,4 +223,3 @@ class TextSerializer(Serializer):
         if "," in data:
             return data.split(",")
         return data
-

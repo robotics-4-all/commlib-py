@@ -1,6 +1,11 @@
+"""Communication endpoints and factories.
+
+Provides base endpoint classes and factory functions for creating
+endpoint instances with various transport backends.
+"""
+
 import logging
 from enum import Enum
-import re
 import time
 
 from commlib.compression import CompressionType
@@ -22,6 +27,7 @@ class EndpointState(Enum):
         CONNECTING (int): The endpoint is in the process of connecting (value 2).
         DISCONNECTING (int): The endpoint is in the process of disconnecting (value 3).
     """
+
     DISCONNECTED = 0
     CONNECTED = 1
     CONNECTING = 2
@@ -54,7 +60,8 @@ class BaseEndpoint:
         debug: bool = False,
         serializer: Serializer = JSONSerializer,
         conn_params: BaseConnectionParameters = None,
-        compression: CompressionType = CompressionType.NO_COMPRESSION):
+        compression: CompressionType = CompressionType.NO_COMPRESSION,
+    ):
         """__init__.
         Initializes a new instance of the `BaseEndpoint` class.
 
@@ -95,8 +102,7 @@ class BaseEndpoint:
         Finally, it sets the subscriber state to `CONNECTED`.
         """
         if self._transport is None:
-            raise RuntimeError(
-                f"Transport not initialized - cannot run {self.__class__.__name__}")
+            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
         if not self.connected:
             self._transport.start()
             if wait:
@@ -115,8 +121,7 @@ class BaseEndpoint:
         If the transport is connected and the subscriber is not in the `DISCONNECTED` or `DISCONNECTING` state, it stops the transport.
         """
         if self._transport is None:
-            raise RuntimeError(
-                f"Transport not initialized - cannot stop {self.__class__.__name__}")
+            raise RuntimeError(f"Transport not initialized - cannot stop {self.__class__.__name__}")
         if self._transport.is_connected:
             self._transport.stop()
             if wait:
@@ -124,8 +129,7 @@ class BaseEndpoint:
                     time.sleep(0.001)
             self._state = EndpointState.DISCONNECTED
         else:
-            self.log.warning(
-                f"Transport is not connected - cannot stop {self.__class__.__name__}")
+            self.log.warning(f"Transport is not connected - cannot stop {self.__class__.__name__}")
 
 
 class EndpointType(Enum):
@@ -142,6 +146,7 @@ class EndpointType(Enum):
         MPublisher (int): Represents a multi-publisher endpoint.
         PSubscriber (int): Represents a persistent subscriber endpoint.
     """
+
     RPCService = 1
     RPCClient = 2
     Publisher = 3

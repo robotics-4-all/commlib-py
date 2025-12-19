@@ -1,3 +1,9 @@
+"""Mock transport for testing.
+
+Provides a mock transport implementation for unit testing without actual
+message brokers.
+"""
+
 from commlib.connection import BaseConnectionParameters
 from commlib.endpoints import EndpointState
 from commlib.pubsub import BasePublisher, BaseSubscriber
@@ -34,15 +40,16 @@ class Subscriber(BaseSubscriber):
         the main thread.
         """
         if self._transport is None:
-            raise RuntimeError(
-                f"Transport not initialized - cannot run {self.__class__.__name__}")
-        if not self._transport.is_connected and \
-            self._state not in (EndpointState.CONNECTED,
-                                EndpointState.CONNECTING):
+            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and self._state not in (
+            EndpointState.CONNECTED,
+            EndpointState.CONNECTING,
+        ):
             self._state = EndpointState.CONNECTED
         else:
             self.logger().debug(
-                f"Transport already connected - cannot run {self.__class__.__name__}")
+                f"Transport already connected - cannot run {self.__class__.__name__}"
+            )
 
     def stop(self) -> None:
         """
@@ -65,16 +72,17 @@ class RPCService(BaseRPCService):
         the main thread.
         """
         if self._transport is None:
-            raise RuntimeError(
-                f"Transport not initialized - cannot run {self.__class__.__name__}")
-        if not self._transport.is_connected and \
-            self._state not in (EndpointState.CONNECTED,
-                                EndpointState.CONNECTING):
+            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and self._state not in (
+            EndpointState.CONNECTED,
+            EndpointState.CONNECTING,
+        ):
             self._transport.start()
             self._state = EndpointState.CONNECTED
         else:
             self.logger().debug(
-                f"Transport already connected - cannot run {self.__class__.__name__}")
+                f"Transport already connected - cannot run {self.__class__.__name__}"
+            )
 
     def stop(self) -> None:
         """

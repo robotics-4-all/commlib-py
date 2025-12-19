@@ -1,3 +1,9 @@
+"""Connection parameter definitions.
+
+Provides base classes for authentication and connection parameters
+used across different transport implementations.
+"""
+
 from pydantic import BaseModel
 
 

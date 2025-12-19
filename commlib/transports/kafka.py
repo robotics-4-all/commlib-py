@@ -1,3 +1,9 @@
+"""Kafka transport implementation.
+
+Provides Kafka-based pub/sub and RPC communication using confluent-kafka library.
+Supports topic-based message distribution.
+"""
+
 import functools
 import logging
 import time
@@ -175,9 +181,7 @@ class Publisher(BasePublisher):
     def _on_delivery(self, err, msg):
         if err is not None:
             self.logger().error(err)
-        self.logger().info(
-            f"Published on {msg.topic()}, partition" f"{msg.partition()}"
-        )
+        self.logger().info(f"Published on {msg.topic()}, partition" f"{msg.partition()}")
 
     def run(self):
         self._producer = self._transport.create_producer(self._kafka_cfg)
@@ -202,9 +206,7 @@ class MPublisher(Publisher):
         if key in (None, ""):
             key = self._key
         self._producer.poll(0)
-        self._producer.produce(
-            topic, key=key, value=data, on_delivery=self._on_delivery
-        )
+        self._producer.produce(topic, key=key, value=data, on_delivery=self._on_delivery)
         self._msg_seq += 1
 
 
@@ -312,9 +314,7 @@ class PSubscriber(Subscriber):
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, data, topic)
                 else:
-                    _clb = functools.partial(
-                        self.onmessage, self._msg_type(**data), topic
-                    )
+                    _clb = functools.partial(self.onmessage, self._msg_type(**data), topic)
                 _clb()
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
@@ -478,9 +478,7 @@ class RPCServer(BaseRPCServer):
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
-    def _register_endpoint(
-        self, uri: str, callback: Callable, msg_type: RPCMessage = None
-    ):
+    def _register_endpoint(self, uri: str, callback: Callable, msg_type: RPCMessage = None):
         self._svc_map[uri] = (callback, msg_type)
         if self._base_uri in (None, ""):
             full_uri = uri
@@ -502,8 +500,7 @@ class RPCServer(BaseRPCServer):
 
 
 class RPCClient(BaseRPCClient):
-    """RPCClient.
-    """
+    """RPCClient."""
 
     def __init__(self, *args, **kwargs):
         """__init__.
@@ -568,9 +565,7 @@ class RPCClient(BaseRPCClient):
         while self._response is None:
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:
-                raise RPCClientTimeoutError(
-                    f"Response timeout after {timeout} seconds"
-                )
+                raise RPCClientTimeoutError(f"Response timeout after {timeout} seconds")
             time.sleep(0.001)
         return self._response
 
@@ -593,9 +588,7 @@ class RPCClient(BaseRPCClient):
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
 
-        self._transport.subscribe(
-            _reply_to, callback=self._on_response_wrapper
-        )
+        self._transport.subscribe(_reply_to, callback=self._on_response_wrapper)
         start_t = time.time()
         self._transport.publish(self._rpc_name, _msg)
         _resp = self._wait_for_response(timeout=timeout)
@@ -609,8 +602,7 @@ class RPCClient(BaseRPCClient):
 
 
 class ActionService(BaseActionService):
-    """ActionService.
-    """
+    """ActionService."""
 
     def __init__(self, *args, **kwargs):
         """__init__.
@@ -657,8 +649,7 @@ class ActionService(BaseActionService):
 
 
 class ActionClient(BaseActionClient):
-    """ActionClient.
-    """
+    """ActionClient."""
 
     def __init__(self, *args, **kwargs):
         """__init__.
