@@ -102,9 +102,18 @@ class MQTTTransport(BaseTransport):
         self._client = None
         self._serializer = serializer
         self._compression = compression
-        self._reconnect_attempts = 0
         self._mqtt_properties = None
         self._stopped = False
+        self._subscriptions = {}  # Track subscriptions for reconnection
+
+    @property
+    def is_connected(self) -> bool:
+        """is_connected.
+
+        Returns:
+            bool: True if connected to broker, False otherwise.
+        """
+        return self._connected
 
     def _connect_v3(self):
         properties = None
@@ -118,6 +127,11 @@ class MQTTTransport(BaseTransport):
         self._client.on_disconnect = self.on_disconnect
         # self._client.on_log = self.on_log
         self._client.on_message = self.on_message
+
+        # Configure reconnection delay
+        min_delay = int(self._conn_params.reconnect_delay)
+        max_delay = min_delay * 10 if min_delay > 0 else 120
+        self._client.reconnect_delay_set(min_delay=min_delay, max_delay=max_delay)
 
         self._client.username_pw_set(
             self._conn_params.username, self._conn_params.password
@@ -153,6 +167,11 @@ class MQTTTransport(BaseTransport):
         # self._client.on_log = self.on_log
         self._client.on_message = self.on_message
 
+        # Configure reconnection delay
+        min_delay = int(self._conn_params.reconnect_delay)
+        max_delay = min_delay * 10 if min_delay > 0 else 120
+        self._client.reconnect_delay_set(min_delay=min_delay, max_delay=min_delay)
+
         self._client.username_pw_set(
             self._conn_params.username, self._conn_params.password
         )
@@ -181,20 +200,12 @@ class MQTTTransport(BaseTransport):
         self._stopped = False
         # Workaround for both v3 and v5 support
         # http://www.steves-internet-guide.com/python-mqtt-client-changes/
-        try:
-            if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
-                properties = self._connect_v5()
-            else:
-                properties = self._connect_v3()
-            self._mqtt_properties = properties
-        except Exception:
-            if (self._conn_params.reconnect_attempts == -1) or \
-                (self._reconnect_attempts < self._conn_params.reconnect_attempts):
-                self._reconnect()
-            else:
-                raise ConnectionError()
-            # self._reconnect_attempts = 0
-            # raise ConnectionError()
+        if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
+            properties = self._connect_v5()
+        else:
+            properties = self._connect_v3()
+        self._mqtt_properties = properties
+        self._client.loop_start()
 
     def on_connect(self, client: Any, userdata: Any,
                    flags: Dict[str, Any], rc: int,
@@ -212,10 +223,12 @@ class MQTTTransport(BaseTransport):
         if rc == MQTTReturnCode.CONNECTION_SUCCESS:
             self._connected = True
             self._report_on_connect()
+            self._restore_subscriptions()  # Restore subscriptions after reconnection
         else:
-            self.log.error(error_string(rc))
+            self.log.error(f"Failed to connect to MQTT Broker: {error_string(rc)}")
 
     def _report_on_connect(self) -> None:
+        self.log.info("Connected to MQTT Broker")
         self.log.debug("MQTT Transport initiated:")
         self.log.debug(
             "- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}"
@@ -235,32 +248,41 @@ class MQTTTransport(BaseTransport):
             rc (int): Return Code - Internal paho-mqtt
         """
         self._connected = False
-        self._client.loop_stop()
+        if self._stopped:
+            self.log.info("Transport stopped, not attempting reconnection")
+            self._client.loop_stop()
+            return
+            
         err_msg = ""
         if rc == MQTTReturnCode.AUTHORIZATION_ERROR or \
             rc == MQTTReturnCode.AUTHENTICATION_ERROR:
             err_msg = "Authentication error with MQTT broker"
+            self.log.error(err_msg)
         elif rc == MQTTReturnCode.CONNECTION_SUCCESS:
-            pass
+            # Graceful disconnect
+            self.log.info("Gracefully disconnected from MQTT broker")
         else:
             err_msg = error_string(rc)
-        if self._stopped == True:
-            return
-        elif self._conn_params.reconnect_attempts == 0:
-            pass
-        elif (self._conn_params.reconnect_attempts == -1) or \
-            (self._reconnect_attempts < self._conn_params.reconnect_attempts):
-            self._reconnect()
-            return
-        self._reconnect_attempts = 0
-        self.log.error(err_msg)
-        raise ConnectionError(err_msg)
+            self.log.warning(f"Disconnected from MQTT broker with: {err_msg}. ")
+            self.log.warning(f"Attempting reconnection in {self._conn_params.reconnect_delay}....")
+        
+        # paho-mqtt will automatically reconnect when loop is running
 
-    def _reconnect(self) -> None:
-        self.log.info(f"Reconnecting in {self._conn_params.reconnect_delay} seconds")
-        self._reconnect_attempts += 1
-        time.sleep(self._conn_params.reconnect_delay)
-        self.connect()
+    def _restore_subscriptions(self) -> None:
+        """Restore all tracked subscriptions after reconnection."""
+        if not self._subscriptions:
+            return
+        self.log.debug(f"Restoring {len(self._subscriptions)} subscriptions after reconnect")
+        for topic, (callback, qos) in self._subscriptions.items():
+            try:
+                _clb = functools.partial(self._on_msg_internal, callback)
+                self._client.subscribe(
+                    topic, qos=qos, options=None, properties=self._mqtt_properties
+                )
+                self._client.message_callback_add(topic, _clb)
+                self.log.debug(f"Restored subscription to {topic}")
+            except Exception as e:
+                self.log.warning(f"Failed to restore subscription to {topic}: {e}")
 
     def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]) -> None:
         """on_message.
@@ -313,16 +335,18 @@ class MQTTTransport(BaseTransport):
         if topic in (None, ""):
             self.log.warning(f"Attempt to subscribe to empty topic - {topic}")
             return None
-        topic = self._transform_topic(topic)
+        transformed_topic = self._transform_topic(topic)
+        # Track subscription with original topic and QoS for reconnection
+        self._subscriptions[transformed_topic] = (callback, qos)
         try:
             self._client.subscribe(
-                topic, qos=qos, options=None, properties=self._mqtt_properties
+                transformed_topic, qos=qos, options=None, properties=self._mqtt_properties
             )
         except Exception:
-            raise SubscriberError(f"Failed to subscribe to topic {topic}")
+            raise SubscriberError(f"Failed to subscribe to topic {transformed_topic}")
         _clb = functools.partial(self._on_msg_internal, callback)
-        self._client.message_callback_add(topic, _clb)
-        return topic
+        self._client.message_callback_add(transformed_topic, _clb)
+        return transformed_topic
 
     def _transform_topic(self, topic):
         # topic = topic.replace(".", "/").replace("/*/*/*/", "/+/+/+/").replace(
@@ -357,9 +381,13 @@ class MQTTTransport(BaseTransport):
 
         Start the event loop. Cannot create any more endpoints from here on.
         """
-        if not self.is_connected:
+        try:
             self.connect()
-            self._client.loop_start()
+        except Exception as e:
+            self.log.error(f"Could not establish connection to MQTT Broker: {e}")
+            self.stop()
+            time.sleep(self._conn_params.reconnect_delay)
+            self.start()
 
     def stop(self) -> None:
         """stop.
@@ -916,7 +944,7 @@ class RPCClient(BaseRPCClient):
             time.sleep(0.001)
         return self._response
 
-    def call(self, msg: RPCMessage.Request, timeout: float = 10) -> RPCMessage.Response:
+    def call(self, msg: RPCMessage.Request, timeout: float = 30) -> RPCMessage.Response:
         """call.
 
         Args:
