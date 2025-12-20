@@ -48,7 +48,8 @@ class Subscriber(BaseSubscriber):
             self._state = EndpointState.CONNECTED
         else:
             self.logger().debug(
-                f"Transport already connected - cannot run {self.__class__.__name__}"
+                "Transport already connected - cannot run %s",
+                self.__class__.__name__,
             )
 
     def stop(self) -> None:
@@ -81,7 +82,8 @@ class RPCService(BaseRPCService):
             self._state = EndpointState.CONNECTED
         else:
             self.logger().debug(
-                f"Transport already connected - cannot run {self.__class__.__name__}"
+                "Transport already connected - cannot run %s",
+                self.__class__.__name__,
             )
 
     def stop(self) -> None:

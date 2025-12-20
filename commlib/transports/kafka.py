@@ -181,7 +181,7 @@ class Publisher(BasePublisher):
     def _on_delivery(self, err, msg):
         if err is not None:
             self.logger().error(err)
-        self.logger().info(f"Published on {msg.topic()}, partition" f"{msg.partition()}")
+        self.logger().info("Published on %s, partition", msg.topic() f"{msg.partition()}")
 
     def run(self):
         self._producer = self._transport.create_producer(self._kafka_cfg)
@@ -272,7 +272,7 @@ class Subscriber(BaseSubscriber):
         finally:
             # Close down consumer to commit final offsets.
             self._consumer.close()
-        self.log.debug(f"Started Subscriber: <{self._topic}>")
+        self.log.debug("Started Subscriber: <%s>", self._topic)
 
     def _on_assign(self, consumer, partitions):
         self.logger().info("Assignment:", partitions)
@@ -484,7 +484,7 @@ class RPCServer(BaseRPCServer):
             full_uri = uri
         else:
             full_uri = f"{self._base_uri}.{uri}"
-        self.log.info(f"Registering endpoint <{full_uri}>")
+        self.log.info("Registering endpoint <%s>", full_uri)
         self._transport.subscribe(full_uri, self._on_request_handle)
 
     def run_forever(self):

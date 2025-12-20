@@ -129,7 +129,10 @@ class BaseEndpoint:
                     time.sleep(0.001)
             self._state = EndpointState.DISCONNECTED
         else:
-            self.log.warning(f"Transport is not connected - cannot stop {self.__class__.__name__}")
+            self.log.warning(
+                "Transport is not connected - cannot stop %s",
+                self.__class__.__name__,
+            )
 
 
 class EndpointType(Enum):

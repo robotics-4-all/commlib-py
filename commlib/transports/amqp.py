@@ -225,7 +225,7 @@ class AMQPTransport(BaseTransport):
             self.create_channel()
             return True
         except pika.exceptions.ProbableAuthenticationError as e:
-            logger.error(f"Authentication Error: {str(e)}")
+            logger.error("Authentication Error: %s", str(e))
             return False
         except Exception as e:
             return False
@@ -250,7 +250,7 @@ class AMQPTransport(BaseTransport):
         except pika.exceptions.AuthenticationError:
             self.log.debug("Authentication Error. Reconnecting...")
         except pika.exceptions.AMQPConnectionError as e:
-            self.log.debug(f"Connection Error ({e}). Reconnecting...")
+            self.log.debug("Connection Error (%s). Reconnecting...", e)
             self.connect()
         self._connected = True
 
@@ -267,7 +267,7 @@ class AMQPTransport(BaseTransport):
 
     def _signal_handler(self, signum, frame):
         """TODO"""
-        self.log.debug(f"Signal received: {signum}")
+        self.log.debug("Signal received: %s", signum)
         self._graceful_shutdown()
 
     def _graceful_shutdown(self):
@@ -288,7 +288,7 @@ class AMQPTransport(BaseTransport):
             exchange=exchange_name,
             passive=True,  # Perform a declare or just to see if it exists
         )
-        self.log.debug(f"Exchange exists result: {resp}")
+        self.log.debug("Exchange exists result: %s", resp)
         return resp
 
     def create_exchange(self, exchange_name: str, exchange_type: ExchangeType, internal=None):
@@ -309,7 +309,7 @@ class AMQPTransport(BaseTransport):
             exchange_type=exchange_type,
         )
 
-        self.log.debug(f"Created exchange: [name={exchange_name}, type={exchange_type}]")
+        self.log.debug("Created exchange: [name=%s, type=%s]", exchange_name, exchange_type)
 
     def create_queue(
         self,
@@ -363,7 +363,7 @@ class AMQPTransport(BaseTransport):
             arguments=args,
         )
         queue_name = result.method.queue
-        self.log.debug(f"Created queue [{queue_name}] [size={queue_size}, ttl={message_ttl}]")
+        self.log.debug("Created queue [%s] [size=%s, ttl=%s]", queue_name, queue_size, message_ttl)
         return queue_name
 
     def delete_queue(self, queue_name):
@@ -387,7 +387,7 @@ class AMQPTransport(BaseTransport):
             if exc.reply_code == 404:  # Not Found
                 return False
             else:
-                self.log.warning(f"Queue exists <{queue_name}>")
+                self.log.warning("Queue exists <%s>", queue_name)
                 return True
 
     def bind_queue(self, exchange_name, queue_name, bind_key):

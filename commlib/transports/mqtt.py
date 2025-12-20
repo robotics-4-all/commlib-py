@@ -232,14 +232,14 @@ class MQTTTransport(BaseTransport):
             self._report_on_connect()
             self._restore_subscriptions()  # Restore subscriptions after reconnection
         else:
-            self.log.error(f"Failed to connect to MQTT Broker: {error_string(rc)}")
+            self.log.error("Failed to connect to MQTT Broker: %s", error_string(rc))
 
     def _report_on_connect(self) -> None:
         self.log.info("Connected to MQTT Broker")
         self.log.debug("MQTT Transport initiated:")
         self.log.debug("- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}")
-        self.log.debug(f"- Data Serialization: {self._serializer}")
-        self.log.debug(f"- Data Compression: {self._compression}")
+        self.log.debug("- Data Serialization: %s", self._serializer)
+        self.log.debug("- Data Compression: %s", self._compression)
 
     def on_disconnect(self, client: Any, userdata: Any, rc: int, unk: Any = None) -> None:
         """on_disconnect.
@@ -266,8 +266,8 @@ class MQTTTransport(BaseTransport):
             self.log.info("Gracefully disconnected from MQTT broker")
         else:
             err_msg = error_string(rc)
-            self.log.warning(f"Disconnected from MQTT broker with: {err_msg}. ")
-            self.log.warning(f"Attempting reconnection in {self._conn_params.reconnect_delay}....")
+            self.log.warning("Disconnected from MQTT broker with: %s. ", err_msg)
+            self.log.warning("Attempting reconnection in %s....", self._conn_params.reconnect_delay)
 
         # paho-mqtt will automatically reconnect when loop is running
 
@@ -275,7 +275,7 @@ class MQTTTransport(BaseTransport):
         """Restore all tracked subscriptions after reconnection."""
         if not self._subscriptions:
             return
-        self.log.debug(f"Restoring {len(self._subscriptions)} subscriptions after reconnect")
+        self.log.debug("Restoring %s subscriptions after reconnect", len(self._subscriptions))
         for topic, (callback, qos) in self._subscriptions.items():
             try:
                 _clb = functools.partial(self._on_msg_internal, callback)
@@ -283,9 +283,9 @@ class MQTTTransport(BaseTransport):
                     topic, qos=qos, options=None, properties=self._mqtt_properties
                 )
                 self._client.message_callback_add(topic, _clb)
-                self.log.debug(f"Restored subscription to {topic}")
+                self.log.debug("Restored subscription to %s", topic)
             except Exception as e:
-                self.log.warning(f"Failed to restore subscription to {topic}: {e}")
+                self.log.warning("Failed to restore subscription to %s: %s", topic, e)
 
     def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]) -> None:
         """on_message.
@@ -333,7 +333,7 @@ class MQTTTransport(BaseTransport):
         """
         # Adds subtopic specific callback handlers
         if topic in (None, ""):
-            self.log.warning(f"Attempt to subscribe to empty topic - {topic}")
+            self.log.warning("Attempt to subscribe to empty topic - %s", topic)
             return None
         transformed_topic = self._transform_topic(topic)
         # Track subscription with original topic and QoS for reconnection
@@ -384,7 +384,7 @@ class MQTTTransport(BaseTransport):
         try:
             self.connect()
         except Exception as e:
-            self.log.error(f"Could not establish connection to MQTT Broker: {e}")
+            self.log.error("Could not establish connection to MQTT Broker: %s", e)
             self.stop()
             time.sleep(self._conn_params.reconnect_delay)
             self.start()
@@ -745,7 +745,8 @@ class RPCService(BaseRPCService):
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(
-                f"Could not unpack request message: {exc}\n" "Dropping client request!",
+                "Could not unpack request message: %s\nDropping client request!",
+                exc,
                 exc_info=True,
             )
             return
@@ -824,7 +825,8 @@ class RPCServer(BaseRPCServer):
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(
-                f"Could not unpack request message: {exc}" "\nDropping client request!",
+                "Could not unpack request message: %s\nDropping client request!",
+                exc,
                 exc_info=True,
             )
             return
@@ -854,7 +856,7 @@ class RPCServer(BaseRPCServer):
                 full_uri = uri
             else:
                 full_uri = f"{self._base_uri}.{uri}"
-            self.log.info(f"Registering RPC endpoint <{full_uri}>")
+            self.log.info("Registering RPC endpoint <%s>", full_uri)
             self._transport.subscribe(full_uri, self._on_request_handle, qos=MQTTQoS.L1)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[CommRPCMessage, str]:

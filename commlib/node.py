@@ -71,7 +71,9 @@ class HeartbeatThread:
         try:
             msg = HeartbeatMessage(ts=self.get_current_ts())
             while self.running():
-                self.logger().debug(f"Sending heartbeat message - {self._heartbeat_pub._topic}")
+                self.logger().debug(
+                    "Sending heartbeat message - %s", self._heartbeat_pub._topic
+                )
                 if self._heartbeat_pub._msg_type is None:
                     self._heartbeat_pub.publish(msg.model_dump())
                 else:
@@ -81,7 +83,7 @@ class HeartbeatThread:
                 msg.ts = self.get_current_ts()
             self.logger().info("Heartbeat Thread terminated successfully")
         except Exception as exc:
-            self.logger().error(f"Exception in Heartbeat-Thread: {exc}")
+            self.logger().error("Exception in Heartbeat-Thread: %s", exc)
 
     def stop(self):
         """
@@ -323,7 +325,7 @@ class Node:
         """
         if self._executor is None:
             self._executor = ThreadPoolExecutor(max_workers=self._workers_rpc)
-        self.log.info(f"Starting Node <{self._node_name}>")
+        self.log.info("Starting Node <%s>", self._node_name)
         if self._has_ctrl_services:
             self.create_start_service()
             self.create_stop_service()
@@ -358,7 +360,7 @@ class Node:
             while self.state not in (NodeState.EXITED, NodeState.STOPPED):
                 time.sleep(sleep_rate)
         except Exception as e:
-            self.log.error(f"Exception occurred during run_forever: {str(e)}")
+            self.log.error("Exception occurred during run_forever: %s", str(e))
         self.stop()
 
     def stop(self, wait: bool = False, force: bool = True):

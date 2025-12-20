@@ -59,9 +59,9 @@ class TopicMessageProcessor:
                     self.log.warning("Processor did not return a dict")
                     continue
                 self.pub.publish(topic=self.output_topic, msg=payload)
-                self.log.info(f"Processed message: {payload}")
+                self.log.info("Processed message: %s", payload)
             except Exception as e:
-                self.log.error(f"Error processing message: {e}")
+                self.log.error("Error processing message: %s", e)
                 continue
 
     def start(self):
@@ -124,7 +124,7 @@ class TopicAggregator:
                     continue
                 self.pub.publish(topic=self.output_topic, msg=payload)
             except Exception as e:
-                self.log.error(f"Error processing message: {e}")
+                self.log.error("Error processing message: %s", e)
                 continue
 
     def start(self):

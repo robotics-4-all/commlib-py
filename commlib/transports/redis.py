@@ -224,7 +224,7 @@ class RedisTransport(BaseTransport):
             try:
                 self.connect()
             except Exception as e:
-                self.log.error(f"Could not establish connection to Redis: {e}")
+                self.log.error("Could not establish connection to Redis: %s", e)
             time.sleep(self._wait_for_connection_init)
         while not self.is_connected:
             self._attempt_reconnect()
@@ -242,8 +242,9 @@ class RedisTransport(BaseTransport):
         self._retry_count += 1
         try:
             self.log.info(
-                f"Attempting to reconnect to Redis (attempt {self._retry_count}/"
-                f"{self._conn_params.reconnect_attempts})..."
+                "Attempting to reconnect to Redis (attempt %s/%s)...",
+                self._retry_count,
+                self._conn_params.reconnect_attempts,
             )
             time.sleep(self._conn_params.reconnect_delay)
             self.connect()
@@ -252,7 +253,7 @@ class RedisTransport(BaseTransport):
                 self._retry_count = 0  # Reset counter on successful connection
                 return True
         except Exception as e:
-            self.log.warning(f"Reconnection attempt failed: {e}")
+            self.log.warning("Reconnection attempt failed: %s", e)
         return False
 
     def stop(self) -> None:
@@ -304,7 +305,7 @@ class RedisTransport(BaseTransport):
                 payload = inflate_str(payload)
             self._redis.rpush(queue_name, payload)
         except redis.exceptions.ConnectionError as e:
-            self.log.warning(f"Redis connection error while pushing to queue: {e}")
+            self.log.warning("Redis connection error while pushing to queue: %s", e)
             self._attempt_reconnect()
             return self.push_msg_to_queue(queue_name, data)
 
@@ -319,13 +320,13 @@ class RedisTransport(BaseTransport):
                 payload = inflate_str(payload)
             self._redis.publish(queue_name, payload)
         except redis.exceptions.ConnectionError as e:
-            self.log.warning(f"Redis connection error while publishing: {e}")
+            self.log.warning("Redis connection error while publishing: %s", e)
             self._attempt_reconnect()
             return self.publish(queue_name, data)
 
     def subscribe(self, topic: str, callback: Callable):
         if topic in (None, ""):
-            self.log.warning(f"Attempt to subscribe to empty topic - {topic}")
+            self.log.warning("Attempt to subscribe to empty topic - %s", topic)
             return
         _clb = functools.partial(self._on_msg_internal, callback)
         # Track subscription for reconnection
@@ -346,7 +347,7 @@ class RedisTransport(BaseTransport):
         return self._rsub_thread
 
     def exception_handler(self, ex, pubsub, thread):
-        self.log.error(f"Redis PubSub error in thread: {thread}, exception: {ex}")
+        self.log.error("Redis PubSub error in thread: %s, exception: %s", thread, ex)
         thread.stop()
         # thread.join(timeout=self._redis_pubsub_join_timeout)
         pubsub.close()
@@ -371,8 +372,9 @@ class RedisTransport(BaseTransport):
 
         if retry_count >= max_retries:
             self.log.error(
-                f"Maximum reconnection attempts ({max_retries}) reached. "
-                "Will not attempt further reconnections."
+                "Maximum reconnection attempts (%s) reached. "
+                "Will not attempt further reconnections.",
+                max_retries,
             )
             return
 
@@ -381,7 +383,9 @@ class RedisTransport(BaseTransport):
         while self._retry_count < max_retries:
             try:
                 self.log.info(
-                    f"Attempting pubsub reconnection (attempt {retry_count + 1}/{max_retries})..."
+                    "Attempting pubsub reconnection (attempt %s/%s)...",
+                    retry_count + 1,
+                    max_retries,
                 )
 
                 self._retry_count += 1
@@ -419,9 +423,9 @@ class RedisTransport(BaseTransport):
                     return True
 
             except Exception as e:
-                self.log.warning(f"Pubsub reconnection attempt failed: {e}")
+                self.log.warning("Pubsub reconnection attempt failed: %s", e)
 
-        self.log.error(f"Failed to reconnect pubsub after {max_retries} attempts")
+        self.log.error("Failed to reconnect pubsub after %s attempts", max_retries)
         return False
 
     def msubscribe(self, topics: Dict[str, callable]):
@@ -430,7 +434,7 @@ class RedisTransport(BaseTransport):
             _clb = functools.partial(self._on_msg_internal, callback)
             _topics[topic] = _clb
         if _topics in (None, {}):
-            self.log.warning(f"Attempt to subscribe to empty topics - {_topics}")
+            self.log.warning("Attempt to subscribe to empty topics - %s", _topics)
             return
         if self._rsub is None:
             self.log.warning("Redis pubsub not initialized - Cannot proceed to subscriptions!")
@@ -470,7 +474,7 @@ class RedisTransport(BaseTransport):
             payload = None
             return msgq, payload
         except redis.exceptions.ConnectionError as e:
-            self.log.warning(f"Redis connection error: {e}")
+            self.log.warning("Redis connection error: %s", e)
             self._attempt_reconnect()
             return self.wait_for_msg(queue_name, timeout)
 
@@ -668,7 +672,7 @@ class Publisher(BasePublisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.model_dump()
-        self.log.debug(f"Publishing Message to topic <{self._topic}>")
+        self.log.debug("Publishing Message to topic <%s>", self._topic)
 
         self._transport.publish(self._topic, data)
         self._msg_seq += 1
@@ -705,7 +709,7 @@ class MPublisher(Publisher):
             data = msg
         elif isinstance(msg, PubSubMessage):
             data = msg.model_dump()
-        self.log.debug(f"Publishing Message: <{topic}>:{data}")
+        self.log.debug("Publishing Message: <%s>:%s", topic, data)
         self._transport.publish(topic, data)
         self._msg_seq += 1
 
@@ -1151,7 +1155,7 @@ class RPCServer(BaseRPCServer):
                 full_uri = uri
             else:
                 full_uri = f"{self._base_uri}.{uri}"
-            self.log.info(f"Registering RPC endpoint <{full_uri}>")
+            self.log.info("Registering RPC endpoint <%s>", full_uri)
             self._executor.submit(self._monitor_queue_for_requests, full_uri)
             # self._monitor_queue_for_requests(full_uri)
         # self._subscriber_thread = self._transport.msubscribe(

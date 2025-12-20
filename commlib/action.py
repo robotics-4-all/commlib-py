@@ -252,7 +252,7 @@ class GoalHandler:
             self._executor._threads.clear()
             concurrent.futures.thread._threads_queues.clear()
         except Exception as exc:
-            self.log.error(f"Error canceling goal: {exc}")
+            self.log.error("Error canceling goal: %s", exc)
             return 0
         return 1
 
@@ -358,13 +358,20 @@ class BaseActionService:
 
         self.log.info(
             "Initiating Action Service:\n"
-            f" - Name: {self._action_name}\n"
-            f" - Status Topic: {self._status_topic}\n"
-            f" - Feedback Topic: {self._feedback_topic}\n"
-            f" - Notify Topic: {self._notify_topic}\n"
-            f" - Goal RPC: {self._goal_rpc_uri}\n"
-            f" - Cancel RPC: {self._cancel_rpc_uri}\n"
-            f" - Result RPC: {self._result_rpc_uri}"
+            " - Name: %s\n"
+            " - Status Topic: %s\n"
+            " - Feedback Topic: %s\n"
+            " - Notify Topic: %s\n"
+            " - Goal RPC: %s\n"
+            " - Cancel RPC: %s\n"
+            " - Result RPC: %s",
+            self._action_name,
+            self._status_topic,
+            self._feedback_topic,
+            self._notify_topic,
+            self._goal_rpc_uri,
+            self._cancel_rpc_uri,
+            self._result_rpc_uri,
         )
 
     @property

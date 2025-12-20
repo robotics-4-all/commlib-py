@@ -30,7 +30,7 @@ async def safe_wrapper(c):
         raise
     except Exception as e:
         logging.getLogger(__name__).error(
-            f"Unhandled error in background task: {str(e)}", exc_info=True
+            "Unhandled error in background task: %s", str(e), exc_info=True
         )
 
 
@@ -70,7 +70,7 @@ async def safe_gather(*args, **kwargs):
         return await asyncio.gather(*args, **kwargs)
     except Exception as e:
         logging.getLogger(__name__).debug(
-            f"Unhandled error in background task: {str(e)}", exc_info=True
+            "Unhandled error in background task: %s", str(e), exc_info=True
         )
         raise
 
