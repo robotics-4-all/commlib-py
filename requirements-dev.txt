@@ -1,7 +1,0 @@
-pip>=21.1
-bump2version>=0.5.11
-flake8>=3.7.8
-coverage>=7.0.1
-pytest==8.0.0
-pylint==3.0.3
-pytest-pylint==0.21.0
