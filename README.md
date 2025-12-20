@@ -97,9 +97,9 @@ The goal of this project is to implement a simple Protocol-agnostic API (AMQP, K
 | :--- | :---:           | :---          |
 | ⚙️  | **Protocol-Agnostic**  | <ul><li>Protocol/Transport-level abstraction</li><li>Currently supports Redis, AMQP, MQTT and Kafka</li></ul> |
 | 📄 | **Documentation** | <ul><li>Rich documentation in various formats (YAML, TOML, Markdown)</li><li>Includes detailed installation commands for different package managers</li><li>Utilizes MkDocs for generating documentation</li></ul> |
-| 🧩 | **Modularity**    | <ul><li>Well-structured codebase with clear separation of concerns</li><li>Encourages code reusability and maintainability</li><li>Utilizes dependency management with Poetry</li></ul> |
+| 🧩 | **Modularity**    | <ul><li>Well-structured codebase with clear separation of concerns</li><li>Encourages code reusability and maintainability</li></ul> |
 | ⚡️  | **Performance**   | <ul><li>Optimized code for efficiency</li><li>Scalable architecture for handling high loads</li></ul> |
-| 📦 | **Dependencies**  | <ul><li>Manages dependencies with Poetry and dependency lock files</li><li>Includes a variety of libraries for different functionalities</li><li>Dependency management with conda for environment setup</li><li>Dynamic imports of underlying transport libraries</li></ul> |
+| 📦 | **Dependencies**  | <ul><li>Includes a variety of libraries for different functionalities</li><li>Dependency management with conda for environment setup</li><li>Dynamic imports of underlying transport libraries</li></ul> |
 
 ---
 
@@ -1687,14 +1687,12 @@ Commlib-py uses the pytest framework. Run the test suite with:
 ```sh
 make test
 ```
+
 **Using [pip](https://pypi.org/project/pip/):**
 ```sh
 pytest
 ```
-**Using [poetry](https://python-poetry.org/):**
-```sh
-poetry run pytest
-```
+
 **Using [conda](https://docs.conda.io/):**
 ```sh
 conda activate {venv}
