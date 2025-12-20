@@ -1,6 +1,6 @@
 [project]
 name = "commlib-py"
-version = "0.12.0"
+version = "0.13.0"
 description = "Communication Library for Python implementing the most common communication patterns for CyberPhysical Systems."
 readme = "README.md"
 license = {text = "MIT"}
