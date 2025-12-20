@@ -1,0 +1,23 @@
+services:
+  mqtt:
+    image: emqx/emqx:latest
+    ports:
+      - "1883:1883"
+    
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      - mqtt
+      - redis
+    environment:
+      - COMMLIB_MQTT_HOST=mqtt
+      - COMMLIB_REDIS_HOST=redis
+    volumes:
+      - ./htmlcov_docker:/app/htmlcov

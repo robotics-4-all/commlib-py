@@ -53,7 +53,7 @@ clean-pyc: ## remove Python file artifacts
 
 clean-test: ## remove test and coverage artifacts
 	rm -fr .tox/
-	rm -f .coverage
+	rm -fr .coverage
 	rm -fr htmlcov/
 	rm -fr .pytest_cache
 
@@ -61,9 +61,17 @@ lint: ## check style with flake8
 	flake8 commlib tests
 
 test: ## run tests quickly with the default Python
-	coverage run -m unittest discover
+	coverage run -m pytest --ignore=tests/mqtt --ignore=tests/redis
 
 cov: test ## check code coverage quickly with the default Python
+	coverage report -m
+	coverage xml
+
+test-integration: ## run integration tests (requires MQTT and Redis brokers)
+	coverage run -m pytest tests/mqtt tests/redis -v
+	coverage report -m
+
+cov-integration: test-integration ## check code coverage for integration tests
 	coverage report -m
 	coverage xml
 
@@ -85,21 +93,35 @@ docs: ## generate Sphinx HTML documentation, including API docs
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
-_release:
-	dist ## package and upload a release
+build: clean ## build source and wheel distributions
+	python -m build
+	ls -lh dist/
+
+dist: build ## alias for build
+
+install: ## install the package to the active Python's site-packages
+	pip install -e .
+
+install-dev: ## install the package with development dependencies
+	pip install -e ".[dev]"
+
+bump-patch: ## bump patch version (v0.12.0 → v0.12.1)
+	bump2version patch
+
+bump-minor: ## bump minor version (v0.12.0 → v0.13.0)
+	bump2version minor
+
+bump-major: ## bump major version (v0.12.0 → v1.0.0)
+	bump2version major
+
+check-dist: build ## check distribution integrity
+	twine check dist/*
+
+test-release: check-dist ## upload package to TestPyPI
+	twine upload --repository testpypi dist/*
+
+release: bump-patch build check-dist ## bump patch, build, and upload to PyPI
+	@echo "Uploading to PyPI..."
 	twine upload dist/*
-
-release:
-	poetry build
-	poetry update
-	poetry publish
-
-dist:
-	clean ## builds source and wheel package
-	python setup.py sdist
-	python setup.py bdist_wheel
-	ls -l dist
-
-install: clean ## install the package to the active Python's site-packages
-	# python setup.py install
-	pip install .
+	@echo "Release complete!"
+	@echo "Version bumped and tagged automatically by bump2version"

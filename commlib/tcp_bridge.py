@@ -1,3 +1,9 @@
+"""TCP bridge for message forwarding.
+
+Provides TCP server and client for forwarding messages between
+remote nodes.
+"""
+
 import socket
 import socketserver
 
@@ -26,8 +32,6 @@ class TCPBridgeRequestHandler(socketserver.BaseRequestHandler):
 
         # self.request is the TCP socket connected to the client
         data = self.request.recv(1024)
-        print("Passing data from: {}".format(self.client_address[0]))
-        print(data)
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             # Try to connect to the server and send data
@@ -41,7 +45,7 @@ class TCPBridgeRequestHandler(socketserver.BaseRequestHandler):
                         break
                     # Send back received data
                     self.request.sendall(received)
-            except Exception as exc:
+            except (ConnectionError, OSError, socket.error) as exc:
                 print(exc)
 
 

@@ -1,3 +1,8 @@
+"""Timer and rate control utilities.
+
+Provides timer events and rate-limited execution for periodic tasks.
+"""
+
 import threading
 import time
 from typing import Callable
@@ -12,7 +17,8 @@ class TimerEvent:
         last_real: float,
         current_expected: float,
         current_real: float,
-        last_duration: float):
+        last_duration: float,
+    ):
         """__init__.
 
         Args:

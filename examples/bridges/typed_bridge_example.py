@@ -39,19 +39,20 @@ def redis_to_amqp_topic_bridge():
     bB_params = acomm.ConnectionParameters()
     bA_uri = "rpc.bridge.testA"
     bB_uri = "rpc.bridge.testB"
+
+    # Create and run the bridge
     br = TopicBridge(
-        TopicBridgeType.REDIS_TO_AMQP,
-        TopicMessage,
-        bA_uri,
-        bB_uri,
-        bA_params,
-        bB_params,
-        debug=False,
-    )
+        msg_type=TopicMessage,
+        from_uri=bA_uri,
+        to_uri=bB_uri,
+        from_broker_params=bA_params,
+        to_broker_params=bB_params)
     br.run()
 
+    ## For Testing Bridge ------------------>
     pub = rcomm.Publisher(conn_params=bA_params, msg_type=TopicMessage, topic=bA_uri)
 
+    # Create and run the subscriber
     sub = acomm.Subscriber(
         conn_params=bB_params,
         msg_type=TopicMessage,
@@ -62,13 +63,16 @@ def redis_to_amqp_topic_bridge():
 
     count = 0
     msg = TopicMessage()
+    # Publish messages to the topic on Broker A and receive them on Broker B
+    # with the subscriber
     while count < 5:
         msg.a = count
         pub.publish(msg)
         time.sleep(1)
         count += 1
-    br.stop()
     sub.stop()
+    ## <-------------------------------------
+    br.stop()
 
 
 def redis_to_amqp_rpc_bridge():
@@ -80,23 +84,21 @@ def redis_to_amqp_rpc_bridge():
     bA_uri = "rpc.bridge.testA"
     bB_uri = "rpc.bridge.testB"
     br = RPCBridge(
-        btype=RPCBridgeType.REDIS_TO_AMQP,
         msg_type=ExampleRPCMessage,
         from_uri=bA_uri,
         to_uri=bB_uri,
         from_broker_params=bA_params,
-        to_broker_params=bB_params,
-        debug=False,
-    )
+        to_broker_params=bB_params)
     br.run()
 
     ## For Testing Bridge ------------------>
-    ## BrokerA
+    # Create and run the RPC client on Broker A
     client = rcomm.RPCClient(
         msg_type=ExampleRPCMessage, conn_params=bA_params, rpc_name=bA_uri
     )
+    client.run()
 
-    ## BrokerB
+    # Create and run the RPC service on Broker B
     server = acomm.RPCService(
         msg_type=ExampleRPCMessage,
         conn_params=bB_params,
@@ -107,6 +109,7 @@ def redis_to_amqp_rpc_bridge():
 
     count = 0
     req_msg = ExampleRPCMessage.Request()
+    # Call the RPC service on Broker B from Broker A
     while count < 5:
         req_msg.a = count
         resp = client.call(req_msg)

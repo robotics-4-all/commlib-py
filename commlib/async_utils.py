@@ -1,3 +1,9 @@
+"""Asynchronous utilities and helpers.
+
+Provides utilities for safe coroutine execution, async event handling,
+and thread-async synchronization.
+"""
+
 import asyncio
 import inspect
 import logging
@@ -22,9 +28,9 @@ async def safe_wrapper(c):
         return await c
     except asyncio.CancelledError:
         raise
-    except Exception as e:
+    except (RuntimeError, asyncio.TimeoutError, OSError, ValueError, TypeError) as e:
         logging.getLogger(__name__).error(
-            f"Unhandled error in background task: {str(e)}", exc_info=True
+            "Unhandled error in background task: %s", str(e), exc_info=True
         )
 
 
@@ -64,7 +70,7 @@ async def safe_gather(*args, **kwargs):
         return await asyncio.gather(*args, **kwargs)
     except Exception as e:
         logging.getLogger(__name__).debug(
-            f"Unhandled error in background task: {str(e)}", exc_info=True
+            "Unhandled error in background task: %s", str(e), exc_info=True
         )
         raise
 
@@ -85,12 +91,11 @@ async def wait_til(condition_func, timeout=10):
     while True:
         if condition_func():
             return
-        elif time.perf_counter() - start_time > timeout:
+        if time.perf_counter() - start_time > timeout:
             raise Exception(
                 f"{inspect.getsource(condition_func).strip()} condition is never met. Time out reached."
             )
-        else:
-            await asyncio.sleep(0.1)
+        await asyncio.sleep(0.1)
 
 
 async def run_command(*args):
@@ -104,9 +109,7 @@ async def run_command(*args):
         The stdout output of the command as a string, with any trailing whitespace removed.
     """
 
-    process = await asyncio.create_subprocess_exec(
-        *args, stdout=asyncio.subprocess.PIPE
-    )
+    process = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
     return stdout.decode().strip()
 
@@ -132,7 +135,7 @@ def call_sync(coro, loop: asyncio.AbstractEventLoop, timeout: float = 30.0):
     if threading.current_thread() != threading.main_thread():  # pragma: no cover
         fut = asyncio.run_coroutine_threadsafe(asyncio.wait_for(coro, timeout), loop)
         return fut.result()
-    elif not loop.is_running():
+    if not loop.is_running():
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:

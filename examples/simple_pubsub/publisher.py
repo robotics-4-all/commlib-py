@@ -3,12 +3,14 @@
 import sys
 import time
 
+from pydantic import Field
+
 from commlib.msg import MessageHeader, PubSubMessage
 from commlib.node import Node
 
 
 class SonarMessage(PubSubMessage):
-    header: MessageHeader = MessageHeader()
+    header: MessageHeader = Field(default_factory=lambda: MessageHeader())
     range: float = -1
     hfov: float = 30.6
     vfov: float = 14.2
@@ -41,8 +43,6 @@ if __name__ == "__main__":
     node = Node(
         node_name="sensors.sonar.front",
         connection_params=conn_params,
-        # heartbeat_uri='nodes.add_two_ints.heartbeat',
-        debug=True,
     )
 
     pub = node.create_publisher(msg_type=SonarMessage, topic="sensors.sonar.front")

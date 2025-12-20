@@ -1,7 +1,14 @@
+"""RPC client and service implementations.
+
+Provides request-reply pattern for synchronous and asynchronous
+remote procedure calls with timeout and error handling.
+"""
+
 import logging
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from functools import partial
+import time
 from typing import Any, Callable, Dict, Optional
 
 from pydantic import BaseModel
@@ -38,9 +45,11 @@ class BaseRPCServer(BaseEndpoint):
         self,
         base_uri: str = "",
         svc_map: dict = {},
-        workers: int = 2,
+        workers: int = 4,
+        interval: float = 0.001,
         *args,
-        **kwargs):
+        **kwargs,
+    ):
         """__init__.
         Initializes a BaseRPCService instance with the provided configuration.
 
@@ -61,32 +70,80 @@ class BaseRPCServer(BaseEndpoint):
         """
 
         super().__init__(*args, **kwargs)
-        self._base_uri = base_uri
-        self._svc_map = svc_map
-        self._max_workers = workers
+        self._base_uri: str = base_uri
+        self._svc_map: Dict[str, Any] = svc_map
+        self._max_workers: int = workers
+        self._interval: float = interval
         self._gen_random_id = gen_random_id
-        self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
+        self._executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._main_thread = None
-        self._t_stop_event = None
-        self._comm_obj = CommRPCMessage()
+        self._t_stop_event: threading.Event = threading.Event()
+        self._comm_obj: CommRPCMessage = CommRPCMessage()
+
+    @property
+    def interval(self) -> float:
+        return self._interval
+
+    @interval.setter
+    def interval(self, value: float):
+        self._interval = value
+
+    def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
+        """_validate_rpc_req_msg.
+        Validates the RPC request message by checking if the message header is present and the reply_to field is not empty or None.
+
+        Args:
+            msg (CommRPCMessage): The RPC request message to validate.
+
+        Returns:
+            bool: True if the RPC request message is valid, False otherwise.
+        """
+
+        if msg.header is None:
+            return False
+        if msg.header.reply_to in ("", None):
+            return False
+        return True
+
+    def register_endpoint(self, uri: str, callback: Callable, msg_type: RPCMessage = None):
+        self._svc_map[uri] = (callback, msg_type)
 
     def run_forever(self):
-        """run_forever.
-        Run the RPC service in background and blocks the main thread.
-        """
-        raise NotImplementedError()
+        self._t_stop_event.clear()
+        self._transport.start()
+        self.start_endpoints()
+        while not self._t_stop_event.is_set():
+            time.sleep(self.interval)
+        self.log.debug("Stop event caught in thread")
+        self._transport.stop()
 
-    def run(self):
-        """run.
-        Run the RPC service in background.
+    def run(self, wait: bool = True) -> None:
         """
-        self._main_thread = threading.Thread(target=self.run_forever)
-        self._main_thread.daemon = True
-        self._t_stop_event = threading.Event()
-        self._main_thread.start()
+        Start the subscriber thread in the background without blocking
+        the main thread.
+        """
+        if self._transport is None:
+            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and self._state not in (
+            EndpointState.CONNECTED,
+            EndpointState.CONNECTING,
+        ):
+            self._main_thread = threading.Thread(target=self.run_forever)
+            self._main_thread.daemon = True
+            self._main_thread.start()
+            if wait:
+                while not self.connected:
+                    time.sleep(self.interval)
+            self._state = EndpointState.CONNECTED
+        else:
+            self.log.warning("Transport already connected - Skipping")
 
     def stop(self) -> None:
+        if self._t_stop_event:
+            self._t_stop_event.set()
         self._transport.stop()
+        if self._main_thread:
+            self._main_thread.join(timeout=1)
 
 
 class BaseRPCService(BaseEndpoint):
@@ -114,7 +171,8 @@ class BaseRPCService(BaseEndpoint):
         on_request: Callable = None,
         workers: int = 5,
         *args,
-        **kwargs):
+        **kwargs,
+    ):
         """__init__.
         Initializes a new instance of the `BaseRPCService` class.
 
@@ -146,7 +204,7 @@ class BaseRPCService(BaseEndpoint):
         self._max_workers = workers
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._main_thread = None
-        self._t_stop_event = None
+        self._t_stop_event = threading.Event()
         self._comm_obj = CommRPCMessage()
 
     def _serialize_data(self, payload: Dict[str, Any]) -> str:
@@ -188,7 +246,7 @@ class BaseRPCService(BaseEndpoint):
 
         if msg.header is None:
             return False
-        elif msg.header.reply_to in ("", None):
+        if msg.header.reply_to in ("", None):
             return False
         return True
 
@@ -198,36 +256,42 @@ class BaseRPCService(BaseEndpoint):
         """
         raise NotImplementedError()
 
-    def run(self) -> None:
+    def run(self, wait: bool = True) -> None:
         """
         Start the subscriber thread in the background without blocking
         the main thread.
         """
         if self._transport is None:
-            raise RuntimeError(
-                f"Transport not initialized - cannot run {self.__class__.__name__}")
-        if not self._transport.is_connected and \
-            self._state not in (EndpointState.CONNECTED,
-                                EndpointState.CONNECTING):
+            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and self._state not in (
+            EndpointState.CONNECTED,
+            EndpointState.CONNECTING,
+        ):
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
-            self._t_stop_event = threading.Event()
             self._main_thread.start()
+            # self._executor.submit(self.run_forever)
+            if wait:
+                while not self.connected:
+                    time.sleep(0.001)
+
             self._state = EndpointState.CONNECTED
         else:
-            self.logger().debug(
-                f"Transport already connected - cannot run {self.__class__.__name__}")
+            self.log.warning("Transport already connected - Skipping")
 
-    def stop(self):
+    def stop(self, wait: bool = True) -> None:
         """
         Stop the RPC service and the main thread.
 
         This method sets the `_t_stop_event` flag, which is used to signal the main thread to stop running. It then calls the `stop()` method of the parent class to perform any additional cleanup or shutdown logic.
         """
-
-        if self._t_stop_event is not None:
+        if self._t_stop_event:
             self._t_stop_event.set()
-        super().stop()
+        # if wait:
+        #     self._main_thread.join()
+        super().stop(wait=wait)
+        if self._executor:
+            self._executor.shutdown(wait=wait, cancel_futures=True)
 
 
 class BaseRPCClient(BaseEndpoint):
@@ -243,12 +307,8 @@ class BaseRPCClient(BaseEndpoint):
         return rpc_logger
 
     def __init__(
-        self,
-        rpc_name: str,
-        msg_type: RPCMessage = None,
-        workers: int = 5,
-        *args,
-        **kwargs):
+        self, rpc_name: str, msg_type: RPCMessage = None, workers: int = 5, *args, **kwargs
+    ):
         """
         Initializes a new instance of the `BaseRPCClient` class.
 
@@ -276,8 +336,7 @@ class BaseRPCClient(BaseEndpoint):
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._comm_obj = CommRPCMessage()
 
-    def call(
-        self, msg: RPCMessage.Request, timeout: float = 30.0) -> RPCMessage.Response:
+    def call(self, msg: RPCMessage.Request, timeout: float = 30.0) -> RPCMessage.Response:
         """call.
         Synchronous RPC Call.
 
@@ -291,10 +350,8 @@ class BaseRPCClient(BaseEndpoint):
         raise NotImplementedError()
 
     def call_async(
-        self,
-        msg: RPCMessage.Request,
-        timeout: float = 30.0,
-        on_response: callable = None) -> Future:
+        self, msg: RPCMessage.Request, timeout: float = 30.0, on_response: callable = None
+    ) -> Future:
         """call_async.
         Asynchronously call an RPC method and return a Future object.
 

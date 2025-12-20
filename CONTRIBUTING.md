@@ -10,7 +10,7 @@ You can contribute in many ways:
 
 # Report Bugs
 
-Report bugs at https://github.com/klpanagi/commlib/issues.
+Report bugs at https://github.com/robotics-4-all/commlib-py/issues.
 
 If you are reporting a bug, please include:
 
@@ -36,7 +36,7 @@ articles, and such.
 
 ## Submit Feedback
 
-The best way to send feedback is to file an issue at https://github.com/klpanagi/commlib/issues.
+The best way to send feedback is to file an issue at https://github.com/robotics-4-all/commlib-py/issues.
 
 If you are proposing a feature:
 
@@ -47,17 +47,17 @@ If you are proposing a feature:
 
 # Get Started
 
-Ready to contribute? Here's how to set up `commlib` for local development.
+Ready to contribute? Here's how to set up `commlib-py` for local development.
 
-1. Fork the `commlib` repo on GitHub.
+1. Fork the `commlib-py` repo on GitHub.
 2. Clone your fork locally::
 
-    $ git clone git@github.com:your_name_here/commlib.git
+    $ git clone git@github.com:your_name_here/commlib-py.git
 
 3. Install your local copy into a virtualenv. Assuming you have virtualenvwrapper installed, this is how you set up your fork for local development::
 
     $ mkvirtualenv commlib
-    $ cd commlib/
+    $ cd commlib-py/
     $ pip install .
 
 4. Create a branch for local development::
@@ -92,7 +92,7 @@ Before you submit a pull request, check that it meets these guidelines:
    your new functionality into a function with a docstring, and add the
    feature to the list in README.md.
 3. The pull request should work for Python 3.5, 3.6, 3.7 and 3.8, and for PyPy. Check
-   https://travis-ci.com/klpanagi/commlib/pull_requests
+   https://travis-ci.com/robotics-4-all/commlib-py/pull_requests
    and make sure that the tests pass for all supported Python versions.
 
 # Tips

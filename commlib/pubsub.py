@@ -1,4 +1,11 @@
+"""Pub/Sub publisher and subscriber implementations.
+
+Provides base classes for publish-subscribe messaging patterns with
+topic validation and endpoint management.
+"""
+
 import logging
+import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Dict, Optional
@@ -8,6 +15,51 @@ from commlib.msg import PubSubMessage
 from commlib.utils import gen_random_id
 
 pubsub_logger = None
+
+
+TOPIC_REGEX = r"^[a-zA-Z0-9\/\.\-\_]+$"
+TOPIC_PATTERN_REGEX = r"^[a-zA-Z0-9\/\*\.\-\_]+$"
+
+
+def validate_pubsub_topic(topic: str) -> None:
+    """
+    Validates a given pub/sub topic.
+
+    This method checks if the provided topic is valid based on predefined rules.
+    A topic is considered invalid if it is one of the following: '.', '*', '-', '_', None,
+    or if it does not match the regular expression defined by TOPIC_PATTERN_REGEX.
+
+    Args:
+        topic (str): The pub/sub topic to be validated.
+
+    Raises:
+        ValueError: If the topic is invalid.
+    """
+    if topic is None:
+        return
+    if topic in (".", "*", "-", "_", "", " ") or not re.match(TOPIC_PATTERN_REGEX, topic):
+        raise ValueError(f"Invalid topic: {topic}")
+
+
+def validate_pubsub_topic_strict(topic: str) -> None:
+    """
+    Validate a Pub/Sub topic name.
+
+    This method checks if the provided topic name is valid according to the
+    specified rules. A topic name is considered invalid if it is one of the
+    following: '.', '*', '-', '_', or None, or if it does not match the
+    regular expression defined by TOPIC_REGEX.
+
+    Args:
+        topic (str): The topic name to validate.
+
+    Raises:
+        ValueError: If the topic name is invalid.
+    """
+    if topic is None:
+        return
+    if topic in (".", "-", "_", "", " ") or not re.match(TOPIC_REGEX, topic):
+        raise ValueError(f"Invalid topic: {topic}")
 
 
 class BasePublisher(BaseEndpoint):
@@ -20,8 +72,7 @@ class BasePublisher(BaseEndpoint):
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
 
-    def __init__(self, topic: str, msg_type: PubSubMessage = None,
-                 *args, **kwargs):
+    def __init__(self, topic: str, msg_type: PubSubMessage = None, *args, **kwargs):
         """__init__.
         Initializes a new instance of the `BaseSubscriber` class.
 
@@ -37,6 +88,8 @@ class BasePublisher(BaseEndpoint):
         self._msg_type: PubSubMessage = msg_type
         self._gen_random_id: str = gen_random_id
 
+        validate_pubsub_topic_strict(self._topic)
+
     @property
     def topic(self) -> str:
         """topic"""
@@ -48,6 +101,8 @@ class BasePublisher(BaseEndpoint):
 
 class BaseSubscriber(BaseEndpoint):
     """BaseSubscriber."""
+
+    LOOP_INTERVAL = 0.001
 
     @classmethod
     def logger(cls) -> logging.Logger:
@@ -61,8 +116,10 @@ class BaseSubscriber(BaseEndpoint):
         topic: str,
         msg_type: Optional[PubSubMessage] = None,
         on_message: Optional[Callable] = None,
+        workers: int = 2,
         *args,
-        **kwargs):
+        **kwargs,
+    ):
         """__init__.
         Initializes a new instance of the `BaseSubscriber` class.
 
@@ -79,10 +136,12 @@ class BaseSubscriber(BaseEndpoint):
         self._msg_type = msg_type
         self.onmessage = on_message
         self._gen_random_id = gen_random_id
-
-        self._executor = ThreadPoolExecutor(max_workers=2)
+        self._workers = workers
+        self._executor = ThreadPoolExecutor(max_workers=workers)
         self._main_thread = None
         self._t_stop_event = None
+
+        validate_pubsub_topic(self._topic)
 
     @property
     def topic(self) -> str:
@@ -122,25 +181,26 @@ class BaseSubscriber(BaseEndpoint):
         the main thread.
         """
         if self._transport is None:
-            raise RuntimeError(
-                f"Transport not initialized - cannot run {self.__class__.__name__}")
-        if not self._transport.is_connected and \
-            self._state not in (EndpointState.CONNECTED,
-                                EndpointState.CONNECTING):
+            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+        if not self._transport.is_connected and self._state not in (
+            EndpointState.CONNECTED,
+            EndpointState.CONNECTING,
+        ):
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
             self._t_stop_event = threading.Event()
             self._main_thread.start()
             self._state = EndpointState.CONNECTED
         else:
-            self.logger().debug(
-                f"Transport already connected - cannot run {self.__class__.__name__}")
+            self.logger().warning("Transport already connected - Skipping")
 
     def stop(self) -> None:
         """
-        Stop the subscriber thread and disconnect the transport.
-        """
+        Stops the pub/sub service by setting the stop event and calling the parent class's stop method.
 
+        If the stop event (`_t_stop_event`) is not None, it sets the event to signal that the service should stop.
+        Then, it calls the `stop` method of the superclass to perform any additional stopping procedures.
+        """
         if self._t_stop_event is not None:
             self._t_stop_event.set()
         super().stop()

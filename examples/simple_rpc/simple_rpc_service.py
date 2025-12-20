@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+import time
 
 from commlib.msg import RPCMessage
 from commlib.node import Node
@@ -40,7 +41,7 @@ if __name__ == "__main__":
     node = Node(
         node_name="add_two_ints_node",
         connection_params=conn_params,
-        # heartbeat_uri='nodes.add_two_ints.heartbeat',
+        heartbeats=False,
         debug=True,
     )
 
@@ -50,4 +51,4 @@ if __name__ == "__main__":
         on_request=add_two_int_handler,
     )
 
-    node.run_forever(sleep_rate=1)
+    node.run_forever()

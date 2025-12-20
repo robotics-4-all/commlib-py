@@ -27,10 +27,13 @@ if __name__ == "__main__":
 
     pub = node.create_mpublisher()
 
+    node.run()
+
     topicA = "topic.a"
     topicB = "topic.b"
-
+    count = 0
     while True:
-        pub.publish({"a": 1}, topicA)
-        pub.publish({"b": 1}, topicB)
+        count += 1
+        pub.publish({"a": count}, topicA)
+        pub.publish({"b": count}, topicB)
         time.sleep(1)

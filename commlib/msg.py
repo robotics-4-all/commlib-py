@@ -1,20 +1,50 @@
+"""Message types and serialization.
+
+Defines message classes for Pub/Sub, RPC, and Action communication patterns.
+Provides serialization and deserialization utilities.
+"""
+
 import base64
 from os import path
 from typing import Any, Dict, List, Union
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from commlib.utils import gen_timestamp
+from commlib.utils import get_timestamp_ns
+import json
 
 Primitives = [str, int, float, bool, bytes]
 
 
 class Message(BaseModel):
-    pass
+    """Message Class.
+    Base class for all message types. Provides methods for serialization and deserialization.
+    """
+
+    @classmethod
+    def from_json(cls, json_str: str) -> "Message":
+        """Create a Message instance from a JSON string.
+
+        Args:
+            json_str (str): JSON string representing the message.
+
+        Returns:
+            Message: An instance of the Message class.
+        """
+        data = json.loads(json_str)
+        return cls(**data)
+
+    def to_json(self) -> str:
+        """Convert the Message instance to a JSON string.
+
+        Returns:
+            str: JSON string representing the message.
+        """
+        return json.dumps(self.model_dump())
 
 
-class MessageHeader(BaseModel):
+class MessageHeader(Message):
     """MessageHeader Class.
     Implements the Header data class.
     """
@@ -22,24 +52,24 @@ class MessageHeader(BaseModel):
     msg_id: Union[int, str, UUID] = -1
     node_id: Union[int, str, UUID] = ""
     agent: str = "commlib-py"
-    timestamp: int = gen_timestamp()
+    timestamp: int = Field(default_factory=lambda: get_timestamp_ns())
     properties: Dict[str, Any] = {}
 
 
-class RPCMessage(BaseModel):
+class RPCMessage(Message):
     """RPCMessage.
     RPC Object Class. Defines Request and Response data classes for
         instantiation. Used as a namespace.
     """
 
-    class Request(BaseModel):
+    class Request(Message):
         """Request.
         RPC Request Message
         """
 
         pass
 
-    class Response(BaseModel):
+    class Response(Message):
         """Response.
         RPC Response Message
         """
@@ -47,7 +77,7 @@ class RPCMessage(BaseModel):
         pass
 
 
-class PubSubMessage(BaseModel):
+class PubSubMessage(Message):
     """PubSubObject Class.
     Implementation of the PubSubObject Base Data class.
     """
@@ -55,24 +85,24 @@ class PubSubMessage(BaseModel):
     pass
 
 
-class ActionMessage(BaseModel):
+class ActionMessage(Message):
     """ActionMessage."""
 
-    class Goal(BaseModel):
+    class Goal(Message):
         """Goal.
         Action Goal Message
         """
 
         pass
 
-    class Result(BaseModel):
+    class Result(Message):
         """Result.
         Action Result Message
         """
 
         pass
 
-    class Feedback(BaseModel):
+    class Feedback(Message):
         """Feedback.
         Action Feedback Message
         """
@@ -87,7 +117,7 @@ class HeartbeatMessage(PubSubMessage):
     The `ts` attribute is an integer representing the timestamp of the heartbeat message.
     """
 
-    ts: int = gen_timestamp()
+    ts: int = get_timestamp_ns()
 
 
 class FileObject(BaseModel):

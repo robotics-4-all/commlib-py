@@ -41,12 +41,11 @@ def redis_to_mqtt_rpc_bridge():
 
     ## For Testing Bridge ------------------>
     ## BrokerA
-    client = rcomm.RPCClient(conn_params=bA_params, rpc_name=bA_uri, debug=False)
+    client = rcomm.RPCClient(conn_params=bA_params, rpc_name=bA_uri)
 
     ## BrokerB
     service = mcomm.RPCService(
-        conn_params=bB_params, rpc_name=bB_uri, on_request=on_request, debug=False
-    )
+        conn_params=bB_params, rpc_name=bB_uri, on_request=on_request)
     service.run()
     time.sleep(1)
 
@@ -76,11 +75,10 @@ def redis_to_mqtt_topic_bridge():
         to_uri=bB_uri,
         from_broker_params=bA_params,
         to_broker_params=bB_params,
-        debug=False,
     )
     br.run()
 
-    pub = rcomm.Publisher(conn_params=bA_params, topic=bA_uri, debug=False)
+    pub = rcomm.Publisher(conn_params=bA_params, topic=bA_uri)
 
     sub = mcomm.Subscriber(conn_params=bB_params, topic=bB_uri, on_message=on_message)
     sub.run()

@@ -1,3 +1,9 @@
+"""Kafka transport implementation.
+
+Provides Kafka-based pub/sub and RPC communication using confluent-kafka library.
+Supports topic-based message distribution.
+"""
+
 import functools
 import logging
 import time
@@ -163,7 +169,7 @@ class Publisher(BasePublisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.dict()
+            data = msg.model_dump()
         if key in (None, ""):
             key = self._key
 
@@ -175,9 +181,7 @@ class Publisher(BasePublisher):
     def _on_delivery(self, err, msg):
         if err is not None:
             self.logger().error(err)
-        self.logger().info(
-            f"Published on {msg.topic()}, partition" f"{msg.partition()}"
-        )
+        self.logger().info("Published on %s, partition", msg.topic() f"{msg.partition()}")
 
     def run(self):
         self._producer = self._transport.create_producer(self._kafka_cfg)
@@ -190,7 +194,7 @@ class Publisher(BasePublisher):
 class MPublisher(Publisher):
     def __init__(self, key: str = "", *args, **kwargs):
         self._key = key
-        super(MPublisher, self).__init__(topic="*", *args, **kwargs)
+        super().__init__(topic="*", *args, **kwargs)
 
     def publish(self, msg: PubSubMessage, topic: str, key: str = "") -> None:
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
@@ -198,13 +202,11 @@ class MPublisher(Publisher):
         elif isinstance(msg, dict):
             data = msg
         elif isinstance(msg, PubSubMessage):
-            data = msg.dict()
+            data = msg.model_dump()
         if key in (None, ""):
             key = self._key
         self._producer.poll(0)
-        self._producer.produce(
-            topic, key=key, value=data, on_delivery=self._on_delivery
-        )
+        self._producer.produce(topic, key=key, value=data, on_delivery=self._on_delivery)
         self._msg_seq += 1
 
 
@@ -212,7 +214,7 @@ class Subscriber(BaseSubscriber):
     def __init__(self, key: str = "", *args, **kwargs):
         self._key = key
         self._consumer: Consumer = None
-        super(Subscriber, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._create_kafka_conf()
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
@@ -270,7 +272,7 @@ class Subscriber(BaseSubscriber):
         finally:
             # Close down consumer to commit final offsets.
             self._consumer.close()
-        self.log.debug(f"Started Subscriber: <{self._topic}>")
+        self.log.debug("Started Subscriber: <%s>", self._topic)
 
     def _on_assign(self, consumer, partitions):
         self.logger().info("Assignment:", partitions)
@@ -312,9 +314,7 @@ class PSubscriber(Subscriber):
                 if self._msg_type is None:
                     _clb = functools.partial(self.onmessage, data, topic)
                 else:
-                    _clb = functools.partial(
-                        self.onmessage, self._msg_type(**data), topic
-                    )
+                    _clb = functools.partial(self.onmessage, self._msg_type(**data), topic)
                 _clb()
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
@@ -323,7 +323,7 @@ class PSubscriber(Subscriber):
 class RPCService(BaseRPCService):
     def __init__(self, *args, **kwargs):
         raise NotImplementedError("RPCService for Kafka transport not supported")
-        super(RPCService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -333,7 +333,7 @@ class RPCService(BaseRPCService):
     def _send_response(self, data: Dict[str, Any], reply_to: str):
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
-        _resp = self._comm_obj.dict()
+        _resp = self._comm_obj.model_dump()
         self._transport.publish(reply_to, _resp)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -354,7 +354,7 @@ class RPCService(BaseRPCService):
             else:
                 resp = self.on_request(self._msg_type.Request(**req_msg.data))
                 # RPCMessage.Response object here
-                resp = resp.dict()
+                resp = resp.model_dump()
             self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:
             self.log.error(str(exc), exc_info=True)
@@ -393,7 +393,7 @@ class RPCServer(BaseRPCServer):
             args: See BaseRPCServer
             kwargs: See BaseRPCServer
         """
-        super(RPCServer, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -413,7 +413,7 @@ class RPCServer(BaseRPCServer):
         """
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
-        _resp = self._comm_obj.dict()
+        _resp = self._comm_obj.model_dump()
         self._transport.publish(reply_to, _resp)
 
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -449,7 +449,7 @@ class RPCServer(BaseRPCServer):
                     resp = clb(req_msg.data)
                 else:
                     resp = clb(msg_type.Request(**req_msg.data))
-                    resp = resp.dict()
+                    resp = resp.model_dump()
             self._send_response(resp, req.header.reply_to)
         except Exception as exc:
             self.log.error(str(exc), exc_info=False)
@@ -478,15 +478,13 @@ class RPCServer(BaseRPCServer):
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
-    def _register_endpoint(
-        self, uri: str, callback: Callable, msg_type: RPCMessage = None
-    ):
+    def _register_endpoint(self, uri: str, callback: Callable, msg_type: RPCMessage = None):
         self._svc_map[uri] = (callback, msg_type)
         if self._base_uri in (None, ""):
             full_uri = uri
         else:
             full_uri = f"{self._base_uri}.{uri}"
-        self.log.info(f"Registering endpoint <{full_uri}>")
+        self.log.info("Registering endpoint <%s>", full_uri)
         self._transport.subscribe(full_uri, self._on_request_handle)
 
     def run_forever(self):
@@ -502,8 +500,7 @@ class RPCServer(BaseRPCServer):
 
 
 class RPCClient(BaseRPCClient):
-    """RPCClient.
-    """
+    """RPCClient."""
 
     def __init__(self, *args, **kwargs):
         """__init__.
@@ -514,7 +511,7 @@ class RPCClient(BaseRPCClient):
         """
         self._response = None
 
-        super(RPCClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -534,7 +531,7 @@ class RPCClient(BaseRPCClient):
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.header.reply_to = self._gen_queue_name()
         self._comm_obj.data = data
-        return self._comm_obj.dict()
+        return self._comm_obj.model_dump()
 
     def _on_response_wrapper(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         """_on_response_wrapper.
@@ -568,9 +565,7 @@ class RPCClient(BaseRPCClient):
         while self._response is None:
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:
-                raise RPCClientTimeoutError(
-                    f"Response timeout after {timeout} seconds"
-                )
+                raise RPCClientTimeoutError(f"Response timeout after {timeout} seconds")
             time.sleep(0.001)
         return self._response
 
@@ -586,16 +581,14 @@ class RPCClient(BaseRPCClient):
         else:
             if not isinstance(msg, self._msg_type.Request):
                 raise ValueError("Message type not valid")
-            data = msg.dict()
+            data = msg.model_dump()
 
         self._response = None
 
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
 
-        self._transport.subscribe(
-            _reply_to, callback=self._on_response_wrapper
-        )
+        self._transport.subscribe(_reply_to, callback=self._on_response_wrapper)
         start_t = time.time()
         self._transport.publish(self._rpc_name, _msg)
         _resp = self._wait_for_response(timeout=timeout)
@@ -609,8 +602,7 @@ class RPCClient(BaseRPCClient):
 
 
 class ActionService(BaseActionService):
-    """ActionService.
-    """
+    """ActionService."""
 
     def __init__(self, *args, **kwargs):
         """__init__.
@@ -619,7 +611,7 @@ class ActionService(BaseActionService):
             args: See BaseActionService
             kwargs: See BaseActionService
         """
-        super(ActionService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(
             msg_type=_ActionGoalMessage,
@@ -657,8 +649,7 @@ class ActionService(BaseActionService):
 
 
 class ActionClient(BaseActionClient):
-    """ActionClient.
-    """
+    """ActionClient."""
 
     def __init__(self, *args, **kwargs):
         """__init__.
@@ -667,7 +658,7 @@ class ActionClient(BaseActionClient):
             args: See BaseActionClient
             kwargs: See BaseActionClient
         """
-        super(ActionClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(
             msg_type=_ActionGoalMessage,

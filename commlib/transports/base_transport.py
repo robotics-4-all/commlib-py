@@ -1,3 +1,8 @@
+"""Base transport layer abstraction.
+
+Provides abstract base classes for implementing different transport backends.
+"""
+
 import logging
 
 from commlib.connection import BaseConnectionParameters
@@ -12,8 +17,6 @@ class BaseTransport:
     that should be implemented by concrete transport implementations.
     """
 
-    _connected = False
-
     @classmethod
     def logger(cls) -> logging.Logger:
         global transport_logger
@@ -21,9 +24,7 @@ class BaseTransport:
             transport_logger = logging.getLogger(__name__)
         return transport_logger
 
-    def __init__(self,
-                 conn_params: BaseConnectionParameters,
-                 debug: bool = False):
+    def __init__(self, conn_params: BaseConnectionParameters, debug: bool = False):
         """__init__.
         Initializes a new instance of the `BaseTransport` class.
 
@@ -34,6 +35,7 @@ class BaseTransport:
 
         self._conn_params = conn_params
         self._debug = debug
+        self._connected = False
 
     @property
     def log(self):

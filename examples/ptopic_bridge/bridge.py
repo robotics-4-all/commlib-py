@@ -19,8 +19,6 @@ if __name__ == "__main__":
     """
     bA_uri = "sensors.*"
     bB_namespace = "myrobot"
-    p1 = "sensors.sonar.front"
-    p2 = "sensors.ir.rear"
 
     bA_params = rcomm.ConnectionParameters()
     bB_params = mcomm.ConnectionParameters()
@@ -32,6 +30,5 @@ if __name__ == "__main__":
         bA_params,
         bB_params,
         msg_type=SonarMessage,
-        debug=True,
     )
     br.run_forever()

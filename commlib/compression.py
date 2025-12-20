@@ -1,3 +1,9 @@
+"""Data compression utilities.
+
+Provides compression types and functions for deflating and inflating message content.
+Supports various compression levels for optimized performance.
+"""
+
 import zlib
 
 
@@ -16,8 +22,7 @@ class CompressionType:
     DEFAULT_COMPRESSION = zlib.Z_DEFAULT_COMPRESSION
 
 
-def inflate_str(text: str,
-                compression_type: int = CompressionType.DEFAULT_COMPRESSION):
+def inflate_str(text: str, compression_type: int = CompressionType.DEFAULT_COMPRESSION):
     """inflate_str.
 
     Args:
