@@ -91,12 +91,11 @@ async def wait_til(condition_func, timeout=10):
     while True:
         if condition_func():
             return
-        elif time.perf_counter() - start_time > timeout:
+        if time.perf_counter() - start_time > timeout:
             raise Exception(
                 f"{inspect.getsource(condition_func).strip()} condition is never met. Time out reached."
             )
-        else:
-            await asyncio.sleep(0.1)
+        await asyncio.sleep(0.1)
 
 
 async def run_command(*args):
@@ -136,7 +135,7 @@ def call_sync(coro, loop: asyncio.AbstractEventLoop, timeout: float = 30.0):
     if threading.current_thread() != threading.main_thread():  # pragma: no cover
         fut = asyncio.run_coroutine_threadsafe(asyncio.wait_for(coro, timeout), loop)
         return fut.result()
-    elif not loop.is_running():
+    if not loop.is_running():
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:

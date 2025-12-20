@@ -197,17 +197,17 @@ def endpoint_factory(etype: EndpointType, etransport: TransportType):
         raise ValueError()
     if etype == EndpointType.RPCService:
         return comm.RPCService
-    elif etype == EndpointType.RPCClient:
+    if etype == EndpointType.RPCClient:
         return comm.RPCClient
-    elif etype == EndpointType.Publisher:
+    if etype == EndpointType.Publisher:
         return comm.Publisher
-    elif etype == EndpointType.Subscriber:
+    if etype == EndpointType.Subscriber:
         return comm.Subscriber
-    elif etype == EndpointType.ActionService:
+    if etype == EndpointType.ActionService:
         return comm.ActionService
-    elif etype == EndpointType.ActionClient:
+    if etype == EndpointType.ActionClient:
         return comm.ActionClient
-    elif etype == EndpointType.MPublisher:
+    if etype == EndpointType.MPublisher:
         return comm.MPublisher
-    elif etype == EndpointType.PSubscriber:
+    if etype == EndpointType.PSubscriber:
         return comm.PSubscriber

@@ -73,7 +73,7 @@ class RedisConnection(redis.Redis):
             args:
             kwargs:
         """
-        super(RedisConnection, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class RedisTransport(BaseTransport):
@@ -162,21 +162,7 @@ class RedisTransport(BaseTransport):
             if self._conn_params.reconnect_attempts > 0
             else None
         )
-        if self._conn_params.unix_socket not in ("", None):
-            return redis.ConnectionPool(
-                unix_socket_path=self._conn_params.unix_socket,
-                username=self._conn_params.username,
-                password=self._conn_params.password,
-                db=self._conn_params.db,
-                decode_responses=False,
-                socket_timeout=self._conn_params.socket_timeout,
-                socket_keep_alive=True,
-                health_check_interval=self._conn_params.healthcheck_interval,
-                # retry=retry,
-                # retry_on_error=retry_on_error,
-                max_connections=None,
-            )
-        else:
+        if self._conn_params.unix_socket in ("", None):
             return redis.ConnectionPool(
                 host=self._conn_params.host,
                 port=self._conn_params.port,
@@ -190,6 +176,19 @@ class RedisTransport(BaseTransport):
                 # retry_on_error=retry_on_error,
                 max_connections=None,
             )
+        return redis.ConnectionPool(
+            unix_socket_path=self._conn_params.unix_socket,
+            username=self._conn_params.username,
+            password=self._conn_params.password,
+            db=self._conn_params.db,
+            decode_responses=False,
+            socket_timeout=self._conn_params.socket_timeout,
+            socket_keep_alive=True,
+            health_check_interval=self._conn_params.healthcheck_interval,
+            # retry=retry,
+            # retry_on_error=retry_on_error,
+            max_connections=None,
+        )
 
     def connect(self) -> None:
         if self._conn_params.unix_socket not in ("", None):
@@ -491,7 +490,7 @@ class RPCService(BaseRPCService):
             args: See BaseRPCService class
             kwargs: See BaseRPCService class
         """
-        super(RPCService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -578,7 +577,7 @@ class RPCClient(BaseRPCClient):
             args:
             kwargs:
         """
-        super(RPCClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -624,8 +623,7 @@ class RPCClient(BaseRPCClient):
         # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
             return data
-        else:
-            return self._msg_type.Response(**data)
+        return self._msg_type.Response(**data)
 
     def _unpack_comm_msg(self, payload: str) -> Tuple:
         _payload = self._serializer.deserialize(payload)
@@ -1023,7 +1021,7 @@ class ActionService(BaseActionService):
             args: See BaseActionService class.
             kwargs:
         """
-        super(ActionService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(
             msg_type=_ActionGoalMessage,
@@ -1067,7 +1065,7 @@ class ActionClient(BaseActionClient):
             args: See BaseActionClient class
             kwargs: See BaseActionClient class
         """
-        super(ActionClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(
             msg_type=_ActionGoalMessage,
@@ -1104,7 +1102,7 @@ class ActionClient(BaseActionClient):
 class RPCServer(BaseRPCServer):
 
     def __init__(self, *args, **kwargs):
-        super(RPCServer, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,

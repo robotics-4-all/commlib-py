@@ -80,7 +80,7 @@ class MessageProperties(pika.BasicProperties):
         """
         if timestamp is None:
             timestamp = gen_timestamp()
-        super(MessageProperties, self).__init__(
+        super().__init__(
             content_type=content_type,
             content_encoding=content_encoding,
             timestamp=timestamp,
@@ -154,7 +154,7 @@ class Connection(pika.BlockingConnection):
         self._transport = None
         self._events_thread = None
         self._t_stop_event = None
-        super(Connection, self).__init__(parameters=self._connection_params.make_pika())
+        super().__init__(parameters=self._connection_params.make_pika())
 
     def stop_amqp_events_thread(self):
         """stop_amqp_events_thread.
@@ -386,9 +386,8 @@ class AMQPTransport(BaseTransport):
             self.create_channel()
             if exc.reply_code == 404:  # Not Found
                 return False
-            else:
-                self.log.warning("Queue exists <%s>", queue_name)
-                return True
+            self.log.warning("Queue exists <%s>", queue_name)
+            return True
 
     def bind_queue(self, exchange_name, queue_name, bind_key):
         """
@@ -457,7 +456,7 @@ class RPCService(BaseRPCService):
         self._exchange = exchange
         self._closing = False
         self._rpc_queue = None
-        super(RPCService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._transport = AMQPTransport(
             conn_params=self._conn_params, connection=connection, debug=self.debug
@@ -592,7 +591,7 @@ class RPCService(BaseRPCService):
             self.log.warning("Channel was already closed!")
             return False
         self._transport.add_threadsafe_callback(self._transport.delete_queue, self._rpc_queue)
-        super(RPCService, self).stop()
+        super().stop()
         return True
 
     def stop(self) -> bool:
@@ -684,8 +683,7 @@ class RPCClient(BaseRPCClient):
         self._delay = elapsed_t
         if self._msg_type is None:
             return resp
-        else:
-            return self._msg_type.Response(**resp)
+        return self._msg_type.Response(**resp)
 
     def _wait_for_response(self, timeout: float = 30.0):
         start_t = time.time()
@@ -929,11 +927,11 @@ class Subscriber(BaseSubscriber):
     def close(self) -> None:
         if self._closing:
             return False
-        elif not self._transport:
+        if not self._transport:
             return False
-        elif not self._transport.channel:
+        if not self._transport.channel:
             return False
-        elif self._transport.channel.is_closed:
+        if self._transport.channel.is_closed:
             self.log.warning("Channel was already closed!")
             return False
         self._closing = True
@@ -1015,7 +1013,7 @@ class PSubscriber(Subscriber):
             kwargs:
         """
         kwargs["topic"] = kwargs["topic"].replace("*", "#")
-        super(PSubscriber, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def _on_msg_callback_wrapper(self, ch, method, properties, body):
         _data = {}
@@ -1066,7 +1064,7 @@ class ActionService(BaseActionService):
             args: See BaseActionService parent class
             kwargs: See BaseActionService parent class
         """
-        super(ActionService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(
             msg_type=_ActionGoalMessage,
@@ -1112,7 +1110,7 @@ class ActionClient(BaseActionClient):
             args: See BaseActionClient parent class
             kwargs: See BaseActionClient parent class
         """
-        super(ActionClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(
             msg_type=_ActionGoalMessage,

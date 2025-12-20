@@ -19,15 +19,15 @@ def connection_params_for_transport(transport: TransportType):
         from commlib.transports.mqtt import ConnectionParameters
 
         return ConnectionParameters
-    elif transport == TransportType.REDIS:
+    if transport == TransportType.REDIS:
         from commlib.transports.redis import ConnectionParameters
 
         return ConnectionParameters
-    elif transport == TransportType.AMQP:
+    if transport == TransportType.AMQP:
         from commlib.transports.amqp import ConnectionParameters
 
         return ConnectionParameters
-    elif transport == TransportType.KAFKA:
+    if transport == TransportType.KAFKA:
         from commlib.transports.kafka import ConnectionParameters
 
         return ConnectionParameters

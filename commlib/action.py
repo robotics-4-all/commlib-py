@@ -202,8 +202,7 @@ class GoalHandler:
             GoalStatus.ABORTED,
         ):
             return True
-        else:
-            return False
+        return False
 
     def start(self):
         """

@@ -52,6 +52,12 @@
 			- [Write a Simple Publisher](#write-a-simple-publisher)
 			- [Write a Simple Subscriber](#write-a-simple-subscriber)
 		- [Wildcard Subscriptions](#wildcard-subscriptions)
+		- [Topic Notation Conversion](#topic-notation-conversion)
+			- [Unified Topic Notation](#unified-topic-notation)
+			- [Protocol-Specific Formats](#protocol-specific-formats)
+			- [Topic Conversion Functions](#topic-conversion-functions)
+			- [Available Conversion Functions](#available-conversion-functions)
+			- [Real-World Examples](#real-world-examples)
 		- [Preemptive Services with Feedback (Actions)](#preemptive-services-with-feedback-actions)
 			- [Write an Action Service](#write-an-action-service)
 			- [Write an Action Client](#write-an-action-client)
@@ -1213,6 +1219,111 @@ if __name__ == '__main__':
         pub.publish({'a': 1}, topicA)
         pub.publish({'b': 1}, topicB)
         time.sleep(1)
+```
+
+#### Topic Notation Conversion
+
+**Commlib** uses a unified topic notation standard across all supported protocols. This section explains how to convert topics between different protocol formats and between the unified notation and protocol-specific formats.
+
+##### Unified Topic Notation
+
+The commlib unified topic notation uses:
+- **Separator**: `.` (dot)
+- **Wildcard**: `*` (asterisk) - matches any segment or multiple segments
+- **Format**: `a.b.c.d`
+
+Examples:
+- `sensors.temperature` - specific topic
+- `sensors.*.temperature` - wildcard for single segment
+- `sensors.*` - wildcard for multiple segments (catch-all)
+
+##### Protocol-Specific Formats
+
+Different message brokers use different topic notations:
+
+| Protocol | Format | Separator | Wildcard |
+|----------|--------|-----------|----------|
+| **Commlib (unified)** | `a.b.c` | `.` | `*` |
+| **MQTT** | `a/b/c` | `/` | `+` (single), `#` (multi) |
+| **Redis** | `a.b.c` | `.` | `*` |
+| **AMQP** | `a.b.c` | `.` | `*`, `#` |
+| **Kafka** | `a-b-c` | `-` | `*` |
+
+##### Topic Conversion Functions
+
+The `commlib.utils` module provides functions for converting topics between different protocols:
+
+```python
+from commlib.utils import (
+    convert_topic_notation,
+    topic_to_mqtt, topic_from_mqtt,
+    topic_to_redis, topic_from_redis,
+    topic_to_kafka, topic_from_kafka,
+    topic_to_amqp, topic_from_amqp,
+)
+
+# Convert from MQTT to commlib unified notation
+mqtt_topic = "sensors/+/temperature"
+commlib_topic = topic_from_mqtt(mqtt_topic)
+# Result: "sensors.*.temperature"
+
+# Convert from commlib to MQTT
+commlib_topic = "sensors.*.temperature"
+mqtt_topic = topic_to_mqtt(commlib_topic)
+# Result: "sensors/+/temperature"
+
+# Convert from Kafka to MQTT
+kafka_topic = "sensors-temperature"
+mqtt_topic = convert_topic_notation(kafka_topic, "kafka", "mqtt")
+# Result: "sensors/temperature"
+
+# Convert from commlib to Kafka
+commlib_topic = "building.floor.room.sensor"
+kafka_topic = convert_topic_notation(commlib_topic, "commlib", "kafka")
+# Result: "building-floor-room-sensor"
+```
+
+##### Available Conversion Functions
+
+**Direct Protocol Conversions:**
+- `topic_to_mqtt(topic)` - Convert from commlib to MQTT format
+- `topic_from_mqtt(topic)` - Convert from MQTT format to commlib
+- `topic_to_redis(topic)` - Convert from commlib to Redis format
+- `topic_from_redis(topic)` - Convert from Redis format to commlib
+- `topic_to_kafka(topic)` - Convert from commlib to Kafka format
+- `topic_from_kafka(topic)` - Convert from Kafka format to commlib
+- `topic_to_amqp(topic)` - Convert from commlib to AMQP format
+- `topic_from_amqp(topic)` - Convert from AMQP format to commlib
+
+**Unified Conversion:**
+- `convert_topic_notation(topic, from_protocol, to_protocol)` - Convert between any two protocols
+
+Supported protocol names: `"commlib"`, `"mqtt"`, `"redis"`, `"amqp"`, `"kafka"`
+
+##### Real-World Examples
+
+```python
+from commlib.utils import convert_topic_notation
+
+# IoT sensor hierarchy
+mqtt_hierarchy = "home/+/sensors/+/temperature"
+commlib_hierarchy = convert_topic_notation(mqtt_hierarchy, "mqtt", "commlib")
+# Result: "home.*.sensors.*.temperature"
+
+# Event stream conversion
+mqtt_events = "events/system/+/logs"
+redis_events = convert_topic_notation(mqtt_events, "mqtt", "redis")
+# Result: "events.system.*.logs"
+
+# RPC namespace conversion
+kafka_rpc = "rpc-service-request"
+mqtt_rpc = convert_topic_notation(kafka_rpc, "kafka", "mqtt")
+# Result: "rpc/service/request"
+
+# Catch-all topic
+mqtt_all = "#"
+commlib_all = convert_topic_notation(mqtt_all, "mqtt", "commlib")
+# Result: "*"
 ```
 
 #### Preemptive Services with Feedback (Actions)

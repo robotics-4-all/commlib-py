@@ -349,8 +349,6 @@ class MQTTTransport(BaseTransport):
         return transformed_topic
 
     def _transform_topic(self, topic):
-        # topic = topic.replace(".", "/").replace("/*/*/*/", "/+/+/+/").replace(
-        #     "/*/*/", "/+/+/").replace("/*/", "/+/").replace("*", "#")
         # Replace trailing single asterisk with MQTT's single-level wildcard
         if topic.endswith("*"):
             topic = topic[:-1] + "#"
@@ -724,7 +722,7 @@ class RPCService(BaseRPCService):
             args: See BaseRPCService
             kwargs: See BaseRPCService
         """
-        super(RPCService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -795,7 +793,7 @@ class RPCServer(BaseRPCServer):
             args: See BaseRPCServer
             kwargs: See BaseRPCServer
         """
-        super(RPCServer, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -837,14 +835,13 @@ class RPCServer(BaseRPCServer):
                 svc_uri = svc_uri[1:]
             if svc_uri not in self._svc_map:
                 return
+            clb = self._svc_map[svc_uri][0]
+            msg_type = self._svc_map[svc_uri][1]
+            if msg_type is None:
+                resp = clb(req_msg.data)
             else:
-                clb = self._svc_map[svc_uri][0]
-                msg_type = self._svc_map[svc_uri][1]
-                if msg_type is None:
-                    resp = clb(req_msg.data)
-                else:
-                    resp = clb(msg_type.Request(**req_msg.data))
-                    resp = resp.model_dump()
+                resp = clb(msg_type.Request(**req_msg.data))
+                resp = resp.model_dump()
             self._send_response(resp, req_msg.header.reply_to)
         except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=False)
@@ -891,7 +888,7 @@ class RPCClient(BaseRPCClient):
     def __init__(self, *args, **kwargs):
         self._response = None
 
-        super(RPCClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -979,8 +976,7 @@ class RPCClient(BaseRPCClient):
 
         if self._msg_type is None:
             return _resp
-        else:
-            return self._msg_type.Response(**_resp)
+        return self._msg_type.Response(**_resp)
 
 
 class ActionService(BaseActionService):
@@ -995,7 +991,7 @@ class ActionService(BaseActionService):
             args: See BaseActionService
             kwargs: See BaseActionService
         """
-        super(ActionService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(
             msg_type=_ActionGoalMessage,
@@ -1039,7 +1035,7 @@ class ActionClient(BaseActionClient):
             args: See BaseActionClient
             kwargs: See BaseActionClient
         """
-        super(ActionClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(
             msg_type=_ActionGoalMessage,

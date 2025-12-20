@@ -101,7 +101,7 @@ class BaseRPCServer(BaseEndpoint):
 
         if msg.header is None:
             return False
-        elif msg.header.reply_to in ("", None):
+        if msg.header.reply_to in ("", None):
             return False
         return True
 
@@ -246,7 +246,7 @@ class BaseRPCService(BaseEndpoint):
 
         if msg.header is None:
             return False
-        elif msg.header.reply_to in ("", None):
+        if msg.header.reply_to in ("", None):
             return False
         return True
 

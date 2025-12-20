@@ -194,7 +194,7 @@ class Publisher(BasePublisher):
 class MPublisher(Publisher):
     def __init__(self, key: str = "", *args, **kwargs):
         self._key = key
-        super(MPublisher, self).__init__(topic="*", *args, **kwargs)
+        super().__init__(topic="*", *args, **kwargs)
 
     def publish(self, msg: PubSubMessage, topic: str, key: str = "") -> None:
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
@@ -214,7 +214,7 @@ class Subscriber(BaseSubscriber):
     def __init__(self, key: str = "", *args, **kwargs):
         self._key = key
         self._consumer: Consumer = None
-        super(Subscriber, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._create_kafka_conf()
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
@@ -323,7 +323,7 @@ class PSubscriber(Subscriber):
 class RPCService(BaseRPCService):
     def __init__(self, *args, **kwargs):
         raise NotImplementedError("RPCService for Kafka transport not supported")
-        super(RPCService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -393,7 +393,7 @@ class RPCServer(BaseRPCServer):
             args: See BaseRPCServer
             kwargs: See BaseRPCServer
         """
-        super(RPCServer, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -511,7 +511,7 @@ class RPCClient(BaseRPCClient):
         """
         self._response = None
 
-        super(RPCClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -611,7 +611,7 @@ class ActionService(BaseActionService):
             args: See BaseActionService
             kwargs: See BaseActionService
         """
-        super(ActionService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._goal_rpc = RPCService(
             msg_type=_ActionGoalMessage,
@@ -658,7 +658,7 @@ class ActionClient(BaseActionClient):
             args: See BaseActionClient
             kwargs: See BaseActionClient
         """
-        super(ActionClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._goal_client = RPCClient(
             msg_type=_ActionGoalMessage,
