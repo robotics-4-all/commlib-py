@@ -82,7 +82,7 @@ class HeartbeatThread:
                 self._stop_event.wait(self._rate_secs)
                 msg.ts = self.get_current_ts()
             self.logger().info("Heartbeat Thread terminated successfully")
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, OSError) as exc:
             self.logger().error("Exception in Heartbeat-Thread: %s", exc)
 
     def stop(self):
@@ -359,7 +359,7 @@ class Node:
         try:
             while self.state not in (NodeState.EXITED, NodeState.STOPPED):
                 time.sleep(sleep_rate)
-        except Exception as e:
+        except (RuntimeError, ConnectionError, OSError) as e:
             self.log.error("Exception occurred during run_forever: %s", str(e))
         self.stop()
 

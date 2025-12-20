@@ -251,7 +251,7 @@ class GoalHandler:
             # self._executor.shutdown(wait=False)
             self._executor._threads.clear()
             concurrent.futures.thread._threads_queues.clear()
-        except Exception as exc:
+        except (RuntimeError, concurrent.futures.TimeoutError) as exc:
             self.log.error("Error canceling goal: %s", exc)
             return 0
         return 1

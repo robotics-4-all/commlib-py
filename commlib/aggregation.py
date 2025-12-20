@@ -60,7 +60,7 @@ class TopicMessageProcessor:
                     continue
                 self.pub.publish(topic=self.output_topic, msg=payload)
                 self.log.info("Processed message: %s", payload)
-            except Exception as e:
+            except (ValueError, TypeError, KeyError) as e:
                 self.log.error("Error processing message: %s", e)
                 continue
 
@@ -123,7 +123,7 @@ class TopicAggregator:
                     self.log.warning("Processor did not return a dict")
                     continue
                 self.pub.publish(topic=self.output_topic, msg=payload)
-            except Exception as e:
+            except (ValueError, TypeError, KeyError) as e:
                 self.log.error("Error processing message: %s", e)
                 continue
 

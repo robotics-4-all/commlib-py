@@ -284,7 +284,7 @@ class MQTTTransport(BaseTransport):
                 )
                 self._client.message_callback_add(topic, _clb)
                 self.log.debug("Restored subscription to %s", topic)
-            except Exception as e:
+            except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
                 self.log.warning("Failed to restore subscription to %s: %s", topic, e)
 
     def on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]) -> None:
@@ -342,7 +342,7 @@ class MQTTTransport(BaseTransport):
             self._client.subscribe(
                 transformed_topic, qos=qos, options=None, properties=self._mqtt_properties
             )
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             raise SubscriberError(f"Failed to subscribe to topic {transformed_topic}")
         _clb = functools.partial(self._on_msg_internal, callback)
         self._client.message_callback_add(transformed_topic, _clb)
@@ -383,7 +383,7 @@ class MQTTTransport(BaseTransport):
         """
         try:
             self.connect()
-        except Exception as e:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Could not establish connection to MQTT Broker: %s", e)
             self.stop()
             time.sleep(self._conn_params.reconnect_delay)
@@ -565,7 +565,7 @@ class Subscriber(BaseSubscriber):
                 else:
                     _clb = functools.partial(self.onmessage, self._msg_type(**data))
                 _clb()
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple:
@@ -656,7 +656,7 @@ class WSubscriber(BaseSubscriber):
                 else:
                     _clb = functools.partial(callback, self._msg_type(**data))
                 _clb()
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[Dict[str, Any], str]:
@@ -703,7 +703,7 @@ class PSubscriber(BaseSubscriber):
                 else:
                     _clb = functools.partial(self.onmessage, self._msg_type(**data), topic)
                 _clb()
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple:
@@ -743,7 +743,7 @@ class RPCService(BaseRPCService):
     def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(
                 "Could not unpack request message: %s\nDropping client request!",
                 exc,
@@ -758,7 +758,7 @@ class RPCService(BaseRPCService):
                 # RPCMessage.Response object here
                 resp = resp.model_dump()
             self._send_response(resp, req_msg.header.reply_to)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=True)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[CommRPCMessage, str]:
@@ -770,7 +770,7 @@ class RPCService(BaseRPCService):
             _req_msg = CommRPCMessage(header=CommRPCHeader(**_header), data=_data)
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
-        except Exception as e:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
@@ -817,13 +817,13 @@ class RPCServer(BaseRPCServer):
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         try:
             self._executor.submit(self._on_request_internal, client, userdata, msg)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=False)
 
     def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(
                 "Could not unpack request message: %s\nDropping client request!",
                 exc,
@@ -846,7 +846,7 @@ class RPCServer(BaseRPCServer):
                     resp = clb(msg_type.Request(**req_msg.data))
                     resp = resp.model_dump()
             self._send_response(resp, req_msg.header.reply_to)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=False)
             return
 
@@ -878,7 +878,7 @@ class RPCServer(BaseRPCServer):
             _req_msg = CommRPCMessage(header=CommRPCHeader(**_header), data=_data)
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
-        except Exception as e:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
@@ -923,7 +923,7 @@ class RPCClient(BaseRPCClient):
         """
         try:
             data, header, uri = self._unpack_comm_msg(msg)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(exc, exc_info=True)
             data = {}
         finally:

@@ -45,7 +45,7 @@ class TCPBridgeRequestHandler(socketserver.BaseRequestHandler):
                         break
                     # Send back received data
                     self.request.sendall(received)
-            except Exception as exc:
+            except (ConnectionError, OSError, socket.error) as exc:
                 print(exc)
 
 

@@ -188,7 +188,7 @@ class Connection(pika.BlockingConnection):
                 self.sleep(1)
                 if self._t_stop_event.is_set():
                     break
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             print(f"Exception thrown while processing amqp events - {exc}")
 
 
@@ -227,7 +227,7 @@ class AMQPTransport(BaseTransport):
         except pika.exceptions.ProbableAuthenticationError as e:
             logger.error("Authentication Error: %s", str(e))
             return False
-        except Exception as e:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             return False
 
     def _on_connect(self):
@@ -405,7 +405,7 @@ class AMQPTransport(BaseTransport):
         """
         try:
             self._channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=bind_key)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             raise AMQPError("Error while trying to bind queue to exchange")
 
     def set_channel_qos(self, prefetch_count=1, global_qos=False):
@@ -478,7 +478,7 @@ class RPCService(BaseRPCService):
             self.log.error(exc, exc_info=True)
         except pika.exceptions.AMQPConnectionError as exc:
             self.log.error(exc, exc_info=True)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(exc, exc_info=True)
             raise AMQPError("Error while trying to consume from queue")
 
@@ -509,13 +509,13 @@ class RPCService(BaseRPCService):
             _req_msg = CommRPCMessage(header=CommRPCHeader(reply_to=_reply_to), data=_data)
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Exception Thrown in on_request_handle", exc_info=True)
         try:
             if self._compression != CompressionType.NO_COMPRESSION:
                 body = deflate(body)
             _data = self._serializer.deserialize(body)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Could not deserialize data", exc_info=True)
             self._transport.add_threadsafe_callback(
                 self._send_response, {}, ch, _corr_id, _reply_to, _delivery_tag
@@ -526,21 +526,21 @@ class RPCService(BaseRPCService):
             self._transport.add_threadsafe_callback(
                 self._send_response, resp, ch, _corr_id, _reply_to, _delivery_tag
             )
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("OnRequest Callback invocation failed", exc_info=True)
 
     def _invoke_onrequest_callback(self, data: dict):
         if self._msg_type is None:
             try:
                 resp = self.on_request(data)
-            except Exception as exc:
+            except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
                 self.log.error(str(exc), exc_info=False)
                 resp = {}
         else:
             try:
                 msg = self._msg_type.Request(**data)
                 resp = self.on_request(msg)
-            except Exception as exc:
+            except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
                 self.log.error(str(exc), exc_info=False)
                 resp = self._msg_type.Response()
             resp = resp.model_dump()
@@ -560,7 +560,7 @@ class RPCService(BaseRPCService):
                 _payload = inflate_str(_payload)
             else:
                 _payload = _payload.encode(_encoding)
-        except Exception as e:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Could not deserialize data", exc_info=True)
             _payload = {"status": 501, "error": f"Internal server error: {e}"}
 
@@ -711,14 +711,14 @@ class RPCClient(BaseRPCClient):
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Error parsing response from rpc server.", exc_info=True)
 
         try:
             if self._compression != CompressionType.NO_COMPRESSION:
                 body = deflate(body)
             _data = self._serializer.deserialize(body)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Could not deserialize data", exc_info=True)
             _data = {}
         self._response = _data
@@ -952,7 +952,7 @@ class Subscriber(BaseSubscriber):
         except KeyboardInterrupt as exc:
             # Log error with traceback
             self.log.error(exc, exc_info=False)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(exc, exc_info=False)
             raise AMQPError("Could not consume from message queue")
 
@@ -968,20 +968,20 @@ class Subscriber(BaseSubscriber):
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.debug("Failed to read message properties", exc_info=True)
         try:
             if self._compression != CompressionType.NO_COMPRESSION:
                 body = deflate(body)
             _data = self._serializer.deserialize(body)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
             _data = {}
         try:
             self._sem.acquire()
             self._sem.release()
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.warn("Could not calculate message rate", exc_info=True)
 
         try:
@@ -991,7 +991,7 @@ class Subscriber(BaseSubscriber):
                 else:
                     _clb = functools.partial(self.onmessage, self._msg_type(**_data))
                 _clb()
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Error in on_msg_callback", exc_info=True)
 
     def stop(self) -> None:
@@ -1029,21 +1029,21 @@ class PSubscriber(Subscriber):
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.debug("Error reading message properties", exc_info=True)
 
         try:
             if self._compression != CompressionType.NO_COMPRESSION:
                 body = deflate(body)
             _data = self._serializer.deserialize(body)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
             _data = {}
         try:
             _topic = method.routing_key
             _topic = _topic.replace("#", "").replace("*", "")
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Routing key could not be retrieved for message", exc_info=True)
             return
 
@@ -1054,7 +1054,7 @@ class PSubscriber(Subscriber):
                 else:
                     _clb = functools.partial(self.onmessage, self._msg_type(**_data), _topic)
                 _clb()
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Error in on_msg_callback", exc_info=True)
 
 

@@ -139,7 +139,7 @@ class RedisTransport(BaseTransport):
                 return False
             self._redis.ping()
             return True
-        except Exception as e:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             return False
 
     @property
@@ -205,7 +205,7 @@ class RedisTransport(BaseTransport):
         )
         try:
             self._redis.ping()
-        except Exception as e:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             raise ConnectionError(f"Could not connect to Redis server: {e}")
         self._retry_count = 0
 
@@ -223,7 +223,7 @@ class RedisTransport(BaseTransport):
         if not self.is_connected:
             try:
                 self.connect()
-            except Exception as e:
+            except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
                 self.log.error("Could not establish connection to Redis: %s", e)
             time.sleep(self._wait_for_connection_init)
         while not self.is_connected:
@@ -252,7 +252,7 @@ class RedisTransport(BaseTransport):
                 self.log.info("Successfully reconnected to Redis")
                 self._retry_count = 0  # Reset counter on successful connection
                 return True
-        except Exception as e:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.warning("Reconnection attempt failed: %s", e)
         return False
 
@@ -422,7 +422,7 @@ class RedisTransport(BaseTransport):
                     self.log.info("Pubsub reconnection successful")
                     return True
 
-            except Exception as e:
+            except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
                 self.log.warning("Pubsub reconnection attempt failed: %s", e)
 
         self.log.error("Failed to reconnect pubsub after %s attempts", max_retries)
@@ -507,7 +507,7 @@ class RPCService(BaseRPCService):
     def _on_request_handle(self, data: Dict[str, Any], header: Dict[str, Any]):
         try:
             self._executor.submit(self._on_request_internal, data, header)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=False)
 
     def _on_request_internal(self, data: Dict[str, Any], header: Dict[str, Any]):
@@ -526,7 +526,7 @@ class RPCService(BaseRPCService):
         except RPCRequestError:
             self.log.error(str(exc), exc_info=False)
             resp = {}
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=False)
             resp = {}
         self._send_response(resp, _req_msg.header.reply_to)
@@ -820,7 +820,7 @@ class Subscriber(BaseSubscriber):
                 else:
                     _clb = functools.partial(self.onmessage, self._msg_type(**data))
                 _clb()
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
@@ -917,7 +917,7 @@ class WSubscriber(BaseSubscriber):
                 else:
                     _clb = functools.partial(callback, self._msg_type(**data))
                 _clb()
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
@@ -993,7 +993,7 @@ class PSubscriber(BaseSubscriber):
                 else:
                     _clb = functools.partial(self.onmessage, self._msg_type(**data), topic)
                 _clb()
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
@@ -1115,7 +1115,7 @@ class RPCServer(BaseRPCServer):
         # Guard against bad requests
         try:
             self._executor.submit(self._on_request_internal, rpc_uri, data, header)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=False)
 
     def _on_request_internal(self, rpc_uri: str, data: Dict[str, Any], header: Dict[str, Any]):
@@ -1138,7 +1138,7 @@ class RPCServer(BaseRPCServer):
         except RPCRequestError:
             self.log.error(str(exc), exc_info=False)
             resp = {}
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=False)
             resp = {}
         self._send_response(resp, _req_msg.header.reply_to)

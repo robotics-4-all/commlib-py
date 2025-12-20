@@ -28,7 +28,7 @@ async def safe_wrapper(c):
         return await c
     except asyncio.CancelledError:
         raise
-    except Exception as e:
+    except (RuntimeError, asyncio.TimeoutError, OSError, ValueError, TypeError) as e:
         logging.getLogger(__name__).error(
             "Unhandled error in background task: %s", str(e), exc_info=True
         )
