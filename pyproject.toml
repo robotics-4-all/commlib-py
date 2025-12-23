@@ -71,7 +71,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["commlib"]
+packages = {find = {include = ["commlib*"]}}
 
 [tool.setuptools.package-data]
 commlib = ["py.typed"]
