@@ -31,3 +31,28 @@ jobs:
       - name: Run unit tests
         run: |
           pytest --ignore=tests/mqtt --ignore=tests/redis -v
+
+  package-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"  , "3.12"]
+      max-parallel: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build pytest pytest-cov coverage
+      - name: Build package
+        run: |
+          python -m build
+          pip install dist/*.whl
+          pip install .[all]
+      - name: Run unit tests
+        run: |
+          pytest --ignore=tests/mqtt --ignore=tests/redis -v
