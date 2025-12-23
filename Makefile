@@ -66,9 +66,8 @@ test: ## run tests in docker
 test-package: ## run integration tests in docker (requires MQTT and Redis brokers)
 	./run_tests.sh package
 
-cov: test ## check code coverage quickly with the default Python
-	coverage report -m
-	coverage xml
+cov: ## check code coverage quickly with the default Python
+	./run_tests.sh coverage
 
 cov_html: test
 	html
