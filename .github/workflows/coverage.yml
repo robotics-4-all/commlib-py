@@ -27,4 +27,5 @@ jobs:
     - name: Run coverage
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        make cov
+        coverage run -m pytest --ignore=tests/mqtt --ignore=tests/redis
+        coverage report -m
