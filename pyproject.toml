@@ -1,6 +1,6 @@
 [project]
 name = "commlib-py"
-version = "0.13.0"
+version = "0.13.1"
 description = "Communication Library for Python implementing the most common communication patterns for CyberPhysical Systems."
 readme = "README.md"
 license = {text = "MIT"}
@@ -40,13 +40,13 @@ amqp = [
     "pika>=1.3.1",
 ]
 kafka = [
-    "kafka-python>=2.0.2",
+    "confluent-kafka>=2.3.0",
 ]
 all = [
-    "paho-mqtt>=1.6.1",
+    "paho-mqtt>=1.6.1,<2.0.0",
     "redis[hiredis]>=5.0.1",
     "pika>=1.3.1",
-    "kafka-python>=2.0.2",
+    "confluent-kafka>=2.3.0",
 ]
 dev = [
     "bump2version>=0.5.11",
@@ -60,7 +60,7 @@ dev = [
     "paho-mqtt>=1.6.1,<2.0.0",
     "redis[hiredis]>=5.0.1",
     "pika>=1.3.1",
-    "kafka-python>=2.0.2",
+    "confluent-kafka>=2.3.0",
 ]
 
 [project.urls]
@@ -71,7 +71,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["commlib"]
+packages = {find = {include = ["commlib*"]}}
 
 [tool.setuptools.package-data]
 commlib = ["py.typed"]

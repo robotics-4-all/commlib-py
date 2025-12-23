@@ -60,20 +60,14 @@ clean-test: ## remove test and coverage artifacts
 lint: ## check style with flake8
 	flake8 commlib tests
 
-test: ## run tests quickly with the default Python
-	coverage run -m pytest --ignore=tests/mqtt --ignore=tests/redis
+test: ## run tests in docker
+	./run_tests.sh unit
 
-cov: test ## check code coverage quickly with the default Python
-	coverage report -m
-	coverage xml
+test-package: ## run integration tests in docker (requires MQTT and Redis brokers)
+	./run_tests.sh package
 
-test-integration: ## run integration tests (requires MQTT and Redis brokers)
-	coverage run -m pytest tests/mqtt tests/redis -v
-	coverage report -m
-
-cov-integration: test-integration ## check code coverage for integration tests
-	coverage report -m
-	coverage xml
+cov: ## check code coverage quickly with the default Python
+	./run_tests.sh coverage
 
 cov_html: test
 	html
@@ -100,7 +94,7 @@ build: clean ## build source and wheel distributions
 dist: build ## alias for build
 
 install: ## install the package to the active Python's site-packages
-	pip install -e .
+	pip install .
 
 install-dev: ## install the package with development dependencies
 	pip install -e ".[dev]"
