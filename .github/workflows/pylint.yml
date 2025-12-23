@@ -6,12 +6,12 @@ permissions:
   contents: read
 
 jobs:
-   build:
+   linting:
 
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.11"]
       max-parallel: 1
 
     steps:

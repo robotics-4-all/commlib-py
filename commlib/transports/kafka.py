@@ -181,7 +181,7 @@ class Publisher(BasePublisher):
     def _on_delivery(self, err, msg):
         if err is not None:
             self.logger().error(err)
-        self.logger().info("Published on %s, partition", msg.topic() f"{msg.partition()}")
+        self.logger().info("Published on %s, partition", msg.topic(), f"{msg.partition()}")
 
     def run(self):
         self._producer = self._transport.create_producer(self._kafka_cfg)

@@ -1,11 +1,25 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+# Install build dependencies
+RUN pip install --no-cache-dir build pytest pytest-cov coverage
 
+# Copy source
 COPY . .
-RUN pip install -e .
 
-CMD ["bash", "-c", "coverage run -m pytest && coverage report -m"]
+# Build the package
+RUN python -m build
+
+# Install the built wheel
+RUN pip install dist/*.whl
+
+# Install all optional dependencies (extras)
+RUN pip install "commlib-py[all]"
+
+# Remove the source directory to ensure we are testing the installed package
+# We keep the tests directory though
+RUN mv tests /tmp/tests && rm -rf * && mv /tmp/tests .
+
+# Default command runs unit tests
+CMD ["pytest", "tests", "--ignore=tests/mqtt", "--ignore=tests/redis"]
