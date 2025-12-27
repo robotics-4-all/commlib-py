@@ -317,7 +317,7 @@ class MQTTTransport(BaseTransport):
         topic = topic.replace(".", "/")
         pl = self._serializer.serialize(payload)
         if self._compression != CompressionType.NO_COMPRESSION:
-            pl = inflate_str(pl)
+            pl = inflate_str(pl, self._compression)
         self._client.publish(topic, pl, qos=qos, retain=retain, properties=self._mqtt_properties)
 
     def subscribe(self, topic: str, callback: Callable, qos: MQTTQoS = MQTTQoS.L0) -> str:
@@ -367,7 +367,7 @@ class MQTTTransport(BaseTransport):
         _qos = msg.qos
         _retain = msg.retain
         if self._compression != CompressionType.NO_COMPRESSION:
-            _payload = deflate(_payload)
+            _payload = deflate(_payload, self._compression)
         msg.payload = _payload
         callback(client, userdata, msg)
 

@@ -12,7 +12,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from commlib.utils import get_timestamp_ns
-import json
+from commlib.serializer import JSONSerializer
+
 
 Primitives = [str, int, float, bool, bytes]
 
@@ -32,7 +33,7 @@ class Message(BaseModel):
         Returns:
             Message: An instance of the Message class.
         """
-        data = json.loads(json_str)
+        data = JSONSerializer.deserialize(json_str)
         return cls(**data)
 
     def to_json(self) -> str:
@@ -41,7 +42,7 @@ class Message(BaseModel):
         Returns:
             str: JSON string representing the message.
         """
-        return json.dumps(self.model_dump())
+        return JSONSerializer.serialize(self.model_dump())
 
 
 class MessageHeader(Message):

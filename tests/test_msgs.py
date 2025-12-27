@@ -5,6 +5,7 @@
 import time
 import unittest
 from typing import Optional
+import json
 
 from commlib.msg import Message, MessageHeader, PubSubMessage, RPCMessage
 from commlib.timer import Timer
@@ -84,7 +85,7 @@ class TestMessages(unittest.TestCase):
 
         obj = TestObject(c=10, d=20)
         json_data = obj.to_json()
-        self.assertEqual(json_data, '{"c": 10, "d": 20}')
+        self.assertEqual(json.loads(json_data), {"c": 10, "d": 20})
 
     def test_message_from_json(self):
         """Test Message from JSON deserialization"""
@@ -107,8 +108,9 @@ class TestMessages(unittest.TestCase):
             b: Optional[TestObject] = TestObject()
 
         msg = TestPubSubMessage(a=5, b=TestObject(c=10, d=20))
+        import json
         json_data = msg.to_json()
-        self.assertEqual(json_data, '{"a": 5, "b": {"c": 10, "d": 20}}')
+        self.assertEqual(json.loads(json_data), {"a": 5, "b": {"c": 10, "d": 20}})
 
     def test_pubsub_message_from_json(self):
         """Test PubSubMessage from JSON deserialization"""
@@ -137,8 +139,9 @@ class TestMessages(unittest.TestCase):
 
         req = TestRPCMessage.Request(a=10, b=20)
         resp = TestRPCMessage.Response(c=30, d=40)
-        self.assertEqual(req.to_json(), '{"a": 10, "b": 20}')
-        self.assertEqual(resp.to_json(), '{"c": 30, "d": 40}')
+        import json
+        self.assertEqual(json.loads(req.to_json()), {"a": 10, "b": 20})
+        self.assertEqual(json.loads(resp.to_json()), {"c": 30, "d": 40})
 
     def test_rpc_message_from_json(self):
         """Test RPCMessage from JSON deserialization"""

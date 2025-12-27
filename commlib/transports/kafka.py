@@ -272,7 +272,6 @@ class Subscriber(BaseSubscriber):
         finally:
             # Close down consumer to commit final offsets.
             self._consumer.close()
-        self.log.debug("Started Subscriber: <%s>", self._topic)
 
     def _on_assign(self, consumer, partitions):
         self.logger().info("Assignment:", partitions)

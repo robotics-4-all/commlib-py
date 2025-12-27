@@ -7,9 +7,13 @@ and time management.
 import os
 import re
 import time
-import uuid
 import logging
 from rich.logging import RichHandler
+
+try:
+    import fastuuid as uuid
+except ImportError:
+    import uuid
 
 
 def camelcase_to_snakecase(_str: str) -> str:

@@ -301,7 +301,7 @@ class RedisTransport(BaseTransport):
         try:
             payload = self._serializer.serialize(data)
             if self._compression != CompressionType.NO_COMPRESSION:
-                payload = inflate_str(payload)
+                payload = inflate_str(payload, self._compression)
             self._redis.rpush(queue_name, payload)
         except redis.exceptions.ConnectionError as e:
             self.log.warning("Redis connection error while pushing to queue: %s", e)
@@ -316,7 +316,7 @@ class RedisTransport(BaseTransport):
         try:
             payload = self._serializer.serialize(data)
             if self._compression != CompressionType.NO_COMPRESSION:
-                payload = inflate_str(payload)
+                payload = inflate_str(payload, self._compression)
             self._redis.publish(queue_name, payload)
         except redis.exceptions.ConnectionError as e:
             self.log.warning("Redis connection error while publishing: %s", e)
@@ -452,7 +452,7 @@ class RedisTransport(BaseTransport):
     def _on_msg_internal(self, callback: Callable, data: Any):
         if self._compression != CompressionType.NO_COMPRESSION:
             # _topic = data['channel']
-            data["data"] = deflate(data["data"])
+            data["data"] = deflate(data["data"], self._compression)
         callback(data)
 
     def wait_for_msg(self, queue_name: str, timeout=10):
@@ -465,7 +465,7 @@ class RedisTransport(BaseTransport):
             if isinstance(payload, bytes) and payload == b"QueueInit":
                 return self.wait_for_msg(queue_name, timeout)
             if self._compression != CompressionType.NO_COMPRESSION:
-                payload = deflate(payload)
+                payload = deflate(payload, self._compression)
             return msgq, payload
         except redis.exceptions.TimeoutError as e:
             # Check if it's a timeout or actual connection error

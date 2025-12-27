@@ -512,7 +512,7 @@ class RPCService(BaseRPCService):
             self.log.error("Exception Thrown in on_request_handle", exc_info=True)
         try:
             if self._compression != CompressionType.NO_COMPRESSION:
-                body = deflate(body)
+                body = deflate(body, self._compression)
             _data = self._serializer.deserialize(body)
         except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Could not deserialize data", exc_info=True)
@@ -556,7 +556,7 @@ class RPCService(BaseRPCService):
             _type = self._serializer.CONTENT_TYPE
             _payload = self._serializer.serialize(data)
             if self._compression != CompressionType.NO_COMPRESSION:
-                _payload = inflate_str(_payload)
+                _payload = inflate_str(_payload, self._compression)
             else:
                 _payload = _payload.encode(_encoding)
         except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
@@ -714,7 +714,7 @@ class RPCClient(BaseRPCClient):
 
         try:
             if self._compression != CompressionType.NO_COMPRESSION:
-                body = deflate(body)
+                body = deflate(body, self._compression)
             _data = self._serializer.deserialize(body)
         except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Could not deserialize data", exc_info=True)
@@ -730,7 +730,7 @@ class RPCClient(BaseRPCClient):
         _type = self._serializer.CONTENT_TYPE
         _payload = self._serializer.serialize(data)
         if self._compression != CompressionType.NO_COMPRESSION:
-            _payload = inflate_str(_payload)
+            _payload = inflate_str(_payload, self._compression)
         else:
             _payload = _payload.encode(_encoding)
 

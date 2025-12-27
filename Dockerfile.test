@@ -15,7 +15,7 @@ RUN python -m build
 RUN pip install dist/*.whl
 
 # Install all optional dependencies (extras)
-RUN pip install "commlib-py[all]"
+RUN pip install ".[all,performance]"
 
 # Remove the source directory to ensure we are testing the installed package
 # We keep the tests directory though

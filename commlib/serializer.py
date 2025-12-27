@@ -24,15 +24,16 @@ import enum
 from decimal import Decimal
 from typing import Any, Dict
 
-DEFAULT_JSON_SERIALIZER = "ujson"
-
-
-if DEFAULT_JSON_SERIALIZER == "json":
-    import json as json
-elif DEFAULT_JSON_SERIALIZER == "ujson":
-    import ujson as json
-elif DEFAULT_JSON_SERIALIZER == "orjson":
+try:
     import orjson as json
+    _JSON_BACKEND = "orjson"
+except ImportError:
+    try:
+        import ujson as json
+        _JSON_BACKEND = "ujson"
+    except ImportError:
+        import json as json
+        _JSON_BACKEND = "json"
 
 
 class SerializationTypes(enum.IntEnum):
@@ -43,6 +44,7 @@ class ContentType:
     """Content Types."""
 
     json: str = "application/json"
+    msgpack: str = "application/x-msgpack"
     raw_bytes: str = "application/octet-stream"
     text: str = "plain/text"
 
@@ -88,7 +90,10 @@ class JSONSerializer(Serializer):
         Args:
             data (dict): Serialize to json string
         """
-        return str(json.dumps(JSONSerializer.make_primitives(data)))
+        res = json.dumps(JSONSerializer.make_primitives(data))
+        if isinstance(res, bytes):
+            return res.decode("utf-8")
+        return str(res)
 
     @staticmethod
     def deserialize(data: str) -> Dict[str, Any]:
@@ -140,6 +145,23 @@ class JSONSerializer(Serializer):
         for key, val in data.items():
             data[key] = JSONSerializer.make_primitive_value(val)
         return data
+
+
+class MessagePackSerializer(Serializer):
+    """Serializer for MessagePack data."""
+
+    CONTENT_TYPE: str = ContentType.msgpack
+    CONTENT_ENCODING: str = "binary"
+
+    @staticmethod
+    def serialize(data: Dict[str, Any]) -> bytes:
+        import msgpack
+        return msgpack.packb(data)
+
+    @staticmethod
+    def deserialize(data: bytes) -> Dict[str, Any]:
+        import msgpack
+        return msgpack.unpackb(data, raw=False)
 
 
 class BinarySerializer(Serializer):

@@ -7,6 +7,14 @@ Supports various compression levels for optimized performance.
 import zlib
 
 
+try:
+    import lz4.frame as clib
+    HAS_LZ4 = True
+except ImportError:
+    import zlib as clib
+    HAS_LZ4 = False
+
+
 class CompressionType:
     """CompressionType.
 
@@ -29,13 +37,23 @@ def inflate_str(text: str, compression_type: int = CompressionType.DEFAULT_COMPR
         text (str): text
         compression_type (int): compression_type
     """
+    if compression_type == CompressionType.NO_COMPRESSION:
+        return zlib.compress(text.encode(), 0)
+    if HAS_LZ4:
+        return clib.compress(text.encode())
     return zlib.compress(text.encode(), compression_type)
 
 
-def deflate(data: bytes):
+def deflate(data: bytes, compression_type: int = CompressionType.DEFAULT_COMPRESSION):
     """deflate.
 
     Args:
         data (bytes): data
+        compression_type (int): compression_type
     """
-    return zlib.decompress(data)
+    try:
+        return clib.decompress(data)
+    except Exception:
+        if HAS_LZ4:
+            return zlib.decompress(data)
+        raise
