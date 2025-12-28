@@ -250,6 +250,28 @@ class BaseRPCService(BaseEndpoint):
             return False
         return True
 
+    def _unpack_comm_msg(self, payload: Any, uri: str = None) -> Any:
+        """
+        Unpack the communication message.
+
+        Args:
+            payload (Any): The payload to unpack.
+            uri (str, optional): The URI associated with the message.
+
+        Returns:
+            Tuple[CommRPCMessage, str]: The unpacked message and URI.
+        """
+        try:
+            _payload = self._serializer.deserialize(payload)
+            _data = _payload["data"]
+            _header = _payload["header"]
+            _req_msg = CommRPCMessage(header=CommRPCHeader(**_header), data=_data)
+            if not self._validate_rpc_req_msg(_req_msg):
+                raise ValueError("Request Message is invalid!")
+        except Exception as e:
+            raise ValueError(str(e))
+        return _req_msg, uri
+
     def run_forever(self):
         """run_forever.
         Run the RPC service in background and blocks the main thread.
@@ -418,3 +440,49 @@ class BaseRPCClient(BaseEndpoint):
         """
 
         return self._serialize_data(message.dict())
+
+    def _prepare_request(self, data: Dict[str, Any], reply_to: str = None) -> Dict[str, Any]:
+        """
+        Prepare the RPC request message.
+
+        Args:
+            data (Dict[str, Any]): The data to include in the request.
+            reply_to (str, optional): The reply-to address. If None, a random ID is generated.
+
+        Returns:
+            Dict[str, Any]: The prepared request message as a dictionary.
+        """
+        self._comm_obj.header.timestamp = gen_timestamp()
+        if reply_to:
+            self._comm_obj.header.reply_to = reply_to
+        else:
+            self._comm_obj.header.reply_to = self._gen_queue_name()
+        self._comm_obj.data = data
+        return self._comm_obj.model_dump()
+
+    def _unpack_comm_msg(self, payload: Any, uri: str = None) -> Any:
+        """
+        Unpack the communication message.
+
+        Args:
+            payload (Any): The payload to unpack.
+            uri (str, optional): The URI associated with the message.
+
+        Returns:
+            Tuple[Any, Any, str]: The unpacked data, header, and URI.
+        """
+        _payload = self._serializer.deserialize(payload)
+        _data = _payload["data"]
+        _header = _payload["header"]
+        return _data, _header, uri
+
+    def _prepare_call_data(self, msg: RPCMessage.Request) -> Dict[str, Any]:
+        if self._msg_type is None and isinstance(msg, dict):
+            return msg
+        elif self._msg_type is not None and isinstance(msg, self._msg_type.Request):
+            return msg.model_dump()
+        else:
+            raise ValueError("Invalid message type passed to RPC call")
+
+    def _gen_queue_name(self):
+        return f"rpc-{self._gen_random_id()}"

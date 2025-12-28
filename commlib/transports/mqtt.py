@@ -125,14 +125,7 @@ class MQTTTransport(BaseTransport):
         """
         return self._connected
 
-    def _connect_v3(self):
-        properties = None
-        self._client = mqtt.Client(
-            clean_session=True,
-            protocol=self._conn_params.protocol,
-            transport=self._conn_params.transport,
-        )
-
+    def _configure_client(self):
         self._client.on_connect = self.on_connect
         self._client.on_disconnect = self.on_disconnect
         # self._client.on_log = self.on_log
@@ -155,62 +148,33 @@ class MQTTTransport(BaseTransport):
                 self._client.tls_insecure_set(True)
             else:
                 self._client.tls_insecure_set(False)
-        self._client.connect(
-            self._conn_params.host,
-            int(self._conn_params.port),
-            keepalive=self._conn_params.keepalive,
-            properties=properties,
-        )
-        return properties
-
-    def _connect_v5(self):
-        properties = Properties(PacketTypes.CONNECT)
-        properties.MaximumPacketSize = 20
-        self._client = mqtt.Client(
-            protocol=self._conn_params.protocol,
-            transport=self._conn_params.transport,
-        )
-
-        self._client.on_connect = self.on_connect
-        self._client.on_disconnect = self.on_disconnect
-        # self._client.on_log = self.on_log
-        self._client.on_message = self.on_message
-
-        # Configure reconnection delay
-        min_delay = int(self._conn_params.reconnect_delay)
-        max_delay = min_delay * 10 if min_delay > 0 else 120
-        self._client.reconnect_delay_set(min_delay=min_delay, max_delay=min_delay)
-
-        self._client.username_pw_set(self._conn_params.username, self._conn_params.password)
-        if self._conn_params.ssl:
-            import ssl
-
-            ssl_ctx = ssl.create_default_context()
-            ssl_ctx.check_hostname = False
-            ssl_ctx.verify_mode = ssl.CERT_NONE
-            self._client.tls_set_context(ssl_ctx)
-            if self._conn_params.ssl_insecure:
-                self._client.tls_insecure_set(True)
-            else:
-                self._client.tls_insecure_set(False)
-        self._client.connect(
-            self._conn_params.host,
-            int(self._conn_params.port),
-            keepalive=self._conn_params.keepalive,
-            properties=properties,
-        )
-        return properties
 
     def connect(self) -> None:
         if self._connected:
             raise ConnectionError("Transport already connected to broker")
         self._stopped = False
-        # Workaround for both v3 and v5 support
-        # http://www.steves-internet-guide.com/python-mqtt-client-changes/
+        
+        properties = None
+        client_kwargs = {
+            "protocol": self._conn_params.protocol,
+            "transport": self._conn_params.transport,
+        }
+
         if self._conn_params.protocol == MQTTProtocolType.MQTTv5:
-            properties = self._connect_v5()
+            properties = Properties(PacketTypes.CONNECT)
+            properties.MaximumPacketSize = 20
         else:
-            properties = self._connect_v3()
+            client_kwargs["clean_session"] = True
+
+        self._client = mqtt.Client(**client_kwargs)
+        self._configure_client()
+
+        self._client.connect(
+            self._conn_params.host,
+            int(self._conn_params.port),
+            keepalive=self._conn_params.keepalive,
+            properties=properties,
+        )
         self._mqtt_properties = properties
         self._client.loop_start()
 
@@ -436,12 +400,7 @@ class Publisher(BasePublisher):
         Returns:
             None:
         """
-        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
-            raise ValueError('Argument "msg" must be of type PubSubMessage')
-        elif isinstance(msg, dict):
-            data = msg
-        elif isinstance(msg, PubSubMessage):
-            data = msg.model_dump()
+        data = self._prepare_msg(msg)
         self._transport.publish(self._topic, data, qos=MQTTQoS.L0)
         self._msg_seq += 1
 
@@ -465,12 +424,7 @@ class MPublisher(Publisher):
             None:
         """
         validate_pubsub_topic_strict(topic)
-        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
-            raise ValueError('Argument "msg" must be of type PubSubMessage')
-        elif isinstance(msg, dict):
-            data = msg
-        elif isinstance(msg, PubSubMessage):
-            data = msg.model_dump()
+        data = self._prepare_msg(msg)
         self._transport.publish(topic, data)
         self._msg_seq += 1
 
@@ -743,8 +697,8 @@ class RPCService(BaseRPCService):
 
     def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         try:
-            req_msg, uri = self._unpack_comm_msg(msg)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
+            req_msg, uri = self._unpack_comm_msg(msg.payload, msg.topic)
+        except ValueError as exc:
             self.log.error(
                 "Could not unpack request message: %s\nDropping client request!",
                 exc,
@@ -761,19 +715,6 @@ class RPCService(BaseRPCService):
             self._send_response(resp, req_msg.header.reply_to)
         except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=True)
-
-    def _unpack_comm_msg(self, msg: Any) -> Tuple[CommRPCMessage, str]:
-        try:
-            _uri = msg.topic
-            _payload = self._serializer.deserialize(msg.payload)
-            _data = _payload["data"]
-            _header = _payload["header"]
-            _req_msg = CommRPCMessage(header=CommRPCHeader(**_header), data=_data)
-            if not self._validate_rpc_req_msg(_req_msg):
-                raise RPCRequestError("Request Message is invalid!")
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
-            raise RPCRequestError(str(e))
-        return _req_msg, _uri
 
     def run_forever(self):
         """run_forever."""
@@ -950,36 +891,37 @@ class RPCClient(BaseRPCClient):
             time.sleep(0.001)
         return self._response
 
-    def call(self, msg: RPCMessage.Request, timeout: float = 30) -> RPCMessage.Response:
-        """call.
+    def call(self, msg: RPCMessage.Request, timeout: float = 10) -> RPCMessage.Response:
+        """
+        Sends an RPC request message and waits for a response.
 
         Args:
-            msg (RPCMessage.Request): msg
-            timeout (float): timeout
+            msg (RPCMessage.Request): The RPC request message to be sent.
+            timeout (float, optional): The maximum time to wait for a response in seconds. Defaults to 10.
+
+        Returns:
+            RPCMessage.Response: The response message received. If no response is received within the timeout period, returns None.
         """
-        if self._msg_type is None:
-            data = msg
-        else:
-            if not isinstance(msg, self._msg_type.Request):
-                raise ValueError("Message type not valid")
-            data = msg.model_dump()
-
-        self._response = None
-
+        try:
+            data = self._prepare_call_data(msg)
+        except ValueError as e:
+            raise RPCRequestError(str(e))
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
-
-        self._transport.subscribe(_reply_to, callback=self._on_response_wrapper, qos=MQTTQoS.L1)
-        start_t = time.time()
+        self._transport.subscribe(_reply_to, self._on_response_wrapper)
         self._transport.publish(self._rpc_name, _msg, qos=MQTTQoS.L1)
         _resp = self._wait_for_response(timeout=timeout)
-        elapsed_t = time.time() - start_t
-        self._delay = elapsed_t
         self._transport.unsubscribe(_reply_to)
-
+        if _resp is None:
+            return None
+        # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
             return _resp
         return self._msg_type.Response(**_resp)
+
+    def _on_response_wrapper(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+        data, header, uri = self._unpack_comm_msg(msg.payload, msg.topic)
+        self._response = data
 
 
 class ActionService(BaseActionService):

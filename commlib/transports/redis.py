@@ -124,6 +124,7 @@ class RedisTransport(BaseTransport):
         self._subscription_sleep_interval = 0.001  # sec
         self._subscriptions = {}  # Track subscriptions for reconnection
         self._retry_count = 0
+        self._stopped = False
 
         if self._redis_pool is None:
             self.set_redis_pool(self._build_conn_pool())
@@ -191,6 +192,7 @@ class RedisTransport(BaseTransport):
         )
 
     def connect(self) -> None:
+        self._stopped = False
         if self._conn_params.unix_socket not in ("", None):
             self._redis = RedisConnection(
                 connection_pool=self.get_redis_pool(),
@@ -274,6 +276,7 @@ class RedisTransport(BaseTransport):
         """
         if not self.is_connected:
             self.log.warning("Attempting to stop transport while not connected")
+        self._stopped = True
         if self._rsub_thread is not None:
             self._rsub_thread.stop()
             time.sleep(self._wait_for_pubsub_stop)
@@ -558,14 +561,8 @@ class RPCService(BaseRPCService):
             self._detach_request_handler(payload)
 
     def _detach_request_handler(self, payload: str):
-        data, header = self._unpack_comm_msg(payload)
+        data, header, uri = self._unpack_comm_msg(payload)
         self._on_request_handle(data, header)
-
-    def _unpack_comm_msg(self, payload: str) -> Tuple:
-        _payload = self._serializer.deserialize(payload)
-        _data = _payload["data"]
-        _header = _payload["header"]
-        return _data, _header
 
 
 class RPCClient(BaseRPCClient):
@@ -585,15 +582,6 @@ class RPCClient(BaseRPCClient):
             compression=self._compression,
         )
 
-    def _gen_queue_name(self):
-        return f"rpc-{self._gen_random_id()}"
-
-    def _prepare_request(self, data: Dict[str, Any]):
-        self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
-        self._comm_obj.header.reply_to = self._gen_queue_name()
-        self._comm_obj.data = data
-        return self._comm_obj.model_dump()
-
     def call(self, msg: RPCMessage.Request, timeout: float = 10) -> RPCMessage.Response:
         """
         Sends an RPC request message and waits for a response.
@@ -605,12 +593,10 @@ class RPCClient(BaseRPCClient):
         Returns:
             RPCMessage.Response: The response message received. If no response is received within the timeout period, returns None.
         """
-        if self._msg_type is None and isinstance(msg, dict):
-            data = msg
-        elif self._msg_type is not None and isinstance(msg, self._msg_type.Request):
-            data = msg.model_dump()
-        else:
-            raise RPCRequestError("Invalid message type passed to RPC call")
+        try:
+            data = self._prepare_call_data(msg)
+        except ValueError as e:
+            raise RPCRequestError(str(e))
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
         # while not self._transport.queue_exists(self._rpc_name):
@@ -620,17 +606,11 @@ class RPCClient(BaseRPCClient):
         self._transport.delete_queue(_reply_to)
         if _msg is None:
             return None
-        data, header = self._unpack_comm_msg(_msg)
+        data, header, uri = self._unpack_comm_msg(_msg)
         # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
             return data
         return self._msg_type.Response(**data)
-
-    def _unpack_comm_msg(self, payload: str) -> Tuple:
-        _payload = self._serializer.deserialize(payload)
-        _data = _payload["data"]
-        _header = _payload["header"]
-        return _data, _header
 
 
 class Publisher(BasePublisher):
@@ -665,12 +645,7 @@ class Publisher(BasePublisher):
         Returns:
             None:
         """
-        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
-            raise ValueError('Argument "msg" must be of type PubSubMessage')
-        elif isinstance(msg, dict):
-            data = msg
-        elif isinstance(msg, PubSubMessage):
-            data = msg.model_dump()
+        data = self._prepare_msg(msg)
         self.log.debug("Publishing Message to topic <%s>", self._topic)
 
         self._transport.publish(self._topic, data)
@@ -702,12 +677,7 @@ class MPublisher(Publisher):
             None:
         """
         validate_pubsub_topic_strict(topic)
-        if self._msg_type is not None and not isinstance(msg, PubSubMessage):
-            raise ValueError('Argument "msg" must be of type PubSubMessage')
-        elif isinstance(msg, dict):
-            data = msg
-        elif isinstance(msg, PubSubMessage):
-            data = msg.model_dump()
+        data = self._prepare_msg(msg)
         self.log.debug("Publishing Message: <%s>:%s", topic, data)
         self._transport.publish(topic, data)
         self._msg_seq += 1
