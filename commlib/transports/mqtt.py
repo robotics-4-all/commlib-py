@@ -253,7 +253,7 @@ class MQTTTransport(BaseTransport):
         """
         self._connected = False
         if self._stopped:
-            self.log.info("Transport stopped, not attempting reconnection")
+            self.log.debug("Transport stopped, not attempting reconnection")
             self._client.loop_stop()
             return
 
@@ -263,7 +263,10 @@ class MQTTTransport(BaseTransport):
             self.log.error(err_msg)
         elif rc == MQTTReturnCode.CONNECTION_SUCCESS:
             # Graceful disconnect
-            self.log.info("Gracefully disconnected from MQTT broker")
+            self.log.debug("Gracefully disconnected from MQTT broker")
+        elif self._conn_params.reconnect_attempts == 0:
+            self.log.debug("Disconnected from MQTT broker with: %s. ", error_string(rc))
+            self._stopped = True
         else:
             err_msg = error_string(rc)
             self.log.warning("Disconnected from MQTT broker with: %s. ", err_msg)

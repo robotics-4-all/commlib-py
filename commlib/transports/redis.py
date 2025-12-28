@@ -346,7 +346,8 @@ class RedisTransport(BaseTransport):
         return self._rsub_thread
 
     def exception_handler(self, ex, pubsub, thread):
-        self.log.error("Redis PubSub error in thread: %s, exception: %s", thread, ex)
+        if not self._stopped:
+            self.log.error("Redis PubSub error in thread: %s, exception: %s", thread, ex)
         thread.stop()
         # thread.join(timeout=self._redis_pubsub_join_timeout)
         pubsub.close()
@@ -366,7 +367,7 @@ class RedisTransport(BaseTransport):
 
         # If reconnect_attempts is 0, don't attempt reconnection
         if max_retries <= 0:
-            self.log.warning("Reconnection disabled (reconnect_attempts=0)")
+            self.log.debug("Reconnection disabled (reconnect_attempts=0)")
             return
 
         if retry_count >= max_retries:
@@ -381,7 +382,7 @@ class RedisTransport(BaseTransport):
 
         while self._retry_count < max_retries:
             try:
-                self.log.info(
+                self.log.debug(
                     "Attempting pubsub reconnection (attempt %s/%s)...",
                     retry_count + 1,
                     max_retries,
