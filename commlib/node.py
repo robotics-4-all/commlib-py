@@ -8,7 +8,7 @@ import logging
 import threading
 import time
 from enum import IntEnum
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional
 
 from commlib.compression import CompressionType
 from commlib.msg import HeartbeatMessage, PubSubMessage, RPCMessage
@@ -151,6 +151,7 @@ class Node:
         compression: CompressionType = CompressionType.NO_COMPRESSION,
         ctrl_services: Optional[bool] = False,
         workers_rpc: Optional[int] = 4,
+        on_connected: Optional[Callable] = None,
     ):
         """__init__.
 
@@ -167,6 +168,7 @@ class Node:
             heartbeat_uri (Optional[str]): The Topic URI to publish heartbeat
                 messages
             ctrl_services (Optional[bool]): Enable/Disable control interfaces
+            on_connected (Optional[Callable]): Callback to be called when the node is connected
         """
         if node_name == "" or node_name is None:
             node_name = gen_random_id()
@@ -183,6 +185,7 @@ class Node:
             heartbeat_uri if heartbeat_uri is not None else f"{self._namespace}.heartbeat"
         )
         self._compression = compression
+        self._on_connected = on_connected
         self.state = NodeState.IDLE
 
         self._publishers: List[Any] = []
@@ -337,6 +340,15 @@ class Node:
         if wait:
             while not self.health:
                 time.sleep(0.01)
+            if self._on_connected:
+                self._on_connected()
+        elif self._on_connected:
+            def _wait_conn():
+                while not self.health:
+                    time.sleep(0.01)
+                self._on_connected()
+
+            self._executor.submit(_wait_conn)
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.01) -> None:

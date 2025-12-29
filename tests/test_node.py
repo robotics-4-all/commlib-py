@@ -5,6 +5,7 @@
 import time
 import unittest
 from typing import Optional
+from unittest.mock import MagicMock
 
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
 from commlib.node import Node
@@ -63,3 +64,46 @@ class TestNode(unittest.TestCase):
                                topic="sensors.sonar.front",
                                on_message=on_message)
         self.assertTrue(len(node._subscribers), 1)
+
+    def test_node_on_connected_callback(self):
+        """Test that on_connected callback is called when node starts."""
+        mock_callback = MagicMock()
+        node = Node(
+            node_name="test_node",
+            connection_params=self.connparams,
+            on_connected=mock_callback
+        )
+        
+        # Create a dummy publisher so the node has an endpoint to connect
+        node.create_publisher(msg_type=SonarMessage, topic="test_topic")
+        
+        # Run node synchronously (wait=True)
+        node.run(wait=True)
+        
+        # Verify callback was called
+        mock_callback.assert_called_once()
+        
+        node.stop()
+
+    def test_node_on_connected_callback_async(self):
+        """Test that on_connected callback is called when node starts asynchronously."""
+        mock_callback = MagicMock()
+        node = Node(
+            node_name="test_node_async",
+            connection_params=self.connparams,
+            on_connected=mock_callback
+        )
+        
+        # Create a dummy publisher so the node has an endpoint to connect
+        node.create_publisher(msg_type=SonarMessage, topic="test_topic_async")
+        
+        # Run node asynchronously (wait=False)
+        node.run(wait=False)
+        
+        # Wait a bit for the async thread to execute
+        time.sleep(0.1)
+        
+        # Verify callback was called
+        mock_callback.assert_called_once()
+        
+        node.stop()
