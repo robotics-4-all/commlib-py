@@ -184,16 +184,6 @@ class BaseRPCService(BaseEndpoint):
             *args: Additional positional arguments to pass to the base class constructor.
             **kwargs: Additional keyword arguments to pass to the base class constructor.
 
-        Attributes:
-            _rpc_name (str): The name of the RPC service.
-            _msg_type (RPCMessage): The type of RPC message to use.
-            on_request (Callable): A callback function to handle incoming RPC requests.
-            _gen_random_id (Callable): A function to generate a random ID.
-            _max_workers (int): The maximum number of worker threads to use.
-            _executor (ThreadPoolExecutor): The thread pool executor used to handle RPC requests.
-            _main_thread (threading.Thread): The main thread running the RPC service.
-            _t_stop_event (threading.Event): An event used to signal the RPC service to stop.
-            _comm_obj (CommRPCMessage): An instance of the `CommRPCMessage` class.
         """
 
         super().__init__(*args, **kwargs)
@@ -292,7 +282,7 @@ class BaseRPCService(BaseEndpoint):
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
             self._main_thread.start()
-            # self._executor.submit(self.run_forever)
+            
             if wait:
                 while not self.connected:
                     time.sleep(0.001)
@@ -309,8 +299,6 @@ class BaseRPCService(BaseEndpoint):
         """
         if self._t_stop_event:
             self._t_stop_event.set()
-        # if wait:
-        #     self._main_thread.join()
         super().stop(wait=wait)
         if self._executor:
             self._executor.shutdown(wait=wait, cancel_futures=True)

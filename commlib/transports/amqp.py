@@ -546,7 +546,10 @@ class RPCService(BaseRPCService):
         return resp
 
     def _send_response(
-        self, data: dict, channel, correlation_id: str, reply_to: str, delivery_tag: str
+        self, data: dict, 
+        channel: pika.channel.Channel,
+        correlation_id: str,
+        reply_to: str, delivery_tag: str
     ):
         _payload = None
         _encoding = None

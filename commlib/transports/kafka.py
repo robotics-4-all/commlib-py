@@ -492,7 +492,7 @@ class RPCServer(BaseRPCServer):
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
-                    self.log.debug("Stop event caught in thread")
+                    self.log.debug("Stop event caught")
                     break
             time.sleep(0.001)
         self._transport.stop()

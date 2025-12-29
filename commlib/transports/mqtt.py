@@ -217,8 +217,7 @@ class MQTTTransport(BaseTransport):
         """
         self._connected = False
         if self._stopped:
-            self.log.debug("Transport stopped, not attempting reconnection")
-            self._client.loop_stop()
+            self.log.debug("Gracefully disconnected from MQTT broker")
             return
 
         err_msg = ""
@@ -270,7 +269,10 @@ class MQTTTransport(BaseTransport):
         self.log.info(level, buf)
 
     def publish(
-        self, topic: str, payload: Dict[str, Any], qos: MQTTQoS = MQTTQoS.L0, retain: bool = False
+        self, topic: str,
+        payload: Dict[str, Any],
+        qos: MQTTQoS = MQTTQoS.L0,
+        retain: bool = False
     ) -> None:
         """publish.
 
@@ -339,6 +341,7 @@ class MQTTTransport(BaseTransport):
         callback(client, userdata, msg)
 
     def disconnect(self) -> None:
+        self._client.loop_stop()
         self._client.disconnect()
 
     def start(self) -> None:
@@ -361,7 +364,6 @@ class MQTTTransport(BaseTransport):
         """
         self._stopped = True
         self.disconnect()
-        self._client.loop_stop()
 
     def loop_forever(self):
         """loop_forever.
@@ -498,7 +500,7 @@ class Subscriber(BaseSubscriber):
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
-                    self.log.debug("Stop event caught in thread")
+                    self.log.debug("Stop event caught in subscriber")
                     break
             time.sleep(0.001)
         self._transport.stop()
