@@ -111,8 +111,6 @@ class BasePublisher(BaseEndpoint):
 class BaseSubscriber(BaseEndpoint):
     """BaseSubscriber."""
 
-    LOOP_INTERVAL = 0.001
-
     @classmethod
     def logger(cls) -> logging.Logger:
         global pubsub_logger

@@ -34,6 +34,12 @@ class CommRPCMessage(BaseModel):
 
 
 class BaseRPCServer(BaseEndpoint):
+    """BaseRPCServer.
+
+    Base class for RPC server implementations.
+    Provides infrastructure for handling RPC requests using a thread pool.
+    """
+
     @classmethod
     def logger(cls) -> logging.Logger:
         global rpc_logger
@@ -46,7 +52,6 @@ class BaseRPCServer(BaseEndpoint):
         base_uri: str = "",
         svc_map: dict = {},
         workers: int = 4,
-        interval: float = 0.001,
         *args,
         **kwargs,
     ):
@@ -58,35 +63,17 @@ class BaseRPCServer(BaseEndpoint):
             svc_map (dict): A mapping of service names to their corresponding RPC service implementations.
             workers (int): The number of worker threads to use for the RPC service.
 
-        Attributes:
-            _base_uri (str): The base URI for the RPC service.
-            _svc_map (dict): A mapping of service names to their corresponding RPC service implementations.
-            _max_workers (int): The number of worker threads to use for the RPC service.
-            _gen_random_id (Callable): A function to generate a random ID.
-            _executor (ThreadPoolExecutor): A thread pool executor to handle RPC requests.
-            _main_thread (threading.Thread): The main thread for the RPC service.
-            _t_stop_event (threading.Event): An event to signal the RPC service to stop.
-            _comm_obj (CommRPCMessage): An instance of the CommRPCMessage class.
         """
 
         super().__init__(*args, **kwargs)
         self._base_uri: str = base_uri
         self._svc_map: Dict[str, Any] = svc_map
         self._max_workers: int = workers
-        self._interval: float = interval
         self._gen_random_id = gen_random_id
         self._executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._main_thread = None
         self._t_stop_event: threading.Event = threading.Event()
         self._comm_obj: CommRPCMessage = CommRPCMessage()
-
-    @property
-    def interval(self) -> float:
-        return self._interval
-
-    @interval.setter
-    def interval(self, value: float):
-        self._interval = value
 
     def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
         """_validate_rpc_req_msg.
@@ -113,7 +100,7 @@ class BaseRPCServer(BaseEndpoint):
         self._transport.start()
         self.start_endpoints()
         while not self._t_stop_event.is_set():
-            time.sleep(self.interval)
+            time.sleep(self._LOOP_INTERVAL)
         self.log.debug("Stop event caught in thread")
         self._transport.stop()
 
@@ -133,7 +120,7 @@ class BaseRPCServer(BaseEndpoint):
             self._main_thread.start()
             if wait:
                 while not self.connected:
-                    time.sleep(self.interval)
+                    time.sleep(self._LOOP_INTERVAL)
             self._state = EndpointState.CONNECTED
         else:
             self.log.warning("Transport already connected - Skipping")
@@ -150,11 +137,14 @@ class BaseRPCService(BaseEndpoint):
     """ΒaseRPCService.
     Implements a base class for an RPC service that can be run in the background.
 
-    The `BaseRPCService` class provides a foundation for implementing RPC services that can be run in the background. It includes functionality for managing worker threads, serializing and deserializing RPC messages, and handling incoming RPC requests.
+    The `BaseRPCService` class provides a foundation for implementing RPC services that can be run in the background.
+    It includes functionality for managing worker threads, serializing and deserializing RPC messages,
+    and handling incoming RPC requests.
 
-    Subclasses of `BaseRPCService` must implement the `run_forever()` method, which is responsible for the main loop of the RPC service. The `run()` method starts the RPC service in a background thread, and the `stop()` method stops the RPC service.
-
-    The `_serialize_data()`, `_serialize_response()`, and `_validate_rpc_req_msg()` methods are utility functions used by the RPC service implementation.
+    Subclasses of `BaseRPCService` must implement the `run_forever()` method,
+    which is responsible for the main loop of the RPC service.
+    The `run()` method starts the RPC service in a background thread,
+    and the `stop()` method stops the RPC service.
     """
 
     @classmethod
@@ -285,7 +275,7 @@ class BaseRPCService(BaseEndpoint):
             
             if wait:
                 while not self.connected:
-                    time.sleep(0.001)
+                    time.sleep(self._LOOP_INTERVAL)
 
             self._state = EndpointState.CONNECTED
         else:

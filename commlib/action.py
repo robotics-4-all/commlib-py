@@ -296,6 +296,16 @@ class GoalHandler:
 
 
 class BaseActionService:
+    """
+    Base class for implementing action services.
+
+    Provides the core functionality for managing action-based communication,
+    including goal handling, status tracking, feedback publishing, and
+    result reporting.
+    """
+    
+    _LOOP_INTERVAL = 0.001
+
     @classmethod
     def logger(cls) -> logging.Logger:
         global actions_logger
@@ -526,7 +536,7 @@ class BaseActionService:
         status: int = 0,
         data: Dict[str, Any] = {},
     ):
-        if self._notify_pub is not None:  # TODO CHECK IF CONNECTED!
+        if self._notify_pub is not None:
             _msg = _ActionNotifyMessage(
                 msg=msg,
                 goal_description=description,
@@ -541,6 +551,16 @@ class BaseActionService:
 
 
 class BaseActionClient:
+    """
+    Base class for Action Clients.
+
+    This class provides the basic functionality for an Action Client, including
+    sending goals, canceling goals, and receiving feedback and results from
+    an Action Service.
+    """
+
+    _LOOP_INTERVAL = 0.001
+
     @classmethod
     def logger(cls) -> logging.Logger:
         global actions_logger
@@ -592,10 +612,10 @@ class BaseActionClient:
         self._status_sub = None
         self._feedback_sub = None
         self._goal_id = None
-
+        self._result = None
         self._status = _ActionStatusMessage()
+
         self.on_feedback = on_feedback
-        self.result = None
         self.on_result = on_result
         self.on_goal_reached = on_goal_reached
 
@@ -606,6 +626,18 @@ class BaseActionClient:
     @property
     def log(self):
         return self.logger()
+
+    @property
+    def result(self):
+        return self._result
+
+    @property
+    def status(self):
+        return self._status
+
+    @property
+    def goal_id(self):
+        return self._goal_id
 
     @property
     def connected(self):
@@ -639,7 +671,7 @@ class BaseActionClient:
         req = _ActionGoalMessage.Request(goal_data=_data)
         self._status = _ActionStatusMessage()
         resp = self._goal_client.call(req, timeout=timeout)
-        self.result = None
+        self._result = None  # Reset result
         self._goal_id = resp.goal_id
         return resp
 
@@ -657,10 +689,11 @@ class BaseActionClient:
             _ActionCancelMessage.Response:
         """
         req = _ActionCancelMessage.Request(goal_id=self._goal_id)
-        _ = self._cancel_client.call(req, timeout=timeout)
+        resp = self._cancel_client.call(req, timeout=timeout)
         # TODO Check response status
-        res = self.get_result(wait=wait_for_result)
-        return res
+        # res = self.get_result(wait=wait_for_result)
+        # return res
+        return resp
 
     def get_result(
         self, timeout: float = 10.0, wait: bool = False, wait_max_sec: float = 30.0
@@ -677,29 +710,37 @@ class BaseActionClient:
         Returns:
             ActionMessage.Result:
         """
-        if self.result is not None:
-            return self.result
         req = _ActionResultMessage.Request(goal_id=self._goal_id)
+        if self._result is not None:
+            return self._result
         if wait:
             t_start = time.time()
             t_elapsed = 0
             while t_elapsed < wait_max_sec:
                 # If the goal has reached a final state
-                if self._status.status in (
-                    GoalStatus.ABORTED,
-                    GoalStatus.SUCCEDED,
-                    GoalStatus.CANCELED,
-                ):
-                    resp = self._result_client.call(req, timeout=timeout)
-                    if self._msg_type is None:
-                        res = resp.result
-                    else:
-                        res = self._msg_type.Result(**resp.result)
-                    self.result = res
-                    return res
-                time.sleep(0.001)
+                if self._result is not None:
+                    return self._result
+                time.sleep(self._LOOP_INTERVAL)
                 t_elapsed = time.time() - t_start
-        return None
+        return self._result
+
+    def _call_get_result(self, timeout: float = 10.0) -> ActionMessage.Result:
+        """_get_result.
+        Returns the result of the goal.
+
+        Args:
+            timeout (float): timeout
+
+        Returns:
+            ActionMessage.Result:
+        """
+        req = _ActionResultMessage.Request(goal_id=self._goal_id)
+        resp = self._result_client.call(req, timeout=timeout)
+        if self._msg_type is None:
+            res = resp.result
+        else:
+            res = self._msg_type.Result(**resp.result)
+        return res
 
     def _on_status(self, msg: _ActionStatusMessage) -> None:
         """_on_status.
@@ -711,6 +752,7 @@ class BaseActionClient:
         Returns:
             None:
         """
+        self.log.debug(f"ActionClient <on-status> callback: {msg}")
         # Check if the goal_id matches the one of the current goal.
         if msg.goal_id != self._goal_id:
             return
@@ -721,15 +763,16 @@ class BaseActionClient:
             GoalStatus.CANCELED,
             GoalStatus.ABORTED,
         ):
-            res = self.get_result(wait=True, wait_max_sec=10)
-            self.result = res
+            resp = self._call_get_result()
+            self._result = resp
+            
             # Call the on_goal_reached callback
             if self._status.status == GoalStatus.SUCCEDED and self.on_goal_reached is not None:
-                self.on_goal_reached(res)
+                self.on_goal_reached(resp)
 
             # If the on_result callback was declared
             if self.on_result is not None:
-                self.on_result(res)
+                self.on_result(resp)
 
     def _on_feedback(self, msg: _ActionFeedbackMessage) -> None:
         """_on_feedback.
@@ -759,6 +802,8 @@ class BaseActionClient:
 
         This method starts the execution of the action client endpoints, including the status subscriber, feedback subscriber, goal client, cancel client, and result client. These endpoints are responsible for communicating with the action server and handling the various stages of the action execution.
         """
+        self._goal_id = None
+        self._result = None
         if self._status_sub is not None:
             self._status_sub.run()
         if self._feedback_sub is not None:

@@ -47,6 +47,7 @@ class BaseEndpoint:
     Subclasses of `BaseEndpoint` should implement the specific functionality for their
     endpoint type, such as RPC, publish/subscribe, etc.
     """
+    _LOOP_INTERVAL = 0.001
 
     @classmethod
     def logger(cls) -> logging.Logger:
