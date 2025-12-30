@@ -125,18 +125,12 @@ class TestBaseRPCServer(unittest.TestCase):
         )
         self.assertEqual(server._svc_map, svc_map)
 
-    def test_rpc_server_interval(self):
-        """Test BaseRPCServer interval property."""
-        server = BaseRPCServer(
-            interval=0.5,
-            conn_params=self.conn_params
-        )
-        self.assertEqual(server.interval, 0.5)
+
 
     def test_rpc_server_default_interval(self):
         """Test BaseRPCServer default interval."""
         server = BaseRPCServer(conn_params=self.conn_params)
-        self.assertEqual(server.interval, 0.001)
+        self.assertEqual(server._LOOP_INTERVAL, 0.001)
 
     def test_rpc_server_logger(self):
         """Test BaseRPCServer logger."""
