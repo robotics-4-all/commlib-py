@@ -142,6 +142,7 @@ class ConnectionParameters(BaseConnectionParameters):
 
 class Connection(pika.BlockingConnection):
     """Connection. Thin wrapper around pika.BlockingConnection"""
+    _PROCESS_EVENTS_INTERVAL = 0.01
 
     def __init__(self, conn_params: ConnectionParameters):
         """__init__.
@@ -184,12 +185,12 @@ class Connection(pika.BlockingConnection):
     def _ensure_events_processed(self):
         """_ensure_events_processed."""
         try:
-            while True:
-                self.sleep(1)
+            while True and self.is_open:
+                self.sleep(self._PROCESS_EVENTS_INTERVAL)
                 if self._t_stop_event.is_set():
                     break
         except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
-            print(f"Exception thrown while processing amqp events - {exc}")
+            self.log.debug(f"Exception thrown while processing amqp events - {exc}")
 
 
 class ExchangeType:
@@ -318,8 +319,7 @@ class AMQPTransport(BaseTransport):
         queue_size: int = 10,
         message_ttl: int = 60000,
         overflow_behaviour: int = "drop-head",
-        expires: int = 600000,
-    ):
+        expires: int = 600000):
         """
         Create a new queue.
 
@@ -419,7 +419,7 @@ class AMQPTransport(BaseTransport):
 
     def stop_consuming(self):
         try:
-            self.channel.stop_consuming()
+            self.add_threadsafe_callback(self.channel.stop_consuming)
         except BaseException:
             pass
 
@@ -464,9 +464,7 @@ class RPCService(BaseRPCService):
 
     def run_forever(self, raise_if_exists: bool = False):
         """Run RPC Service in normal mode. Blocking operation."""
-        status = self._transport.start()
-        if not status:
-            raise ConnectionError("Failed to connect to AMQP broker")
+        self._transport.start()
 
         self._rpc_queue = self._transport.create_queue(self._rpc_name)
         self._transport.set_channel_qos(prefetch_count=self._max_workers)
@@ -489,57 +487,36 @@ class RPCService(BaseRPCService):
         # TODO handle tasks
 
     def _on_request_callback(self, ch, method, properties, body):
-        _data = {}
-        _ctype = None
-        _cencoding = None
-        _ts_send = None
-        _dmode = None
-        _corr_id = None
-        _reply_to = None
-        _delivery_tag = None
         try:
-            _reply_to = properties.reply_to
-            _delivery_tag = method.delivery_tag
-            _corr_id = properties.correlation_id
-            _ctype = properties.content_type
-            _cencoding = properties.content_encoding
-            _dmode = properties.delivery_mode
-            _ts_send = properties.timestamp
-            _req_msg = CommRPCMessage(header=CommRPCHeader(reply_to=_reply_to), data=_data)
-            if not self._validate_rpc_req_msg(_req_msg):
-                raise RPCRequestError("Request Message is invalid!")
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
-            self.log.error("Exception Thrown in on_request_handle", exc_info=True)
-        try:
-            if self._compression != CompressionType.NO_COMPRESSION:
-                body = deflate(body, self._compression)
-            _data = self._serializer.deserialize(body)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
-            self.log.error("Could not deserialize data", exc_info=True)
+            # Unpack and validate the message using the base class method
+            req_msg, _ = self._unpack_comm_msg(body)
+            
+            # Execute the callback
+            resp = self._invoke_onrequest_callback(req_msg.data)
+            
+            # Send the response
+            # Use the reply_to from AMQP properties if available (for Direct Reply-to), 
+            # otherwise fall back to the header (though for AMQP Direct Reply-to, property is key)
+            reply_to = properties.reply_to or req_msg.header.reply_to
+            
             self._transport.add_threadsafe_callback(
-                self._send_response, {}, ch, _corr_id, _reply_to, _delivery_tag
+                self._send_response, resp, ch, properties.correlation_id, reply_to, method.delivery_tag
             )
-            return
-        try:
-            resp = self._invoke_onrequest_callback(_data)
-            self._transport.add_threadsafe_callback(
-                self._send_response, resp, ch, _corr_id, _reply_to, _delivery_tag
-            )
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
-            self.log.error("OnRequest Callback invocation failed", exc_info=True)
+        except Exception as exc:
+            self.log.error("Error processing RPC request: %s", exc, exc_info=True)
 
     def _invoke_onrequest_callback(self, data: dict):
         if self._msg_type is None:
             try:
                 resp = self.on_request(data)
-            except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
+            except Exception as exc:
                 self.log.error(str(exc), exc_info=False)
                 resp = {}
         else:
             try:
                 msg = self._msg_type.Request(**data)
                 resp = self.on_request(msg)
-            except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
+            except Exception as exc:
                 self.log.error(str(exc), exc_info=False)
                 resp = self._msg_type.Response()
             resp = resp.model_dump()
@@ -549,22 +526,27 @@ class RPCService(BaseRPCService):
         self, data: dict, 
         channel: pika.channel.Channel,
         correlation_id: str,
-        reply_to: str, delivery_tag: str
-    ):
+        reply_to: str, delivery_tag: str):
         _payload = None
         _encoding = None
         _type = None
         try:
+            # Prepare response message using the standard structure
+            self._comm_obj.header.timestamp = gen_timestamp()
+            self._comm_obj.data = data
+            _resp_data = self._comm_obj.model_dump()
+            
             _encoding = self._serializer.CONTENT_ENCODING
             _type = self._serializer.CONTENT_TYPE
-            _payload = self._serializer.serialize(data)
+            _payload = self._serializer.serialize(_resp_data)
+            
             if self._compression != CompressionType.NO_COMPRESSION:
                 _payload = inflate_str(_payload, self._compression)
             else:
                 _payload = _payload.encode(_encoding)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
-            self.log.error("Could not deserialize data", exc_info=True)
-            _payload = {"status": 501, "error": f"Internal server error: {e}"}
+        except Exception as e:
+            self.log.error("Could not serialize response data", exc_info=True)
+            return
 
         _msg_props = MessageProperties(
             content_type=_type,
@@ -631,20 +613,6 @@ class RPCClient(BaseRPCClient):
         self._transport = AMQPTransport(
             conn_params=self._conn_params, connection=connection, debug=self.debug
         )
-        self._transport.connect()
-
-        # Register on_request cabblack handle
-        self._transport.add_threadsafe_callback(
-            self._transport.channel.basic_consume,
-            "amq.rabbitmq.reply-to",
-            self._on_response_handle,
-            exclusive=True,
-            consumer_tag=None,
-            auto_ack=True,
-        )
-
-        if connection is None:
-            self.run()
 
     @property
     def delay(self) -> float:
@@ -654,8 +622,16 @@ class RPCClient(BaseRPCClient):
         return self._delay
 
     def run(self):
-        self._transport.detach_amqp_events_thread()
         super().run()
+        self._transport.add_threadsafe_callback(
+            self._transport.channel.basic_consume,
+            "amq.rabbitmq.reply-to",
+            self._on_response_handle,
+            exclusive=True,
+            consumer_tag=None,
+            auto_ack=True,
+        )
+        self._transport.detach_amqp_events_thread()
 
     def gen_corr_id(self) -> str:
         """Generate correlationID."""
@@ -694,35 +670,25 @@ class RPCClient(BaseRPCClient):
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:
                 return None
-            time.sleep(0.001)
+            time.sleep(self._LOOP_INTERVAL)
         return self._response
 
     def _on_response_handle(self, ch, method, properties, body):
-        _ctype = None
-        _cencoding = None
-        _ts_send = None
-        _dmode = None
-        _data = None
         try:
             if self._use_corr_id:
-                _corr_id = properties.correlation_id
-                if self._corr_id != _corr_id:
+                if self._corr_id != properties.correlation_id:
                     return
-            _ctype = properties.content_type
-            _cencoding = properties.content_encoding
-            _dmode = properties.delivery_mode
-            _ts_send = properties.timestamp
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
-            self.log.error("Error parsing response from rpc server.", exc_info=True)
 
-        try:
             if self._compression != CompressionType.NO_COMPRESSION:
                 body = deflate(body, self._compression)
-            _data = self._serializer.deserialize(body)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
-            self.log.error("Could not deserialize data", exc_info=True)
-            _data = {}
-        self._response = _data
+                
+            # Unpack the response using base class method
+            data, header, _ = self._unpack_comm_msg(body)
+            self._response = data
+            
+        except Exception as e:
+            self.log.error("Error parsing response from rpc server.", exc_info=True)
+            self._response = {}
 
     def _send_msg(self, data: Dict) -> None:
         _payload = None
@@ -731,7 +697,14 @@ class RPCClient(BaseRPCClient):
 
         _encoding = self._serializer.CONTENT_ENCODING
         _type = self._serializer.CONTENT_TYPE
-        _payload = self._serializer.serialize(data)
+        
+        # Prepare request using base class method
+        # AMQP Direct Reply-to requires the reply_to property to be set in AMQP properties
+        # We also include it in the payload header for consistency
+        req_data = self._prepare_request(data, reply_to="amq.rabbitmq.reply-to")
+        
+        _payload = self._serializer.serialize(req_data)
+        
         if self._compression != CompressionType.NO_COMPRESSION:
             _payload = inflate_str(_payload, self._compression)
         else:
@@ -780,14 +753,14 @@ class Publisher(BasePublisher):
         self._transport = AMQPTransport(
             conn_params=self._conn_params, connection=connection, debug=self.debug
         )
-        self._transport.connect()
-        self._transport.create_exchange(self._topic_exchange, ExchangeType.Topic)
-        if connection is None:
-            self.run()
 
     def run(self) -> None:
-        self._transport.detach_amqp_events_thread()
         super().run()
+        _exch_ex = self._transport.exchange_exists(self._topic_exchange)
+        if _exch_ex.method.NAME != "Exchange.DeclareOk":
+            self._transport.create_exchange(self._topic_exchange, ExchangeType.Topic)
+        self._transport.detach_amqp_events_thread()
+
 
     def publish(self, msg: PubSubMessage) -> None:
         """Publish message once.
@@ -797,10 +770,9 @@ class Publisher(BasePublisher):
         """
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
-        elif isinstance(msg, dict):
-            data = msg
-        elif isinstance(msg, PubSubMessage):
-            data = msg.model_dump()
+        
+        data = self._prepare_msg(msg)
+        
         # Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data, self._topic)
 
@@ -846,10 +818,9 @@ class MPublisher(Publisher):
         """
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
-        elif isinstance(msg, dict):
-            data = msg
-        elif isinstance(msg, PubSubMessage):
-            data = msg.model_dump()
+            
+        data = self._prepare_msg(msg)
+        
         # Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data, topic)
 

@@ -123,7 +123,8 @@ class MQTTTransport(BaseTransport):
         Returns:
             bool: True if connected to broker, False otherwise.
         """
-        return self._connected
+        # return self._connected
+        return self._client.is_connected() if self._client else False
 
     def _configure_client(self):
         self._client.on_connect = self.on_connect
@@ -179,8 +180,8 @@ class MQTTTransport(BaseTransport):
         self._client.loop_start()
 
     def on_connect(
-        self, client: Any, userdata: Any, flags: Dict[str, Any], rc: int, properties: Any = None
-    ):
+        self, client: Any, userdata: Any,
+        flags: Dict[str, Any], rc: int, properties: Any = None):
         """on_connect.
 
         Callback for on-connect event.
@@ -199,7 +200,6 @@ class MQTTTransport(BaseTransport):
             self.log.error("Failed to connect to MQTT Broker: %s", error_string(rc))
 
     def _report_on_connect(self) -> None:
-        self.log.info("Connected to MQTT Broker")
         self.log.debug("MQTT Transport initiated:")
         self.log.debug("- Broker: mqtt://" + f"{self._conn_params.host}:{self._conn_params.port}")
         self.log.debug("- Data Serialization: %s", self._serializer)
@@ -272,8 +272,7 @@ class MQTTTransport(BaseTransport):
         self, topic: str,
         payload: Dict[str, Any],
         qos: MQTTQoS = MQTTQoS.L0,
-        retain: bool = False
-    ) -> None:
+        retain: bool = False) -> None:
         """publish.
 
         Args:
@@ -353,6 +352,8 @@ class MQTTTransport(BaseTransport):
             self.connect()
         except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
             self.log.error("Could not establish connection to MQTT Broker: %s", e)
+            if not self._conn_params.reconnect_attempts:
+                return
             self.stop()
             time.sleep(self._conn_params.reconnect_delay)
             self.start()
@@ -502,7 +503,7 @@ class Subscriber(BaseSubscriber):
                 if self._t_stop_event.is_set():
                     self.log.debug("Stop event caught in subscriber")
                     break
-            time.sleep(0.001)
+            time.sleep(self._LOOP_INTERVAL)
         self._transport.stop()
 
     def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -578,7 +579,7 @@ class WSubscriber(BaseSubscriber):
                 if self._t_stop_event.is_set():
                     self.log.debug("Stop event caught in thread")
                     break
-            time.sleep(0.001)
+            time.sleep(self._LOOP_INTERVAL)
         self._transport.stop()
 
     def subscribe(self, topic: str, callback: callable) -> None:
@@ -648,7 +649,7 @@ class PSubscriber(BaseSubscriber):
                 if self._t_stop_event.is_set():
                     self.log.debug("Stop event caught in thread")
                     break
-            time.sleep(0.001)
+            time.sleep(self._LOOP_INTERVAL)
         self._transport.stop()
 
     def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
@@ -701,7 +702,7 @@ class RPCService(BaseRPCService):
         try:
             req_msg, uri = self._unpack_comm_msg(msg.payload, msg.topic)
         except ValueError as exc:
-            self.log.error(
+            self.log.warning(
                 "Could not unpack request message: %s\nDropping client request!",
                 exc,
                 exc_info=True,
@@ -727,7 +728,7 @@ class RPCService(BaseRPCService):
                 if self._t_stop_event.is_set():
                     self.log.debug("Stop event caught in thread")
                     break
-            time.sleep(0.001)
+            time.sleep(self._LOOP_INTERVAL)
         self._transport.stop()
 
 
@@ -887,10 +888,12 @@ class RPCClient(BaseRPCClient):
         """
         start_t = time.time()
         while self._response is None:
+            if not self._transport.is_connected or self._transport._stopped:
+                raise RPCClientTimeoutError("Transport is not connected")
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:
                 raise RPCClientTimeoutError(f"Response timeout after {timeout} seconds")
-            time.sleep(0.001)
+            time.sleep(self._LOOP_INTERVAL)
         return self._response
 
     def call(self, msg: RPCMessage.Request, timeout: float = 10) -> RPCMessage.Response:
@@ -919,10 +922,11 @@ class RPCClient(BaseRPCClient):
         # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
             return _resp
+        self._response = None
         return self._msg_type.Response(**_resp)
 
     def _on_response_wrapper(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        data, header, uri = self._unpack_comm_msg(msg.payload, msg.topic)
+        data, header, uri = self._unpack_comm_msg(msg)
         self._response = data
 
 

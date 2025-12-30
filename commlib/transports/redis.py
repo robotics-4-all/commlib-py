@@ -275,7 +275,7 @@ class RedisTransport(BaseTransport):
             Any exceptions raised during the cleanup process will propagate to the caller.
         """
         if not self.is_connected:
-            self.log.warning("Attempting to stop transport while not connected")
+            self.log.debug("Attempting to stop transport while not connected")
         self._stopped = True
         if self._rsub_thread is not None:
             self._rsub_thread.stop()
@@ -350,7 +350,7 @@ class RedisTransport(BaseTransport):
 
     def exception_handler(self, ex, pubsub, thread):
         if not self._stopped:
-            self.log.error("Redis PubSub error in thread: %s, exception: %s", thread, ex)
+            self.log.debug("Redis PubSub error in thread: %s, exception: %s", thread, ex)
         thread.stop()
         # thread.join(timeout=self._redis_pubsub_join_timeout)
         pubsub.close()
@@ -476,6 +476,10 @@ class RedisTransport(BaseTransport):
             msgq = ""
             payload = None
             return msgq, payload
+        except TypeError as e:
+            msgq = ""
+            payload = None
+            return msgq, payload
         except redis.exceptions.ConnectionError as e:
             self.log.warning("Redis connection error: %s", e)
             self._attempt_reconnect()
@@ -507,23 +511,21 @@ class RPCService(BaseRPCService):
         _resp = self._comm_obj.model_dump()
         self._transport.push_msg_to_queue(reply_to, _resp)
 
-    def _on_request_handle(self, data: Dict[str, Any], header: Dict[str, Any]):
+    def _on_request_handle(self, payload):
         try:
-            self._executor.submit(self._on_request_internal, data, header)
+            req_msg, topic = self._unpack_comm_msg(payload)
+            self._executor.submit(self._on_request_internal, req_msg)
         except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=False)
 
-    def _on_request_internal(self, data: Dict[str, Any], header: Dict[str, Any]):
-        if "reply_to" not in header:
-            return
+    def _on_request_internal(self, req_msg: CommRPCMessage):
         try:
-            _req_msg = CommRPCMessage(header=CommRPCHeader(reply_to=header["reply_to"]), data=data)
-            if not self._validate_rpc_req_msg(_req_msg):
+            if not self._validate_rpc_req_msg(req_msg):
                 raise RPCRequestError("Request Message is invalid!")
             if self._msg_type is None:
-                resp = self.on_request(data)
+                resp = self.on_request(req_msg.data)
             else:
-                resp = self.on_request(self._msg_type.Request(**data))
+                resp = self.on_request(self._msg_type.Request(**req_msg.data))
                 # RPCMessage.Response object here
                 resp = resp.model_dump()
         except RPCRequestError:
@@ -532,7 +534,7 @@ class RPCService(BaseRPCService):
         except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
             self.log.error(str(exc), exc_info=False)
             resp = {}
-        self._send_response(resp, _req_msg.header.reply_to)
+        self._send_response(resp, req_msg.header.reply_to)
 
     def run_forever(self):
         """
@@ -558,11 +560,7 @@ class RPCService(BaseRPCService):
             msgq, payload = self._transport.wait_for_msg(self._rpc_name)
             if payload is None:
                 continue
-            self._detach_request_handler(payload)
-
-    def _detach_request_handler(self, payload: str):
-        data, header, uri = self._unpack_comm_msg(payload)
-        self._on_request_handle(data, header)
+            self._on_request_handle(payload)
 
 
 class RPCClient(BaseRPCClient):

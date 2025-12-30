@@ -342,7 +342,7 @@ class RPCService(BaseRPCService):
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
-            self.log.error(
+            self.log.warning(
                 f"Could not unpack request message: {exc}\n" "Dropping client request!",
                 exc_info=True,
             )
