@@ -61,13 +61,16 @@ lint: ## check style with flake8
 	flake8 commlib tests
 
 test: ## run tests in docker
-	./run_tests.sh unit
+	./scripts/run_tests.sh unit
 
-test-package: ## run integration tests in docker (requires MQTT and Redis brokers)
-	./run_tests.sh package
+test-package: ## run package build/install tests in docker
+	./scripts/run_tests.sh package
+
+test-integration: ## run integration tests (requires brokers)
+	./scripts/run_tests.sh integration
 
 cov: ## check code coverage quickly with the default Python
-	./run_tests.sh coverage
+	./scripts/run_tests.sh coverage
 
 cov_html: test
 	html
