@@ -278,7 +278,7 @@ def main():
     parser.add_argument("--subs", type=int, nargs="+", default=[1, 5, 10], help="Predefined list of subscriber counts (used if strategy is 'predefined')")
     parser.add_argument("--topic", type=str, default="perf.test", help="Topic to use")
     parser.add_argument("--start-freq-exp", type=int, default=0, help="Starting exponent for frequency (2^x)")
-    parser.add_argument("--max-freq-exp", type=int, default=7, help="Maximum exponent for frequency (2^x)")
+    parser.add_argument("--max-freq-exp", type=int, default=6, help="Maximum exponent for frequency (2^x)")
     parser.add_argument("--plot", action="store_true", help="Enable real-time 3D plotting")
     
     args = parser.parse_args()
