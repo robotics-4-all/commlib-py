@@ -16,29 +16,37 @@ class SonarMessage(PubSubMessage):
     vfov: float = 14.2
 
 
+import time
+
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        broker = "redis"
-    else:
-        broker = str(sys.argv[1])
-    if broker == "redis":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--broker", type=str, default="redis",
+                        choices=["redis", "amqp", "mqtt", "kafka"],
+                        help="Broker type")
+    parser.add_argument("--host", type=str, default="localhost",
+                        help="Broker host")
+    parser.add_argument("--port", type=int, default=None,
+                        help="Broker port")
+    parser.add_argument("--timeout", type=float, default=None,
+                        help="Max time to run (seconds)")
+    args = parser.parse_args()
+
+    if args.broker == "redis":
         from commlib.transports.redis import ConnectionParameters
-    elif broker == "amqp":
+    elif args.broker == "amqp":
         from commlib.transports.amqp import ConnectionParameters
-    elif broker == "mqtt":
+    elif args.broker == "mqtt":
         from commlib.transports.mqtt import ConnectionParameters
-    elif broker == "kafka":
+    elif args.broker == "kafka":
         from commlib.transports.kafka import ConnectionParameters
-    else:
-        print("Not a valid broker-type was given!")
-        sys.exit(1)
-    conn_params = ConnectionParameters(
-        host="localhost",
-        # port=1883,
-        username="",
-        password="",
-        ssl=False,
-    )
+    
+    start_time = time.time()
+    conn_params = ConnectionParameters(host=args.host)
+    if args.port:
+        conn_params.port = args.port
+
+    freq_hz = 2
 
     node = Node(
         node_name="sensors.sonar.front",
@@ -52,10 +60,12 @@ if __name__ == "__main__":
     range = 1
     try:
         while True:
+            if args.timeout and time.time() - start_time > args.timeout:
+                break
             msg = SonarMessage(range=range)
             pub.publish(msg)
             range += 1
-            time.sleep(1)
+            time.sleep(1/freq_hz)
     except Exception as e:
         print(e)
         node.stop()
