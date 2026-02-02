@@ -12,6 +12,7 @@ from typing import Callable, Dict, Optional
 
 from commlib.endpoints import BaseEndpoint, EndpointState
 from commlib.msg import PubSubMessage
+from commlib.thread_pool import get_io_pool
 from commlib.utils import gen_random_id
 
 pubsub_logger = None
@@ -37,7 +38,9 @@ def validate_pubsub_topic(topic: str) -> None:
     """
     if topic is None:
         return
-    if topic in (".", "*", "-", "_", "", " ") or not re.match(TOPIC_PATTERN_REGEX, topic):
+    if topic in (".", "*", "-", "_", "", " ") or not re.match(
+        TOPIC_PATTERN_REGEX, topic
+    ):
         raise ValueError(f"Invalid topic: {topic}")
 
 
@@ -124,6 +127,7 @@ class BaseSubscriber(BaseEndpoint):
         msg_type: Optional[PubSubMessage] = None,
         on_message: Optional[Callable] = None,
         workers: int = 2,
+        use_shared_pool: bool = True,
         *args,
         **kwargs,
     ):
@@ -134,6 +138,8 @@ class BaseSubscriber(BaseEndpoint):
             topic (str): The topic to subscribe to.
             msg_type (Optional[PubSubMessage]): The type of message to expect for this subscription.
             on_message (Optional[Callable]): A callback function to be called when a message is received.
+            workers (int): Number of worker threads (only used if use_shared_pool=False).
+            use_shared_pool (bool): If True, use shared thread pool (recommended). Default: True.
             *args: Additional positional arguments to pass to the base class constructor.
             **kwargs: Additional keyword arguments to pass to the base class constructor.
         """
@@ -144,7 +150,17 @@ class BaseSubscriber(BaseEndpoint):
         self.onmessage = on_message
         self._gen_random_id = gen_random_id
         self._workers = workers
-        self._executor = ThreadPoolExecutor(max_workers=workers)
+        self._use_shared_pool = use_shared_pool
+
+        if use_shared_pool:
+            # Use shared I/O pool - reduces thread count dramatically
+            self._executor = get_io_pool()
+            self._owns_executor = False
+        else:
+            # Create dedicated pool (legacy behavior)
+            self._executor = ThreadPoolExecutor(max_workers=workers)
+            self._owns_executor = True
+
         self._main_thread = None
         self._t_stop_event = None
 
@@ -188,7 +204,9 @@ class BaseSubscriber(BaseEndpoint):
         the main thread.
         """
         if self._transport is None:
-            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}"
+            )
         if not self._transport.is_connected and self._state not in (
             EndpointState.CONNECTED,
             EndpointState.CONNECTING,

@@ -80,7 +80,7 @@ class Timer(threading.Thread):
         while True:
             try:
                 r.sleep()
-            except KeyboardInterrupt as exc:
+            except KeyboardInterrupt:
                 break
             if self._shutdown:
                 break

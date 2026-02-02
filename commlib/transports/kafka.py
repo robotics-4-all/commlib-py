@@ -181,7 +181,9 @@ class Publisher(BasePublisher):
     def _on_delivery(self, err, msg):
         if err is not None:
             self.logger().error(err)
-        self.logger().info("Published on %s, partition", msg.topic(), f"{msg.partition()}")
+        self.logger().info(
+            "Published on %s, partition", msg.topic(), f"{msg.partition()}"
+        )
 
     def run(self):
         self._producer = self._transport.create_producer(self._kafka_cfg)
@@ -206,7 +208,9 @@ class MPublisher(Publisher):
         if key in (None, ""):
             key = self._key
         self._producer.poll(0)
-        self._producer.produce(topic, key=key, value=data, on_delivery=self._on_delivery)
+        self._producer.produce(
+            topic, key=key, value=data, on_delivery=self._on_delivery
+        )
         self._msg_seq += 1
 
 
@@ -287,10 +291,9 @@ class Subscriber(BaseSubscriber):
             data, topic, key, ts = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, data)
+                    self.onmessage(data)
                 else:
-                    _clb = functools.partial(self.onmessage, self._msg_type(**data))
-                _clb()
+                    self.onmessage(self._msg_type(**data))
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
@@ -311,10 +314,9 @@ class PSubscriber(Subscriber):
             data, topic, key, ts = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, data, topic)
+                    self.onmessage(data, topic)
                 else:
-                    _clb = functools.partial(self.onmessage, self._msg_type(**data), topic)
-                _clb()
+                    self.onmessage(self._msg_type(**data), topic)
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
@@ -343,7 +345,7 @@ class RPCService(BaseRPCService):
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.warning(
-                f"Could not unpack request message: {exc}\n" "Dropping client request!",
+                f"Could not unpack request message: {exc}\nDropping client request!",
                 exc_info=True,
             )
             return
@@ -430,7 +432,7 @@ class RPCServer(BaseRPCServer):
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(
-                f"Could not unpack request message: {exc}" "\nDropping client request!",
+                f"Could not unpack request message: {exc}\nDropping client request!",
                 exc_info=True,
             )
             return
@@ -477,7 +479,9 @@ class RPCServer(BaseRPCServer):
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
-    def _register_endpoint(self, uri: str, callback: Callable, msg_type: RPCMessage = None):
+    def _register_endpoint(
+        self, uri: str, callback: Callable, msg_type: RPCMessage = None
+    ):
         self._svc_map[uri] = (callback, msg_type)
         if self._base_uri in (None, ""):
             full_uri = uri

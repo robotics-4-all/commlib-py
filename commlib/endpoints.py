@@ -47,6 +47,7 @@ class BaseEndpoint:
     Subclasses of `BaseEndpoint` should implement the specific functionality for their
     endpoint type, such as RPC, publish/subscribe, etc.
     """
+
     _LOOP_INTERVAL = 0.001
 
     @classmethod
@@ -103,12 +104,19 @@ class BaseEndpoint:
         Finally, it sets the subscriber state to `CONNECTED`.
         """
         if self._transport is None:
-            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}"
+            )
         if not self.connected:
             self._transport.start()
             if wait:
-                while not self.connected:
-                    time.sleep(0.001)
+                # Event-driven waiting (eliminates busy-wait polling)
+                if hasattr(self._transport, "wait_connected"):
+                    self._transport.wait_connected(timeout=10.0)
+                else:
+                    # Fallback for transports without event support
+                    while not self.connected:
+                        time.sleep(0.001)
             self._state = EndpointState.CONNECTED
         else:
             self.log.warning("Transport already connected - Skipping")
@@ -122,12 +130,19 @@ class BaseEndpoint:
         If the transport is connected and the subscriber is not in the `DISCONNECTED` or `DISCONNECTING` state, it stops the transport.
         """
         if self._transport is None:
-            raise RuntimeError(f"Transport not initialized - cannot stop {self.__class__.__name__}")
+            raise RuntimeError(
+                f"Transport not initialized - cannot stop {self.__class__.__name__}"
+            )
         if self._transport.is_connected:
             self._transport.stop()
             if wait:
-                while self.connected:
-                    time.sleep(0.001)
+                # Event-driven waiting (eliminates busy-wait polling)
+                if hasattr(self._transport, "wait_disconnected"):
+                    self._transport.wait_disconnected(timeout=10.0)
+                else:
+                    # Fallback for transports without event support
+                    while self.connected:
+                        time.sleep(0.001)
             self._state = EndpointState.DISCONNECTED
         else:
             self.log.debug(

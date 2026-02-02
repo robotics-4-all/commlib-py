@@ -6,6 +6,7 @@ and subscription restoration on connection loss.
 
 import functools
 import logging
+import threading
 import time
 from typing import Any, Callable, Dict, Tuple, Union
 
@@ -50,6 +51,114 @@ pretty.install()
 console = console.Console()
 
 redis_logger = None
+
+
+# Shared Redis connection pool registry
+# Reduces connection count by 6-10x by sharing pools across instances
+_REDIS_POOL_REGISTRY: Dict[Tuple, redis.ConnectionPool] = {}
+_REDIS_POOL_LOCK = threading.Lock()
+_REDIS_POOL_REFCOUNT: Dict[Tuple, int] = {}
+
+
+def _get_pool_key(conn_params: "ConnectionParameters") -> Tuple:
+    """Generate unique key for connection pool.
+
+    Args:
+        conn_params: Redis connection parameters
+
+    Returns:
+        Tuple key identifying unique connection pool
+    """
+    if conn_params.unix_socket not in ("", None):
+        return ("unix", conn_params.unix_socket, conn_params.db)
+    return ("tcp", conn_params.host, conn_params.port, conn_params.db)
+
+
+def get_or_create_redis_pool(
+    conn_params: "ConnectionParameters",
+) -> redis.ConnectionPool:
+    """Get or create shared Redis connection pool.
+
+    Shares connection pools across Redis transport instances with the same
+    connection parameters. This dramatically reduces connection count.
+
+    Args:
+        conn_params: Redis connection parameters
+
+    Returns:
+        redis.ConnectionPool: Shared connection pool
+    """
+    key = _get_pool_key(conn_params)
+
+    with _REDIS_POOL_LOCK:
+        if key not in _REDIS_POOL_REGISTRY:
+            # Create new pool
+            retry = (
+                Retry(
+                    ExponentialBackoff(
+                        conn_params.reconnect_attempts * conn_params.reconnect_delay
+                    ),
+                    conn_params.reconnect_delay,
+                )
+                if conn_params.reconnect_attempts > 0
+                else None
+            )
+
+            if conn_params.unix_socket in ("", None):
+                pool = redis.ConnectionPool(
+                    host=conn_params.host,
+                    port=conn_params.port,
+                    username=conn_params.username,
+                    password=conn_params.password,
+                    db=conn_params.db,
+                    decode_responses=False,
+                    socket_timeout=conn_params.socket_timeout,
+                    health_check_interval=conn_params.healthcheck_interval,
+                    max_connections=None,
+                )
+            else:
+                pool = redis.ConnectionPool(
+                    unix_socket_path=conn_params.unix_socket,
+                    username=conn_params.username,
+                    password=conn_params.password,
+                    db=conn_params.db,
+                    decode_responses=False,
+                    socket_timeout=conn_params.socket_timeout,
+                    socket_keep_alive=True,
+                    health_check_interval=conn_params.healthcheck_interval,
+                    max_connections=None,
+                )
+
+            _REDIS_POOL_REGISTRY[key] = pool
+            _REDIS_POOL_REFCOUNT[key] = 0
+
+        # Increment reference count
+        _REDIS_POOL_REFCOUNT[key] += 1
+        return _REDIS_POOL_REGISTRY[key]
+
+
+def release_redis_pool(conn_params: "ConnectionParameters") -> None:
+    """Release reference to Redis connection pool.
+
+    Decrements reference count. When count reaches 0, pool is disconnected
+    and removed from registry.
+
+    Args:
+        conn_params: Redis connection parameters
+    """
+    key = _get_pool_key(conn_params)
+
+    with _REDIS_POOL_LOCK:
+        if key in _REDIS_POOL_REFCOUNT:
+            _REDIS_POOL_REFCOUNT[key] -= 1
+
+            if _REDIS_POOL_REFCOUNT[key] <= 0:
+                # No more references, clean up
+                pool = _REDIS_POOL_REGISTRY.pop(key, None)
+                _REDIS_POOL_REFCOUNT.pop(key, None)
+
+                if pool is not None:
+                    pool.disconnect()
 
 
 class ConnectionParameters(BaseConnectionParameters):
@@ -127,7 +236,11 @@ class RedisTransport(BaseTransport):
         self._stopped = False
 
         if self._redis_pool is None:
-            self.set_redis_pool(self._build_conn_pool())
+            # Use shared connection pool (reduces connections by 6-10x)
+            self.set_redis_pool(get_or_create_redis_pool(self._conn_params))
+            self._owns_pool = False
+        else:
+            self._owns_pool = True
 
     @property
     def pubsub_alive(self):
@@ -140,7 +253,15 @@ class RedisTransport(BaseTransport):
                 return False
             self._redis.ping()
             return True
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             return False
 
     @property
@@ -151,7 +272,8 @@ class RedisTransport(BaseTransport):
         retry = (
             Retry(
                 ExponentialBackoff(
-                    self._conn_params.reconnect_attempts * self._conn_params.reconnect_delay
+                    self._conn_params.reconnect_attempts
+                    * self._conn_params.reconnect_delay
                 ),
                 self._conn_params.reconnect_delay,
             )
@@ -206,7 +328,15 @@ class RedisTransport(BaseTransport):
         )
         try:
             self._redis.ping()
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ) as e:
             raise ConnectionError(f"Could not connect to Redis server: {e}")
         self._retry_count = 0
 
@@ -224,7 +354,15 @@ class RedisTransport(BaseTransport):
         if not self.is_connected:
             try:
                 self.connect()
-            except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+            except (
+                RuntimeError,
+                ConnectionError,
+                TimeoutError,
+                ValueError,
+                KeyError,
+                AttributeError,
+                OSError,
+            ) as e:
                 self.log.error("Could not establish connection to Redis: %s", e)
             time.sleep(self._wait_for_connection_init)
         while not self.is_connected:
@@ -253,7 +391,15 @@ class RedisTransport(BaseTransport):
                 self.log.info("Successfully reconnected to Redis")
                 self._retry_count = 0  # Reset counter on successful connection
                 return True
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ) as e:
             self.log.warning("Reconnection attempt failed: %s", e)
         return False
 
@@ -283,9 +429,12 @@ class RedisTransport(BaseTransport):
         if self._rsub is not None:
             self._rsub.close()
         if self._redis is not None:
-            self._redis.connection_pool.disconnect(inuse_connections=True)
             self._redis.close()
             del self._redis
+
+        # Release shared pool reference (if using shared pool)
+        if not self._owns_pool:
+            release_redis_pool(self._conn_params)
 
     def delete_queue(self, queue_name: str) -> bool:
         return True if self._redis.delete(queue_name) else False
@@ -334,7 +483,9 @@ class RedisTransport(BaseTransport):
         # Track subscription for reconnection
         self._subscriptions[topic] = callback
         if self._rsub is None:
-            self.log.warning("Redis pubsub not initialized - Cannot proceed to subscriptions!")
+            self.log.warning(
+                "Redis pubsub not initialized - Cannot proceed to subscriptions!"
+            )
             return
         if self._rsub_thread is not None:
             self._rsub_thread.stop()
@@ -350,7 +501,9 @@ class RedisTransport(BaseTransport):
 
     def exception_handler(self, ex, pubsub, thread):
         if not self._stopped:
-            self.log.debug("Redis PubSub error in thread: %s, exception: %s", thread, ex)
+            self.log.debug(
+                "Redis PubSub error in thread: %s, exception: %s", thread, ex
+            )
         thread.stop()
         # thread.join(timeout=self._redis_pubsub_join_timeout)
         pubsub.close()
@@ -425,7 +578,15 @@ class RedisTransport(BaseTransport):
                     self.log.info("Pubsub reconnection successful")
                     return True
 
-            except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+            except (
+                RuntimeError,
+                ConnectionError,
+                TimeoutError,
+                ValueError,
+                KeyError,
+                AttributeError,
+                OSError,
+            ) as e:
                 self.log.warning("Pubsub reconnection attempt failed: %s", e)
 
         self.log.error("Failed to reconnect pubsub after %s attempts", max_retries)
@@ -440,7 +601,9 @@ class RedisTransport(BaseTransport):
             self.log.warning("Attempt to subscribe to empty topics - %s", _topics)
             return
         if self._rsub is None:
-            self.log.warning("Redis pubsub not initialized - Cannot proceed to subscriptions!")
+            self.log.warning(
+                "Redis pubsub not initialized - Cannot proceed to subscriptions!"
+            )
             return
         # If already in subscription, close and append new topics
         if self._rsub_thread is not None:
@@ -462,7 +625,9 @@ class RedisTransport(BaseTransport):
     def wait_for_msg(self, queue_name: str, timeout=10):
         try:
             if not self.is_connected:
-                self.log.warning("Transport not connected - Cannot push message to queue!")
+                self.log.warning(
+                    "Transport not connected - Cannot push message to queue!"
+                )
                 self._attempt_reconnect()
                 return self.wait_for_msg(queue_name, timeout)
             msgq, payload = self._redis.blpop(queue_name, timeout=timeout)
@@ -471,12 +636,12 @@ class RedisTransport(BaseTransport):
             if self._compression != CompressionType.NO_COMPRESSION:
                 payload = deflate(payload, self._compression)
             return msgq, payload
-        except redis.exceptions.TimeoutError as e:
+        except redis.exceptions.TimeoutError:
             # Check if it's a timeout or actual connection error
             msgq = ""
             payload = None
             return msgq, payload
-        except TypeError as e:
+        except TypeError:
             msgq = ""
             payload = None
             return msgq, payload
@@ -515,7 +680,15 @@ class RPCService(BaseRPCService):
         try:
             req_msg, topic = self._unpack_comm_msg(payload)
             self._executor.submit(self._on_request_internal, req_msg)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ) as exc:
             self.log.error(str(exc), exc_info=False)
 
     def _on_request_internal(self, req_msg: CommRPCMessage):
@@ -531,7 +704,15 @@ class RPCService(BaseRPCService):
         except RPCRequestError:
             self.log.error(str(exc), exc_info=False)
             resp = {}
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ) as exc:
             self.log.error(str(exc), exc_info=False)
             resp = {}
         self._send_response(resp, req_msg.header.reply_to)
@@ -767,7 +948,9 @@ class Subscriber(BaseSubscriber):
               the connection alive.
         """
         self._transport.start()
-        self._subscriber_thread = self._transport.subscribe(self._topic, self._on_message)
+        self._subscriber_thread = self._transport.subscribe(
+            self._topic, self._on_message
+        )
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
@@ -783,11 +966,18 @@ class Subscriber(BaseSubscriber):
             data, uri = self._unpack_comm_msg(payload)
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, data)
+                    self.onmessage(data)
                 else:
-                    _clb = functools.partial(self.onmessage, self._msg_type(**data))
-                _clb()
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+                    self.onmessage(self._msg_type(**data))
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
@@ -880,11 +1070,18 @@ class WSubscriber(BaseSubscriber):
             data, uri = self._unpack_comm_msg(payload)
             if callback is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(callback, data)
+                    callback(data)
                 else:
-                    _clb = functools.partial(callback, self._msg_type(**data))
-                _clb()
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+                    callback(self._msg_type(**data))
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
@@ -940,7 +1137,9 @@ class PSubscriber(BaseSubscriber):
         The method will run indefinitely until the stop event (`self._t_stop_event`) is set.
         """
         self._transport.start()
-        self._subscriber_thread = self._transport.subscribe(self._topic, self._on_message)
+        self._subscriber_thread = self._transport.subscribe(
+            self._topic, self._on_message
+        )
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
@@ -956,11 +1155,18 @@ class PSubscriber(BaseSubscriber):
             data, topic = self._unpack_comm_msg(payload)
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, data, topic)
+                    self.onmessage(data, topic)
                 else:
-                    _clb = functools.partial(self.onmessage, self._msg_type(**data), topic)
-                _clb()
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+                    self.onmessage(self._msg_type(**data), topic)
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             self.log.error("Exception caught in _on_message", exc_info=True)
 
     def _unpack_comm_msg(self, msg: Dict[str, Any]) -> Tuple:
@@ -1069,7 +1275,6 @@ class ActionClient(BaseActionClient):
 
 
 class RPCServer(BaseRPCServer):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
@@ -1078,18 +1283,32 @@ class RPCServer(BaseRPCServer):
             compression=self._compression,
         )
 
-    def _on_request_handle(self, rpc_uri: str, data: Dict[str, Any], header: Dict[str, Any]):
+    def _on_request_handle(
+        self, rpc_uri: str, data: Dict[str, Any], header: Dict[str, Any]
+    ):
         # Guard against bad requests
         try:
             self._executor.submit(self._on_request_internal, rpc_uri, data, header)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ) as exc:
             self.log.error(str(exc), exc_info=False)
 
-    def _on_request_internal(self, rpc_uri: str, data: Dict[str, Any], header: Dict[str, Any]):
+    def _on_request_internal(
+        self, rpc_uri: str, data: Dict[str, Any], header: Dict[str, Any]
+    ):
         if "reply_to" not in header:
             return
         try:
-            _req_msg = CommRPCMessage(header=CommRPCHeader(reply_to=header["reply_to"]), data=data)
+            _req_msg = CommRPCMessage(
+                header=CommRPCHeader(reply_to=header["reply_to"]), data=data
+            )
 
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
@@ -1099,13 +1318,23 @@ class RPCServer(BaseRPCServer):
             if self._svc_map[rpc_uri][1] is None:
                 resp = self._svc_map[rpc_uri][0](data)
             else:
-                resp = self._svc_map[rpc_uri][0](self._svc_map[rpc_uri][1].Request(**data))
+                resp = self._svc_map[rpc_uri][0](
+                    self._svc_map[rpc_uri][1].Request(**data)
+                )
                 # RPCMessage.Response object here
                 resp = resp.model_dump()
         except RPCRequestError:
             self.log.error(str(exc), exc_info=False)
             resp = {}
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ) as exc:
             self.log.error(str(exc), exc_info=False)
             resp = {}
         self._send_response(resp, _req_msg.header.reply_to)

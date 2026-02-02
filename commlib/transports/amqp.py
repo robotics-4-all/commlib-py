@@ -33,8 +33,6 @@ from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import (
     BaseRPCClient,
     BaseRPCService,
-    CommRPCHeader,
-    CommRPCMessage,
 )
 from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
@@ -114,7 +112,9 @@ class ConnectionParameters(BaseConnectionParameters):
         return pika.ConnectionParameters(
             host=self.host,
             port=str(self.port),
-            credentials=pika.PlainCredentials(username=self.username, password=self.password),
+            credentials=pika.PlainCredentials(
+                username=self.username, password=self.password
+            ),
             connection_attempts=self.reconnect_attempts,
             retry_delay=self.retry_delay,
             blocked_connection_timeout=self.blocked_connection_timeout,
@@ -142,6 +142,7 @@ class ConnectionParameters(BaseConnectionParameters):
 
 class Connection(pika.BlockingConnection):
     """Connection. Thin wrapper around pika.BlockingConnection"""
+
     _PROCESS_EVENTS_INTERVAL = 0.01
 
     def __init__(self, conn_params: ConnectionParameters):
@@ -189,7 +190,15 @@ class Connection(pika.BlockingConnection):
                 self.sleep(self._PROCESS_EVENTS_INTERVAL)
                 if self._t_stop_event.is_set():
                     break
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ) as exc:
             self.log.debug(f"Exception thrown while processing amqp events - {exc}")
 
 
@@ -228,7 +237,15 @@ class AMQPTransport(BaseTransport):
         except pika.exceptions.ProbableAuthenticationError as e:
             logger.error("Authentication Error: %s", str(e))
             return False
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             return False
 
     def _on_connect(self):
@@ -292,7 +309,9 @@ class AMQPTransport(BaseTransport):
         self.log.debug("Exchange exists result: %s", resp)
         return resp
 
-    def create_exchange(self, exchange_name: str, exchange_type: ExchangeType, internal=None):
+    def create_exchange(
+        self, exchange_name: str, exchange_type: ExchangeType, internal=None
+    ):
         """
         Create a new exchange.
 
@@ -310,7 +329,9 @@ class AMQPTransport(BaseTransport):
             exchange_type=exchange_type,
         )
 
-        self.log.debug("Created exchange: [name=%s, type=%s]", exchange_name, exchange_type)
+        self.log.debug(
+            "Created exchange: [name=%s, type=%s]", exchange_name, exchange_type
+        )
 
     def create_queue(
         self,
@@ -319,7 +340,8 @@ class AMQPTransport(BaseTransport):
         queue_size: int = 10,
         message_ttl: int = 60000,
         overflow_behaviour: int = "drop-head",
-        expires: int = 600000):
+        expires: int = 600000,
+    ):
         """
         Create a new queue.
 
@@ -363,7 +385,9 @@ class AMQPTransport(BaseTransport):
             arguments=args,
         )
         queue_name = result.method.queue
-        self.log.debug("Created queue [%s] [size=%s, ttl=%s]", queue_name, queue_size, message_ttl)
+        self.log.debug(
+            "Created queue [%s] [size=%s, ttl=%s]", queue_name, queue_size, message_ttl
+        )
         return queue_name
 
     def delete_queue(self, queue_name):
@@ -403,8 +427,18 @@ class AMQPTransport(BaseTransport):
         @type bind_key: string
         """
         try:
-            self._channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=bind_key)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+            self._channel.queue_bind(
+                exchange=exchange_name, queue=queue_name, routing_key=bind_key
+            )
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             raise AMQPError("Error while trying to bind queue to exchange")
 
     def set_channel_qos(self, prefetch_count=1, global_qos=False):
@@ -445,7 +479,9 @@ class RPCService(BaseRPCService):
         on_request (function): The on-request callback function to register.
     """
 
-    def __init__(self, exchange: str = "", connection: Connection = None, *args, **kwargs):
+    def __init__(
+        self, exchange: str = "", connection: Connection = None, *args, **kwargs
+    ):
         """__init__.
 
         Args:
@@ -475,7 +511,15 @@ class RPCService(BaseRPCService):
             self.log.error(exc, exc_info=True)
         except pika.exceptions.AMQPConnectionError as exc:
             self.log.error(exc, exc_info=True)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ) as exc:
             self.log.error(exc, exc_info=True)
             raise AMQPError("Error while trying to consume from queue")
 
@@ -490,17 +534,22 @@ class RPCService(BaseRPCService):
         try:
             # Unpack and validate the message using the base class method
             req_msg, _ = self._unpack_comm_msg(body)
-            
+
             # Execute the callback
             resp = self._invoke_onrequest_callback(req_msg.data)
-            
+
             # Send the response
-            # Use the reply_to from AMQP properties if available (for Direct Reply-to), 
+            # Use the reply_to from AMQP properties if available (for Direct Reply-to),
             # otherwise fall back to the header (though for AMQP Direct Reply-to, property is key)
             reply_to = properties.reply_to or req_msg.header.reply_to
-            
+
             self._transport.add_threadsafe_callback(
-                self._send_response, resp, ch, properties.correlation_id, reply_to, method.delivery_tag
+                self._send_response,
+                resp,
+                ch,
+                properties.correlation_id,
+                reply_to,
+                method.delivery_tag,
             )
         except Exception as exc:
             self.log.error("Error processing RPC request: %s", exc, exc_info=True)
@@ -523,10 +572,13 @@ class RPCService(BaseRPCService):
         return resp
 
     def _send_response(
-        self, data: dict, 
+        self,
+        data: dict,
         channel: pika.channel.Channel,
         correlation_id: str,
-        reply_to: str, delivery_tag: str):
+        reply_to: str,
+        delivery_tag: str,
+    ):
         _payload = None
         _encoding = None
         _type = None
@@ -535,16 +587,16 @@ class RPCService(BaseRPCService):
             self._comm_obj.header.timestamp = gen_timestamp()
             self._comm_obj.data = data
             _resp_data = self._comm_obj.model_dump()
-            
+
             _encoding = self._serializer.CONTENT_ENCODING
             _type = self._serializer.CONTENT_TYPE
             _payload = self._serializer.serialize(_resp_data)
-            
+
             if self._compression != CompressionType.NO_COMPRESSION:
                 _payload = inflate_str(_payload, self._compression)
             else:
                 _payload = _payload.encode(_encoding)
-        except Exception as e:
+        except Exception:
             self.log.error("Could not serialize response data", exc_info=True)
             return
 
@@ -575,7 +627,9 @@ class RPCService(BaseRPCService):
         if self._transport.channel.is_closed:
             self.log.warning("Channel was already closed!")
             return False
-        self._transport.add_threadsafe_callback(self._transport.delete_queue, self._rpc_queue)
+        self._transport.add_threadsafe_callback(
+            self._transport.delete_queue, self._rpc_queue
+        )
         super().stop()
         return True
 
@@ -601,7 +655,9 @@ class RPCClient(BaseRPCClient):
             (BaseRPCClient).
     """
 
-    def __init__(self, use_corr_id=False, connection: Connection = None, *args, **kwargs):
+    def __init__(
+        self, use_corr_id=False, connection: Connection = None, *args, **kwargs
+    ):
         self._use_corr_id = use_corr_id
         self._corr_id = None
         self._response = None
@@ -681,12 +737,12 @@ class RPCClient(BaseRPCClient):
 
             if self._compression != CompressionType.NO_COMPRESSION:
                 body = deflate(body, self._compression)
-                
+
             # Unpack the response using base class method
             data, header, _ = self._unpack_comm_msg(body)
             self._response = data
-            
-        except Exception as e:
+
+        except Exception:
             self.log.error("Error parsing response from rpc server.", exc_info=True)
             self._response = {}
 
@@ -697,14 +753,14 @@ class RPCClient(BaseRPCClient):
 
         _encoding = self._serializer.CONTENT_ENCODING
         _type = self._serializer.CONTENT_TYPE
-        
+
         # Prepare request using base class method
         # AMQP Direct Reply-to requires the reply_to property to be set in AMQP properties
         # We also include it in the payload header for consistency
         req_data = self._prepare_request(data, reply_to="amq.rabbitmq.reply-to")
-        
+
         _payload = self._serializer.serialize(req_data)
-        
+
         if self._compression != CompressionType.NO_COMPRESSION:
             _payload = inflate_str(_payload, self._compression)
         else:
@@ -761,7 +817,6 @@ class Publisher(BasePublisher):
             self._transport.create_exchange(self._topic_exchange, ExchangeType.Topic)
         self._transport.detach_amqp_events_thread()
 
-
     def publish(self, msg: PubSubMessage) -> None:
         """Publish message once.
 
@@ -770,9 +825,9 @@ class Publisher(BasePublisher):
         """
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
-        
+
         data = self._prepare_msg(msg)
-        
+
         # Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data, self._topic)
 
@@ -818,9 +873,9 @@ class MPublisher(Publisher):
         """
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
-            
+
         data = self._prepare_msg(msg)
-        
+
         # Thread Safe solution
         self._transport.add_threadsafe_callback(self._send_msg, data, topic)
 
@@ -909,7 +964,9 @@ class Subscriber(BaseSubscriber):
             self.log.warning("Channel was already closed!")
             return False
         self._closing = True
-        self._transport.add_threadsafe_callback(self._transport.delete_queue, self._queue_name)
+        self._transport.add_threadsafe_callback(
+            self._transport.delete_queue, self._queue_name
+        )
 
     def _consume(self, reliable: bool = False) -> None:
         """Start AMQP consumer."""
@@ -924,7 +981,15 @@ class Subscriber(BaseSubscriber):
         except KeyboardInterrupt as exc:
             # Log error with traceback
             self.log.error(exc, exc_info=False)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as exc:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ) as exc:
             self.log.error(exc, exc_info=False)
             raise AMQPError("Could not consume from message queue")
 
@@ -940,30 +1005,61 @@ class Subscriber(BaseSubscriber):
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             self.log.debug("Failed to read message properties", exc_info=True)
         try:
             if self._compression != CompressionType.NO_COMPRESSION:
                 body = deflate(body)
             _data = self._serializer.deserialize(body)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             self.log.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
             _data = {}
         try:
             self._sem.acquire()
             self._sem.release()
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             self.log.warn("Could not calculate message rate", exc_info=True)
 
         try:
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, _data)
+                    self.onmessage(_data)
                 else:
-                    _clb = functools.partial(self.onmessage, self._msg_type(**_data))
-                _clb()
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+                    self.onmessage(self._msg_type(**_data))
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             self.log.error("Error in on_msg_callback", exc_info=True)
 
     def stop(self) -> None:
@@ -1001,32 +1097,65 @@ class PSubscriber(Subscriber):
             _cencoding = properties.content_encoding
             _dmode = properties.delivery_mode
             _ts_send = properties.timestamp
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             self.log.debug("Error reading message properties", exc_info=True)
 
         try:
             if self._compression != CompressionType.NO_COMPRESSION:
                 body = deflate(body)
             _data = self._serializer.deserialize(body)
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             self.log.error("Could not deserialize data", exc_info=True)
             # Return data as is. Let callback handle with encoding...
             _data = {}
         try:
             _topic = method.routing_key
             _topic = _topic.replace("#", "").replace("*", "")
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
-            self.log.error("Routing key could not be retrieved for message", exc_info=True)
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
+            self.log.error(
+                "Routing key could not be retrieved for message", exc_info=True
+            )
             return
 
         try:
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, _data, _topic)
+                    self.onmessage(_data, _topic)
                 else:
-                    _clb = functools.partial(self.onmessage, self._msg_type(**_data), _topic)
-                _clb()
-        except (RuntimeError, ConnectionError, TimeoutError, ValueError, KeyError, AttributeError, OSError) as e:
+                    self.onmessage(self._msg_type(**_data), _topic)
+        except (
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            OSError,
+        ):
             self.log.error("Error in on_msg_callback", exc_info=True)
 
 

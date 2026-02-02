@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from commlib.endpoints import BaseEndpoint, EndpointState
 from commlib.msg import RPCMessage
+from commlib.thread_pool import get_io_pool
 from commlib.utils import gen_random_id, gen_timestamp
 
 rpc_logger = None
@@ -70,7 +71,18 @@ class BaseRPCServer(BaseEndpoint):
         self._svc_map: Dict[str, Any] = svc_map
         self._max_workers: int = workers
         self._gen_random_id = gen_random_id
-        self._executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=self._max_workers)
+
+        # Use shared I/O pool by default (reduces thread count)
+        use_shared = kwargs.get("use_shared_pool", True)
+        if use_shared:
+            self._executor: ThreadPoolExecutor = get_io_pool()
+            self._owns_executor = False
+        else:
+            self._executor: ThreadPoolExecutor = ThreadPoolExecutor(
+                max_workers=self._max_workers
+            )
+            self._owns_executor = True
+
         self._main_thread = None
         self._t_stop_event: threading.Event = threading.Event()
         self._comm_obj: CommRPCMessage = CommRPCMessage()
@@ -92,7 +104,9 @@ class BaseRPCServer(BaseEndpoint):
             return False
         return True
 
-    def register_endpoint(self, uri: str, callback: Callable, msg_type: RPCMessage = None):
+    def register_endpoint(
+        self, uri: str, callback: Callable, msg_type: RPCMessage = None
+    ):
         self._svc_map[uri] = (callback, msg_type)
 
     def run_forever(self):
@@ -110,7 +124,9 @@ class BaseRPCServer(BaseEndpoint):
         the main thread.
         """
         if self._transport is None:
-            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}"
+            )
         if not self._transport.is_connected and self._state not in (
             EndpointState.CONNECTED,
             EndpointState.CONNECTING,
@@ -182,7 +198,16 @@ class BaseRPCService(BaseEndpoint):
         self.on_request = on_request
         self._gen_random_id = gen_random_id
         self._max_workers = workers
-        self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
+
+        # Use shared I/O pool by default
+        use_shared = kwargs.get("use_shared_pool", True)
+        if use_shared:
+            self._executor = get_io_pool()
+            self._owns_executor = False
+        else:
+            self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
+            self._owns_executor = True
+
         self._main_thread = None
         self._t_stop_event = threading.Event()
         self._comm_obj = CommRPCMessage()
@@ -211,7 +236,7 @@ class BaseRPCService(BaseEndpoint):
             str: The serialized RPC response message.
         """
 
-        return self._serialize_data(message.dict())
+        return self._serialize_data(message.model_dump())
 
     def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
         """_validate_rpc_req_msg.
@@ -264,7 +289,9 @@ class BaseRPCService(BaseEndpoint):
         the main thread.
         """
         if self._transport is None:
-            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}"
+            )
         if not self._transport.is_connected and self._state not in (
             EndpointState.CONNECTED,
             EndpointState.CONNECTING,
@@ -272,7 +299,7 @@ class BaseRPCService(BaseEndpoint):
             self._main_thread = threading.Thread(target=self.run_forever)
             self._main_thread.daemon = True
             self._main_thread.start()
-            
+
             if wait:
                 while not self.connected:
                     time.sleep(self._LOOP_INTERVAL)
@@ -307,7 +334,12 @@ class BaseRPCClient(BaseEndpoint):
         return rpc_logger
 
     def __init__(
-        self, rpc_name: str, msg_type: RPCMessage = None, workers: int = 5, *args, **kwargs
+        self,
+        rpc_name: str,
+        msg_type: RPCMessage = None,
+        workers: int = 5,
+        *args,
+        **kwargs,
     ):
         """
         Initializes a new instance of the `BaseRPCClient` class.
@@ -333,10 +365,21 @@ class BaseRPCClient(BaseEndpoint):
         self._msg_type = msg_type
         self._gen_random_id = gen_random_id
         self._max_workers = workers
-        self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
+
+        # Use shared I/O pool by default
+        use_shared = kwargs.get("use_shared_pool", True)
+        if use_shared:
+            self._executor = get_io_pool()
+            self._owns_executor = False
+        else:
+            self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
+            self._owns_executor = True
+
         self._comm_obj = CommRPCMessage()
 
-    def call(self, msg: RPCMessage.Request, timeout: float = 30.0) -> RPCMessage.Response:
+    def call(
+        self, msg: RPCMessage.Request, timeout: float = 30.0
+    ) -> RPCMessage.Response:
         """call.
         Synchronous RPC Call.
 
@@ -350,7 +393,10 @@ class BaseRPCClient(BaseEndpoint):
         raise NotImplementedError()
 
     def call_async(
-        self, msg: RPCMessage.Request, timeout: float = 30.0, on_response: callable = None
+        self,
+        msg: RPCMessage.Request,
+        timeout: float = 30.0,
+        on_response: callable = None,
     ) -> Future:
         """call_async.
         Asynchronously call an RPC method and return a Future object.
@@ -417,9 +463,11 @@ class BaseRPCClient(BaseEndpoint):
             str: The serialized representation of the RPC request message.
         """
 
-        return self._serialize_data(message.dict())
+        return self._serialize_data(message.model_dump())
 
-    def _prepare_request(self, data: Dict[str, Any], reply_to: str = None) -> Dict[str, Any]:
+    def _prepare_request(
+        self, data: Dict[str, Any], reply_to: str = None
+    ) -> Dict[str, Any]:
         """
         Prepare the RPC request message.
 
