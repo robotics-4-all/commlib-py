@@ -885,8 +885,8 @@ class RPCClient(BaseRPCClient):
         """
         return self._delay
 
-    def run(self):
-        super().run()
+    def run(self, wait: bool = True):
+        super().run(wait=wait)
         self._transport.add_threadsafe_callback(
             self._transport.channel.basic_consume,
             "amq.rabbitmq.reply-to",
@@ -1040,8 +1040,8 @@ class Publisher(BasePublisher):
             debug=self.debug,
         )
 
-    def run(self) -> None:
-        super().run()
+    def run(self, wait: bool = True) -> None:
+        super().run(wait=wait)
         _exch_ex = self._transport.exchange_exists(self._topic_exchange)
         if _exch_ex.method.NAME != "Exchange.DeclareOk":
             self._transport.create_exchange(self._topic_exchange, ExchangeType.Topic)

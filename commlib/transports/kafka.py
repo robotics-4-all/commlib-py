@@ -184,7 +184,8 @@ class Publisher(BasePublisher):
             "Published on %s, partition", msg.topic(), f"{msg.partition()}"
         )
 
-    def run(self):
+    def run(self, wait: bool = True):
+        super().run(wait=wait)
         self._producer = self._transport.create_producer(self._kafka_cfg)
 
     def stop(self):
