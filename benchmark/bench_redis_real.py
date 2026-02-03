@@ -46,8 +46,16 @@ def check_redis_available():
         return False
 
 
-def benchmark_redis_publish_throughput():
-    """Benchmark Redis publisher throughput."""
+def benchmark_redis_publish_throughput(iterations=1000, warmup=100):
+    """Benchmark Redis publisher throughput.
+
+    Args:
+        iterations: Number of messages to publish for the benchmark
+        warmup: Number of warmup messages to publish before benchmark
+
+    Returns:
+        float: Throughput in messages per second
+    """
     conn_params = get_redis_params()
 
     print("Setting up Redis publisher...")
@@ -66,14 +74,14 @@ def benchmark_redis_publish_throughput():
     )
 
     # Warm up
-    print("Warming up...")
-    for _ in range(100):
-        pub.publish(message)
-    time.sleep(0.1)
+    if warmup > 0:
+        print(f"Warming up ({warmup} messages)...")
+        for _ in range(warmup):
+            pub.publish(message)
+        time.sleep(0.1)
 
     # Benchmark
-    print("Running benchmark...")
-    iterations = 1000
+    print(f"Running benchmark ({iterations} messages)...")
     start = time.perf_counter()
     for _ in range(iterations):
         pub.publish(message)
@@ -88,8 +96,16 @@ def benchmark_redis_publish_throughput():
     return throughput
 
 
-def benchmark_redis_pubsub_roundtrip():
-    """Benchmark Redis pub/sub round trip."""
+def benchmark_redis_pubsub_roundtrip(iterations=100, warmup=50):
+    """Benchmark Redis pub/sub round trip.
+
+    Args:
+        iterations: Number of messages to publish for the benchmark
+        warmup: Number of warmup messages to publish before benchmark
+
+    Returns:
+        float: Throughput in messages per second
+    """
     conn_params = get_redis_params()
 
     message_count = [0]
@@ -125,16 +141,16 @@ def benchmark_redis_pubsub_roundtrip():
     )
 
     # Warm up
-    print("Warming up...")
-    for _ in range(50):
-        pub.publish(message)
-    time.sleep(0.5)
-    message_count[0] = 0  # Reset
-    received_messages.clear()
+    if warmup > 0:
+        print(f"Warming up ({warmup} messages)...")
+        for _ in range(warmup):
+            pub.publish(message)
+        time.sleep(0.5)
+        message_count[0] = 0  # Reset
+        received_messages.clear()
 
     # Benchmark
-    print("Running benchmark...")
-    iterations = 100
+    print(f"Running benchmark ({iterations} messages)...")
     start = time.perf_counter()
     for i in range(iterations):
         message.timestamp = time.time()
@@ -165,7 +181,7 @@ def benchmark_redis_pubsub_roundtrip():
             print(f"Avg E2E latency: {avg_latency:7.3f} ms")
 
     pub.stop(wait=True)
-    sub.stop(wait=True)
+    sub.stop()
 
     print(f"Redis Pub+Sub: {latency:7.3f} ms/msg | {throughput:10.0f} msg/sec")
     print(f"Messages delivered: {message_count[0]}/{iterations}")
@@ -173,8 +189,15 @@ def benchmark_redis_pubsub_roundtrip():
     return throughput
 
 
-def benchmark_redis_connection_pool_sharing():
-    """Benchmark Redis connection pool sharing."""
+def benchmark_redis_connection_pool_sharing(num_publishers=20):
+    """Benchmark Redis connection pool sharing.
+
+    Args:
+        num_publishers: Number of publishers to create
+
+    Returns:
+        int: Number of connection pools created (should be 1 if sharing works)
+    """
     from commlib.transports.redis import _REDIS_POOL_REGISTRY, _REDIS_POOL_REFCOUNT
 
     conn_params = get_redis_params()
@@ -186,7 +209,6 @@ def benchmark_redis_connection_pool_sharing():
     _REDIS_POOL_REGISTRY.clear()
     _REDIS_POOL_REFCOUNT.clear()
 
-    num_publishers = 20
     publishers = []
 
     print(f"Creating {num_publishers} publishers...")
@@ -220,11 +242,23 @@ def benchmark_redis_connection_pool_sharing():
 
     time.sleep(0.2)
 
+    return num_pools
 
-def benchmark_redis_concurrent_publishers():
-    """Benchmark multiple concurrent publishers."""
+
+def benchmark_redis_concurrent_publishers(
+    num_publishers=10, iterations_per_pub=100, warmup=10
+):
+    """Benchmark multiple concurrent publishers.
+
+    Args:
+        num_publishers: Number of concurrent publishers to create
+        iterations_per_pub: Number of messages each publisher sends
+        warmup: Number of warmup messages per publisher
+
+    Returns:
+        float: Total throughput in messages per second
+    """
     conn_params = get_redis_params()
-    num_publishers = 10
 
     print(f"\nBenchmark: {num_publishers} concurrent publishers")
     print("-" * 60)
@@ -242,13 +276,13 @@ def benchmark_redis_concurrent_publishers():
     message = SensorReading(temperature=23.5, humidity=65.0, pressure=1013.25)
 
     # Warm up
-    for pub in publishers:
-        for _ in range(10):
-            pub.publish(message)
-    time.sleep(0.2)
+    if warmup > 0:
+        for pub in publishers:
+            for _ in range(warmup):
+                pub.publish(message)
+        time.sleep(0.2)
 
     # Benchmark
-    iterations_per_pub = 100
     total_messages = num_publishers * iterations_per_pub
 
     start = time.perf_counter()
@@ -266,6 +300,8 @@ def benchmark_redis_concurrent_publishers():
 
     for pub in publishers:
         pub.stop(wait=True)
+
+    return throughput
 
 
 def benchmark_redis_message_sizes():

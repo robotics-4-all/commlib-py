@@ -126,3 +126,20 @@ release: bump-patch build check-dist ## bump patch, build, and upload to PyPI
 	twine upload dist/*
 	@echo "Release complete!"
 	@echo "Version bumped and tagged automatically by bump2version"
+
+.PHONY: test-benchmarks test-benchmarks-smoke test-benchmarks-mqtt test-benchmarks-redis test-benchmarks-amqp
+
+test-benchmarks: ## run all benchmark tests (requires brokers: MQTT, Redis, AMQP)
+	pytest tests/benchmarks/ -v -m benchmark
+
+test-benchmarks-smoke: ## run quick benchmark smoke tests (~30 seconds)
+	pytest tests/benchmarks/ -v -m smoke
+
+test-benchmarks-mqtt: ## run MQTT benchmarks only
+	pytest tests/benchmarks/test_bench_mqtt.py -v
+
+test-benchmarks-redis: ## run Redis benchmarks only
+	pytest tests/benchmarks/test_bench_redis.py -v
+
+test-benchmarks-amqp: ## run AMQP benchmarks only (Phase 3 validation)
+	pytest tests/benchmarks/test_bench_amqp.py -v

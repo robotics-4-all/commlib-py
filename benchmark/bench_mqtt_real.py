@@ -46,8 +46,16 @@ def check_mqtt_available():
         return False
 
 
-def benchmark_mqtt_publish_throughput():
-    """Benchmark MQTT publisher throughput."""
+def benchmark_mqtt_publish_throughput(iterations=1000, warmup=100):
+    """Benchmark MQTT publisher throughput.
+
+    Args:
+        iterations: Number of messages to publish for the benchmark
+        warmup: Number of warmup messages to publish before benchmark
+
+    Returns:
+        float: Throughput in messages per second
+    """
     conn_params = get_mqtt_params()
 
     print("Setting up MQTT publisher...")
@@ -66,14 +74,14 @@ def benchmark_mqtt_publish_throughput():
     )
 
     # Warm up
-    print("Warming up...")
-    for _ in range(100):
-        pub.publish(message)
-    time.sleep(0.1)
+    if warmup > 0:
+        print(f"Warming up ({warmup} messages)...")
+        for _ in range(warmup):
+            pub.publish(message)
+        time.sleep(0.1)
 
     # Benchmark
-    print("Running benchmark...")
-    iterations = 1000
+    print(f"Running benchmark ({iterations} messages)...")
     start = time.perf_counter()
     for _ in range(iterations):
         pub.publish(message)
@@ -88,8 +96,16 @@ def benchmark_mqtt_publish_throughput():
     return throughput
 
 
-def benchmark_mqtt_pubsub_roundtrip():
-    """Benchmark MQTT pub/sub round trip."""
+def benchmark_mqtt_pubsub_roundtrip(iterations=100, warmup=50):
+    """Benchmark MQTT pub/sub round trip.
+
+    Args:
+        iterations: Number of messages to publish for the benchmark
+        warmup: Number of warmup messages to publish before benchmark
+
+    Returns:
+        float: Throughput in messages per second
+    """
     conn_params = get_mqtt_params()
 
     message_count = [0]
@@ -125,16 +141,16 @@ def benchmark_mqtt_pubsub_roundtrip():
     )
 
     # Warm up
-    print("Warming up...")
-    for _ in range(50):
-        pub.publish(message)
-    time.sleep(0.5)
-    message_count[0] = 0  # Reset
-    received_messages.clear()
+    if warmup > 0:
+        print(f"Warming up ({warmup} messages)...")
+        for _ in range(warmup):
+            pub.publish(message)
+        time.sleep(0.5)
+        message_count[0] = 0  # Reset
+        received_messages.clear()
 
     # Benchmark
-    print("Running benchmark...")
-    iterations = 100
+    print(f"Running benchmark ({iterations} messages)...")
     start = time.perf_counter()
     for i in range(iterations):
         message.timestamp = time.time()
@@ -174,19 +190,15 @@ def benchmark_mqtt_pubsub_roundtrip():
 
 
 def benchmark_mqtt_qos_levels():
-    """Benchmark different MQTT QoS levels."""
-    from commlib.transports.mqtt import MQTTQoS
+    """Benchmark MQTT publish throughput.
 
+    Note: QoS levels are not configurable via Publisher API in current version.
+    Publisher uses QoS 0 by default (hardcoded in transport layer).
+    """
     conn_params = get_mqtt_params()
 
-    print("\nBenchmark: MQTT QoS levels")
+    print("\nBenchmark: MQTT Publish (QoS 0 - default)")
     print("-" * 60)
-
-    qos_levels = [
-        (MQTTQoS.L0, "QoS 0 (At most once)"),
-        (MQTTQoS.L1, "QoS 1 (At least once)"),
-        (MQTTQoS.L2, "QoS 2 (Exactly once)"),
-    ]
 
     message = SensorReading(
         temperature=23.5,
@@ -195,38 +207,49 @@ def benchmark_mqtt_qos_levels():
         timestamp=time.time(),
     )
 
-    for qos, label in qos_levels:
-        pub = Publisher(
-            topic="benchmark/qos/test",
-            msg_type=SensorReading,
-            conn_params=conn_params,
-        )
-        pub.run(wait=True)
+    pub = Publisher(
+        topic="benchmark/qos/test",
+        msg_type=SensorReading,
+        conn_params=conn_params,
+    )
+    pub.run(wait=True)
 
-        # Warm up
-        for _ in range(50):
-            pub.publish(message, qos=qos)
+    # Warm up
+    for _ in range(50):
+        pub.publish(message)
 
-        # Benchmark
-        iterations = 500
-        start = time.perf_counter()
-        for _ in range(iterations):
-            pub.publish(message, qos=qos)
-        elapsed = time.perf_counter() - start
+    # Benchmark
+    iterations = 500
+    start = time.perf_counter()
+    for _ in range(iterations):
+        pub.publish(message)
+    elapsed = time.perf_counter() - start
 
-        throughput = iterations / elapsed
-        latency = (elapsed / iterations) * 1000
+    throughput = iterations / elapsed
+    latency = (elapsed / iterations) * 1000
 
-        print(f"{label:25s}: {latency:7.3f} ms/msg | {throughput:8.0f} msg/sec")
+    print(
+        f"{'QoS 0 (At most once)':25s}: {latency:7.3f} ms/msg | {throughput:8.0f} msg/sec"
+    )
 
-        pub.stop(wait=True)
-        time.sleep(0.2)
+    pub.stop(wait=True)
+    time.sleep(0.2)
 
 
-def benchmark_mqtt_concurrent_publishers():
-    """Benchmark multiple concurrent publishers."""
+def benchmark_mqtt_concurrent_publishers(
+    num_publishers=10, iterations_per_pub=100, warmup=10
+):
+    """Benchmark multiple concurrent publishers.
+
+    Args:
+        num_publishers: Number of concurrent publishers to create
+        iterations_per_pub: Number of messages each publisher sends
+        warmup: Number of warmup messages per publisher
+
+    Returns:
+        float: Total throughput in messages per second
+    """
     conn_params = get_mqtt_params()
-    num_publishers = 10
 
     print(f"\nBenchmark: {num_publishers} concurrent publishers")
     print("-" * 60)
@@ -244,13 +267,13 @@ def benchmark_mqtt_concurrent_publishers():
     message = SensorReading(temperature=23.5, humidity=65.0, pressure=1013.25)
 
     # Warm up
-    for pub in publishers:
-        for _ in range(10):
-            pub.publish(message)
-    time.sleep(0.2)
+    if warmup > 0:
+        for pub in publishers:
+            for _ in range(warmup):
+                pub.publish(message)
+        time.sleep(0.2)
 
     # Benchmark
-    iterations_per_pub = 100
     total_messages = num_publishers * iterations_per_pub
 
     start = time.perf_counter()
@@ -268,6 +291,8 @@ def benchmark_mqtt_concurrent_publishers():
 
     for pub in publishers:
         pub.stop(wait=True)
+
+    return throughput
 
 
 if __name__ == "__main__":
