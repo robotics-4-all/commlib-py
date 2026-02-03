@@ -7,6 +7,7 @@ topic validation and endpoint management.
 import logging
 import re
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Dict, Optional
 
@@ -198,10 +199,13 @@ class BaseSubscriber(BaseEndpoint):
         """
         raise NotImplementedError()
 
-    def run(self) -> None:
+    def run(self, wait: bool = True) -> None:
         """
         Start the subscriber thread in the background without blocking
         the main thread.
+
+        Args:
+            wait: If True, wait for transport to connect before returning (default: True)
         """
         if self._transport is None:
             raise RuntimeError(
@@ -215,17 +219,30 @@ class BaseSubscriber(BaseEndpoint):
             self._main_thread.daemon = True
             self._t_stop_event = threading.Event()
             self._main_thread.start()
+
+            if wait:
+                # Wait for transport to connect (event-driven if available)
+                if hasattr(self._transport, "wait_connected"):
+                    self._transport.wait_connected(timeout=10.0)
+                else:
+                    # Fallback for transports without event support
+                    while not self._transport.is_connected:
+                        time.sleep(0.001)
+
             self._state = EndpointState.CONNECTED
         else:
             self.logger().warning("Transport already connected - Skipping")
 
-    def stop(self) -> None:
+    def stop(self, wait: bool = True) -> None:
         """
         Stops the pub/sub service by setting the stop event and calling the parent class's stop method.
 
         If the stop event (`_t_stop_event`) is not None, it sets the event to signal that the service should stop.
         Then, it calls the `stop` method of the superclass to perform any additional stopping procedures.
+
+        Args:
+            wait: If True, wait for transport to disconnect before returning (default: True)
         """
         if self._t_stop_event is not None:
             self._t_stop_event.set()
-        super().stop()
+        super().stop(wait=wait)

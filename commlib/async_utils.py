@@ -109,7 +109,9 @@ async def run_command(*args):
         The stdout output of the command as a string, with any trailing whitespace removed.
     """
 
-    process = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE)
+    process = await asyncio.create_subprocess_exec(
+        *args, stdout=asyncio.subprocess.PIPE
+    )
     stdout, stderr = await process.communicate()
     return stdout.decode().strip()
 
@@ -136,12 +138,11 @@ def call_sync(coro, loop: asyncio.AbstractEventLoop, timeout: float = 30.0):
         fut = asyncio.run_coroutine_threadsafe(asyncio.wait_for(coro, timeout), loop)
         return fut.result()
     if not loop.is_running():
+        # Use new_event_loop() directly to avoid deprecation warning in Python 3.10+
+        # get_event_loop() is deprecated when there is no running event loop
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
         except RuntimeError:
-            logging.getLogger(__name__).debug(
-                "Runtime error in call_sync - Using new event loop to exec coro",
-                exc_info=True,
-            )
+            # No running loop, create a new one
             loop = asyncio.new_event_loop()
     return loop.run_until_complete(asyncio.wait_for(coro, timeout))
