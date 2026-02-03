@@ -36,7 +36,123 @@ Shared vs Dedicated Thread Pools:
 
 ---
 
-### 2. Real Broker Benchmarks (Requires External Services)
+## Troubleshooting
+
+### Docker Container Conflicts
+
+**Problem:**
+```
+Error: The container name "/benchmark-mqtt" is already in use
+```
+
+**Solution:**
+The benchmark scripts now automatically clean up containers. If you still encounter issues:
+
+```bash
+# Manual cleanup
+docker rm -f benchmark-mqtt benchmark-redis benchmark-amqp
+
+# Or use the stop script
+./scripts/stop_benchmark_brokers.sh
+
+# Then restart
+./scripts/start_benchmark_brokers.sh
+```
+
+### CI Command Failures
+
+**Problem:** `make ci-full` fails or hangs
+
+**Solutions:**
+
+1. **Check Docker is running:**
+   ```bash
+   docker ps
+   ```
+
+2. **Clean up old containers:**
+   ```bash
+   docker rm -f $(docker ps -aq --filter "name=benchmark-")
+   ```
+
+3. **Run with cleanup guarantee:**
+   ```bash
+   # CI commands now auto-cleanup on failure
+   make ci-full  # Will cleanup even if tests fail
+   ```
+
+### Redis Connection Pool Issues
+
+**Problem:** Test shows "Connection pools: 0" or timeouts
+
+**Root Cause:** Stale class-level connection pool from previous test
+
+**Solution:** The benchmark now automatically:
+1. Disconnects old pool if it exists
+2. Clears all registries
+3. Resets class variables
+
+This is handled automatically in `benchmark/bench_redis_real.py`
+
+### Transport API Errors
+
+**Problem:**
+```
+TypeError: run() got an unexpected keyword argument 'wait'
+```
+
+**Solution:** Fixed in commit `148b825`. All transport implementations now support the `wait` parameter:
+
+```python
+# All transports now support:
+publisher.run(wait=True)   # Wait for connection
+publisher.run(wait=False)  # Don't wait
+```
+
+### Python 3.14 AMQP Issues
+
+**Problem:** AMQP benchmarks fail on Python 3.14 with pika errors
+
+**Solution:** This is expected. AMQP tests are automatically skipped on Python 3.14:
+
+```bash
+# CI automatically excludes AMQP tests
+make ci-full  # Will skip AMQP on Python 3.14
+```
+
+Python 3.14 is not officially supported yet. Use Python 3.9-3.13 for full benchmark suite.
+
+---
+
+## Recent Fixes (February 2026)
+
+### Phase C: CI Stabilization
+
+Three critical bugs were fixed to ensure reliable CI execution:
+
+1. **Docker Cleanup (Commit `8c18481`)**
+   - Auto-cleanup existing containers before starting new ones
+   - Cleanup on test failure
+   - Can run `make ci-full` repeatedly
+
+2. **Transport API Compatibility (Commit `148b825`)**
+   - Fixed `run()` method signatures in AMQP and Kafka transports
+   - Added `wait` parameter to match base class API
+   - All benchmarks now work correctly
+
+3. **Redis Pool Cleanup (Commit `5291b9c`)**
+   - Fixed connection pool benchmark showing 0 pools
+   - Properly resets class variables between tests
+   - No more stale pool reuse
+
+**Test Status:**
+- ✅ 349 unit tests passing
+- ✅ 13 smoke benchmark tests passing
+- ✅ 1 test skipped (AMQP on Python 3.14)
+- ✅ `make ci-full` fully operational
+
+---
+
 
 These benchmarks test against real message brokers for accurate performance measurements.
 

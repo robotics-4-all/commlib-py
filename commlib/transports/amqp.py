@@ -886,6 +886,12 @@ class RPCClient(BaseRPCClient):
         return self._delay
 
     def run(self, wait: bool = True):
+        """Start the RPC client.
+
+        Args:
+            wait: If True, wait for transport to connect before returning.
+                  Fixed in commit 148b825 to match base class API.
+        """
         super().run(wait=wait)
         self._transport.add_threadsafe_callback(
             self._transport.channel.basic_consume,
@@ -1041,6 +1047,12 @@ class Publisher(BasePublisher):
         )
 
     def run(self, wait: bool = True) -> None:
+        """Start the publisher.
+
+        Args:
+            wait: If True, wait for transport to connect before returning.
+                  Fixed in commit 148b825 to match base class API.
+        """
         super().run(wait=wait)
         _exch_ex = self._transport.exchange_exists(self._topic_exchange)
         if _exch_ex.method.NAME != "Exchange.DeclareOk":

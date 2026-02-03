@@ -185,6 +185,12 @@ class Publisher(BasePublisher):
         )
 
     def run(self, wait: bool = True):
+        """Start the publisher.
+
+        Args:
+            wait: If True, wait for transport to connect before returning.
+                  Fixed in commit 148b825 to match base class API.
+        """
         super().run(wait=wait)
         self._producer = self._transport.create_producer(self._kafka_cfg)
 
