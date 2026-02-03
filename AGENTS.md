@@ -48,6 +48,40 @@ make cov                     # Coverage report (Docker)
 tox
 ```
 
+### CI Commands (Local Testing)
+
+Run the full CI pipeline locally before pushing to GitHub:
+
+```bash
+# Quick CI check (unit tests + benchmarks, ~15s)
+make ci
+
+# Strict CI check (includes linting, ~20s)
+make ci-strict
+
+# Full CI with broker tests (requires Docker, ~2min)
+make ci-full
+```
+
+**Individual CI steps:**
+```bash
+make ci-setup       # Check environment (Python, venv, dependencies)
+make ci-unit        # Run unit tests only
+make ci-lint        # Run linting only (flake8)
+make ci-benchmarks  # Run benchmark smoke tests (mock transport)
+```
+
+**When to use:**
+- `make ci` - Before every commit (fast validation)
+- `make ci-strict` - Before creating PR (adds linting)
+- `make ci-full` - Before merging to master (full validation with brokers)
+
+**Features:**
+- ✅ Auto-cleanup of Docker containers (no manual intervention needed)
+- ✅ Proper error handling (brokers stopped even on failure)
+- ✅ Excludes AMQP tests on Python 3.14 (pika compatibility)
+- ✅ Simulates exact GitHub Actions workflow locally
+
 ### Linting
 
 ```bash
@@ -248,6 +282,56 @@ Mark integration tests with appropriate markers:
 - `@pytest.mark.redis` - Requires Redis broker
 - `@pytest.mark.integration` - External services required
 - `@pytest.mark.unit` - No external services
+- `@pytest.mark.smoke` - Quick smoke tests (for CI)
+- `@pytest.mark.benchmark` - Full benchmark tests
+
+### Benchmark Testing
+
+**Run scaling benchmarks (no broker needed):**
+```bash
+python benchmark/bench_scaling.py --transport mock --test all
+python benchmark/bench_scaling.py --transport mock --test publishers
+python benchmark/bench_scaling.py --transport mock --test message_size
+python benchmark/bench_scaling.py --transport mock --test memory
+```
+
+**Run broker-based benchmarks (requires Docker):**
+```bash
+# Start brokers
+./scripts/start_benchmark_brokers.sh
+
+# Run smoke tests (quick validation)
+pytest tests/benchmarks/ -v -m smoke
+
+# Run full benchmarks
+pytest tests/benchmarks/ -v -m benchmark
+
+# Stop brokers
+./scripts/stop_benchmark_brokers.sh
+```
+
+**Using pytest-benchmark for performance tracking:**
+```bash
+# Run with tracking
+pytest tests/benchmarks/test_bench_mqtt_benchmark.py -v
+
+# Save baseline
+pytest tests/benchmarks/ --benchmark-save=baseline
+
+# Compare against baseline
+pytest tests/benchmarks/ --benchmark-compare=baseline
+
+# Fail if >10% degradation
+pytest tests/benchmarks/ --benchmark-compare-fail=mean:10%
+```
+
+**Benchmark organization:**
+- `benchmark/` - Standalone benchmark scripts
+- `tests/benchmarks/` - pytest-integrated benchmark tests
+- Smoke tests: Quick validation (~30s)
+- Full tests: Comprehensive benchmarks (~2-5min)
+
+See [benchmark/README.md](benchmark/README.md) for detailed documentation.
 
 ## Project Structure
 
@@ -301,3 +385,58 @@ The project uses ruff for formatting and linting:
 pre-commit install
 pre-commit run --all-files
 ```
+
+---
+
+## Common Issues & Solutions
+
+### Docker Container Conflicts
+
+**Problem:** `Error: The container name "/benchmark-mqtt" is already in use`
+
+**Solution:**
+```bash
+# Automatic cleanup (handled by scripts)
+./scripts/start_benchmark_brokers.sh  # Auto-cleans before starting
+
+# Manual cleanup if needed
+docker rm -f benchmark-mqtt benchmark-redis benchmark-amqp
+```
+
+### Transport API Errors
+
+**Problem:** `TypeError: run() got an unexpected keyword argument 'wait'`
+
+**Solution:** Fixed in commit `148b825`. All transports now support:
+```python
+publisher.run(wait=True)   # Wait for connection
+publisher.run(wait=False)  # Don't wait
+```
+
+### Redis Connection Pool Issues
+
+**Problem:** Benchmark shows "Connection pools: 0"
+
+**Solution:** Fixed in commit `5291b9c`. Pool cleanup now properly resets class variables.
+
+### Python 3.14 Compatibility
+
+**Note:** Python 3.14 is not officially supported yet. AMQP tests are automatically skipped due to pika library compatibility issues. Use Python 3.9-3.13 for full test suite.
+
+---
+
+## Recent Updates (February 2026)
+
+### Phase C: CI Stabilization
+
+Three critical fixes for reliable CI execution:
+
+1. **Docker Cleanup (`8c18481`)** - Auto-cleanup containers, error handling
+2. **Transport API (`148b825`)** - Fixed run() signatures in AMQP/Kafka
+3. **Redis Pool (`5291b9c`)** - Fixed connection pool benchmark
+
+**Current Status:**
+- ✅ 349 unit tests passing
+- ✅ 13 smoke benchmark tests passing
+- ✅ `make ci-full` fully operational
+- ✅ 0 critical linting errors

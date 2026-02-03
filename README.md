@@ -1683,6 +1683,8 @@ The [examples/](./examples) directory of this repository includes various usage 
 
 Commlib-py uses the pytest framework. Run the test suite with:
 
+### Quick Testing
+
 **Using [make](https://pypi.org/project/pip/) (Makefile included in this repo):**
 ```sh
 make test
@@ -1699,19 +1701,65 @@ conda activate {venv}
 pytest
 ```
 
-Furthermore, the Makefile provides coverage commands:
+### CI Pipeline (Local)
 
-**Coverage**
+Run the full CI pipeline locally before pushing to GitHub:
 
+**Quick CI check (unit tests + benchmarks, ~15s):**
+```sh
+make ci
+```
+
+**Strict CI check (includes linting, ~20s):**
+```sh
+make ci-strict
+```
+
+**Full CI with broker tests (requires Docker, ~2min):**
+```sh
+make ci-full
+```
+
+**Individual CI steps:**
+```sh
+make ci-setup       # Check environment
+make ci-unit        # Run unit tests only
+make ci-lint        # Run linting only
+make ci-benchmarks  # Run benchmark smoke tests
+```
+
+### Coverage
+
+**Coverage Report:**
 ```sh
 make cov
 ```
 
-**Coverage Diff**
-
+**Coverage Diff:**
 ```sh
 make diff
 ```
+
+**Local Coverage (without Docker):**
+```sh
+make coverage
+```
+
+### Benchmarks
+
+**Run scaling benchmarks:**
+```sh
+python benchmark/bench_scaling.py --transport mock --test all
+```
+
+**Run broker-based benchmarks (requires Docker):**
+```sh
+./scripts/start_benchmark_brokers.sh
+pytest tests/benchmarks/ -v -m smoke
+./scripts/stop_benchmark_brokers.sh
+```
+
+See [benchmark/README.md](benchmark/README.md) for comprehensive benchmark documentation.
 
 ---
 
