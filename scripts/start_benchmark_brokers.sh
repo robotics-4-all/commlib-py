@@ -3,6 +3,11 @@
 
 echo "Starting brokers for benchmarks..."
 
+# Clean up existing containers if they exist
+echo "Cleaning up existing containers..."
+docker rm -f benchmark-mqtt benchmark-redis benchmark-amqp 2>/dev/null || true
+echo ""
+
 # MQTT (Mosquitto)
 echo "Starting MQTT broker..."
 docker run -d --name benchmark-mqtt \

@@ -219,12 +219,12 @@ ci-full: ## run full CI with broker-based benchmarks (requires Docker)
 	@echo "Starting brokers..."
 	./scripts/start_benchmark_brokers.sh
 	@echo ""
-	@$(MAKE) ci-unit
-	@$(MAKE) ci-lint
+	@$(MAKE) ci-unit || (./scripts/stop_benchmark_brokers.sh && exit 1)
+	@$(MAKE) ci-lint || (./scripts/stop_benchmark_brokers.sh && exit 1)
 	@echo "============================================================"
 	@echo "Running all benchmark tests (MQTT, Redis, AMQP)..."
 	@echo "============================================================"
-	. venv/bin/activate && pytest tests/benchmarks/ -v -m smoke --tb=short
+	. venv/bin/activate && pytest tests/benchmarks/ -v -m smoke --tb=short || (./scripts/stop_benchmark_brokers.sh && exit 1)
 	@echo ""
 	@echo "Stopping brokers..."
 	./scripts/stop_benchmark_brokers.sh
