@@ -54,8 +54,6 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     A threaded TCP server that handles each client connection in a separate thread.
     """
 
-    pass
-
 
 class TCPBridge(ThreadedTCPServer):
 

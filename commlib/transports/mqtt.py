@@ -289,7 +289,6 @@ class MQTTTransport(BaseTransport):
             userdata (Any): Internal paho-mqtt userdata
             msg (Dict[str, Any]): Received message
         """
-        pass
 
     def on_log(self, client: Any, userdata: Any, level, buf):
         self.log.info(level, buf)
@@ -395,10 +394,10 @@ class MQTTTransport(BaseTransport):
     def _on_msg_internal(
         self, callback: Callable, client: Any, userdata: Any, msg: Any
     ) -> None:
-        _topic = msg.topic
+        msg.topic
         _payload = msg.payload
-        _qos = msg.qos
-        _retain = msg.retain
+        msg.qos
+        msg.retain
         if self._compression != CompressionType.NO_COMPRESSION:
             _payload = deflate(_payload, self._compression)
         msg.payload = _payload
@@ -993,30 +992,6 @@ class RPCClient(BaseRPCClient):
         self._comm_obj.header.reply_to = self._gen_queue_name()
         self._comm_obj.data = data
         return self._comm_obj.model_dump()
-
-    def _on_response_wrapper(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        """_on_response_wrapper.
-
-        Args:
-            client (Any): client
-            userdata (Any): userdata
-            msg (Dict[str, Any]): msg
-        """
-        try:
-            data, header, uri = self._unpack_comm_msg(msg)
-        except (
-            RuntimeError,
-            ConnectionError,
-            TimeoutError,
-            ValueError,
-            KeyError,
-            AttributeError,
-            OSError,
-        ) as exc:
-            self.log.error(exc, exc_info=True)
-            data = {}
-        finally:
-            self._response = data
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
         _uri = msg.topic

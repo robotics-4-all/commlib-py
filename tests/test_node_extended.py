@@ -3,7 +3,6 @@
 """Extended tests for Node class."""
 
 import unittest
-from typing import Optional
 
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
 from commlib.node import Node

@@ -27,7 +27,7 @@ class TestTCPBridge(unittest.TestCase):
     def test_tcp_bridge_init_calls_super(self):
         """Test that TCPBridge calls parent class __init__."""
         with patch.object(ThreadedTCPServer, "__init__") as mock_super:
-            bridge = TCPBridge("127.0.0.1", 5000, "127.0.0.1", 6000)
+            TCPBridge("127.0.0.1", 5000, "127.0.0.1", 6000)
 
             # Verify super().__init__ was called with correct args
             mock_super.assert_called_once()

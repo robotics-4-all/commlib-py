@@ -4,7 +4,6 @@
 
 import time
 import unittest
-from typing import Optional
 from unittest.mock import MagicMock
 
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
@@ -58,6 +57,7 @@ class TestNode(unittest.TestCase):
 
     def test_node_create_subscriber(self):
         node = Node(node_name="sensors.sonar.front", connection_params=self.connparams)
+
         def on_message(msg):
             pass
         node.create_subscriber(msg_type=SonarMessage,
@@ -73,16 +73,16 @@ class TestNode(unittest.TestCase):
             connection_params=self.connparams,
             on_connected=mock_callback
         )
-        
+
         # Create a dummy publisher so the node has an endpoint to connect
         node.create_publisher(msg_type=SonarMessage, topic="test_topic")
-        
+
         # Run node synchronously (wait=True)
         node.run(wait=True)
-        
+
         # Verify callback was called
         mock_callback.assert_called_once()
-        
+
         node.stop()
 
     def test_node_on_connected_callback_async(self):
@@ -93,17 +93,17 @@ class TestNode(unittest.TestCase):
             connection_params=self.connparams,
             on_connected=mock_callback
         )
-        
+
         # Create a dummy publisher so the node has an endpoint to connect
         node.create_publisher(msg_type=SonarMessage, topic="test_topic_async")
-        
+
         # Run node asynchronously (wait=False)
         node.run(wait=False)
-        
+
         # Wait a bit for the async thread to execute
         time.sleep(0.1)
-        
+
         # Verify callback was called
         mock_callback.assert_called_once()
-        
+
         node.stop()

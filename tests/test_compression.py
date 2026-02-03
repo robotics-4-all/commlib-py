@@ -58,15 +58,15 @@ class TestCompression(unittest.TestCase):
     def test_compression_types(self):
         """Test different compression types."""
         text = "x" * 1000
-        
+
         # Test NO_COMPRESSION
         no_comp = inflate_str(text, CompressionType.NO_COMPRESSION)
         self.assertEqual(deflate(no_comp).decode(), text)
-        
+
         # Test BEST_SPEED
         best_speed = inflate_str(text, CompressionType.BEST_SPEED)
         self.assertEqual(deflate(best_speed).decode(), text)
-        
+
         # Test BEST_COMPRESSION
         best_comp = inflate_str(text, CompressionType.BEST_COMPRESSION)
         self.assertEqual(deflate(best_comp).decode(), text)

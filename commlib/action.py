@@ -303,7 +303,7 @@ class BaseActionService:
     including goal handling, status tracking, feedback publishing, and
     result reporting.
     """
-    
+
     _LOOP_INTERVAL = 0.001
 
     @classmethod
@@ -765,7 +765,7 @@ class BaseActionClient:
         ):
             resp = self._call_get_result()
             self._result = resp
-            
+
             # Call the on_goal_reached callback
             if self._status.status == GoalStatus.SUCCEDED and self.on_goal_reached is not None:
                 self.on_goal_reached(resp)

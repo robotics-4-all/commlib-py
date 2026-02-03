@@ -4,7 +4,6 @@ Provides Kafka-based pub/sub and RPC communication using confluent-kafka library
 Supports topic-based message distribution.
 """
 
-import functools
 import logging
 import time
 from typing import Any, Callable, Dict, List, Tuple
@@ -451,7 +450,7 @@ class RPCServer(BaseRPCServer):
                 else:
                     resp = clb(msg_type.Request(**req_msg.data))
                     resp = resp.model_dump()
-            self._send_response(resp, req.header.reply_to)
+            self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:
             self.log.error(str(exc), exc_info=False)
             return

@@ -38,7 +38,7 @@ class HeartbeatThread:
     def logger(cls) -> logging.Logger:
         global n_logger
         if n_logger is None:
-            n_logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+            n_logger = logging.getLogger(f"{__name__}.{cls.__name__}")
         return n_logger
 
     def __init__(
@@ -182,7 +182,9 @@ class Node:
         self._heartbeats = heartbeats
         self._heartbeat_interval = heartbeat_interval
         self._heartbeat_uri = (
-            heartbeat_uri if heartbeat_uri is not None else f"{self._namespace}.heartbeat"
+            heartbeat_uri
+            if heartbeat_uri is not None
+            else f"{self._namespace}.heartbeat"
         )
         self._compression = compression
         self._on_connected = on_connected
@@ -280,13 +282,19 @@ class Node:
         self._transport_module = transport_module
 
     def _init_heartbeat_thread(self) -> None:
-        hb_pub = self.create_publisher(topic=self._heartbeat_uri, msg_type=HeartbeatMessage)
+        hb_pub = self.create_publisher(
+            topic=self._heartbeat_uri, msg_type=HeartbeatMessage
+        )
         hb_pub.run()
         self._hb_thread = HeartbeatThread(hb_pub, interval=self._heartbeat_interval)
-        work = self._executor.submit(self._hb_thread.start).add_done_callback(Node._worker_clb)
+        work = self._executor.submit(self._hb_thread.start).add_done_callback(
+            Node._worker_clb
+        )
         self._workers.append(work)
 
-    def _start_rpc_callback(self, msg: _NodeStartMessage.Request) -> _NodeStartMessage.Response:
+    def _start_rpc_callback(
+        self, msg: _NodeStartMessage.Request
+    ) -> _NodeStartMessage.Response:
         resp = _NodeStartMessage.Response()
         if self.state == NodeState.STOPPED:
             self.run()
@@ -295,7 +303,9 @@ class Node:
             resp.error = "Cannot make the transition from current state!"
         return resp
 
-    def _stop_rpc_callback(self, msg: _NodeStopMessage.Request) -> _NodeStopMessage.Response:
+    def _stop_rpc_callback(
+        self, msg: _NodeStopMessage.Request
+    ) -> _NodeStopMessage.Response:
         resp = _NodeStopMessage.Response()
         if self.state == NodeState.RUNNING:
             self.state = NodeState.STOPPED
@@ -308,7 +318,9 @@ class Node:
     def create_stop_service(self, uri: str = "") -> None:
         if uri in (None, ""):
             uri = f"{self._namespace}.stop"
-        self.create_rpc(rpc_name=uri, msg_type=_NodeStopMessage, on_request=self._stop_rpc_callback)
+        self.create_rpc(
+            rpc_name=uri, msg_type=_NodeStopMessage, on_request=self._stop_rpc_callback
+        )
 
     def create_start_service(self, uri: str = "") -> None:
         if uri in ("", None):
@@ -343,6 +355,7 @@ class Node:
             if self._on_connected:
                 self._on_connected()
         elif self._on_connected:
+
             def _wait_conn():
                 while not self.health:
                     time.sleep(0.01)

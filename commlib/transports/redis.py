@@ -701,7 +701,7 @@ class RPCService(BaseRPCService):
                 resp = self.on_request(self._msg_type.Request(**req_msg.data))
                 # RPCMessage.Response object here
                 resp = resp.model_dump()
-        except RPCRequestError:
+        except RPCRequestError as exc:
             self.log.error(str(exc), exc_info=False)
             resp = {}
         except (
@@ -1323,7 +1323,7 @@ class RPCServer(BaseRPCServer):
                 )
                 # RPCMessage.Response object here
                 resp = resp.model_dump()
-        except RPCRequestError:
+        except RPCRequestError as exc:
             self.log.error(str(exc), exc_info=False)
             resp = {}
         except (

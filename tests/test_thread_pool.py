@@ -3,7 +3,6 @@
 import unittest
 import threading
 import time
-from concurrent.futures import Future
 from commlib.thread_pool import (
     ThreadPoolManager,
     get_io_pool,
@@ -145,8 +144,8 @@ class TestThreadPoolManager(unittest.TestCase):
         """Test shutdown_all_pools cleans up resources."""
         # Create pools
         io = get_io_pool()
-        compute = get_compute_pool()
-        action = get_action_pool()
+        get_compute_pool()
+        get_action_pool()
 
         # Submit some tasks
         io.submit(lambda: time.sleep(0.01))

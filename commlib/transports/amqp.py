@@ -26,7 +26,7 @@ from commlib.action import (
 )
 from commlib.compression import CompressionType, deflate, inflate_str
 from commlib.connection import BaseConnectionParameters
-from commlib.exceptions import *
+from commlib.exceptions import AMQPError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import (
@@ -1238,16 +1238,12 @@ class Subscriber(BaseSubscriber):
 
     def _on_msg_callback_wrapper(self, ch, method, properties, body):
         _data = {}
-        _ctype = None
-        _cencoding = None
-        _ts_send = None
-        _dmode = None
 
         try:
-            _ctype = properties.content_type
-            _cencoding = properties.content_encoding
-            _dmode = properties.delivery_mode
-            _ts_send = properties.timestamp
+            properties.content_type
+            properties.content_encoding
+            properties.delivery_mode
+            properties.timestamp
         except (
             RuntimeError,
             ConnectionError,
@@ -1286,7 +1282,7 @@ class Subscriber(BaseSubscriber):
             AttributeError,
             OSError,
         ):
-            self.log.warn("Could not calculate message rate", exc_info=True)
+            self.log.warning("Could not calculate message rate", exc_info=True)
 
         try:
             if self.onmessage is not None:
@@ -1330,16 +1326,12 @@ class PSubscriber(Subscriber):
 
     def _on_msg_callback_wrapper(self, ch, method, properties, body):
         _data = {}
-        _ctype = None
-        _cencoding = None
-        _ts_send = None
-        _dmode = None
 
         try:
-            _ctype = properties.content_type
-            _cencoding = properties.content_encoding
-            _dmode = properties.delivery_mode
-            _ts_send = properties.timestamp
+            properties.content_type
+            properties.content_encoding
+            properties.delivery_mode
+            properties.timestamp
         except (
             RuntimeError,
             ConnectionError,

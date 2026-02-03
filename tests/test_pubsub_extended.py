@@ -3,12 +3,10 @@
 """Extended tests for pubsub module."""
 
 import unittest
-from typing import Optional
 
 from commlib.msg import MessageHeader, PubSubMessage
 from commlib.node import Node
 from commlib.transports.mock import ConnectionParameters
-from commlib.pubsub import BasePublisher, BaseSubscriber
 
 
 class DummyMessage(PubSubMessage):

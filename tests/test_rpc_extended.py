@@ -3,13 +3,9 @@
 """Tests for commlib RPC module."""
 
 import unittest
-import time
-from typing import Optional
 
-from commlib.msg import RPCMessage
 from commlib.rpc import CommRPCHeader, CommRPCMessage, BaseRPCServer
 from commlib.transports.mock import ConnectionParameters
-from commlib.utils import gen_timestamp
 
 
 class TestCommRPCHeader(unittest.TestCase):
@@ -124,8 +120,6 @@ class TestBaseRPCServer(unittest.TestCase):
             conn_params=self.conn_params
         )
         self.assertEqual(server._svc_map, svc_map)
-
-
 
     def test_rpc_server_default_interval(self):
         """Test BaseRPCServer default interval."""

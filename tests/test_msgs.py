@@ -2,13 +2,11 @@
 
 """Tests for `commlib` package."""
 
-import time
 import unittest
 from typing import Optional
 import json
 
 from commlib.msg import Message, MessageHeader, PubSubMessage, RPCMessage
-from commlib.timer import Timer
 
 
 class TestMessages(unittest.TestCase):

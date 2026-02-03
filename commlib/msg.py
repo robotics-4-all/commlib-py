@@ -68,22 +68,16 @@ class RPCMessage(Message):
         RPC Request Message
         """
 
-        pass
-
     class Response(Message):
         """Response.
         RPC Response Message
         """
-
-        pass
 
 
 class PubSubMessage(Message):
     """PubSubObject Class.
     Implementation of the PubSubObject Base Data class.
     """
-
-    pass
 
 
 class ActionMessage(Message):
@@ -94,21 +88,15 @@ class ActionMessage(Message):
         Action Goal Message
         """
 
-        pass
-
     class Result(Message):
         """Result.
         Action Result Message
         """
 
-        pass
-
     class Feedback(Message):
         """Feedback.
         Action Feedback Message
         """
-
-        pass
 
 
 class HeartbeatMessage(PubSubMessage):

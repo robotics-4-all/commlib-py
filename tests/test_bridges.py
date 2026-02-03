@@ -4,12 +4,11 @@
 """Tests for bridges module."""
 
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from commlib.bridges import Bridge, RPCBridge, TopicBridge, PTopicBridge
 from commlib.bridges import RPCBridgeType, TopicBridgeType
 from commlib.transports.mock import ConnectionParameters
-from commlib.msg import RPCMessage, PubSubMessage
 
 
 class TestBridgeEnums(unittest.TestCase):
@@ -198,7 +197,7 @@ class TestRPCBridge(unittest.TestCase):
         mock_client.call = Mock(return_value={"result": "success"})
 
         def factory_side_effect(*args, **kwargs):
-            mock = Mock()
+            Mock()
             if "RPCService" in str(args):
                 return lambda **kw: mock_server
             else:

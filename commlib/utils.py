@@ -48,11 +48,11 @@ def get_timestamp_ns() -> int:
 
 
 def get_timestamp_us() -> int:
-    return int(gen_timestamp_ns() / 1e3)
+    return int(get_timestamp_ns() / 1e3)
 
 
 def get_timestamp_ms() -> int:
-    return int(gen_timestamp_ns() / 1e6)
+    return int(get_timestamp_ns() / 1e6)
 
 
 def gen_random_id() -> str:
@@ -68,7 +68,6 @@ def gen_random_id() -> str:
 
 
 class Rate:
-
     def __init__(self, hz: int):
         """__init__.
         Initializes a `Rate` object with the specified Hz (Hertz) rate.
@@ -127,17 +126,17 @@ def topic_to_mqtt(topic: str) -> str:
     """
     # Replace dots with slashes
     mqtt_topic = topic.replace(".", "/")
-    
+
     # Handle wildcards: convert * to appropriate MQTT wildcards
     # - If * is in the middle (surrounded by /), use + (single-level)
     # - If * is at the end (after /), use # (multi-level)
     if mqtt_topic.endswith("/*"):
         # Replace trailing wildcard with multi-level wildcard
         mqtt_topic = mqtt_topic[:-2] + "/#"
-    
+
     # Replace remaining asterisks (middle segments) with single-level wildcard +
     mqtt_topic = mqtt_topic.replace("/*", "/+").replace("*", "+")
-    
+
     return mqtt_topic
 
 
@@ -338,11 +337,15 @@ def convert_topic_notation(topic: str, from_protocol: str, to_protocol: str) -> 
     supported_protocols = {"commlib", "mqtt", "redis", "amqp", "kafka"}
 
     if from_protocol not in supported_protocols:
-        raise ValueError(f"Unsupported source protocol: {from_protocol}. "
-                        f"Must be one of {supported_protocols}")
+        raise ValueError(
+            f"Unsupported source protocol: {from_protocol}. "
+            f"Must be one of {supported_protocols}"
+        )
     if to_protocol not in supported_protocols:
-        raise ValueError(f"Unsupported target protocol: {to_protocol}. "
-                        f"Must be one of {supported_protocols}")
+        raise ValueError(
+            f"Unsupported target protocol: {to_protocol}. "
+            f"Must be one of {supported_protocols}"
+        )
 
     # If source and target are the same, return as-is
     if from_protocol == to_protocol:

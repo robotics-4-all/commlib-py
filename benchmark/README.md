@@ -536,3 +536,245 @@ Integration tests use **warning-based thresholds** to detect performance regress
 
 **Warnings are logged but tests pass** - This prevents false failures due to system load while still alerting to significant performance degradation.
 
+---
+
+## Scaling & Memory Benchmarks ⭐ NEW
+
+Comprehensive benchmarks for testing how performance scales with load and tracking memory usage.
+
+### Publisher Scaling
+
+Tests how throughput scales with increasing numbers of concurrent publishers:
+
+```bash
+# Run standalone
+python benchmark/bench_scaling.py --transport mock --test publishers
+
+# Via pytest
+pytest tests/benchmarks/test_bench_scaling.py::TestScalingBenchmarks::test_publisher_scaling_smoke -v
+```
+
+**Tests:** 1, 5, 10, 20, 50, 100 concurrent publishers  
+**Metrics:** Total throughput (msg/sec), latency per message
+
+**Example Output:**
+```
+============================================================
+Publisher Scaling Benchmark (mock)
+============================================================
+
+ Publishers | Throughput (msg/s) |  Latency (ms) | Total Messages
+------------+--------------------+---------------+----------------
+           1 |             15,234 |         0.066 |             100
+           5 |             68,912 |         0.073 |             500
+          10 |            125,456 |         0.080 |           1,000
+          20 |            235,678 |         0.085 |           2,000
+          50 |            512,345 |         0.098 |           5,000
+```
+
+### Message Size Scaling
+
+Tests how throughput changes with different message sizes:
+
+```bash
+# Run standalone  
+python benchmark/bench_scaling.py --transport mock --test message_size
+
+# Via pytest
+pytest tests/benchmarks/test_bench_scaling.py::TestScalingBenchmarks::test_message_size_scaling_smoke -v
+```
+
+**Tests:** 10B, 100B, 1KB, 10KB, 100KB messages  
+**Metrics:** Message throughput, bandwidth (MB/s), latency
+
+**Example Output:**
+```
+============================================================
+Message Size Scaling Benchmark (mock)
+============================================================
+
+ Size (bytes) | Throughput (msg/s) | Bandwidth (MB/s) |  Latency (ms)
+--------------+--------------------+------------------+---------------
+           10 |            245,678 |             2.34 |         0.004
+          100 |            198,456 |            18.92 |         0.005
+        1,000 |            156,789 |           149.59 |         0.006
+       10,000 |             45,678 |           435.42 |         0.022
+      100,000 |              5,234 |           498.89 |         0.191
+```
+
+### Memory Usage Benchmarking
+
+Tracks memory consumption with multiple publishers:
+
+```bash
+# Run standalone
+python benchmark/bench_scaling.py --transport mock --test memory
+
+# Via pytest
+pytest tests/benchmarks/test_bench_scaling.py::TestScalingBenchmarks::test_memory_usage_smoke -v
+```
+
+**Tests:** Memory usage with 20 publishers over 5 seconds  
+**Metrics:** Baseline, creation, runtime, and final memory; memory per publisher
+
+**Example Output:**
+```
+============================================================
+Memory Usage Benchmark (mock)
+============================================================
+
+Baseline memory: 45.23 MB
+
+Creating 20 publishers...
+  10 publishers: 48.12 MB (0.29 MB/publisher)
+  20 publishers: 50.89 MB (0.28 MB/publisher)
+
+Memory after creation: 50.89 MB
+Memory per publisher: 0.28 MB
+
+Running publishers for 5.0 seconds...
+
+Memory under load: 51.45 MB
+Messages sent: 125,678
+Throughput: 25,136 msg/sec
+
+Memory after cleanup: 46.12 MB
+```
+
+---
+
+## pytest-benchmark Integration ⭐ NEW
+
+All benchmarks now support **pytest-benchmark** for performance tracking and regression detection over time.
+
+### Basic Usage
+
+```bash
+# Run benchmarks with tracking
+pytest tests/benchmarks/test_bench_mqtt_benchmark.py -v
+
+# Save baseline for comparison
+pytest tests/benchmarks/test_bench_mqtt_benchmark.py --benchmark-save=baseline
+
+# Compare against baseline
+pytest tests/benchmarks/test_bench_mqtt_benchmark.py --benchmark-compare=baseline
+
+# Fail if performance degrades >10%
+pytest tests/benchmarks/test_bench_mqtt_benchmark.py --benchmark-compare=baseline --benchmark-compare-fail=mean:10%
+```
+
+### Generate Reports
+
+```bash
+# Generate histogram
+pytest tests/benchmarks/test_bench_mqtt_benchmark.py --benchmark-histogram
+
+# Generate JSON report
+pytest tests/benchmarks/test_bench_mqtt_benchmark.py --benchmark-json=output.json
+
+# View stored benchmarks
+pytest-benchmark list
+pytest-benchmark compare
+```
+
+### Tracked Metrics
+
+pytest-benchmark automatically tracks:
+- **Min/Max/Mean/Median** execution time
+- **Standard deviation** for stability analysis
+- **Iterations per second** (ops/sec)
+- **Rounds** for statistical significance
+
+### Example Output
+
+```
+---------------------------------------- benchmark: 3 tests ----------------------------------------
+Name (time in ms)                          Min      Max     Mean  StdDev  Median     Ops  Rounds
+----------------------------------------------------------------------------------------------------
+test_mqtt_publish_benchmark             8.234   12.456    9.123   0.892   8.945  109.62      10
+test_mqtt_pubsub_benchmark             45.678   52.123   48.234   1.567  47.889   20.73       8
+test_mqtt_concurrent_benchmark         23.456   28.901   25.678   1.234  25.234   38.94       9
+----------------------------------------------------------------------------------------------------
+```
+
+### Performance Regression Tests
+
+Explicit thresholds ensure minimum performance:
+
+```python
+@pytest.mark.benchmark
+def test_mqtt_publish_performance_threshold(mqtt_available, benchmark):
+    result = benchmark.pedantic(
+        benchmark_mqtt_publish_throughput,
+        kwargs={"iterations": 1000, "warmup": 100},
+        iterations=1,
+        rounds=3,
+    )
+    
+    MIN_THROUGHPUT = 1000  # msg/sec
+    assert result > MIN_THROUGHPUT
+```
+
+---
+
+## GitHub Actions CI/CD ⭐ NEW
+
+Automated benchmark testing via GitHub Actions:
+
+### Workflow Triggers
+
+1. **Push to branches:** `devel`, `master`, `feat/performance_a`
+2. **Pull requests:** Against `devel` or `master`
+3. **Nightly schedule:** 2 AM UTC
+4. **Manual dispatch:** Via GitHub UI
+
+### Workflow Jobs
+
+#### Smoke Tests (Fast)
+- **Runs on:** Every push/PR
+- **Duration:** ~30 seconds
+- **Brokers:** MQTT, Redis, RabbitMQ (via services)
+- **Tests:** Quick validation that benchmarks work
+
+#### Full Tests (Comprehensive)
+- **Runs on:** Nightly + manual dispatch
+- **Duration:** ~2-5 minutes
+- **Strategy:** Matrix across transports (MQTT, Redis, AMQP)
+- **Tests:** Complete benchmark suite
+
+### Viewing Results
+
+1. Go to **Actions** tab in GitHub
+2. Select **Benchmarks** workflow
+3. View run details and artifacts
+4. Download benchmark results (stored 7-30 days)
+
+### Local Simulation
+
+```bash
+# Simulate CI environment
+./scripts/start_benchmark_brokers.sh
+
+# Run smoke tests (like CI)
+pytest tests/benchmarks/ -v -m smoke
+
+# Run full tests (like nightly)
+pytest tests/benchmarks/ -v -m benchmark
+
+./scripts/stop_benchmark_brokers.sh
+```
+
+---
+
+## Summary of New Features
+
+| Feature | Description | Command |
+|---------|-------------|---------|
+| **Scaling Benchmarks** | Test publisher/message scaling | `python benchmark/bench_scaling.py` |
+| **Memory Benchmarks** | Track memory usage | `--test memory` |
+| **pytest-benchmark** | Performance tracking over time | `--benchmark-save=baseline` |
+| **GitHub Actions** | Automated CI/CD testing | Automatic on push/PR |
+| **Regression Detection** | Compare against baselines | `--benchmark-compare=baseline` |
+
+---
+

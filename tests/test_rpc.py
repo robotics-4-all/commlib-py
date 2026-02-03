@@ -2,9 +2,7 @@
 
 """Tests for `commlib` package."""
 
-import time
 import unittest
-from typing import Optional
 
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
 from commlib.node import Node
@@ -33,22 +31,27 @@ class TestPubSub(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures, if any."""
         self.connparams = ConnectionParameters(
-            host="test", port="1234",
+            host="test",
+            port="1234",
             reconnect_attempts=0,
-            )
+        )
 
     def tearDown(self):
         """Tear down test fixtures, if any."""
 
     def test_rpc_service_double_run(self):
         """Test something."""
-        node = Node(node_name='test_node',
-                    connection_params=self.connparams,
-                    heartbeats=False,
-                    debug=True)
-        rpc = node.create_rpc(msg_type=SonarMessage,
-                              rpc_name='sonar.front',
-                              on_request=lambda msg: print(msg))
+        node = Node(
+            node_name="test_node",
+            connection_params=self.connparams,
+            heartbeats=False,
+            debug=True,
+        )
+        rpc = node.create_rpc(
+            msg_type=SonarMessage,
+            rpc_name="sonar.front",
+            on_request=lambda msg: print(msg),
+        )
         rpc.run()
         rpc.run()
 
@@ -56,12 +59,13 @@ class TestPubSub(unittest.TestCase):
 
     def test_rpc_client_double_run(self):
         """Test something."""
-        node = Node(node_name='test_node',
-                    connection_params=self.connparams,
-                    heartbeats=False,
-                    debug=True)
-        rpcc = node.create_rpc_client(msg_type=SonarMessage,
-                                      rpc_name='sonar.front')
+        node = Node(
+            node_name="test_node",
+            connection_params=self.connparams,
+            heartbeats=False,
+            debug=True,
+        )
+        rpcc = node.create_rpc_client(msg_type=SonarMessage, rpc_name="sonar.front")
         rpcc.run()
         rpcc.run()
 

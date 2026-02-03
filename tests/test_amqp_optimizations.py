@@ -5,7 +5,6 @@ Tests event-driven RPC response, connection pooling, and events thread optimizat
 """
 
 import threading
-import time
 import unittest
 from unittest.mock import Mock, patch
 
@@ -96,7 +95,7 @@ class TestAMQPConnectionPooling(unittest.TestCase):
         self.assertEqual(_AMQP_CONNECTION_REFCOUNT[key], 2)
 
         # Third request also reuses
-        conn3 = get_or_create_amqp_connection(params)
+        get_or_create_amqp_connection(params)
         self.assertEqual(mock_connection_class.call_count, 1)
         self.assertEqual(_AMQP_CONNECTION_REFCOUNT[key], 3)
 
@@ -111,9 +110,9 @@ class TestAMQPConnectionPooling(unittest.TestCase):
         key = _make_connection_key(params)
 
         # Create 3 references
-        conn1 = get_or_create_amqp_connection(params)
-        conn2 = get_or_create_amqp_connection(params)
-        conn3 = get_or_create_amqp_connection(params)
+        get_or_create_amqp_connection(params)
+        get_or_create_amqp_connection(params)
+        get_or_create_amqp_connection(params)
         self.assertEqual(_AMQP_CONNECTION_REFCOUNT[key], 3)
 
         # Release 2 references
