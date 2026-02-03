@@ -198,16 +198,27 @@ def benchmark_redis_connection_pool_sharing(num_publishers=20):
     Returns:
         int: Number of connection pools created (should be 1 if sharing works)
     """
-    from commlib.transports.redis import _REDIS_POOL_REGISTRY, _REDIS_POOL_REFCOUNT
+    from commlib.transports.redis import (
+        _REDIS_POOL_REGISTRY,
+        _REDIS_POOL_REFCOUNT,
+        RedisTransport,
+    )
 
     conn_params = get_redis_params()
 
     print("\nBenchmark: Connection pool sharing")
     print("-" * 60)
 
-    # Clear pools
+    # Clear pools and reset class variable
+    # Properly disconnect old pool if it exists
+    if RedisTransport._redis_pool is not None:
+        try:
+            RedisTransport._redis_pool.disconnect()
+        except Exception:
+            pass
     _REDIS_POOL_REGISTRY.clear()
     _REDIS_POOL_REFCOUNT.clear()
+    RedisTransport._redis_pool = None
 
     publishers = []
 
