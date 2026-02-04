@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install build dependencies
-RUN pip install --no-cache-dir build pytest pytest-cov coverage
+RUN pip install --no-cache-dir build pytest pytest-cov coverage pytest-benchmark psutil
 
 # Copy source
 COPY . .
@@ -18,8 +18,8 @@ RUN pip install dist/*.whl
 RUN pip install ".[all,performance]"
 
 # Remove the source directory to ensure we are testing the installed package
-# We keep the tests directory though
-RUN mv tests /tmp/tests && rm -rf * && mv /tmp/tests .
+# We keep the tests and benchmark directories
+RUN mv tests /tmp/tests && mv benchmark /tmp/benchmark && rm -rf * && mv /tmp/tests . && mv /tmp/benchmark .
 
 # Default command runs unit tests
 CMD ["pytest", "tests", "--ignore=tests/mqtt", "--ignore=tests/redis"]
