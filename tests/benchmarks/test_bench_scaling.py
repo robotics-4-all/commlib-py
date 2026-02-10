@@ -145,8 +145,8 @@ class TestScalingBenchmarks:
             transport="mock", num_publishers=20, duration=3.0
         )
 
-        # Memory after creation should be higher than baseline
-        assert results["creation_mb"] > results["baseline_mb"]
+        # Memory after creation should be at least baseline (RSS too coarse for small allocations)
+        assert results["creation_mb"] >= results["baseline_mb"]
 
         # Memory per publisher should be reasonable (less than 10MB for mock transport)
         assert results["mem_per_publisher_mb"] < 10, (
