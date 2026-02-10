@@ -5,7 +5,10 @@ Supports topic-based message distribution.
 """
 
 import logging
+import threading
 import time
+
+from threading import Thread
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from confluent_kafka import (
@@ -79,6 +82,8 @@ class KafkaTransport(BaseTransport):
         super().__init__(*args, **kwargs)
         self._serializer = serializer if serializer is not None else JSONSerializer()
         self._compression = compression
+        self._producer: Optional[Producer] = None
+        self._subscribers: List[Tuple[Consumer, Thread, threading.Event]] = []
         self._producers: List[Producer] = []
         self._consumers: List[Consumer] = []
         self.connect()
@@ -101,6 +106,11 @@ class KafkaTransport(BaseTransport):
                     producer.flush()
                 finally:
                     pass
+            for consumer, thread, stop_event in self._subscribers:
+                stop_event.set()
+                thread.join()
+                consumer.close()
+            self._subscribers = []
             for consumer in self._consumers:
                 try:
                     consumer.close()
@@ -130,17 +140,83 @@ class KafkaTransport(BaseTransport):
         payload = self._serializer.serialize(data)
         if on_delivery is None:
             on_delivery = self._on_publish
-        producer.produce(topic, key=key, value=payload, on_delivery=on_delivery)
+        producer.produce(
+            topic, key=key.encode("utf-8"), value=payload, on_delivery=on_delivery
+        )
 
     def _on_publish(self, err, msg):
         pass
+
+    def publish(self, topic: str, data: Dict[str, Any], key: str = "") -> None:
+        if self._producer is None:
+            self._producer = self.create_producer(self._conn_params.model_dump())
+        self.publish_data(self._producer, data, topic, key)
+
+    def _unpack_kafka_msg(self, msg: Any) -> Tuple:
+        _topic = msg.topic()
+        _key = msg.key()
+        _timestamp = msg.timestamp()
+        _data = self._serializer.deserialize(msg.value())
+        return _data, _topic, _key, _timestamp
+
+    def _poll_loop(
+        self, consumer: Consumer, stop_event: threading.Event, callback: Callable
+    ):
+        while not stop_event.is_set():
+            msg = consumer.poll(timeout=1.0)
+            if msg is None:
+                continue
+            if msg.error():
+                if msg.error().code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]
+                    print(
+                        "%% %s [%d] reached end at offset %d\n"
+                        % (msg.topic(), msg.partition(), msg.offset())
+                    )
+                elif msg.error():
+                    self.log.error(f"Kafka error: {msg.error()}")
+            else:
+                try:
+                    data, topic, key, ts = self._unpack_kafka_msg(msg)
+                    callback(data)
+                except Exception:
+                    self.log.error(
+                        "Exception caught in _poll_loop callback", exc_info=True
+                    )
+
+    def subscribe(
+        self, topic: str, callback: Callable, group_id: Optional[str] = None
+    ) -> None:
+        import uuid
+
+        kafka_cfg = self._conn_params.model_dump()
+
+        if group_id is None:
+            kafka_cfg["group.id"] = f"rpc-reply-{uuid.uuid4()}"
+        else:
+            kafka_cfg["group.id"] = group_id
+
+        kafka_cfg["auto.offset.reset"] = "end"
+        kafka_cfg["enable.auto.offset.store"] = True
+        kafka_cfg["enable.auto.commit"] = True
+
+        consumer = self.create_consumer(kafka_cfg)
+
+        consumer.subscribe([topic])
+
+        stop_event = threading.Event()
+        thread = threading.Thread(
+            target=self._poll_loop, args=(consumer, stop_event, callback), daemon=True
+        )
+        thread.start()
+
+        self._subscribers.append((consumer, thread, stop_event))
 
 
 class Publisher(BasePublisher):
     def __init__(self, key: str = "", *args, **kwargs):
         self._key = key
         self._msg_seq = 0
-        self._producer: Producer = None
+        self._producer: Producer = None  # type: ignore[assignment]
 
         super().__init__(*args, **kwargs)
         self._create_kafka_conf()
@@ -225,9 +301,10 @@ class MPublisher(Publisher):
             data = msg.model_dump()
         if key in (None, ""):
             key = self._key
+        payload = self._serializer.serialize(data)
         self._producer.poll(0)
         self._producer.produce(
-            topic, key=key, value=data, on_delivery=self._on_delivery
+            topic, key=key.encode("utf-8"), value=payload, on_delivery=self._on_delivery
         )
         self._msg_seq += 1
 
@@ -284,7 +361,7 @@ class Subscriber(BaseSubscriber):
                 if msg is None:
                     continue
                 if msg.error():
-                    if msg.error().code() == KafkaError._PARTITION_EOF:
+                    if msg.error().code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]
                         # End of partition event
                         print(
                             "%% %s [%d] reached end at offset %d\n"
@@ -779,8 +856,134 @@ class TaskProducer(BaseTaskProducer):
         assert self._transport is not None
         data = envelope.model_dump()
         payload = JSONSerializer.serialize(data)
-        self._transport._producer.produce(
+        self._transport._producer.produce(  # type: ignore[attr-defined]
             topic=self._task_topic,
+            key=envelope.task_id,
+            value=payload,
+        )
+        self._transport._producer.flush()  # type: ignore[attr-defined]
+
+    def _on_result_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        result = TaskResult(**data)
+        self._handle_result(result)
+
+    def _on_progress_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        progress = TaskProgress(**data)
+        self._handle_progress(progress)
+
+    def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
+        super()._send_to_dlq(envelope, error)
+        assert self._transport is not None
+        data = envelope.model_dump()
+        data["error"] = error
+        dlq_topic = self._config.get_dlq_name().replace(".", "-")
+        payload = JSONSerializer.serialize(data)
+        self._transport._producer.produce(  # type: ignore[attr-defined]
+            topic=dlq_topic,
+            key=envelope.task_id,
+            value=payload,
+        )
+        self._transport._producer.flush()  # type: ignore[attr-defined]
+
+    def _on_result_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        result = TaskResult(**data)
+        self._handle_result(result)
+
+    def _on_progress_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        progress = TaskProgress(**data)
+        self._handle_progress(progress)
+
+
+class TaskWorker(BaseTaskWorker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = KafkaTransport(conn_params=self._conn_params)
+        self._task_topic = f"{self._queue_name}-tasks"
+        self._result_topic = f"{self._queue_name}-results"
+        self._progress_topic = f"{self._queue_name}-progress"
+        self._task_sub = None
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._task_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._task_topic,
+            on_message=self._on_task_msg,
+        )
+        self._task_sub.run()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        self._stop_event.set()
+        if self._task_sub is not None:
+            self._task_sub.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _on_task_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        envelope = TaskEnvelope(**data)
+        import threading
+
+        threading.Thread(
+            target=self._process_task,
+            args=(envelope,),
+            daemon=True,
+        ).start()
+
+    def _publish_result(self, result: TaskResult) -> None:
+        assert self._transport is not None
+        data = result.model_dump()
+        payload = JSONSerializer.serialize(data)
+        self._transport._producer.produce(
+            topic=self._result_topic,
+            key=result.task_id,
+            value=payload,
+        )
+        self._transport._producer.flush()
+
+    def _publish_progress(self, progress: TaskProgress) -> None:
+        assert self._transport is not None
+        data = progress.model_dump()
+        payload = JSONSerializer.serialize(data)
+        self._transport._producer.produce(
+            topic=self._progress_topic,
+            key=progress.task_id,
+            value=payload,
+        )
+        self._transport._producer.flush()
+
+    def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
+        super()._send_to_dlq(envelope, error)
+        assert self._transport is not None
+        data = envelope.model_dump()
+        data["error"] = error
+        dlq_topic = self._config.get_dlq_name().replace(".", "-")
+        payload = JSONSerializer.serialize(data)
+        self._transport._producer.produce(
+            topic=dlq_topic,
             key=envelope.task_id,
             value=payload,
         )
