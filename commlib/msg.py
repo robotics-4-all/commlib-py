@@ -120,7 +120,7 @@ class FileObject(BaseModel):
     The `load_from_file` method reads the raw bytes from the specified file path and stores them in the `data` attribute, encoding them in the specified encoding.
     """
 
-    data: List[bytes] = []
+    data: Union[List[bytes], str] = []
     filename: str = ""
     encoding: str = "base64"
 

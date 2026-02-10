@@ -11,12 +11,12 @@ from enum import IntEnum
 from typing import Any, Callable, List, Optional
 
 from commlib.compression import CompressionType
-from commlib.msg import HeartbeatMessage, PubSubMessage, RPCMessage
+from commlib.msg import HeartbeatMessage, RPCMessage
 from commlib.pubsub import BasePublisher
 from commlib.utils import gen_random_id, get_timestamp_ns
 from concurrent.futures import ThreadPoolExecutor
 
-n_logger: logging.Logger = None
+n_logger: Optional[logging.Logger] = None
 
 
 class NodeExecutorType(IntEnum):
@@ -74,10 +74,7 @@ class HeartbeatThread:
                 self.logger().debug(
                     "Sending heartbeat message - %s", self._heartbeat_pub._topic
                 )
-                if self._heartbeat_pub._msg_type is None:
-                    self._heartbeat_pub.publish(msg.model_dump())
-                else:
-                    self._heartbeat_pub.publish(msg)
+                self._heartbeat_pub.publish(msg)
                 # Wait for n seconds or until stop event is raised
                 self._stop_event.wait(self._rate_secs)
                 msg.ts = self.get_current_ts()
@@ -148,7 +145,7 @@ class Node:
         heartbeats: Optional[bool] = True,
         heartbeat_interval: Optional[float] = 10.0,
         heartbeat_uri: Optional[str] = None,
-        compression: CompressionType = CompressionType.NO_COMPRESSION,
+        compression: int = CompressionType.NO_COMPRESSION,
         ctrl_services: Optional[bool] = False,
         workers_rpc: Optional[int] = 4,
         on_connected: Optional[Callable] = None,
@@ -199,12 +196,13 @@ class Node:
         self._action_clients: List[Any] = []
         self._event_emitters: List[Any] = []
         self._workers: List[Any] = []
-        self._executor = None
+        self._executor: Optional[ThreadPoolExecutor] = None
 
         # Set default ConnectionParameters ---->
         if transport_connection_params is not None and connection_params is None:
             connection_params = transport_connection_params
         self._conn_params = connection_params
+        self._transport_module: Any = None
         self._select_transport()
 
     @property
@@ -287,6 +285,7 @@ class Node:
         )
         hb_pub.run()
         self._hb_thread = HeartbeatThread(hb_pub, interval=self._heartbeat_interval)
+        assert self._executor is not None
         work = self._executor.submit(self._hb_thread.start).add_done_callback(
             Node._worker_clb
         )
@@ -352,14 +351,15 @@ class Node:
         if wait:
             while not self.health:
                 time.sleep(0.01)
-            if self._on_connected:
+            if self._on_connected is not None:
                 self._on_connected()
-        elif self._on_connected:
+        elif self._on_connected is not None:
+            _cb = self._on_connected
 
             def _wait_conn():
                 while not self.health:
                     time.sleep(0.01)
-                self._on_connected()
+                _cb()
 
             self._executor.submit(_wait_conn)
         self.state = NodeState.RUNNING
@@ -447,7 +447,7 @@ class Node:
         self._publishers.append(pub)
         return pub
 
-    def create_wpublisher(self, mpub, topic: str, msg_type: PubSubMessage = None):
+    def create_wpublisher(self, mpub: Any, topic: str, msg_type: Any = None):
         """create_mpublisher
         Creates a new MPublisher (Multi-Topic Publisher) Endpoint.
 

@@ -5,8 +5,7 @@ Provides abstract base classes for implementing different transport backends.
 
 import logging
 import threading
-
-from commlib.connection import BaseConnectionParameters
+from typing import Any
 
 transport_logger = None
 
@@ -25,7 +24,7 @@ class BaseTransport:
             transport_logger = logging.getLogger(__name__)
         return transport_logger
 
-    def __init__(self, conn_params: BaseConnectionParameters, debug: bool = False):
+    def __init__(self, conn_params: Any = None, debug: bool = False):
         """__init__.
         Initializes a new instance of the `BaseTransport` class.
 
@@ -37,6 +36,7 @@ class BaseTransport:
         self._conn_params = conn_params
         self._debug = debug
         self._connected = False
+        self._stopped = False
 
         # Event-driven connection state management (eliminates busy-wait polling)
         self._connected_event = threading.Event()
@@ -99,17 +99,85 @@ class BaseTransport:
         """
         return self._disconnected_event.wait(timeout=timeout)
 
-    def connect(self):
+    def connect(self) -> None:
         raise NotImplementedError()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         raise NotImplementedError()
 
-    def start(self):
+    def start(self) -> None:
         raise NotImplementedError()
 
-    def stop(self):
+    def stop(self) -> None:
         raise NotImplementedError()
 
-    def loop_forever(self):
+    def loop_forever(self) -> None:
+        raise NotImplementedError()
+
+    # --- Transport method stubs ---
+    # These are implemented by concrete transport subclasses.
+    # Declared here so pyright can resolve attribute access on BaseTransport.
+
+    def publish(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def subscribe(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def unsubscribe(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def msubscribe(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def push_msg_to_queue(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def wait_for_msg(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def delete_queue(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def create_queue(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def create_exchange(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def exchange_exists(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def queue_exists(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def bind_queue(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def set_channel_qos(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def consume_from_queue(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def start_consuming(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def add_threadsafe_callback(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def detach_amqp_events_thread(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def create_producer(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def create_consumer(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    def publish_data(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError()
+
+    @property
+    def channel(self) -> Any:
         raise NotImplementedError()

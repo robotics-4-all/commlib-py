@@ -9,7 +9,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Type
 
 from commlib.endpoints import BaseEndpoint, EndpointState
 from commlib.msg import PubSubMessage
@@ -76,7 +76,13 @@ class BasePublisher(BaseEndpoint):
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
 
-    def __init__(self, topic: str, msg_type: PubSubMessage = None, *args, **kwargs):
+    def __init__(
+        self,
+        topic: str,
+        msg_type: Optional[Type[PubSubMessage]] = None,
+        *args,
+        **kwargs,
+    ):
         """__init__.
         Initializes a new instance of the `BaseSubscriber` class.
 
@@ -89,8 +95,8 @@ class BasePublisher(BaseEndpoint):
 
         super().__init__(*args, **kwargs)
         self._topic: str = topic
-        self._msg_type: PubSubMessage = msg_type
-        self._gen_random_id: str = gen_random_id
+        self._msg_type = msg_type
+        self._gen_random_id = gen_random_id
 
         validate_pubsub_topic_strict(self._topic)
 
@@ -125,7 +131,7 @@ class BaseSubscriber(BaseEndpoint):
     def __init__(
         self,
         topic: str,
-        msg_type: Optional[PubSubMessage] = None,
+        msg_type: Optional[Type[PubSubMessage]] = None,
         on_message: Optional[Callable] = None,
         workers: int = 2,
         use_shared_pool: bool = True,
@@ -137,7 +143,7 @@ class BaseSubscriber(BaseEndpoint):
 
         Args:
             topic (str): The topic to subscribe to.
-            msg_type (Optional[PubSubMessage]): The type of message to expect for this subscription.
+            msg_type (Optional[Type[PubSubMessage]]): The type of message to expect for this subscription.
             on_message (Optional[Callable]): A callback function to be called when a message is received.
             workers (int): Number of worker threads (only used if use_shared_pool=False).
             use_shared_pool (bool): If True, use shared thread pool (recommended). Default: True.

@@ -9,7 +9,7 @@ import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from functools import partial
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Type
 
 from pydantic import BaseModel
 
@@ -105,14 +105,17 @@ class BaseRPCServer(BaseEndpoint):
         return True
 
     def register_endpoint(
-        self, uri: str, callback: Callable, msg_type: RPCMessage = None
-    ):
+        self, uri: str, callback: Callable, msg_type: Optional[Type[RPCMessage]] = None
+    ) -> None:
         self._svc_map[uri] = (callback, msg_type)
 
-    def run_forever(self):
+    def run_forever(self) -> None:
         self._t_stop_event.clear()
+        assert self._transport is not None
         self._transport.start()
-        self.start_endpoints()
+        _start_endpoints = getattr(self, "start_endpoints", None)
+        if _start_endpoints is not None:
+            _start_endpoints()
         while not self._t_stop_event.is_set():
             time.sleep(self._LOOP_INTERVAL)
         self.log.debug("Stop event caught in thread")
@@ -141,10 +144,11 @@ class BaseRPCServer(BaseEndpoint):
         else:
             self.log.warning("Transport already connected - Skipping")
 
-    def stop(self) -> None:
+    def stop(self, wait: bool = True) -> None:
         if self._t_stop_event:
             self._t_stop_event.set()
-        self._transport.stop()
+        if self._transport is not None:
+            self._transport.stop()
         if self._main_thread:
             self._main_thread.join(timeout=1)
 
@@ -173,11 +177,11 @@ class BaseRPCService(BaseEndpoint):
     def __init__(
         self,
         rpc_name: str,
-        msg_type: RPCMessage = None,
-        on_request: Callable = None,
+        msg_type: Optional[Type[RPCMessage]] = None,
+        on_request: Optional[Callable] = None,
         workers: int = 5,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ):
         """__init__.
         Initializes a new instance of the `BaseRPCService` class.
@@ -222,7 +226,7 @@ class BaseRPCService(BaseEndpoint):
         Returns:
             str: The serialized payload.
         """
-
+        assert self._serializer is not None
         return self._serializer.serialize(payload)
 
     def _serialize_response(self, message: RPCMessage.Response) -> str:
@@ -255,7 +259,7 @@ class BaseRPCService(BaseEndpoint):
             return False
         return True
 
-    def _unpack_comm_msg(self, payload: Any, uri: str = None) -> Any:
+    def _unpack_comm_msg(self, payload: Any, uri: Optional[str] = None) -> Any:
         """
         Unpack the communication message.
 
@@ -267,6 +271,7 @@ class BaseRPCService(BaseEndpoint):
             Tuple[CommRPCMessage, str]: The unpacked message and URI.
         """
         try:
+            assert self._serializer is not None
             _payload = self._serializer.deserialize(payload)
             _data = _payload["data"]
             _header = _payload["header"]
@@ -336,10 +341,10 @@ class BaseRPCClient(BaseEndpoint):
     def __init__(
         self,
         rpc_name: str,
-        msg_type: RPCMessage = None,
+        msg_type: Optional[Type[RPCMessage]] = None,
         workers: int = 5,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ):
         """
         Initializes a new instance of the `BaseRPCClient` class.
@@ -396,7 +401,7 @@ class BaseRPCClient(BaseEndpoint):
         self,
         msg: RPCMessage.Request,
         timeout: float = 30.0,
-        on_response: callable = None,
+        on_response: Optional[Callable] = None,
     ) -> Future:
         """call_async.
         Asynchronously call an RPC method and return a Future object.
@@ -415,7 +420,7 @@ class BaseRPCClient(BaseEndpoint):
             _future.add_done_callback(partial(self._done_callback, on_response))
         return _future
 
-    def _done_callback(self, on_response: callable, _future):
+    def _done_callback(self, on_response: Callable, _future: Future) -> Any:
         """_done_callback.
         Handles the completion of an asynchronous RPC call.
 
@@ -450,6 +455,7 @@ class BaseRPCClient(BaseEndpoint):
             str: The serialized representation of the payload.
         """
 
+        assert self._serializer is not None
         return self._serializer.serialize(payload)
 
     def _serialize_request(self, message: RPCMessage.Request) -> str:
@@ -466,7 +472,7 @@ class BaseRPCClient(BaseEndpoint):
         return self._serialize_data(message.model_dump())
 
     def _prepare_request(
-        self, data: Dict[str, Any], reply_to: str = None
+        self, data: Dict[str, Any], reply_to: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Prepare the RPC request message.
@@ -486,7 +492,7 @@ class BaseRPCClient(BaseEndpoint):
         self._comm_obj.data = data
         return self._comm_obj.model_dump()
 
-    def _unpack_comm_msg(self, payload: Any, uri: str = None) -> Any:
+    def _unpack_comm_msg(self, payload: Any, uri: Optional[str] = None) -> Any:
         """
         Unpack the communication message.
 
@@ -497,6 +503,7 @@ class BaseRPCClient(BaseEndpoint):
         Returns:
             Tuple[Any, Any, str]: The unpacked data, header, and URI.
         """
+        assert self._serializer is not None
         _payload = self._serializer.deserialize(payload)
         _data = _payload["data"]
         _header = _payload["header"]

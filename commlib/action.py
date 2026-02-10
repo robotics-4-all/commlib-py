@@ -11,7 +11,7 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from enum import IntEnum
 from functools import partial
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable, Type
 
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
@@ -66,7 +66,7 @@ class _ActionResultMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
-        goal_id: str = ""
+        goal_id: Optional[str] = ""
 
     class Response(RPCMessage.Response):
         status: int = 0
@@ -84,13 +84,13 @@ class _ActionCancelMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
-        goal_id: str = ""
+        goal_id: Optional[str] = ""
         timestamp: int = gen_timestamp()
 
     class Response(RPCMessage.Response):
         status: int = 0
         timestamp: int = gen_timestamp()
-        result: Dict[str, Any]
+        result: Dict[str, Any] = {}
         error: str = ""
 
 
@@ -99,7 +99,7 @@ class _ActionStatusMessage(PubSubMessage):
     Internal Action Status Message.
     """
 
-    goal_id: str = ""
+    goal_id: Optional[str] = ""
     status: int = 0
 
 
@@ -134,11 +134,11 @@ class GoalHandler:
 
     def __init__(
         self,
-        msg_type: ActionMessage,
-        status_publisher: callable,
-        feedback_publisher: callable,
-        on_goal: callable,
-        on_cancel: callable,
+        msg_type: Optional[Type[ActionMessage]],
+        status_publisher: Optional[Callable],
+        feedback_publisher: Optional[Callable],
+        on_goal: Callable,
+        on_cancel: Optional[Callable],
     ):
         """__init__.
         Initializes a GoalHandler instance with the provided parameters.
@@ -156,7 +156,9 @@ class GoalHandler:
         self._msg_type = msg_type
         self.status = None
         self.id = gen_random_id()
-        self.data = msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
+        self.data: Any = (
+            msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
+        )
         self._pub_status = status_publisher
         self._pub_feedback = feedback_publisher
         self.result = msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
@@ -248,8 +250,8 @@ class GoalHandler:
             self._cancel_event.set()
             _ = self._goal_task.result()
             # self._executor.shutdown(wait=False)
-            self._executor._threads.clear()
-            concurrent.futures.thread._threads_queues.clear()
+            self._executor._threads.clear()  # type: ignore
+            concurrent.futures.thread._threads_queues.clear()  # type: ignore
         except (RuntimeError, concurrent.futures.TimeoutError) as exc:
             self.log.error("Error canceling goal: %s", exc)
             return 0
@@ -271,10 +273,11 @@ class GoalHandler:
 
         if status not in GoalStatus:
             raise ValueError("Wrong status code!")
-        status = int(status)
         self.status = status
         msg = _ActionStatusMessage(status=status, goal_id=self.id)
-        self._pub_status.publish(msg)
+        assert self._pub_status is not None
+        if self._pub_status is not None:
+            self._pub_status.publish(msg)
 
     def send_feedback(self, feedback_msg: _ActionFeedbackMessage):
         """
@@ -287,9 +290,11 @@ class GoalHandler:
             None
         """
 
-        _fb = feedback_msg.model_dump() if self._msg_type is not None else feedback_msg
-        msg = _ActionFeedbackMessage(feedback_data=_fb, goal_id=self.id)
-        self._pub_feedback.publish(msg)
+        _fb = feedback_msg.feedback_data
+        msg = _ActionFeedbackMessage(feedback_data=_fb, goal_id=self.id)  # type: ignore[reportArgumentType]
+        assert self._pub_feedback is not None
+        if self._pub_feedback is not None:
+            self._pub_feedback.publish(msg)
 
     def set_result(self, result):
         self.result = result
@@ -316,13 +321,13 @@ class BaseActionService:
     def __init__(
         self,
         action_name: str,
-        msg_type: ActionMessage = None,
+        msg_type: Optional[Type[ActionMessage]] = None,
         debug: bool = True,
-        compression: CompressionType = CompressionType.NO_COMPRESSION,
-        conn_params: BaseConnectionParameters = None,
-        on_goal: callable = None,
-        on_cancel: callable = None,
-        on_getresult: callable = None,
+        compression: int = CompressionType.NO_COMPRESSION,
+        conn_params: Optional[BaseConnectionParameters] = None,
+        on_goal: Optional[Callable] = None,
+        on_cancel: Optional[Callable] = None,
+        on_getresult: Optional[Callable] = None,
     ):
         """__init__.
         Initializes a BaseActionService instance.
@@ -393,6 +398,11 @@ class BaseActionService:
 
     @property
     def connected(self):
+        assert self._goal_rpc is not None
+        assert self._cancel_rpc is not None
+        assert self._result_rpc is not None
+        assert self._status_pub is not None
+        assert self._feedback_pub is not None
         return (
             self._goal_rpc.connected
             and self._cancel_rpc.connected
@@ -453,7 +463,9 @@ class BaseActionService:
         Args:
             msg (_ActionGoalMessage.Request): Set Goal Request Message
         """
-        self._notify(msg="Set Goal Request", data=msg.goal_data, description=msg.description)
+        self._notify(
+            msg="Set Goal Request", data=msg.goal_data, description=msg.description
+        )
         resp = _ActionGoalMessage.Response()
 
         if self._current_goal is None or self._current_goal.status in (
@@ -475,7 +487,9 @@ class BaseActionService:
         elif self._current_goal.status == GoalStatus.ACCEPTED:
             pass
         else:
-            resp.error = f"Cannot make the transition - Goal {self._current_goal.id} is running!"
+            resp.error = (
+                f"Cannot make the transition - Goal {self._current_goal.id} is running!"
+            )
             return resp
         # Execute user-defined callback
         self._current_goal.start()
@@ -520,19 +534,25 @@ class BaseActionService:
             return resp
         elif self._current_goal.id != _goal_id:
             return resp
-        resp.status = self._current_goal.status
+        assert self._current_goal is not None
+        resp.status = (
+            int(self._current_goal.status)
+            if self._current_goal.status is not None
+            else 0
+        )
         # Set Result data
         if self._msg_type is not None:
-            resp.result = self._current_goal.result.model_dump()
+            assert self._current_goal.result is not None
+            resp.result = self._current_goal.result.model_dump()  # type: ignore[reportAttributeAccessIssue]
         else:
-            resp.result = self._current_goal.result
+            resp.result = self._current_goal.result  # type: ignore[reportAttributeAccessIssue]
         return resp
 
     def _notify(
         self,
         msg: str = "",
         description: str = "",
-        goal_id: str = "",
+        goal_id: Optional[str] = "",
         status: int = 0,
         data: Dict[str, Any] = {},
     ):
@@ -571,13 +591,13 @@ class BaseActionClient:
     def __init__(
         self,
         action_name: str,
-        msg_type: ActionMessage = None,
+        msg_type: Optional[Type[ActionMessage]] = None,
         debug: bool = False,
-        compression: CompressionType = CompressionType.NO_COMPRESSION,
-        conn_params: BaseConnectionParameters = None,
-        on_feedback: callable = None,
-        on_result: callable = None,
-        on_goal_reached: callable = None,
+        compression: int = CompressionType.NO_COMPRESSION,
+        conn_params: Optional[BaseConnectionParameters] = None,
+        on_feedback: Optional[Callable] = None,
+        on_result: Optional[Callable] = None,
+        on_goal_reached: Optional[Callable] = None,
     ):
         """
         Initializes an instance of the `BaseActionClient` class.
@@ -641,6 +661,11 @@ class BaseActionClient:
 
     @property
     def connected(self):
+        assert self._status_sub is not None
+        assert self._feedback_sub is not None
+        assert self._goal_client is not None
+        assert self._cancel_client is not None
+        assert self._result_client is not None
         return (
             self._status_sub.connected
             and self._feedback_sub.connected
@@ -650,7 +675,10 @@ class BaseActionClient:
         )
 
     def send_goal(
-        self, goal_msg: ActionMessage.Goal, timeout: int = 10, wait_for_result: bool = False
+        self,
+        goal_msg: ActionMessage.Goal,
+        timeout: int = 10,
+        wait_for_result: bool = False,
     ) -> _ActionGoalMessage.Response:
         """send_goal.
         Send a new goal to the Action service.
@@ -669,6 +697,7 @@ class BaseActionClient:
         elif isinstance(goal_msg, ActionMessage.Goal):
             _data = goal_msg.model_dump()
         req = _ActionGoalMessage.Request(goal_data=_data)
+        assert self._goal_client is not None
         self._status = _ActionStatusMessage()
         resp = self._goal_client.call(req, timeout=timeout)
         self._result = None  # Reset result
@@ -688,7 +717,9 @@ class BaseActionClient:
         Returns:
             _ActionCancelMessage.Response:
         """
+        assert self._goal_id is not None
         req = _ActionCancelMessage.Request(goal_id=self._goal_id)
+        assert self._cancel_client is not None
         resp = self._cancel_client.call(req, timeout=timeout)
         # TODO Check response status
         # res = self.get_result(wait=wait_for_result)
@@ -710,31 +741,9 @@ class BaseActionClient:
         Returns:
             ActionMessage.Result:
         """
+        assert self._goal_id is not None
         req = _ActionResultMessage.Request(goal_id=self._goal_id)
-        if self._result is not None:
-            return self._result
-        if wait:
-            t_start = time.time()
-            t_elapsed = 0
-            while t_elapsed < wait_max_sec:
-                # If the goal has reached a final state
-                if self._result is not None:
-                    return self._result
-                time.sleep(self._LOOP_INTERVAL)
-                t_elapsed = time.time() - t_start
-        return self._result
-
-    def _call_get_result(self, timeout: float = 10.0) -> ActionMessage.Result:
-        """_get_result.
-        Returns the result of the goal.
-
-        Args:
-            timeout (float): timeout
-
-        Returns:
-            ActionMessage.Result:
-        """
-        req = _ActionResultMessage.Request(goal_id=self._goal_id)
+        assert self._result_client is not None
         resp = self._result_client.call(req, timeout=timeout)
         if self._msg_type is None:
             res = resp.result
@@ -763,11 +772,14 @@ class BaseActionClient:
             GoalStatus.CANCELED,
             GoalStatus.ABORTED,
         ):
-            resp = self._call_get_result()
+            resp = self._call_get_result()  # type: ignore[reportAttributeAccessIssue]
             self._result = resp
 
             # Call the on_goal_reached callback
-            if self._status.status == GoalStatus.SUCCEDED and self.on_goal_reached is not None:
+            if (
+                self._status.status == GoalStatus.SUCCEDED
+                and self.on_goal_reached is not None
+            ):
                 self.on_goal_reached(resp)
 
             # If the on_result callback was declared
@@ -788,11 +800,10 @@ class BaseActionClient:
         # Check if the goal_id matches the one of the current goal.
         if msg.goal_id != self._goal_id:
             return
-        fb = (
-            self._msg_type.Feedback(**msg.feedback_data)
-            if self._msg_type is not None
-            else msg.feedback_data
-        )
+        if self._msg_type is not None and msg.feedback_data is not None:
+            fb = self._msg_type.Feedback(**msg.feedback_data)
+        else:
+            fb = msg.feedback_data
         if self.on_feedback is not None:
             self.on_feedback(fb)
 

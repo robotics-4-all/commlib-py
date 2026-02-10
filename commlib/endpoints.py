@@ -7,6 +7,7 @@ endpoint instances with various transport backends.
 import logging
 from enum import Enum
 import time
+from typing import Any, Optional, Type
 
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
@@ -60,9 +61,9 @@ class BaseEndpoint:
     def __init__(
         self,
         debug: bool = False,
-        serializer: Serializer = JSONSerializer,
-        conn_params: BaseConnectionParameters = None,
-        compression: CompressionType = CompressionType.NO_COMPRESSION,
+        serializer: Optional[Type[Serializer]] = JSONSerializer,
+        conn_params: Optional[BaseConnectionParameters] = None,
+        compression: int = CompressionType.NO_COMPRESSION,
     ):
         """__init__.
         Initializes a new instance of the `BaseEndpoint` class.
@@ -79,11 +80,11 @@ class BaseEndpoint:
         self._compression = compression
         self._conn_params = conn_params
         self._state = EndpointState.DISCONNECTED
-        self._transport: BaseTransport = None
+        self._transport: Optional[BaseTransport] = None
 
     @property
     def connected(self):
-        return self._transport.is_connected
+        return self._transport.is_connected if self._transport else False
 
     @property
     def log(self):
@@ -176,7 +177,7 @@ class EndpointType(Enum):
     PSubscriber = 8
 
 
-def endpoint_factory(etype: EndpointType, etransport: TransportType):
+def endpoint_factory(etype: EndpointType, etransport: TransportType) -> Any:
     """
     Factory function to create endpoint instances based on the specified endpoint type and transport type.
 

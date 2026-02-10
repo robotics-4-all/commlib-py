@@ -8,7 +8,7 @@ import functools
 import logging
 import time
 from enum import IntEnum
-from typing import Any, Callable, Dict, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import paho.mqtt.client as mqtt
 from paho.mqtt.client import error_string
@@ -41,11 +41,11 @@ from commlib.rpc import (
     CommRPCHeader,
     CommRPCMessage,
 )
-from commlib.serializer import JSONSerializer, Serializer
+from commlib.serializer import JSONSerializer
 from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
 
-mqtt_logger: logging.Logger = None
+mqtt_logger: Optional[logging.Logger] = None
 
 
 class MQTTReturnCode(IntEnum):
@@ -96,8 +96,8 @@ class MQTTTransport(BaseTransport):
 
     def __init__(
         self,
-        serializer: Serializer = JSONSerializer(),
-        compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
+        serializer: Any = JSONSerializer(),
+        compression: int = CompressionType.DEFAULT_COMPRESSION,
         *args,
         **kwargs,
     ):
@@ -127,6 +127,7 @@ class MQTTTransport(BaseTransport):
         return self._client.is_connected() if self._client else False
 
     def _configure_client(self):
+        assert self._client is not None
         self._client.on_connect = self.on_connect
         self._client.on_disconnect = self.on_disconnect
         # self._client.on_log = self.on_log
@@ -257,6 +258,7 @@ class MQTTTransport(BaseTransport):
         """Restore all tracked subscriptions after reconnection."""
         if not self._subscriptions:
             return
+        assert self._client is not None
         self.log.debug(
             "Restoring %s subscriptions after reconnect", len(self._subscriptions)
         )
@@ -309,6 +311,7 @@ class MQTTTransport(BaseTransport):
             retain (bool): If set to True, then it tells the broker to store
                 that message on the topic as the “last good message”.
         """
+        assert self._client is not None
         topic = topic.replace(".", "/")
         pl = self._serializer.serialize(payload)
         if self._compression != CompressionType.NO_COMPRESSION:
@@ -333,7 +336,8 @@ class MQTTTransport(BaseTransport):
         # Adds subtopic specific callback handlers
         if topic in (None, ""):
             self.log.warning("Attempt to subscribe to empty topic - %s", topic)
-            return None
+            return ""
+        assert self._client is not None
         transformed_topic = self._transform_topic(topic)
         # Track subscription with original topic and QoS for reconnection
         self._subscriptions[transformed_topic] = (callback, qos)
@@ -389,6 +393,7 @@ class MQTTTransport(BaseTransport):
         return self._transform_topic_cached(topic)
 
     def unsubscribe(self, topic: str) -> None:
+        assert self._client is not None
         self._client.unsubscribe(topic)
 
     def _on_msg_internal(
@@ -404,6 +409,7 @@ class MQTTTransport(BaseTransport):
         callback(client, userdata, msg)
 
     def disconnect(self) -> None:
+        assert self._client is not None
         self._client.loop_stop()
         self._client.disconnect()
 
@@ -443,6 +449,7 @@ class MQTTTransport(BaseTransport):
 
         Starts the loop and waits until termination. This is synchronous.
         """
+        assert self._client is not None
         self._client.loop_forever()
 
 
@@ -475,6 +482,7 @@ class Publisher(BasePublisher):
         Returns:
             None:
         """
+        assert self._transport is not None
         data = self._prepare_msg(msg)
         self._transport.publish(self._topic, data, qos=MQTTQoS.L0)
         self._msg_seq += 1
@@ -498,6 +506,7 @@ class MPublisher(Publisher):
         Returns:
             None:
         """
+        assert self._transport is not None
         validate_pubsub_topic_strict(topic)
         data = self._prepare_msg(msg)
         self._transport.publish(topic, data)
@@ -544,6 +553,7 @@ class WPublisher:
         """
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
+        assert msg is not None
         self._mpub.publish(msg, self._topic)
 
 
@@ -568,6 +578,7 @@ class Subscriber(BaseSubscriber):
         validate_pubsub_topic_strict(self._topic)
 
     def run_forever(self):
+        assert self._transport is not None
         self._transport.start()
         self._transport.subscribe(self._topic, self._on_message)
         while True:
@@ -607,6 +618,7 @@ class Subscriber(BaseSubscriber):
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple:
         _uri = msg.topic
+        assert self._serializer is not None
         _data = self._serializer.deserialize(msg.payload)
         return _data, _uri
 
@@ -619,13 +631,13 @@ class WSubscriber(BaseSubscriber):
             args: See BaseSubscriber
             kwargs: See BaseSubscriber
         """
-        super().__init__(topic=None, *args, **kwargs)
+        super().__init__(topic=None, *args, **kwargs)  # type: ignore[reportArgumentType]
         self._transport = MQTTTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
             compression=self._compression,
         )
-        self._subs: Dict[str, callable] = {}
+        self._subs: Dict[str, Callable] = {}
 
     def run_forever(self):
         """
@@ -649,6 +661,7 @@ class WSubscriber(BaseSubscriber):
             Any exceptions raised by the transport's `start` or `stop` methods.
 
         """
+        assert self._transport is not None
         self._transport.start()
         for topic, callback in self._subs.items():
             self._transport.subscribe(
@@ -662,7 +675,7 @@ class WSubscriber(BaseSubscriber):
             time.sleep(self._LOOP_INTERVAL)
         self._transport.stop()
 
-    def subscribe(self, topic: str, callback: callable) -> None:
+    def subscribe(self, topic: str, callback: Callable) -> None:
         """
         Subscribe to a given MQTT topic with a callback function.
 
@@ -677,7 +690,7 @@ class WSubscriber(BaseSubscriber):
         self._subs[topic] = callback
 
     def _on_message(
-        self, callback: callable, client: Any, userdata: Any, msg: Dict[str, Any]
+        self, callback: Callable, client: Any, userdata: Any, msg: Dict[str, Any]
     ) -> None:
         """_on_message.
 
@@ -706,6 +719,7 @@ class WSubscriber(BaseSubscriber):
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[Dict[str, Any], str]:
         _uri = msg.topic
+        assert self._serializer is not None
         _data = self._serializer.deserialize(msg.payload)
         return _data, _uri
 
@@ -729,6 +743,7 @@ class PSubscriber(BaseSubscriber):
         validate_pubsub_topic(self._topic)
 
     def run_forever(self):
+        assert self._transport is not None
         self._transport.start()
         self._transport.subscribe(self._topic, self._on_message)
         while True:
@@ -760,6 +775,7 @@ class PSubscriber(BaseSubscriber):
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple:
         _uri = msg.topic
+        assert self._serializer is not None
         _data = self._serializer.deserialize(msg.payload)
         return _data, _uri
 
@@ -784,6 +800,7 @@ class RPCService(BaseRPCService):
         )
 
     def _send_response(self, data: Dict[str, Any], reply_to: str):
+        assert self._transport is not None
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.model_dump()
@@ -794,7 +811,10 @@ class RPCService(BaseRPCService):
 
     def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         try:
-            req_msg, uri = self._unpack_comm_msg(msg.payload, msg.topic)
+            req_msg, uri = self._unpack_comm_msg(
+                msg.payload,  # type: ignore[reportAttributeAccessIssue]
+                msg.topic,  # type: ignore[reportAttributeAccessIssue]
+            )
         except ValueError as exc:
             self.log.warning(
                 "Could not unpack request message: %s\nDropping client request!",
@@ -803,6 +823,7 @@ class RPCService(BaseRPCService):
             )
             return
         try:
+            assert self.on_request is not None
             if self._msg_type is None:
                 resp = self.on_request(req_msg.data)
             else:
@@ -823,6 +844,7 @@ class RPCService(BaseRPCService):
 
     def run_forever(self):
         """run_forever."""
+        assert self._transport is not None
         self._transport.start()
         self._transport.subscribe(
             self._rpc_name, self._on_request_handle, qos=MQTTQoS.L1
@@ -858,6 +880,7 @@ class RPCServer(BaseRPCServer):
             data (dict): data
             reply_to (str): reply_to
         """
+        assert self._transport is not None
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.model_dump()
@@ -923,6 +946,7 @@ class RPCServer(BaseRPCServer):
             return
 
     def start_endpoints(self):
+        assert self._transport is not None
         for uri in self._svc_map:
             if self._base_uri in (None, ""):
                 full_uri = uri
@@ -943,6 +967,7 @@ class RPCServer(BaseRPCServer):
             Tuple[Any, Any, Any]:
         """
         try:
+            assert self._serializer is not None
             _uri = msg.topic
             _payload = self._serializer.deserialize(msg.payload)
             _data = _payload["data"]
@@ -995,6 +1020,7 @@ class RPCClient(BaseRPCClient):
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
         _uri = msg.topic
+        assert self._serializer is not None
         _payload = self._serializer.deserialize(msg.payload)
         _data = _payload["data"]
         _header = _payload["header"]
@@ -1006,6 +1032,7 @@ class RPCClient(BaseRPCClient):
         Args:
             timeout (float): timeout
         """
+        assert self._transport is not None
         start_t = time.time()
         while self._response is None:
             if not self._transport.is_connected or self._transport._stopped:
@@ -1027,6 +1054,7 @@ class RPCClient(BaseRPCClient):
         Returns:
             RPCMessage.Response: The response message received. If no response is received within the timeout period, returns None.
         """
+        assert self._transport is not None
         try:
             data = self._prepare_call_data(msg)
         except ValueError as e:
@@ -1038,7 +1066,7 @@ class RPCClient(BaseRPCClient):
         _resp = self._wait_for_response(timeout=timeout)
         self._transport.unsubscribe(_reply_to)
         if _resp is None:
-            return None
+            return None  # type: ignore[reportReturnType]
         # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
             return _resp

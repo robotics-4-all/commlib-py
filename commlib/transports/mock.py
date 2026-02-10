@@ -11,7 +11,7 @@ from commlib.endpoints import EndpointState
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCService
-from commlib.serializer import JSONSerializer, Serializer
+
 from commlib.transports.base_transport import BaseTransport
 
 
@@ -33,13 +33,11 @@ class MockTransport(BaseTransport):
 
     def __init__(
         self,
-        conn_params: ConnectionParameters,
-        serializer: Serializer = JSONSerializer(),
-        *args,
-        **kwargs,
+        conn_params: Optional[BaseConnectionParameters] = None,
+        *args: Any,
+        **kwargs: Any,
     ):
         super().__init__(conn_params, *args, **kwargs)
-        self._serializer = serializer
 
     def start(self):
         """Start the mock transport."""
@@ -109,7 +107,7 @@ class Publisher(BasePublisher):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport(self._conn_params, serializer=self._serializer)
+        self._transport = MockTransport(self._conn_params)
 
     def publish(self, msg: PubSubMessage):
         """Publish message to mock transport.
@@ -117,6 +115,8 @@ class Publisher(BasePublisher):
         Args:
             msg: Message to publish
         """
+        if self._transport is None:
+            return
         if not self._transport.is_connected:
             self._transport.start()
 
@@ -133,9 +133,9 @@ class Publisher(BasePublisher):
 class Subscriber(BaseSubscriber):
     """Mock subscriber with in-memory message passing."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport(self._conn_params, serializer=self._serializer)
+        self._transport = MockTransport(self._conn_params)
         self._callback_registered = False
 
     def run(self, wait: bool = True) -> None:
@@ -154,16 +154,18 @@ class Subscriber(BaseSubscriber):
 
         # Register callback with mock bus
         if not self._callback_registered and self.onmessage is not None:
+            _onmessage = self.onmessage
+            _msg_type = self._msg_type
 
-            def wrapper(data):
-                if self._msg_type is not None:
+            def wrapper(data: Any) -> None:
+                if _msg_type is not None:
                     try:
-                        msg = self._msg_type(**data)
-                        self.onmessage(msg)
+                        msg = _msg_type(**data)
+                        _onmessage(msg)
                     except Exception:
                         pass  # Ignore errors
                 else:
-                    self.onmessage(data)
+                    _onmessage(data)
 
             self._transport.subscribe(self._topic, wrapper)
             self._callback_registered = True
@@ -188,9 +190,9 @@ class Subscriber(BaseSubscriber):
 class RPCService(BaseRPCService):
     """Mock RPC service."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport(self._conn_params, serializer=self._serializer)
+        self._transport = MockTransport(self._conn_params)
 
     def run(self, wait: bool = True) -> None:
         """Start the RPC service.
@@ -225,9 +227,9 @@ class RPCService(BaseRPCService):
 class RPCClient(BaseRPCClient):
     """Mock RPC client."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport(self._conn_params, serializer=self._serializer)
+        self._transport = MockTransport(self._conn_params)
 
     def call(
         self, msg: RPCMessage.Request, timeout: float = 30.0
@@ -241,6 +243,8 @@ class RPCClient(BaseRPCClient):
         Returns:
             Response message (empty for mock)
         """
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
         if not self._transport.is_connected:
             self._transport.start()
 
