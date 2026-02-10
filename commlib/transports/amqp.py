@@ -15,6 +15,13 @@ from typing import Dict, Optional
 
 import pika
 
+from commlib.task_queue import (
+    BaseTaskProducer,
+    BaseTaskWorker,
+    TaskEnvelope,
+    TaskProgress,
+    TaskResult,
+)
 from commlib.action import (
     BaseActionClient,
     BaseActionService,
@@ -25,6 +32,7 @@ from commlib.action import (
     _ActionStatusMessage,
 )
 from commlib.compression import CompressionType, deflate, inflate_str
+from commlib.endpoints import EndpointState
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import AMQPError
 from commlib.msg import PubSubMessage, RPCMessage
@@ -1547,4 +1555,166 @@ class ActionClient(BaseActionClient):
             conn_params=self._conn_params,
             topic=self._feedback_topic,
             on_message=self._on_feedback,
+        )
+
+
+class TaskProducer(BaseTaskProducer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = AMQPTransport(conn_params=self._conn_params)
+        self._result_sub = None
+        self._progress_sub = None
+        self._result_topic = f"{self._queue_name}.results"
+        self._progress_topic = f"{self._queue_name}.progress"
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._result_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._result_topic,
+            on_message=self._on_result_msg,
+        )
+        self._result_sub.run()
+        self._progress_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._progress_topic,
+            on_message=self._on_progress_msg,
+        )
+        self._progress_sub.run()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        if self._result_sub is not None:
+            self._result_sub.stop()
+        if self._progress_sub is not None:
+            self._progress_sub.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _send_task(self, envelope: TaskEnvelope) -> None:
+        assert self._transport is not None
+        assert self._transport.channel is not None
+        data = json.dumps(envelope.model_dump())
+        self._transport.channel.queue_declare(queue=self._queue_name, durable=True)
+        self._transport.channel.basic_publish(
+            exchange="",
+            routing_key=self._queue_name,
+            body=data,
+            properties=pika.BasicProperties(
+                delivery_mode=2,
+                priority=envelope.priority,
+            ),
+        )
+
+    def _on_result_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        result = TaskResult(**data)
+        self._handle_result(result)
+
+    def _on_progress_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        progress = TaskProgress(**data)
+        self._handle_progress(progress)
+
+
+class TaskWorker(BaseTaskWorker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = AMQPTransport(conn_params=self._conn_params)
+        self._pub_transport = None
+        self._result_topic = f"{self._queue_name}.results"
+        self._progress_topic = f"{self._queue_name}.progress"
+        self._consumer_thread = None
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._pub_transport = AMQPTransport(conn_params=self._conn_params)
+        self._pub_transport.start()
+        assert self._transport.channel is not None
+        self._transport.channel.queue_declare(queue=self._queue_name, durable=True)
+        self._transport.channel.basic_qos(prefetch_count=self._config.max_concurrent)
+        self._stop_event.clear()
+        self._consumer_thread = Thread(target=self._consume_loop, daemon=True)
+        self._consumer_thread.start()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        self._stop_event.set()
+        if self._consumer_thread is not None:
+            self._consumer_thread.join(timeout=5.0)
+        if self._pub_transport is not None:
+            self._pub_transport.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _consume_loop(self) -> None:
+        assert self._transport is not None
+        assert self._transport.channel is not None
+        for method, properties, body in self._transport.channel.consume(
+            queue=self._queue_name,
+            inactivity_timeout=1.0,
+        ):
+            if self._stop_event.is_set():
+                break
+            if method is None:
+                continue
+            try:
+                data = json.loads(body)
+                envelope = TaskEnvelope(**data)
+                self._process_task(envelope)
+                self._transport.channel.basic_ack(delivery_tag=method.delivery_tag)
+            except Exception as exc:
+                logger.error("Error processing AMQP task: %s", exc)
+                self._transport.channel.basic_nack(
+                    delivery_tag=method.delivery_tag,
+                    requeue=False,
+                )
+
+    def _publish_result(self, result: TaskResult) -> None:
+        if self._pub_transport is None:
+            return
+        pub = Publisher(
+            conn_params=self._conn_params,
+            topic=self._result_topic,
+        )
+        pub.run()
+        pub.publish(result.model_dump())
+        pub.stop()
+
+    def _publish_progress(self, progress: TaskProgress) -> None:
+        if self._pub_transport is None:
+            return
+        pub = Publisher(
+            conn_params=self._conn_params,
+            topic=self._progress_topic,
+        )
+        pub.run()
+        pub.publish(progress.model_dump())
+        pub.stop()
+
+    def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
+        super()._send_to_dlq(envelope, error)
+        if self._pub_transport is None or self._pub_transport.channel is None:
+            return
+        dlq_name = self._config.get_dlq_name()
+        self._pub_transport.channel.queue_declare(queue=dlq_name, durable=True)
+        data = envelope.model_dump()
+        data["error"] = error
+        self._pub_transport.channel.basic_publish(
+            exchange="",
+            routing_key=dlq_name,
+            body=json.dumps(data),
+            properties=pika.BasicProperties(delivery_mode=2),
         )

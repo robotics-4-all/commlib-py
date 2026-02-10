@@ -175,6 +175,8 @@ class EndpointType(Enum):
     ActionClient = 6
     MPublisher = 7
     PSubscriber = 8
+    TaskProducer = 9
+    TaskWorker = 10
 
 
 def endpoint_factory(etype: EndpointType, etransport: TransportType) -> Any:
@@ -228,3 +230,7 @@ def endpoint_factory(etype: EndpointType, etransport: TransportType) -> Any:
         return comm.MPublisher
     if etype == EndpointType.PSubscriber:
         return comm.PSubscriber
+    if etype == EndpointType.TaskProducer:
+        return comm.TaskProducer
+    if etype == EndpointType.TaskWorker:
+        return comm.TaskWorker

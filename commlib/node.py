@@ -194,6 +194,8 @@ class Node:
         self._rpc_clients: List[Any] = []
         self._action_services: List[Any] = []
         self._action_clients: List[Any] = []
+        self._task_producers: List[Any] = []
+        self._task_workers: List[Any] = []
         self._event_emitters: List[Any] = []
         self._workers: List[Any] = []
         self._executor: Optional[ThreadPoolExecutor] = None
@@ -234,6 +236,8 @@ class Node:
             + self._rpc_clients
             + self._action_services
             + self._action_clients
+            + self._task_producers
+            + self._task_workers
             + self._wsubscribers
         )
 
@@ -632,6 +636,48 @@ class Node:
         )
         self._action_clients.append(aclient)
         return aclient
+
+    def create_task_producer(self, *args, **kwargs):
+        """create_task_producer.
+        Creates a new TaskProducer Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the TaskProducer constructor.
+            **kwargs: Keyword arguments to be passed to the TaskProducer constructor.
+
+        Returns:
+            The created TaskProducer instance.
+        """
+
+        producer = self._transport_module.TaskProducer(
+            conn_params=self._conn_params,
+            compression=self._compression,
+            *args,
+            **kwargs,
+        )
+        self._task_producers.append(producer)
+        return producer
+
+    def create_task_worker(self, *args, **kwargs):
+        """create_task_worker.
+        Creates a new TaskWorker Endpoint.
+
+        Args:
+            *args: Positional arguments to be passed to the TaskWorker constructor.
+            **kwargs: Keyword arguments to be passed to the TaskWorker constructor.
+
+        Returns:
+            The created TaskWorker instance.
+        """
+
+        worker = self._transport_module.TaskWorker(
+            conn_params=self._conn_params,
+            compression=self._compression,
+            *args,
+            **kwargs,
+        )
+        self._task_workers.append(worker)
+        return worker
 
     def subscribe(self, topic, msg_type):
         """subscribe.

@@ -16,6 +16,13 @@ from confluent_kafka import (
     Producer,
 )
 
+from commlib.task_queue import (
+    BaseTaskProducer,
+    BaseTaskWorker,
+    TaskEnvelope,
+    TaskProgress,
+    TaskResult,
+)
 from commlib.action import (
     BaseActionClient,
     BaseActionService,
@@ -26,6 +33,7 @@ from commlib.action import (
     _ActionStatusMessage,
 )
 from commlib.compression import CompressionType
+from commlib.endpoints import EndpointState
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCClientTimeoutError, RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
@@ -728,3 +736,148 @@ class ActionClient(BaseActionClient):
             on_message=self._on_feedback,
             debug=self.debug,
         )
+
+
+class TaskProducer(BaseTaskProducer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = KafkaTransport(conn_params=self._conn_params)
+        self._task_topic = f"{self._queue_name}-tasks"
+        self._result_topic = f"{self._queue_name}-results"
+        self._progress_topic = f"{self._queue_name}-progress"
+        self._result_sub = None
+        self._progress_sub = None
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._result_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._result_topic,
+            on_message=self._on_result_msg,
+        )
+        self._result_sub.run()
+        self._progress_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._progress_topic,
+            on_message=self._on_progress_msg,
+        )
+        self._progress_sub.run()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        if self._result_sub is not None:
+            self._result_sub.stop()
+        if self._progress_sub is not None:
+            self._progress_sub.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _send_task(self, envelope: TaskEnvelope) -> None:
+        assert self._transport is not None
+        data = envelope.model_dump()
+        payload = JSONSerializer.serialize(data)
+        self._transport._producer.produce(
+            topic=self._task_topic,
+            key=envelope.task_id,
+            value=payload,
+        )
+        self._transport._producer.flush()
+
+    def _on_result_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        result = TaskResult(**data)
+        self._handle_result(result)
+
+    def _on_progress_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        progress = TaskProgress(**data)
+        self._handle_progress(progress)
+
+
+class TaskWorker(BaseTaskWorker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = KafkaTransport(conn_params=self._conn_params)
+        self._task_topic = f"{self._queue_name}-tasks"
+        self._result_topic = f"{self._queue_name}-results"
+        self._progress_topic = f"{self._queue_name}-progress"
+        self._task_sub = None
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._task_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._task_topic,
+            on_message=self._on_task_msg,
+        )
+        self._task_sub.run()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        self._stop_event.set()
+        if self._task_sub is not None:
+            self._task_sub.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _on_task_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        envelope = TaskEnvelope(**data)
+        import threading
+
+        threading.Thread(
+            target=self._process_task,
+            args=(envelope,),
+            daemon=True,
+        ).start()
+
+    def _publish_result(self, result: TaskResult) -> None:
+        assert self._transport is not None
+        data = result.model_dump()
+        payload = JSONSerializer.serialize(data)
+        self._transport._producer.produce(
+            topic=self._result_topic,
+            key=result.task_id,
+            value=payload,
+        )
+        self._transport._producer.flush()
+
+    def _publish_progress(self, progress: TaskProgress) -> None:
+        assert self._transport is not None
+        data = progress.model_dump()
+        payload = JSONSerializer.serialize(data)
+        self._transport._producer.produce(
+            topic=self._progress_topic,
+            key=progress.task_id,
+            value=payload,
+        )
+        self._transport._producer.flush()
+
+    def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
+        super()._send_to_dlq(envelope, error)
+        assert self._transport is not None
+        data = envelope.model_dump()
+        data["error"] = error
+        dlq_topic = self._config.get_dlq_name().replace(".", "-")
+        payload = JSONSerializer.serialize(data)
+        self._transport._producer.produce(
+            topic=dlq_topic,
+            key=envelope.task_id,
+            value=payload,
+        )
+        self._transport._producer.flush()

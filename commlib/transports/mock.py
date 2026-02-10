@@ -11,6 +11,13 @@ from commlib.endpoints import EndpointState
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import BasePublisher, BaseSubscriber
 from commlib.rpc import BaseRPCClient, BaseRPCService
+from commlib.task_queue import (
+    BaseTaskProducer,
+    BaseTaskWorker,
+    TaskEnvelope,
+    TaskProgress,
+    TaskResult,
+)
 
 from commlib.transports.base_transport import BaseTransport
 
@@ -254,9 +261,139 @@ class RPCClient(BaseRPCClient):
         return RPCMessage.Response()
 
 
+_MOCK_TASK_QUEUES: Dict[str, list] = {}
+_MOCK_TASK_WORKERS: Dict[str, list] = {}
+_MOCK_RESULT_CALLBACKS: Dict[str, list] = {}
+_MOCK_PROGRESS_CALLBACKS: Dict[str, list] = {}
+
+
+class TaskProducer(BaseTaskProducer):
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self._transport = MockTransport(self._conn_params)
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}"
+            )
+        if not self._transport.is_connected:
+            self._transport.start()
+
+        with _MOCK_BUS_LOCK:
+            key = self._queue_name
+            if key not in _MOCK_RESULT_CALLBACKS:
+                _MOCK_RESULT_CALLBACKS[key] = []
+            _MOCK_RESULT_CALLBACKS[key].append(self._handle_result)
+
+            if key not in _MOCK_PROGRESS_CALLBACKS:
+                _MOCK_PROGRESS_CALLBACKS[key] = []
+            _MOCK_PROGRESS_CALLBACKS[key].append(self._handle_progress)
+
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        with _MOCK_BUS_LOCK:
+            key = self._queue_name
+            if key in _MOCK_RESULT_CALLBACKS:
+                if self._handle_result in _MOCK_RESULT_CALLBACKS[key]:
+                    _MOCK_RESULT_CALLBACKS[key].remove(self._handle_result)
+            if key in _MOCK_PROGRESS_CALLBACKS:
+                if self._handle_progress in _MOCK_PROGRESS_CALLBACKS[key]:
+                    _MOCK_PROGRESS_CALLBACKS[key].remove(self._handle_progress)
+
+        if self._transport is not None and self._transport.is_connected:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _send_task(self, envelope: TaskEnvelope) -> None:
+        with _MOCK_BUS_LOCK:
+            key = self._queue_name
+            if key not in _MOCK_TASK_QUEUES:
+                _MOCK_TASK_QUEUES[key] = []
+            _MOCK_TASK_QUEUES[key].append(envelope)
+
+            if key in _MOCK_TASK_WORKERS:
+                for worker_callback in _MOCK_TASK_WORKERS[key]:
+                    try:
+                        worker_callback(envelope)
+                    except Exception:
+                        pass
+
+
+class TaskWorker(BaseTaskWorker):
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self._transport = MockTransport(self._conn_params)
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}"
+            )
+        if not self._transport.is_connected:
+            self._transport.start()
+
+        with _MOCK_BUS_LOCK:
+            key = self._queue_name
+            if key not in _MOCK_TASK_WORKERS:
+                _MOCK_TASK_WORKERS[key] = []
+            _MOCK_TASK_WORKERS[key].append(self._on_envelope_received)
+
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        self._stop_event.set()
+
+        with _MOCK_BUS_LOCK:
+            key = self._queue_name
+            if key in _MOCK_TASK_WORKERS:
+                if self._on_envelope_received in _MOCK_TASK_WORKERS[key]:
+                    _MOCK_TASK_WORKERS[key].remove(self._on_envelope_received)
+
+        if self._transport is not None and self._transport.is_connected:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _on_envelope_received(self, envelope: TaskEnvelope) -> None:
+        import threading as _threading
+
+        _threading.Thread(
+            target=self._process_task,
+            args=(envelope,),
+            daemon=True,
+        ).start()
+
+    def _publish_result(self, result: TaskResult) -> None:
+        with _MOCK_BUS_LOCK:
+            key = self._queue_name
+            if key in _MOCK_RESULT_CALLBACKS:
+                for callback in _MOCK_RESULT_CALLBACKS[key]:
+                    try:
+                        callback(result)
+                    except Exception:
+                        pass
+
+    def _publish_progress(self, progress: TaskProgress) -> None:
+        with _MOCK_BUS_LOCK:
+            key = self._queue_name
+            if key in _MOCK_PROGRESS_CALLBACKS:
+                for callback in _MOCK_PROGRESS_CALLBACKS[key]:
+                    try:
+                        callback(progress)
+                    except Exception:
+                        pass
+
+
 def clear_mock_bus():
     """Clear the mock message bus (useful for testing)."""
     global _MOCK_MESSAGE_BUS, _MOCK_SUBSCRIBERS
+    global _MOCK_TASK_QUEUES, _MOCK_TASK_WORKERS
+    global _MOCK_RESULT_CALLBACKS, _MOCK_PROGRESS_CALLBACKS
     with _MOCK_BUS_LOCK:
         _MOCK_MESSAGE_BUS.clear()
         _MOCK_SUBSCRIBERS.clear()
+        _MOCK_TASK_QUEUES.clear()
+        _MOCK_TASK_WORKERS.clear()
+        _MOCK_RESULT_CALLBACKS.clear()
+        _MOCK_PROGRESS_CALLBACKS.clear()

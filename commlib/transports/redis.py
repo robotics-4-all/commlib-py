@@ -15,6 +15,13 @@ from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 from redis.exceptions import BusyLoadingError, ConnectionError, TimeoutError
 
+from commlib.task_queue import (
+    BaseTaskProducer,
+    BaseTaskWorker,
+    TaskEnvelope,
+    TaskProgress,
+    TaskResult,
+)
 from commlib.action import (
     BaseActionClient,
     BaseActionService,
@@ -25,6 +32,7 @@ from commlib.action import (
     _ActionStatusMessage,
 )
 from commlib.compression import CompressionType, deflate, inflate_str
+from commlib.endpoints import EndpointState
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
@@ -1405,3 +1413,118 @@ class RPCServer(BaseRPCServer):
         _data = _payload["data"]
         _header = _payload["header"]
         return _data, _header
+
+
+class TaskProducer(BaseTaskProducer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = RedisTransport(
+            conn_params=self._conn_params,
+            compression=self._compression,
+        )
+        self._result_transport = None
+        self._result_topic = f"{self._queue_name}.results"
+        self._progress_topic = f"{self._queue_name}.progress"
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._result_transport = RedisTransport(
+            conn_params=self._conn_params,
+            compression=self._compression,
+        )
+        self._result_transport.start()
+        self._result_transport.subscribe(self._result_topic, self._on_result_msg)
+        self._result_transport.subscribe(self._progress_topic, self._on_progress_msg)
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        if self._result_transport is not None:
+            self._result_transport.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _send_task(self, envelope: TaskEnvelope) -> None:
+        assert self._transport is not None
+        data = envelope.model_dump()
+        self._transport.push_msg_to_queue(self._queue_name, data)
+
+    def _on_result_msg(self, msg: Dict) -> None:
+        data = msg.get("data", msg)
+        if isinstance(data, bytes):
+            data = JSONSerializer.deserialize(data)
+        result = TaskResult(**data)
+        self._handle_result(result)
+
+    def _on_progress_msg(self, msg: Dict) -> None:
+        data = msg.get("data", msg)
+        if isinstance(data, bytes):
+            data = JSONSerializer.deserialize(data)
+        progress = TaskProgress(**data)
+        self._handle_progress(progress)
+
+
+class TaskWorker(BaseTaskWorker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = RedisTransport(
+            conn_params=self._conn_params,
+            compression=self._compression,
+        )
+        self._result_topic = f"{self._queue_name}.results"
+        self._progress_topic = f"{self._queue_name}.progress"
+        self._poll_thread = None
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._stop_event.clear()
+        self._poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
+        self._poll_thread.start()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        self._stop_event.set()
+        if self._poll_thread is not None:
+            self._poll_thread.join(timeout=5.0)
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _poll_loop(self) -> None:
+        assert self._transport is not None
+        while not self._stop_event.is_set():
+            try:
+                _, payload = self._transport.wait_for_msg(self._queue_name, timeout=1)
+                if payload is None:
+                    continue
+                if isinstance(payload, bytes):
+                    payload = payload.decode("utf-8")
+                data = JSONSerializer.deserialize(payload)
+                envelope = TaskEnvelope(**data)
+                self._process_task(envelope)
+            except (RuntimeError, ConnectionError, OSError) as exc:
+                self.log.error("Error polling task queue: %s", exc)
+                if self._stop_event.is_set():
+                    break
+                time.sleep(1.0)
+
+    def _publish_result(self, result: TaskResult) -> None:
+        assert self._transport is not None
+        data = result.model_dump()
+        self._transport.publish(self._result_topic, data)
+
+    def _publish_progress(self, progress: TaskProgress) -> None:
+        assert self._transport is not None
+        data = progress.model_dump()
+        self._transport.publish(self._progress_topic, data)
+
+    def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
+        super()._send_to_dlq(envelope, error)
+        assert self._transport is not None
+        data = envelope.model_dump()
+        data["error"] = error
+        self._transport.push_msg_to_queue(self._config.get_dlq_name(), data)
