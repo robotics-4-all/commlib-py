@@ -319,7 +319,7 @@ class Connection(pika.BlockingConnection):
             AttributeError,
             OSError,
         ) as exc:
-            self.log.debug(f"Exception thrown while processing amqp events - {exc}")  # type: ignore[reportAttributeAccessIssue]
+            logger.debug(f"Exception thrown while processing amqp events - {exc}")
 
 
 class ExchangeType:
@@ -405,7 +405,8 @@ class AMQPTransport(BaseTransport):
             return False
 
     def _on_connect(self):
-        assert self._connection is not None
+        if self._connection is None:
+            raise AMQPError("AMQP connection is not established")
         ch = self._connection.channel()
         self._channel = ch
 
@@ -413,7 +414,8 @@ class AMQPTransport(BaseTransport):
         """Creates a new channel."""
         try:
             # Create a new communication channel
-            assert self._connection is not None
+            if self._connection is None:
+                raise AMQPError("AMQP connection is not established")
             self._channel = self._connection.channel()
             self.log.debug(
                 "Connected to AMQP broker <amqp://"
@@ -436,7 +438,8 @@ class AMQPTransport(BaseTransport):
 
         Phase 3 optimization: Replaced functools.partial with lambda for 5-10% speedup.
         """
-        assert self._connection is not None
+        if self._connection is None:
+            raise AMQPError("AMQP connection is not established")
         if args or kwargs:
             self._connection.add_callback_threadsafe(lambda: cb(*args, **kwargs))
         else:
@@ -444,12 +447,14 @@ class AMQPTransport(BaseTransport):
 
     def process_amqp_events(self, timeout=0):
         """Force process amqp events, such as heartbeat packages."""
-        assert self._connection is not None
+        if self._connection is None:
+            raise AMQPError("AMQP connection is not established")
         self._connection.process_data_events(timeout)
         # self.add_threadsafe_callback(self.connection.process_data_events)
 
     def detach_amqp_events_thread(self):
-        assert self._connection is not None
+        if self._connection is None:
+            raise AMQPError("AMQP connection is not established")
         self._connection.detach_amqp_events_thread()
 
     def _signal_handler(self, signum, frame):
@@ -470,7 +475,6 @@ class AMQPTransport(BaseTransport):
         if self._channel.is_closed:
             return
         self.log.debug("Invoking a graceful shutdown...")
-        assert self._channel is not None
         if self._channel.is_open:
             self.add_threadsafe_callback(self._channel.close)
         self.log.debug("Channel closed!")
@@ -496,7 +500,8 @@ class AMQPTransport(BaseTransport):
         self._set_connected(False)
 
     def exchange_exists(self, exchange_name):
-        assert self._channel is not None
+        if self._channel is None:
+            raise AMQPError("AMQP channel is not available")
         resp = self._channel.exchange_declare(
             exchange=exchange_name,
             passive=True,  # Perform a declare or just to see if it exists
@@ -516,7 +521,8 @@ class AMQPTransport(BaseTransport):
         @param exchange_type: The type of the exchange (e.g. 'topic').
         @type exchange_type: string
         """
-        assert self._channel is not None
+        if self._channel is None:
+            raise AMQPError("AMQP channel is not available")
         self._channel.exchange_declare(
             exchange=exchange_name,
             durable=True,  # Survive reboot
@@ -573,7 +579,8 @@ class AMQPTransport(BaseTransport):
             "x-expires": expires,
         }
 
-        assert self._channel is not None
+        if self._channel is None:
+            raise AMQPError("AMQP channel is not available")
         result = self._channel.queue_declare(
             exclusive=exclusive,
             queue=queue_name,
@@ -588,7 +595,8 @@ class AMQPTransport(BaseTransport):
         return queue_name
 
     def delete_queue(self, queue_name):
-        assert self._channel is not None
+        if self._channel is None:
+            raise AMQPError("AMQP channel is not available")
         self._channel.queue_delete(queue=queue_name)
 
     def queue_exists(self, queue_name):
@@ -603,7 +611,8 @@ class AMQPTransport(BaseTransport):
         # resp = self._channel.queue_declare(queue_name, passive=True,
         #                                    callback=self._queue_exists_clb)
         try:
-            assert self._channel is not None
+            if self._channel is None:
+                raise AMQPError("AMQP channel is not available")
             _ = self._channel.queue_declare(queue_name, passive=True)
         except pika.exceptions.ChannelClosedByBroker as exc:  # type: ignore[reportAttributeAccessIssue]
             self.create_channel()
@@ -626,7 +635,8 @@ class AMQPTransport(BaseTransport):
         @type bind_key: string
         """
         try:
-            assert self._channel is not None
+            if self._channel is None:
+                raise AMQPError("AMQP channel is not available")
             self._channel.queue_bind(
                 exchange=exchange_name, queue=queue_name, routing_key=bind_key
             )
@@ -642,21 +652,25 @@ class AMQPTransport(BaseTransport):
             raise AMQPError("Error while trying to bind queue to exchange")
 
     def set_channel_qos(self, prefetch_count=1, global_qos=False):
-        assert self._channel is not None
+        if self._channel is None:
+            raise AMQPError("AMQP channel is not available")
         self._channel.basic_qos(prefetch_count=prefetch_count, global_qos=global_qos)
 
     def consume_from_queue(self, queue_name, callback):
-        assert self._channel is not None
+        if self._channel is None:
+            raise AMQPError("AMQP channel is not available")
         consumer_tag = self._channel.basic_consume(queue_name, callback)
         return consumer_tag
 
     def start_consuming(self):
-        assert self._channel is not None
+        if self._channel is None:
+            raise AMQPError("AMQP channel is not available")
         self._channel.start_consuming()
 
     def stop_consuming(self):
         try:
-            assert self._channel is not None
+            if self._channel is None:
+                return
             self.add_threadsafe_callback(self._channel.stop_consuming)
         except BaseException:
             pass
