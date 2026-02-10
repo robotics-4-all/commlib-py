@@ -2,12 +2,9 @@ name: Benchmarks
 
 on:
   push:
-    branches: [ "devel", "master", "feat/performance_a" ]
+    branches: [ "devel", "master"]
   pull_request:
     branches: [ "devel", "master" ]
-  schedule:
-    # Run benchmarks nightly at 2 AM UTC
-    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       test_type:
