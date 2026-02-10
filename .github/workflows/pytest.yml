@@ -52,7 +52,7 @@ jobs:
         run: |
           python -m build
           pip install dist/*.whl
-          pip install .[all]
+          pip install .[all] .[dev]
       - name: Run unit tests
         run: |
           pytest --ignore=tests/mqtt --ignore=tests/redis -v
