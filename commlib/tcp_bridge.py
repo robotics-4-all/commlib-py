@@ -6,6 +6,7 @@ remote nodes.
 
 import socket
 import socketserver
+from typing import Any
 
 
 class TCPBridgeRequestHandler(socketserver.BaseRequestHandler):
@@ -36,7 +37,8 @@ class TCPBridgeRequestHandler(socketserver.BaseRequestHandler):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             # Try to connect to the server and send data
             try:
-                sock.connect((self.server.host_ep2, self.server.port_ep2))
+                server: Any = self.server
+                sock.connect((server.host_ep2, server.port_ep2))
                 sock.sendall(data)
                 # Receive data from the server
                 while True:
@@ -54,11 +56,8 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     A threaded TCP server that handles each client connection in a separate thread.
     """
 
-    pass
-
 
 class TCPBridge(ThreadedTCPServer):
-
     def __init__(self, host_ep1: str, port_ep1: int, host_ep2: str, port_ep2: int):
         """__init__.
         Initializes a TCPBridge instance with the specified host and port for both endpoints.

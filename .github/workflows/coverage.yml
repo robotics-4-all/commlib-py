@@ -4,8 +4,10 @@
 name: Coverage
 
 on:
+  push:
+    branches: [ "devel", "master"]
   pull_request:
-    branches: [ "master", "devel" ]
+    branches: [ "devel", "master" ]
 
 permissions:
   contents: read

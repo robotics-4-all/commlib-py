@@ -7,7 +7,7 @@ different communication transports (MQTT, AMQP, Redis).
 import logging
 import time
 from enum import IntEnum
-from typing import List
+from typing import List, Optional, Union
 
 from commlib.connection import BaseConnectionParameters
 from commlib.endpoints import EndpointType, TransportType, endpoint_factory
@@ -78,13 +78,13 @@ class Bridge:
                 based on the broker type. Defaults to True.
             debug (bool, optional): Enables debug mode for additional logging. Defaults to False.
         """
-        self._from_broker_params: str = from_broker_params
-        self._to_broker_params: str = to_broker_params
+        self._from_broker_params: BaseConnectionParameters = from_broker_params
+        self._to_broker_params: BaseConnectionParameters = to_broker_params
         self._from_uri: str = from_uri
         self._to_uri: str = to_uri
         self._debug: bool = debug
-        self._btype: RPCBridgeType = None
-        self._auto_transform_uris: str = auto_transform_uris
+        self._btype: Union[RPCBridgeType, TopicBridgeType, None] = None
+        self._auto_transform_uris: bool = auto_transform_uris
 
         bA_type_str = str(type(self._from_broker_params)).split("'")[1]
         bB_type_str = str(type(self._to_broker_params)).split("'")[1]
@@ -190,7 +190,7 @@ class RPCBridge(Bridge):
     to be passed between the two endpoints.
     """
 
-    def __init__(self, msg_type: RPCMessage = None, *args, **kwargs):
+    def __init__(self, msg_type: Optional[RPCMessage] = None, *args, **kwargs):
         """__init__.
         Initializes an RPCBridge instance.
 
@@ -280,7 +280,7 @@ class TopicBridge(Bridge):
     format to be used, and optionally a list of topic URI transformations to apply.
     """
 
-    def __init__(self, msg_type: PubSubMessage = None, *args, **kwargs):
+    def __init__(self, msg_type: Optional[PubSubMessage] = None, *args, **kwargs):
         """__init__.
         Initializes a PTopicBridge instance with the specified parameters.
 
@@ -361,7 +361,13 @@ class PTopicBridge(Bridge):
     endpoints using the appropriate endpoint factory functions.
     """
 
-    def __init__(self, msg_type: PubSubMessage = None, uri_transform: List = [], *args, **kwargs):
+    def __init__(
+        self,
+        msg_type: Optional[PubSubMessage] = None,
+        uri_transform: List = [],
+        *args,
+        **kwargs,
+    ):
         """
         Initializes a PTopicBridge instance with the specified parameters.
 

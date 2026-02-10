@@ -3,15 +3,13 @@
 """Extended tests for pubsub module."""
 
 import unittest
-from typing import Optional
 
 from commlib.msg import MessageHeader, PubSubMessage
 from commlib.node import Node
 from commlib.transports.mock import ConnectionParameters
-from commlib.pubsub import BasePublisher, BaseSubscriber
 
 
-class TestMessage(PubSubMessage):
+class DummyMessage(PubSubMessage):
     """Test message type."""
     header: MessageHeader = MessageHeader()
     data: str = ""
@@ -37,7 +35,7 @@ class TestPublisherExtended(unittest.TestCase):
             heartbeats=False
         )
         pub = node.create_publisher(
-            msg_type=TestMessage,
+            msg_type=DummyMessage,
             topic="test.topic"
         )
         self.assertIsNotNone(pub)
@@ -50,7 +48,7 @@ class TestPublisherExtended(unittest.TestCase):
             heartbeats=False
         )
         pub = node.create_publisher(
-            msg_type=TestMessage,
+            msg_type=DummyMessage,
             topic="sensors.temperature"
         )
         self.assertEqual(pub._topic, "sensors.temperature")
@@ -63,10 +61,10 @@ class TestPublisherExtended(unittest.TestCase):
             heartbeats=False
         )
         pub = node.create_publisher(
-            msg_type=TestMessage,
+            msg_type=DummyMessage,
             topic="test.topic"
         )
-        self.assertEqual(pub._msg_type, TestMessage)
+        self.assertEqual(pub._msg_type, DummyMessage)
 
     def test_publisher_is_connected(self):
         """Test publisher connection status."""
@@ -76,7 +74,7 @@ class TestPublisherExtended(unittest.TestCase):
             heartbeats=False
         )
         pub = node.create_publisher(
-            msg_type=TestMessage,
+            msg_type=DummyMessage,
             topic="test.topic"
         )
         # Mock transport should be immediately connected
@@ -102,7 +100,7 @@ class TestSubscriberExtended(unittest.TestCase):
             heartbeats=False
         )
         sub = node.create_subscriber(
-            msg_type=TestMessage,
+            msg_type=DummyMessage,
             topic="test.topic",
             on_message=lambda msg: None
         )
@@ -116,7 +114,7 @@ class TestSubscriberExtended(unittest.TestCase):
             heartbeats=False
         )
         sub = node.create_subscriber(
-            msg_type=TestMessage,
+            msg_type=DummyMessage,
             topic="sensors.humidity",
             on_message=lambda msg: None
         )
@@ -133,7 +131,7 @@ class TestSubscriberExtended(unittest.TestCase):
             heartbeats=False
         )
         sub = node.create_subscriber(
-            msg_type=TestMessage,
+            msg_type=DummyMessage,
             topic="test.topic",
             on_message=callback
         )
@@ -148,11 +146,11 @@ class TestSubscriberExtended(unittest.TestCase):
             heartbeats=False
         )
         sub = node.create_subscriber(
-            msg_type=TestMessage,
+            msg_type=DummyMessage,
             topic="test.topic",
             on_message=lambda msg: None
         )
-        self.assertEqual(sub._msg_type, TestMessage)
+        self.assertEqual(sub._msg_type, DummyMessage)
 
 
 if __name__ == '__main__':

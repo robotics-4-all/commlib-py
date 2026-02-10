@@ -8,15 +8,15 @@ import logging
 import threading
 import time
 from enum import IntEnum
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional
 
 from commlib.compression import CompressionType
-from commlib.msg import HeartbeatMessage, PubSubMessage, RPCMessage
+from commlib.msg import HeartbeatMessage, RPCMessage
 from commlib.pubsub import BasePublisher
 from commlib.utils import gen_random_id, get_timestamp_ns
 from concurrent.futures import ThreadPoolExecutor
 
-n_logger: logging.Logger = None
+n_logger: Optional[logging.Logger] = None
 
 
 class NodeExecutorType(IntEnum):
@@ -38,7 +38,7 @@ class HeartbeatThread:
     def logger(cls) -> logging.Logger:
         global n_logger
         if n_logger is None:
-            n_logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+            n_logger = logging.getLogger(f"{__name__}.{cls.__name__}")
         return n_logger
 
     def __init__(
@@ -74,10 +74,7 @@ class HeartbeatThread:
                 self.logger().debug(
                     "Sending heartbeat message - %s", self._heartbeat_pub._topic
                 )
-                if self._heartbeat_pub._msg_type is None:
-                    self._heartbeat_pub.publish(msg.model_dump())
-                else:
-                    self._heartbeat_pub.publish(msg)
+                self._heartbeat_pub.publish(msg)
                 # Wait for n seconds or until stop event is raised
                 self._stop_event.wait(self._rate_secs)
                 msg.ts = self.get_current_ts()
@@ -148,9 +145,10 @@ class Node:
         heartbeats: Optional[bool] = True,
         heartbeat_interval: Optional[float] = 10.0,
         heartbeat_uri: Optional[str] = None,
-        compression: CompressionType = CompressionType.NO_COMPRESSION,
+        compression: int = CompressionType.NO_COMPRESSION,
         ctrl_services: Optional[bool] = False,
         workers_rpc: Optional[int] = 4,
+        on_connected: Optional[Callable] = None,
     ):
         """__init__.
 
@@ -167,6 +165,7 @@ class Node:
             heartbeat_uri (Optional[str]): The Topic URI to publish heartbeat
                 messages
             ctrl_services (Optional[bool]): Enable/Disable control interfaces
+            on_connected (Optional[Callable]): Callback to be called when the node is connected
         """
         if node_name == "" or node_name is None:
             node_name = gen_random_id()
@@ -180,9 +179,12 @@ class Node:
         self._heartbeats = heartbeats
         self._heartbeat_interval = heartbeat_interval
         self._heartbeat_uri = (
-            heartbeat_uri if heartbeat_uri is not None else f"{self._namespace}.heartbeat"
+            heartbeat_uri
+            if heartbeat_uri is not None
+            else f"{self._namespace}.heartbeat"
         )
         self._compression = compression
+        self._on_connected = on_connected
         self.state = NodeState.IDLE
 
         self._publishers: List[Any] = []
@@ -194,12 +196,13 @@ class Node:
         self._action_clients: List[Any] = []
         self._event_emitters: List[Any] = []
         self._workers: List[Any] = []
-        self._executor = None
+        self._executor: Optional[ThreadPoolExecutor] = None
 
         # Set default ConnectionParameters ---->
         if transport_connection_params is not None and connection_params is None:
             connection_params = transport_connection_params
         self._conn_params = connection_params
+        self._transport_module: Any = None
         self._select_transport()
 
     @property
@@ -277,13 +280,20 @@ class Node:
         self._transport_module = transport_module
 
     def _init_heartbeat_thread(self) -> None:
-        hb_pub = self.create_publisher(topic=self._heartbeat_uri, msg_type=HeartbeatMessage)
+        hb_pub = self.create_publisher(
+            topic=self._heartbeat_uri, msg_type=HeartbeatMessage
+        )
         hb_pub.run()
         self._hb_thread = HeartbeatThread(hb_pub, interval=self._heartbeat_interval)
-        work = self._executor.submit(self._hb_thread.start).add_done_callback(Node._worker_clb)
+        assert self._executor is not None
+        work = self._executor.submit(self._hb_thread.start).add_done_callback(
+            Node._worker_clb
+        )
         self._workers.append(work)
 
-    def _start_rpc_callback(self, msg: _NodeStartMessage.Request) -> _NodeStartMessage.Response:
+    def _start_rpc_callback(
+        self, msg: _NodeStartMessage.Request
+    ) -> _NodeStartMessage.Response:
         resp = _NodeStartMessage.Response()
         if self.state == NodeState.STOPPED:
             self.run()
@@ -292,7 +302,9 @@ class Node:
             resp.error = "Cannot make the transition from current state!"
         return resp
 
-    def _stop_rpc_callback(self, msg: _NodeStopMessage.Request) -> _NodeStopMessage.Response:
+    def _stop_rpc_callback(
+        self, msg: _NodeStopMessage.Request
+    ) -> _NodeStopMessage.Response:
         resp = _NodeStopMessage.Response()
         if self.state == NodeState.RUNNING:
             self.state = NodeState.STOPPED
@@ -305,7 +317,9 @@ class Node:
     def create_stop_service(self, uri: str = "") -> None:
         if uri in (None, ""):
             uri = f"{self._namespace}.stop"
-        self.create_rpc(rpc_name=uri, msg_type=_NodeStopMessage, on_request=self._stop_rpc_callback)
+        self.create_rpc(
+            rpc_name=uri, msg_type=_NodeStopMessage, on_request=self._stop_rpc_callback
+        )
 
     def create_start_service(self, uri: str = "") -> None:
         if uri in ("", None):
@@ -337,6 +351,17 @@ class Node:
         if wait:
             while not self.health:
                 time.sleep(0.01)
+            if self._on_connected is not None:
+                self._on_connected()
+        elif self._on_connected is not None:
+            _cb = self._on_connected
+
+            def _wait_conn():
+                while not self.health:
+                    time.sleep(0.01)
+                _cb()
+
+            self._executor.submit(_wait_conn)
         self.state = NodeState.RUNNING
 
     def run_forever(self, sleep_rate: float = 0.01) -> None:
@@ -422,7 +447,7 @@ class Node:
         self._publishers.append(pub)
         return pub
 
-    def create_wpublisher(self, mpub, topic: str, msg_type: PubSubMessage = None):
+    def create_wpublisher(self, mpub: Any, topic: str, msg_type: Any = None):
         """create_mpublisher
         Creates a new MPublisher (Multi-Topic Publisher) Endpoint.
 

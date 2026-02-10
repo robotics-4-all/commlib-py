@@ -120,7 +120,7 @@ class TestRPCMessage(unittest.TestCase):
 
     def test_rpc_message_structure(self):
         """Test RPCMessage structure."""
-        msg = RPCMessage()
+        RPCMessage()
         # RPCMessage should have Request and Response classes
         self.assertTrue(hasattr(RPCMessage, 'Request'))
         self.assertTrue(hasattr(RPCMessage, 'Response'))

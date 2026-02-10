@@ -16,21 +16,36 @@ class SonarMessage(PubSubMessage):
     vfov: float = 14.2
 
 
+import time
+
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        broker = "redis"
-    else:
-        broker = str(sys.argv[1])
-    if broker == "redis":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--broker", type=str, default="redis",
+                        choices=["redis", "amqp", "mqtt", "kafka"],
+                        help="Broker type")
+    parser.add_argument("--host", type=str, default="localhost",
+                        help="Broker host")
+    parser.add_argument("--port", type=int, default=None,
+                        help="Broker port")
+    parser.add_argument("--timeout", type=float, default=None,
+                        help="Max time to run (seconds)")
+    args = parser.parse_args()
+
+    if args.broker == "redis":
         from commlib.transports.redis import ConnectionParameters
-    elif broker == "amqp":
+    elif args.broker == "amqp":
         from commlib.transports.amqp import ConnectionParameters
-    elif broker == "mqtt":
+    elif args.broker == "mqtt":
         from commlib.transports.mqtt import ConnectionParameters
-    else:
-        print("Not a valid broker-type was given!")
-        sys.exit(1)
-    conn_params = ConnectionParameters()
+    elif args.broker == "kafka":
+        from commlib.transports.kafka import ConnectionParameters
+    
+    start_time = time.time()
+    conn_params = ConnectionParameters(host=args.host)
+    if args.port:
+        conn_params.port = args.port
+
 
     node = Node(
         node_name="example5_publisher",
@@ -56,6 +71,8 @@ if __name__ == "__main__":
     sonar_front_range = 1
 
     while True:
+            if args.timeout and time.time() - start_time > args.timeout:
+                break
         sonar_left_msg = SonarMessage(range=sonar_left_range)
         sonar_right_msg = SonarMessage(range=sonar_right_range)
         sonar_front_mst = SonarMessage(range=sonar_front_range)

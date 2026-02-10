@@ -4,10 +4,9 @@ Provides Kafka-based pub/sub and RPC communication using confluent-kafka library
 Supports topic-based message distribution.
 """
 
-import functools
 import logging
 import time
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from confluent_kafka import (
     OFFSET_END,
@@ -38,7 +37,7 @@ from commlib.rpc import (
     CommRPCHeader,
     CommRPCMessage,
 )
-from commlib.serializer import JSONSerializer, Serializer
+from commlib.serializer import JSONSerializer
 from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
 
@@ -64,13 +63,13 @@ class ConnectionParameters(BaseConnectionParameters):
 class KafkaTransport(BaseTransport):
     def __init__(
         self,
-        compression: CompressionType = CompressionType.DEFAULT_COMPRESSION,
-        serializer: Serializer = JSONSerializer(),
+        compression: int = CompressionType.DEFAULT_COMPRESSION,
+        serializer: Any = None,
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self._serializer = serializer
+        self._serializer = serializer if serializer is not None else JSONSerializer()
         self._compression = compression
         self._producers: List[Producer] = []
         self._consumers: List[Consumer] = []
@@ -144,22 +143,24 @@ class Publisher(BasePublisher):
         )
 
     def _create_kafka_conf(self):
-        if self._conn_params.username not in (
+        assert self._conn_params is not None, "Connection parameters are not set."
+        conn: Any = self._conn_params
+        if conn.username not in (
             None,
             "",
-        ) and self._conn_params.password not in (None, ""):
+        ) and conn.password not in (None, ""):
             auth = {
                 "sasl.mechanisms": SASL_MECHANISM,
                 "security.protocol": SECURITY_PROTOCOL,
-                "sasl.username": self._conn_params.username,
-                "sasl.password": self._conn_params.password,
+                "sasl.username": conn.username,
+                "sasl.password": conn.password,
             }
         else:
             auth = {}
-        host = f"{self._conn_params.host}:{self._conn_params.port}"
+        host = f"{conn.host}:{conn.port}"
         self._kafka_cfg = {
             "bootstrap.servers": host,
-            "allow.auto.create.topics": self._conn_params.auto_create_topics,
+            "allow.auto.create.topics": conn.auto_create_topics,
             **auth,
         }
 
@@ -173,6 +174,7 @@ class Publisher(BasePublisher):
         if key in (None, ""):
             key = self._key
 
+        assert self._transport is not None, "Transport is not initialized."
         self._transport.publish_data(
             self._producer, data, self._topic, key, on_delivery=self._on_delivery
         )
@@ -181,9 +183,19 @@ class Publisher(BasePublisher):
     def _on_delivery(self, err, msg):
         if err is not None:
             self.logger().error(err)
-        self.logger().info("Published on %s, partition", msg.topic(), f"{msg.partition()}")
+        self.logger().info(
+            "Published on %s, partition", msg.topic(), f"{msg.partition()}"
+        )
 
-    def run(self):
+    def run(self, wait: bool = True):
+        """Start the publisher.
+
+        Args:
+            wait: If True, wait for transport to connect before returning.
+                  Fixed in commit 148b825 to match base class API.
+        """
+        super().run(wait=wait)
+        assert self._transport is not None, "Transport is not initialized."
         self._producer = self._transport.create_producer(self._kafka_cfg)
 
     def stop(self):
@@ -206,16 +218,20 @@ class MPublisher(Publisher):
         if key in (None, ""):
             key = self._key
         self._producer.poll(0)
-        self._producer.produce(topic, key=key, value=data, on_delivery=self._on_delivery)
+        self._producer.produce(
+            topic, key=key, value=data, on_delivery=self._on_delivery
+        )
         self._msg_seq += 1
 
 
 class Subscriber(BaseSubscriber):
     def __init__(self, key: str = "", *args, **kwargs):
         self._key = key
-        self._consumer: Consumer = None
+        self._consumer: Consumer = None  # type: ignore[assignment]
         super().__init__(*args, **kwargs)
         self._create_kafka_conf()
+        assert self._conn_params is not None, "Connection parameters are not set."
+        assert self._serializer is not None, "Serializer is not initialized."
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -223,32 +239,35 @@ class Subscriber(BaseSubscriber):
         )
 
     def _create_kafka_conf(self):
-        if self._conn_params.username not in (
+        assert self._conn_params is not None, "Connection parameters are not set."
+        conn: Any = self._conn_params
+        if conn.username not in (
             None,
             "",
-        ) and self._conn_params.password not in (None, ""):
+        ) and conn.password not in (None, ""):
             auth = {
                 "sasl.mechanisms": SASL_MECHANISM,
                 "security.protocol": SECURITY_PROTOCOL,
-                "sasl.username": self._conn_params.username,
-                "sasl.password": self._conn_params.password,
+                "sasl.username": conn.username,
+                "sasl.password": conn.password,
             }
         else:
             auth = {}
-        host = f"{self._conn_params.host}:{self._conn_params.port}"
+        host = f"{conn.host}:{conn.port}"
         self._kafka_cfg = {
             "bootstrap.servers": host,
             "auto.offset.reset": "end",
-            "group.id": self._conn_params.group,
+            "group.id": conn.group,
             "enable.auto.offset.store": True,
             "enable.auto.commit": True,
-            "allow.auto.create.topics": self._conn_params.auto_create_topics,
-            "auto.commit.interval.ms": self._conn_params.auto_commit_interval,
+            "allow.auto.create.topics": conn.auto_create_topics,
+            "auto.commit.interval.ms": conn.auto_commit_interval,
             **auth,
         }
 
     def run_forever(self):
         running = True
+        assert self._transport is not None, "Transport is not initialized."
         self._consumer = self._transport.create_consumer(self._kafka_cfg)
         try:
             self._consumer.subscribe([self._topic], on_assign=self._on_assign)
@@ -272,7 +291,6 @@ class Subscriber(BaseSubscriber):
         finally:
             # Close down consumer to commit final offsets.
             self._consumer.close()
-        self.log.debug("Started Subscriber: <%s>", self._topic)
 
     def _on_assign(self, consumer, partitions):
         self.logger().info("Assignment:", partitions)
@@ -288,10 +306,9 @@ class Subscriber(BaseSubscriber):
             data, topic, key, ts = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, data)
+                    self.onmessage(data)
                 else:
-                    _clb = functools.partial(self.onmessage, self._msg_type(**data))
-                _clb()
+                    self.onmessage(self._msg_type(**data))
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
@@ -299,6 +316,7 @@ class Subscriber(BaseSubscriber):
         _topic = msg.topic()
         _key = msg.key()
         _timestamp = msg.timestamp()
+        assert self._serializer is not None, "Serializer is not initialized."
         _data = self._serializer.deserialize(msg.value())
         return _data, _topic, _key, _timestamp
 
@@ -312,10 +330,9 @@ class PSubscriber(Subscriber):
             data, topic, key, ts = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
-                    _clb = functools.partial(self.onmessage, data, topic)
+                    self.onmessage(data, topic)
                 else:
-                    _clb = functools.partial(self.onmessage, self._msg_type(**data), topic)
-                _clb()
+                    self.onmessage(self._msg_type(**data), topic)
         except Exception:
             self.log.error("Exception caught in _on_message", exc_info=True)
 
@@ -331,6 +348,7 @@ class RPCService(BaseRPCService):
         )
 
     def _send_response(self, data: Dict[str, Any], reply_to: str):
+        assert self._transport is not None, "Transport is not initialized."
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.model_dump()
@@ -343,12 +361,13 @@ class RPCService(BaseRPCService):
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
-            self.log.error(
-                f"Could not unpack request message: {exc}\n" "Dropping client request!",
+            self.log.warning(
+                f"Could not unpack request message: {exc}\nDropping client request!",
                 exc_info=True,
             )
             return
         try:
+            assert self.on_request is not None, "on_request callback is not set."
             if self._msg_type is None:
                 resp = self.on_request(req_msg.data)
             else:
@@ -360,6 +379,7 @@ class RPCService(BaseRPCService):
             self.log.error(str(exc), exc_info=True)
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[CommRPCMessage, str]:
+        assert self._serializer is not None, "Serializer is not initialized."
         try:
             _uri = msg.topic
             _payload = self._serializer.deserialize(msg.payload)
@@ -374,6 +394,7 @@ class RPCService(BaseRPCService):
 
     def run_forever(self):
         """run_forever."""
+        assert self._transport is not None, "Transport is not initialized."
         self._transport.subscribe(self._rpc_name, self._on_request_handle)
         self._transport.start()
         while True:
@@ -394,6 +415,9 @@ class RPCServer(BaseRPCServer):
             kwargs: See BaseRPCServer
         """
         super().__init__(*args, **kwargs)
+        assert self._conn_params is not None, "Connection parameters are not set."
+        assert self._serializer is not None, "Serializer is not initialized."
+        assert self._compression is not None, "Compression is not initialized."
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -411,6 +435,7 @@ class RPCServer(BaseRPCServer):
             data (dict): data
             reply_to (str): reply_to
         """
+        assert self._transport is not None, "Transport is not initialized."
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
         self._comm_obj.data = data
         _resp = self._comm_obj.model_dump()
@@ -431,7 +456,7 @@ class RPCServer(BaseRPCServer):
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(
-                f"Could not unpack request message: {exc}" "\nDropping client request!",
+                f"Could not unpack request message: {exc}\nDropping client request!",
                 exc_info=True,
             )
             return
@@ -450,12 +475,13 @@ class RPCServer(BaseRPCServer):
                 else:
                     resp = clb(msg_type.Request(**req_msg.data))
                     resp = resp.model_dump()
-            self._send_response(resp, req.header.reply_to)
+            self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:
             self.log.error(str(exc), exc_info=False)
             return
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[CommRPCMessage, str]:
+        assert self._serializer is not None, "Serializer is not initialized."
         """_unpack_comm_msg.
 
         Unpack payload, header and uri from communcation message.
@@ -478,22 +504,26 @@ class RPCServer(BaseRPCServer):
             raise RPCRequestError(str(e))
         return _req_msg, _uri
 
-    def _register_endpoint(self, uri: str, callback: Callable, msg_type: RPCMessage = None):
+    def _register_endpoint(
+        self, uri: str, callback: Callable, msg_type: Optional[RPCMessage] = None
+    ):
         self._svc_map[uri] = (callback, msg_type)
         if self._base_uri in (None, ""):
             full_uri = uri
         else:
             full_uri = f"{self._base_uri}.{uri}"
         self.log.info("Registering endpoint <%s>", full_uri)
+        assert self._transport is not None, "Transport is not initialized."
         self._transport.subscribe(full_uri, self._on_request_handle)
 
     def run_forever(self):
         """run_forever."""
+        assert self._transport is not None, "Transport is not initialized."
         self._transport.start()
         while True:
             if self._t_stop_event is not None:
                 if self._t_stop_event.is_set():
-                    self.log.debug("Stop event caught in thread")
+                    self.log.debug("Stop event caught")
                     break
             time.sleep(0.001)
         self._transport.stop()
@@ -512,6 +542,9 @@ class RPCClient(BaseRPCClient):
         self._response = None
 
         super().__init__(*args, **kwargs)
+        assert self._conn_params is not None, "Connection parameters are not set."
+        assert self._serializer is not None, "Serializer is not initialized."
+        assert self._compression is not None, "Compression is not initialized."
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -522,7 +555,7 @@ class RPCClient(BaseRPCClient):
         """_gen_queue_name."""
         return f"rpc-{self._gen_random_id()}"
 
-    def _prepare_request(self, data: Dict[str, Any]):
+    def _prepare_request(self, data: Any):
         """_prepare_request.
 
         Args:
@@ -549,6 +582,7 @@ class RPCClient(BaseRPCClient):
         self._response = data
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
+        assert self._serializer is not None, "Serializer is not initialized."
         _uri = msg.topic
         _payload = self._serializer.deserialize(msg.payload)
         _data = _payload["data"]
@@ -588,6 +622,8 @@ class RPCClient(BaseRPCClient):
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
 
+        assert self._transport is not None, "Transport is not initialized."
+        assert self._transport is not None, "Transport is not initialized."
         self._transport.subscribe(_reply_to, callback=self._on_response_wrapper)
         start_t = time.time()
         self._transport.publish(self._rpc_name, _msg)
@@ -596,7 +632,7 @@ class RPCClient(BaseRPCClient):
         self._delay = elapsed_t
 
         if self._msg_type is None:
-            return _resp
+            return _resp  # type: ignore[reportReturnType]
         else:
             return self._msg_type.Response(**_resp)
 

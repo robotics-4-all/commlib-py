@@ -7,6 +7,7 @@ endpoint instances with various transport backends.
 import logging
 from enum import Enum
 import time
+from typing import Any, Optional, Type
 
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
@@ -48,6 +49,8 @@ class BaseEndpoint:
     endpoint type, such as RPC, publish/subscribe, etc.
     """
 
+    _LOOP_INTERVAL = 0.001
+
     @classmethod
     def logger(cls) -> logging.Logger:
         global e_logger
@@ -58,9 +61,9 @@ class BaseEndpoint:
     def __init__(
         self,
         debug: bool = False,
-        serializer: Serializer = JSONSerializer,
-        conn_params: BaseConnectionParameters = None,
-        compression: CompressionType = CompressionType.NO_COMPRESSION,
+        serializer: Optional[Type[Serializer]] = JSONSerializer,
+        conn_params: Optional[BaseConnectionParameters] = None,
+        compression: int = CompressionType.NO_COMPRESSION,
     ):
         """__init__.
         Initializes a new instance of the `BaseEndpoint` class.
@@ -77,11 +80,11 @@ class BaseEndpoint:
         self._compression = compression
         self._conn_params = conn_params
         self._state = EndpointState.DISCONNECTED
-        self._transport: BaseTransport = None
+        self._transport: Optional[BaseTransport] = None
 
     @property
     def connected(self):
-        return self._transport.is_connected
+        return self._transport.is_connected if self._transport else False
 
     @property
     def log(self):
@@ -102,12 +105,19 @@ class BaseEndpoint:
         Finally, it sets the subscriber state to `CONNECTED`.
         """
         if self._transport is None:
-            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}"
+            )
         if not self.connected:
             self._transport.start()
             if wait:
-                while not self.connected:
-                    time.sleep(0.001)
+                # Event-driven waiting (eliminates busy-wait polling)
+                if hasattr(self._transport, "wait_connected"):
+                    self._transport.wait_connected(timeout=10.0)
+                else:
+                    # Fallback for transports without event support
+                    while not self.connected:
+                        time.sleep(0.001)
             self._state = EndpointState.CONNECTED
         else:
             self.log.warning("Transport already connected - Skipping")
@@ -121,15 +131,22 @@ class BaseEndpoint:
         If the transport is connected and the subscriber is not in the `DISCONNECTED` or `DISCONNECTING` state, it stops the transport.
         """
         if self._transport is None:
-            raise RuntimeError(f"Transport not initialized - cannot stop {self.__class__.__name__}")
+            raise RuntimeError(
+                f"Transport not initialized - cannot stop {self.__class__.__name__}"
+            )
         if self._transport.is_connected:
             self._transport.stop()
             if wait:
-                while self.connected:
-                    time.sleep(0.001)
+                # Event-driven waiting (eliminates busy-wait polling)
+                if hasattr(self._transport, "wait_disconnected"):
+                    self._transport.wait_disconnected(timeout=10.0)
+                else:
+                    # Fallback for transports without event support
+                    while self.connected:
+                        time.sleep(0.001)
             self._state = EndpointState.DISCONNECTED
         else:
-            self.log.warning(
+            self.log.debug(
                 "Transport is not connected - cannot stop %s",
                 self.__class__.__name__,
             )
@@ -160,7 +177,7 @@ class EndpointType(Enum):
     PSubscriber = 8
 
 
-def endpoint_factory(etype: EndpointType, etransport: TransportType):
+def endpoint_factory(etype: EndpointType, etransport: TransportType) -> Any:
     """
     Factory function to create endpoint instances based on the specified endpoint type and transport type.
 

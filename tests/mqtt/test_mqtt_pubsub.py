@@ -5,7 +5,6 @@
 import time
 import unittest
 import pytest
-from typing import Optional
 
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
 from commlib.node import Node

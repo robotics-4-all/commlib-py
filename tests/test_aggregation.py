@@ -102,7 +102,7 @@ class TestTopicMessageProcessor(unittest.TestCase):
         # Should not raise an exception
         try:
             processor.create_subscriptions()
-        except Exception as e:
+        except Exception:
             # This is expected if the node is not properly initialized
             # but we're just testing that the method exists
             pass

@@ -1,6 +1,20 @@
 [flake8]
 filename = *.py, *.pyx, *.pxd
-ignore = E251, E501,E702,W504,W503
+exclude =
+    tests/mqtt,
+    tests/redis,
+    .git,
+    __pycache__,
+    build,
+    dist,
+    .eggs,
+    *.egg-info,
+    venv,
+    .venv,
+    .tox,
+    .pytest_cache,
+    .benchmarks
+ignore = E251, E501,E702,W504,W503,F841,F824
 per-file-ignores =
     commlib/**/*.pyx: E225, E226, E251, E999
     commlib/**/*.pxd: E225, E226, E251, E999

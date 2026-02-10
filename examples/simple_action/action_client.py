@@ -30,25 +30,37 @@ def on_goal_reached(result):
 
 
 if __name__ == "__main__":
-    action_name = "action_example"
-    if len(sys.argv) > 1:
-        broker_type = str(sys.argv[1])
-    else:
-        broker_type = "redis"
-    if broker_type == "redis":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--broker", type=str, default="redis",
+                        choices=["redis", "amqp", "mqtt", "kafka"],
+                        help="Broker type")
+    parser.add_argument("--host", type=str, default="localhost",
+                        help="Broker host")
+    parser.add_argument("--port", type=int, default=None,
+                        help="Broker port")
+    parser.add_argument("--timeout", type=float, default=None,
+                        help="Max time to run (seconds)")
+    args = parser.parse_args()
+
+    if args.broker == "redis":
         from commlib.transports.redis import ConnectionParameters
-    elif broker_type == "amqp":
+    elif args.broker == "amqp":
         from commlib.transports.amqp import ConnectionParameters
-    elif broker_type == "mqtt":
+    elif args.broker == "mqtt":
         from commlib.transports.mqtt import ConnectionParameters
-    else:
-        print("Not a valid broker-type was given!")
-        sys.exit(1)
-    conn_params = ConnectionParameters()
+    elif args.broker == "kafka":
+        from commlib.transports.kafka import ConnectionParameters
+    
+    conn_params = ConnectionParameters(host=args.host)
+    if args.port:
+        conn_params.port = args.port
+
 
     node = Node(
         node_name="action_client_example_node",
         connection_params=conn_params,
+        heartbeats=False
     )
     action_client = node.create_action_client(
         msg_type=ExampleAction,

@@ -5,7 +5,7 @@ Provides timer events and rate-limited execution for periodic tasks.
 
 import threading
 import time
-from typing import Callable
+from typing import Callable, Optional
 
 from commlib.utils import Rate
 
@@ -13,11 +13,11 @@ from commlib.utils import Rate
 class TimerEvent:
     def __init__(
         self,
-        last_expected: float,
-        last_real: float,
+        last_expected: Optional[float],
+        last_real: Optional[float],
         current_expected: float,
         current_real: float,
-        last_duration: float,
+        last_duration: Optional[float],
     ):
         """__init__.
 
@@ -80,8 +80,7 @@ class Timer(threading.Thread):
         while True:
             try:
                 r.sleep()
-            except KeyboardInterrupt as exc:
-                print(exc)
+            except KeyboardInterrupt:
                 break
             if self._shutdown:
                 break

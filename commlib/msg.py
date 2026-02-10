@@ -12,7 +12,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from commlib.utils import get_timestamp_ns
-import json
+from commlib.serializer import JSONSerializer
+
 
 Primitives = [str, int, float, bool, bytes]
 
@@ -32,7 +33,7 @@ class Message(BaseModel):
         Returns:
             Message: An instance of the Message class.
         """
-        data = json.loads(json_str)
+        data = JSONSerializer.deserialize(json_str)
         return cls(**data)
 
     def to_json(self) -> str:
@@ -41,7 +42,7 @@ class Message(BaseModel):
         Returns:
             str: JSON string representing the message.
         """
-        return json.dumps(self.model_dump())
+        return JSONSerializer.serialize(self.model_dump())
 
 
 class MessageHeader(Message):
@@ -67,22 +68,16 @@ class RPCMessage(Message):
         RPC Request Message
         """
 
-        pass
-
     class Response(Message):
         """Response.
         RPC Response Message
         """
-
-        pass
 
 
 class PubSubMessage(Message):
     """PubSubObject Class.
     Implementation of the PubSubObject Base Data class.
     """
-
-    pass
 
 
 class ActionMessage(Message):
@@ -93,21 +88,15 @@ class ActionMessage(Message):
         Action Goal Message
         """
 
-        pass
-
     class Result(Message):
         """Result.
         Action Result Message
         """
 
-        pass
-
     class Feedback(Message):
         """Feedback.
         Action Feedback Message
         """
-
-        pass
 
 
 class HeartbeatMessage(PubSubMessage):
@@ -131,7 +120,7 @@ class FileObject(BaseModel):
     The `load_from_file` method reads the raw bytes from the specified file path and stores them in the `data` attribute, encoding them in the specified encoding.
     """
 
-    data: List[bytes] = []
+    data: Union[List[bytes], str] = []
     filename: str = ""
     encoding: str = "base64"
 

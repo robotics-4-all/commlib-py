@@ -4,7 +4,6 @@
 
 import time
 import unittest
-from threading import Event
 
 from commlib.timer import Timer, TimerEvent
 
