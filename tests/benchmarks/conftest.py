@@ -79,3 +79,20 @@ def amqp_available():
         pytest.skip(f"AMQP broker not available at {host}:{port}")
 
     return True
+
+
+@pytest.fixture(scope="session")
+def kafka_available():
+    """Check if Kafka broker is available and skip test if not.
+
+    Uses environment variables:
+        COMMLIB_KAFKA_HOST (default: localhost)
+        COMMLIB_KAFKA_PORT (default: 29092)
+    """
+    host = os.getenv("COMMLIB_KAFKA_HOST", "localhost")
+    port = int(os.getenv("COMMLIB_KAFKA_PORT", "29092"))
+
+    if not is_broker_available(host, port):
+        pytest.skip(f"Kafka broker not available at {host}:{port}")
+
+    return True
