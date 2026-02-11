@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Extended tests for pubsub module."""
+# pylint: disable=protected-access
 
 import unittest
 

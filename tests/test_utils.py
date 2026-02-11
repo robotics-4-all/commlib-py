@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for commlib utils module."""
+# pylint: disable=protected-access
 
 import unittest
 import time
@@ -145,5 +146,5 @@ class TestRate(unittest.TestCase):
         self.assertLess(elapsed, expected * 1.2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

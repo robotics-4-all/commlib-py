@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """Tests for bridges module."""
+# pylint: disable=protected-access
 
 import unittest
 from unittest.mock import Mock, patch

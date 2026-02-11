@@ -134,7 +134,7 @@ class TestTaskHandle(unittest.TestCase):
     def test_set_result(self):
         handle = TaskHandle("test-id")
         result = TaskResult(task_id="test-id", status=TaskStatus.COMPLETED)
-        handle._set_result(result)
+        handle.set_result(result)
         self.assertTrue(handle.is_done)
         self.assertEqual(handle.status, TaskStatus.COMPLETED)
 
@@ -149,7 +149,7 @@ class TestTaskHandle(unittest.TestCase):
 
         def setter():
             time.sleep(0.05)
-            handle._set_result(expected)
+            handle.set_result(expected)
 
         t = threading.Thread(target=setter)
         t.start()

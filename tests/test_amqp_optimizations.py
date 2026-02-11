@@ -3,6 +3,7 @@ Unit tests for Phase 3 AMQP optimizations.
 
 Tests event-driven RPC response, connection pooling, and events thread optimizations.
 """
+# pylint: disable=protected-access
 
 import threading
 import unittest

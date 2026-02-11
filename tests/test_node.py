@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for `commlib` package."""
+# pylint: disable=protected-access
 
 import time
 import unittest

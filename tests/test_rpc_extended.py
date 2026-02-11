@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for commlib RPC module."""
+# pylint: disable=protected-access
 
 import unittest
 

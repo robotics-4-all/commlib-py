@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Extended tests for Node class."""
+# pylint: disable=protected-access
 
 import unittest
 
