@@ -213,9 +213,9 @@ class RedisTransport(BaseTransport):
 
     def __init__(
         self,
+        *args,
         compression: int = CompressionType.DEFAULT_COMPRESSION,
         serializer: Any = None,
-        *args,
         **kwargs,
     ):
         """
@@ -1143,6 +1143,7 @@ class PSubscriber(BaseSubscriber):
     """
 
     def __init__(self, *args, **kwargs):
+        self._subscriber_thread: Any = None
         super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
             conn_params=self._conn_params,

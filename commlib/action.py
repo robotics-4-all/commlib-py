@@ -165,6 +165,7 @@ class GoalHandler:
             msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
         )
         self._task: Any = None
+        self._goal_task: Any = None
         self._on_goal = on_goal
         self._on_cancel = on_cancel
         self._cancel_event = threading.Event()
@@ -252,8 +253,8 @@ class GoalHandler:
             self._cancel_event.set()
             _ = self._goal_task.result()
             # self._executor.shutdown(wait=False)
-            self._executor._threads.clear()  # type: ignore
-            concurrent.futures.thread._threads_queues.clear()  # type: ignore
+            self._executor._threads.clear()  # type: ignore  # pylint: disable=protected-access
+            concurrent.futures.thread._threads_queues.clear()  # type: ignore  # pylint: disable=protected-access
         except (RuntimeError, concurrent.futures.TimeoutError) as exc:
             self.log.error("Error canceling goal: %s", exc)
             return 0

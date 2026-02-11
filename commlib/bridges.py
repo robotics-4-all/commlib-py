@@ -190,7 +190,7 @@ class RPCBridge(Bridge):
     to be passed between the two endpoints.
     """
 
-    def __init__(self, msg_type: Optional[Type[RPCMessage]] = None, *args, **kwargs):
+    def __init__(self, *args, msg_type: Optional[Type[RPCMessage]] = None, **kwargs):
         """__init__.
         Initializes an RPCBridge instance.
 
@@ -280,7 +280,7 @@ class TopicBridge(Bridge):
     format to be used, and optionally a list of topic URI transformations to apply.
     """
 
-    def __init__(self, msg_type: Optional[Type[PubSubMessage]] = None, *args, **kwargs):
+    def __init__(self, *args, msg_type: Optional[Type[PubSubMessage]] = None, **kwargs):
         """__init__.
         Initializes a PTopicBridge instance with the specified parameters.
 
@@ -363,9 +363,9 @@ class PTopicBridge(Bridge):
 
     def __init__(
         self,
+        *args,
         msg_type: Optional[Type[PubSubMessage]] = None,
         uri_transform: List = [],
-        *args,
         **kwargs,
     ):
         """

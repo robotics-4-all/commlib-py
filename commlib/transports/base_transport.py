@@ -55,6 +55,10 @@ class BaseTransport:
     def is_connected(self) -> bool:
         return self._connected
 
+    @property
+    def is_stopped(self) -> bool:
+        return self._stopped
+
     def _set_connected(self, connected: bool) -> None:
         """Set connection state and trigger events.
 

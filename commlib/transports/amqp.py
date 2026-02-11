@@ -344,9 +344,9 @@ class AMQPTransport(BaseTransport):
 
     def __init__(
         self,
+        *args,
         connection: Optional[Connection] = None,
         use_shared_connection: bool = True,
-        *args,
         **kwargs,
     ):
         """Initialize AMQP transport.
@@ -707,10 +707,10 @@ class RPCService(BaseRPCService):
 
     def __init__(
         self,
+        *args,
         exchange: str = "",
         connection: Optional[Connection] = None,
         use_shared_connection: bool = True,
-        *args,
         **kwargs,
     ):
         """__init__.
@@ -903,10 +903,10 @@ class RPCClient(BaseRPCClient):
 
     def __init__(
         self,
+        *args,
         use_corr_id=False,
         connection: Optional[Connection] = None,
         use_shared_connection: bool = True,
-        *args,
         **kwargs,
     ):
         self._use_corr_id = use_corr_id
@@ -1080,10 +1080,10 @@ class Publisher(BasePublisher):
 
     def __init__(
         self,
+        *args,
         exchange: str = "amq.topic",
         connection: Optional[Connection] = None,
         use_shared_connection: bool = True,
-        *args,
         **kwargs,
     ):
         """Constructor.
@@ -1163,7 +1163,7 @@ class Publisher(BasePublisher):
         topic = topic.replace("*", "#")
 
         assert self._transport is not None
-        self._transport._channel.basic_publish(  # type: ignore[attr-defined]
+        self._transport.channel.basic_publish(  # type: ignore[attr-defined]
             exchange=self._topic_exchange,
             routing_key=topic,
             properties=msg_props,
@@ -1214,13 +1214,13 @@ class Subscriber(BaseSubscriber):
 
     def __init__(
         self,
+        *args,
         exchange: str = "amq.topic",
         queue_size: int = 10,
         message_ttl: int = 60000,
         overflow: str = "drop-head",
         connection: Optional[Connection] = None,
         use_shared_connection: bool = True,
-        *args,
         **kwargs,
     ):
         """Constructor.
@@ -1298,7 +1298,7 @@ class Subscriber(BaseSubscriber):
     def _consume(self, reliable: bool = False) -> None:
         """Start AMQP consumer."""
         assert self._transport is not None
-        self._transport._channel.basic_consume(  # type: ignore[attr-defined]
+        self._transport.channel.basic_consume(  # type: ignore[attr-defined]
             self._queue_name,
             self._on_msg_callback_wrapper,
             exclusive=False,

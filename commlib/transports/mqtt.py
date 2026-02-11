@@ -104,9 +104,9 @@ class MQTTTransport(BaseTransport):
 
     def __init__(
         self,
+        *args,
         serializer: Any = JSONSerializer(),
         compression: int = CompressionType.DEFAULT_COMPRESSION,
-        *args,
         **kwargs,
     ):
         """__init__.
@@ -1048,7 +1048,7 @@ class RPCClient(BaseRPCClient):
         assert self._transport is not None
         start_t = time.time()
         while self._response is None:
-            if not self._transport.is_connected or self._transport._stopped:
+            if not self._transport.is_connected or self._transport.is_stopped:
                 raise RPCClientTimeoutError("Transport is not connected")
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:

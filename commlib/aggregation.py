@@ -28,6 +28,8 @@ class TopicMessageProcessor:
             data_processors  # List of functions to process incoming data
         )
 
+        self.pub: Any = None
+
         self.node = Node(
             node_name="TopicMessageProcessor",
             connection_params=self.broker_params,
@@ -88,6 +90,8 @@ class TopicAggregator:
         self.data_processors = (
             data_processors  # List of functions to process incoming data
         )
+
+        self.pub: Any = None
 
         self.node = Node(
             node_name="TopicAggregator",

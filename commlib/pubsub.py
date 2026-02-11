@@ -78,9 +78,9 @@ class BasePublisher(BaseEndpoint):
 
     def __init__(
         self,
+        *args,
         topic: Optional[str] = None,
         msg_type: Optional[Type[PubSubMessage]] = None,
-        *args,
         **kwargs,
     ):
         """__init__.
@@ -130,12 +130,12 @@ class BaseSubscriber(BaseEndpoint):
 
     def __init__(
         self,
+        *args,
         topic: Optional[str] = None,
         msg_type: Optional[Type[PubSubMessage]] = None,
         on_message: Optional[Callable] = None,
         workers: int = 2,
         use_shared_pool: bool = True,
-        *args,
         **kwargs,
     ):
         """__init__.

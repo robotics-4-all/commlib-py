@@ -75,9 +75,9 @@ class ConnectionParameters(BaseConnectionParameters):
 class KafkaTransport(BaseTransport):
     def __init__(
         self,
+        *args,
         compression: int = CompressionType.DEFAULT_COMPRESSION,
         serializer: Any = None,
-        *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -91,6 +91,14 @@ class KafkaTransport(BaseTransport):
 
     def connect(self) -> None:
         pass
+
+    @property
+    def producer(self) -> Optional[Producer]:
+        return self._producer
+
+    @producer.setter
+    def producer(self, value: Optional[Producer]) -> None:
+        self._producer = value
 
     @property
     def is_connected(self) -> bool:
@@ -170,7 +178,7 @@ class KafkaTransport(BaseTransport):
                 continue
             if msg.error():
                 _err = msg.error()
-                if _err is not None and _err.code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]
+                if _err is not None and _err.code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]  # pylint: disable=protected-access
                     print(
                         "%% %s [%d] reached end at offset %d\n"
                         % (msg.topic(), msg.partition() or 0, msg.offset() or 0)
@@ -220,7 +228,7 @@ class KafkaTransport(BaseTransport):
 
 
 class Publisher(BasePublisher):
-    def __init__(self, key: str = "", *args, **kwargs):
+    def __init__(self, *args, key: str = "", **kwargs):
         self._key = key
         self._msg_seq = 0
         self._producer: Producer = None  # type: ignore[assignment]
@@ -296,9 +304,9 @@ class Publisher(BasePublisher):
 
 
 class MPublisher(Publisher):
-    def __init__(self, key: str = "", *args, **kwargs):
+    def __init__(self, *args, key: str = "", **kwargs):
         self._key = key
-        super().__init__(topic="*", *args, **kwargs)
+        super().__init__(*args, topic="*", **kwargs)
 
     def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
@@ -320,7 +328,7 @@ class MPublisher(Publisher):
 
 
 class Subscriber(BaseSubscriber):
-    def __init__(self, key: str = "", *args, **kwargs):
+    def __init__(self, *args, key: str = "", **kwargs):
         self._key = key
         self._consumer: Consumer = None  # type: ignore[assignment]
         super().__init__(*args, **kwargs)
@@ -373,7 +381,7 @@ class Subscriber(BaseSubscriber):
                     continue
                 _err = msg.error()
                 if _err is not None:
-                    if _err.code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]
+                    if _err.code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]  # pylint: disable=protected-access
                         print(
                             "%% %s [%d] reached end at offset %d\n"
                             % (msg.topic(), msg.partition() or 0, msg.offset() or 0)
@@ -638,6 +646,7 @@ class RPCClient(BaseRPCClient):
             kwargs: See BaseRPCClient
         """
         self._response = None
+        self._delay: float = 0.0
 
         super().__init__(*args, **kwargs)
         assert self._conn_params is not None, "Connection parameters are not set."
@@ -862,7 +871,7 @@ class TaskProducer(BaseTaskProducer):
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         assert self._transport is not None
-        producer = self._transport._producer
+        producer = self._transport.producer
         assert producer is not None
         data = envelope.model_dump()
         payload = JSONSerializer.serialize(data)
@@ -898,7 +907,7 @@ class TaskProducer(BaseTaskProducer):
             error,
         )
         assert self._transport is not None
-        producer = self._transport._producer
+        producer = self._transport.producer
         assert producer is not None
         data = envelope.model_dump()
         data["error"] = error
@@ -959,7 +968,7 @@ class TaskWorker(BaseTaskWorker):
 
     def _publish_result(self, result: TaskResult) -> None:
         assert self._transport is not None
-        producer = self._transport._producer
+        producer = self._transport.producer
         assert producer is not None
         data = result.model_dump()
         payload = JSONSerializer.serialize(data)
@@ -972,7 +981,7 @@ class TaskWorker(BaseTaskWorker):
 
     def _publish_progress(self, progress: TaskProgress) -> None:
         assert self._transport is not None
-        producer = self._transport._producer
+        producer = self._transport.producer
         assert producer is not None
         data = progress.model_dump()
         payload = JSONSerializer.serialize(data)
@@ -986,7 +995,7 @@ class TaskWorker(BaseTaskWorker):
     def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
         super()._send_to_dlq(envelope, error)
         assert self._transport is not None
-        producer = self._transport._producer
+        producer = self._transport.producer
         assert producer is not None
         data = envelope.model_dump()
         data["error"] = error

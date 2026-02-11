@@ -112,7 +112,7 @@ class TaskHandle:
         self._result_event.wait(timeout=timeout)
         return self._result
 
-    def _set_result(self, result: TaskResult) -> None:
+    def set_result(self, result: TaskResult) -> None:
         self._result = result
         self._status = result.status
         self._result_event.set()
@@ -193,12 +193,12 @@ class BaseTaskProducer(BaseEndpoint):
 
     def __init__(
         self,
+        *args,
         queue_name: str,
         msg_type: Optional[Type[TaskMessage]] = None,
         config: Optional[TaskQueueConfig] = None,
         on_result: Optional[Callable] = None,
         on_progress: Optional[Callable] = None,
-        *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -254,7 +254,7 @@ class BaseTaskProducer(BaseEndpoint):
             handle = self._pending_tasks.pop(result.task_id, None)
 
         if handle is not None:
-            handle._set_result(result)
+            handle.set_result(result)
 
         if self._on_result is not None:
             if self._msg_type is not None:
@@ -293,11 +293,11 @@ class BaseTaskWorker(BaseEndpoint):
 
     def __init__(
         self,
+        *args,
         queue_name: str,
         msg_type: Optional[Type[TaskMessage]] = None,
         config: Optional[TaskQueueConfig] = None,
         on_task: Optional[Callable] = None,
-        *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)

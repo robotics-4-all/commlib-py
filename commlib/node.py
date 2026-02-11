@@ -43,9 +43,9 @@ class HeartbeatThread:
 
     def __init__(
         self,
+        *args,
         pub_instance: BasePublisher,
         interval: Optional[float] = 10,
-        *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -72,7 +72,7 @@ class HeartbeatThread:
             msg = HeartbeatMessage(ts=self.get_current_ts())
             while self.running():
                 self.logger().debug(
-                    "Sending heartbeat message - %s", self._heartbeat_pub._topic
+                    "Sending heartbeat message - %s", self._heartbeat_pub.topic
                 )
                 self._heartbeat_pub.publish(msg)
                 # Wait for n seconds or until stop event is raised
@@ -289,7 +289,9 @@ class Node:
             topic=self._heartbeat_uri, msg_type=HeartbeatMessage
         )
         hb_pub.run()
-        self._hb_thread = HeartbeatThread(hb_pub, interval=self._heartbeat_interval)
+        self._hb_thread = HeartbeatThread(
+            pub_instance=hb_pub, interval=self._heartbeat_interval
+        )
         assert self._executor is not None
         future = self._executor.submit(self._hb_thread.start)
         future.add_done_callback(Node._worker_clb)

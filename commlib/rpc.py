@@ -50,10 +50,10 @@ class BaseRPCServer(BaseEndpoint):
 
     def __init__(
         self,
+        *args,
         base_uri: str = "",
         svc_map: dict = {},
         workers: int = 4,
-        *args,
         **kwargs,
     ):
         """__init__.
@@ -174,11 +174,11 @@ class BaseRPCService(BaseEndpoint):
 
     def __init__(
         self,
+        *args: Any,
         rpc_name: str,
         msg_type: Optional[Type[RPCMessage]] = None,
         on_request: Optional[Callable] = None,
         workers: int = 5,
-        *args: Any,
         **kwargs: Any,
     ):
         """__init__.
@@ -338,10 +338,10 @@ class BaseRPCClient(BaseEndpoint):
 
     def __init__(
         self,
+        *args: Any,
         rpc_name: str,
         msg_type: Optional[Type[RPCMessage]] = None,
         workers: int = 5,
-        *args: Any,
         **kwargs: Any,
     ):
         """
