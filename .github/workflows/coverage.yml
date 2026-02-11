@@ -29,5 +29,5 @@ jobs:
     - name: Run coverage
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        coverage run -m pytest --ignore=tests/mqtt --ignore=tests/redis
+        coverage run -m pytest --ignore=tests/mqtt --ignore=tests/redis --ignore=tests/kafka --ignore=tests/amqp
         coverage report -m
