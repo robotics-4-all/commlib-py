@@ -25,6 +25,7 @@ from commlib.task_queue import (
     TaskEnvelope,
     TaskProgress,
     TaskResult,
+    TaskStatus,
 )
 from commlib.action import (
     BaseActionClient,
@@ -140,8 +141,9 @@ class KafkaTransport(BaseTransport):
         payload = self._serializer.serialize(data)
         if on_delivery is None:
             on_delivery = self._on_publish
+        _value = payload.encode("utf-8") if isinstance(payload, str) else payload
         producer.produce(
-            topic, key=key.encode("utf-8"), value=payload, on_delivery=on_delivery
+            topic, key=key.encode("utf-8"), value=_value, on_delivery=on_delivery
         )
 
     def _on_publish(self, err, msg):
@@ -167,13 +169,19 @@ class KafkaTransport(BaseTransport):
             if msg is None:
                 continue
             if msg.error():
-                if msg.error().code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]
+                _err = msg.error()
+                if _err is not None and _err.code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]
                     print(
                         "%% %s [%d] reached end at offset %d\n"
-                        % (msg.topic(), msg.partition(), msg.offset())
+                        % (msg.topic(), msg.partition() or 0, msg.offset() or 0)
                     )
-                elif msg.error():
-                    self.log.error(f"Kafka error: {msg.error()}")
+                elif (
+                    _err is not None and _err.code() == KafkaError.UNKNOWN_TOPIC_OR_PART  # type: ignore[attr-defined]
+                ):
+                    time.sleep(1.0)
+                    continue
+                elif _err is not None:
+                    self.log.error(f"Kafka error: {_err}")
             else:
                 try:
                     callback(msg)
@@ -247,7 +255,7 @@ class Publisher(BasePublisher):
             **auth,
         }
 
-    def publish(self, msg: PubSubMessage, key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
@@ -256,10 +264,11 @@ class Publisher(BasePublisher):
             data = msg.model_dump()
         if key in (None, ""):
             key = self._key
+        _topic = topic if topic else self._topic
 
         assert self._transport is not None, "Transport is not initialized."
         self._transport.publish_data(
-            self._producer, data, self._topic, key, on_delivery=self._on_delivery
+            self._producer, data, _topic, key, on_delivery=self._on_delivery
         )
         self._msg_seq += 1
 
@@ -281,7 +290,7 @@ class Publisher(BasePublisher):
         assert self._transport is not None, "Transport is not initialized."
         self._producer = self._transport.create_producer(self._kafka_cfg)
 
-    def stop(self):
+    def stop(self, wait: bool = True):
         if self._producer is not None:
             self._producer.flush()
 
@@ -291,7 +300,7 @@ class MPublisher(Publisher):
         self._key = key
         super().__init__(topic="*", *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str, key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
@@ -300,10 +309,12 @@ class MPublisher(Publisher):
             data = msg.model_dump()
         if key in (None, ""):
             key = self._key
+        assert self._serializer is not None
         payload = self._serializer.serialize(data)
+        _value = payload.encode("utf-8") if isinstance(payload, str) else payload
         self._producer.poll(0)
         self._producer.produce(
-            topic, key=key.encode("utf-8"), value=payload, on_delivery=self._on_delivery
+            topic, key=key.encode("utf-8"), value=_value, on_delivery=self._on_delivery
         )
         self._msg_seq += 1
 
@@ -354,20 +365,28 @@ class Subscriber(BaseSubscriber):
         assert self._transport is not None, "Transport is not initialized."
         self._consumer = self._transport.create_consumer(self._kafka_cfg)
         try:
+            assert self._topic is not None, "Topic is required for Kafka subscriber"
             self._consumer.subscribe([self._topic], on_assign=self._on_assign)
             while running:
                 msg = self._consumer.poll(timeout=1.0)
                 if msg is None:
                     continue
-                if msg.error():
-                    if msg.error().code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]
-                        # End of partition event
+                _err = msg.error()
+                if _err is not None:
+                    if _err.code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]
                         print(
                             "%% %s [%d] reached end at offset %d\n"
-                            % (msg.topic(), msg.partition(), msg.offset())
+                            % (msg.topic(), msg.partition() or 0, msg.offset() or 0)
                         )
-                    elif msg.error():
-                        raise KafkaException(msg.error())
+                    elif _err.code() == KafkaError.UNKNOWN_TOPIC_OR_PART:  # type: ignore[attr-defined]
+                        kafka_logger.warning(
+                            "Topic not yet available: %s (waiting for auto-create)",
+                            self._topic,
+                        )
+                        time.sleep(1.0)
+                        continue
+                    else:
+                        raise KafkaException(_err)
                 else:
                     self._on_message(msg)
                     # self._consumer.store_offsets(msg)
@@ -404,7 +423,7 @@ class Subscriber(BaseSubscriber):
         _data = self._serializer.deserialize(msg.value())
         return _data, _topic, _key, _timestamp
 
-    def stop(self):
+    def stop(self, wait: bool = True):
         self._consumer.close()
 
 
@@ -460,11 +479,13 @@ class RPCService(BaseRPCService):
         except Exception as exc:
             self.log.error(str(exc), exc_info=True)
 
-    def _unpack_comm_msg(self, msg: Any) -> Tuple[CommRPCMessage, str]:
+    def _unpack_comm_msg(self, payload: Any, uri: Optional[str] = None) -> Any:
         assert self._serializer is not None, "Serializer is not initialized."
         try:
-            _uri = msg.topic()
-            _payload = self._serializer.deserialize(msg.value())
+            if hasattr(payload, "topic"):
+                uri = payload.topic()
+                payload = payload.value()
+            _payload = self._serializer.deserialize(payload)
             _data = _payload["data"]
             _header = _payload["header"]
             _req_msg = CommRPCMessage(header=CommRPCHeader(**_header), data=_data)
@@ -472,7 +493,7 @@ class RPCService(BaseRPCService):
                 raise RPCRequestError("Request Message is invalid!")
         except Exception as e:
             raise RPCRequestError(str(e))
-        return _req_msg, _uri
+        return _req_msg, uri
 
     def run_forever(self):
         """run_forever."""
@@ -632,14 +653,13 @@ class RPCClient(BaseRPCClient):
         """_gen_queue_name."""
         return f"rpc-{self._gen_random_id()}"
 
-    def _prepare_request(self, data: Any):
-        """_prepare_request.
-
-        Args:
-            data:
-        """
+    def _prepare_request(
+        self, data: Dict[str, Any], reply_to: Optional[str] = None
+    ) -> Dict[str, Any]:
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
-        self._comm_obj.header.reply_to = self._gen_queue_name()
+        self._comm_obj.header.reply_to = (
+            reply_to if reply_to else self._gen_queue_name()
+        )
         self._comm_obj.data = data
         return self._comm_obj.model_dump()
 
@@ -651,13 +671,15 @@ class RPCClient(BaseRPCClient):
             data = {}
         self._response = data
 
-    def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
+    def _unpack_comm_msg(self, payload: Any, uri: Optional[str] = None) -> Any:
         assert self._serializer is not None, "Serializer is not initialized."
-        _uri = msg.topic()
-        _payload = self._serializer.deserialize(msg.value())
+        if hasattr(payload, "topic"):
+            uri = payload.topic()
+            payload = payload.value()
+        _payload = self._serializer.deserialize(payload)
         _data = _payload["data"]
         _header = _payload["header"]
-        return _data, _header, _uri
+        return _data, _header, uri
 
     def _wait_for_response(self, timeout: float = 10.0):
         """_wait_for_response.
@@ -681,7 +703,7 @@ class RPCClient(BaseRPCClient):
             timeout (float): timeout
         """
         if self._msg_type is None:
-            data = msg
+            data: Any = msg if isinstance(msg, dict) else msg.model_dump()
         else:
             if not isinstance(msg, self._msg_type.Request):
                 raise ValueError("Message type not valid")
@@ -800,6 +822,8 @@ class ActionClient(BaseActionClient):
 
 
 class TaskProducer(BaseTaskProducer):
+    _transport: KafkaTransport  # type: ignore[assignment]
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(conn_params=self._conn_params)
@@ -838,14 +862,16 @@ class TaskProducer(BaseTaskProducer):
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         assert self._transport is not None
+        producer = self._transport._producer
+        assert producer is not None
         data = envelope.model_dump()
         payload = JSONSerializer.serialize(data)
-        self._transport._producer.produce(  # type: ignore[attr-defined]
+        producer.produce(
             topic=self._task_topic,
-            key=envelope.task_id,
-            value=payload,
+            key=envelope.task_id.encode(),
+            value=payload.encode() if isinstance(payload, str) else payload,
         )
-        self._transport._producer.flush()  # type: ignore[attr-defined]
+        producer.flush()
 
     def _on_result_msg(self, msg) -> None:
         if isinstance(msg, dict):
@@ -864,21 +890,31 @@ class TaskProducer(BaseTaskProducer):
         self._handle_progress(progress)
 
     def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
-        super()._send_to_dlq(envelope, error)
+        envelope.status = int(TaskStatus.DEAD_LETTER)
+        self.log.warning(
+            "Task %s sent to DLQ '%s': %s",
+            envelope.task_id,
+            self._config.get_dlq_name(),
+            error,
+        )
         assert self._transport is not None
+        producer = self._transport._producer
+        assert producer is not None
         data = envelope.model_dump()
         data["error"] = error
         dlq_topic = self._config.get_dlq_name().replace(".", "-")
         payload = JSONSerializer.serialize(data)
-        self._transport._producer.produce(  # type: ignore[attr-defined]
+        producer.produce(
             topic=dlq_topic,
-            key=envelope.task_id,
-            value=payload,
+            key=envelope.task_id.encode(),
+            value=payload.encode() if isinstance(payload, str) else payload,
         )
-        self._transport._producer.flush()  # type: ignore[attr-defined]
+        producer.flush()
 
 
 class TaskWorker(BaseTaskWorker):
+    _transport: KafkaTransport  # type: ignore[assignment]
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(conn_params=self._conn_params)
@@ -923,36 +959,42 @@ class TaskWorker(BaseTaskWorker):
 
     def _publish_result(self, result: TaskResult) -> None:
         assert self._transport is not None
+        producer = self._transport._producer
+        assert producer is not None
         data = result.model_dump()
         payload = JSONSerializer.serialize(data)
-        self._transport._producer.produce(
+        producer.produce(
             topic=self._result_topic,
-            key=result.task_id,
-            value=payload,
+            key=result.task_id.encode(),
+            value=payload.encode() if isinstance(payload, str) else payload,
         )
-        self._transport._producer.flush()
+        producer.flush()
 
     def _publish_progress(self, progress: TaskProgress) -> None:
         assert self._transport is not None
+        producer = self._transport._producer
+        assert producer is not None
         data = progress.model_dump()
         payload = JSONSerializer.serialize(data)
-        self._transport._producer.produce(
+        producer.produce(
             topic=self._progress_topic,
-            key=progress.task_id,
-            value=payload,
+            key=progress.task_id.encode(),
+            value=payload.encode() if isinstance(payload, str) else payload,
         )
-        self._transport._producer.flush()
+        producer.flush()
 
     def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
         super()._send_to_dlq(envelope, error)
         assert self._transport is not None
+        producer = self._transport._producer
+        assert producer is not None
         data = envelope.model_dump()
         data["error"] = error
         dlq_topic = self._config.get_dlq_name().replace(".", "-")
         payload = JSONSerializer.serialize(data)
-        self._transport._producer.produce(
+        producer.produce(
             topic=dlq_topic,
-            key=envelope.task_id,
-            value=payload,
+            key=envelope.task_id.encode(),
+            value=payload.encode() if isinstance(payload, str) else payload,
         )
-        self._transport._producer.flush()
+        producer.flush()
