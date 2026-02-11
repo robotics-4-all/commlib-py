@@ -23,7 +23,7 @@ TOPIC_REGEX = r"^[a-zA-Z0-9\/\.\-\_]+$"
 TOPIC_PATTERN_REGEX = r"^[a-zA-Z0-9\/\*\.\-\_]+$"
 
 
-def validate_pubsub_topic(topic: str) -> None:
+def validate_pubsub_topic(topic: Optional[str]) -> None:
     """
     Validates a given pub/sub topic.
 
@@ -45,7 +45,7 @@ def validate_pubsub_topic(topic: str) -> None:
         raise ValueError(f"Invalid topic: {topic}")
 
 
-def validate_pubsub_topic_strict(topic: str) -> None:
+def validate_pubsub_topic_strict(topic: Optional[str]) -> None:
     """
     Validate a Pub/Sub topic name.
 
@@ -78,7 +78,7 @@ class BasePublisher(BaseEndpoint):
 
     def __init__(
         self,
-        topic: str,
+        topic: Optional[str] = None,
         msg_type: Optional[Type[PubSubMessage]] = None,
         *args,
         **kwargs,
@@ -94,18 +94,18 @@ class BasePublisher(BaseEndpoint):
         """
 
         super().__init__(*args, **kwargs)
-        self._topic: str = topic
+        self._topic: Optional[str] = topic
         self._msg_type = msg_type
         self._gen_random_id = gen_random_id
 
         validate_pubsub_topic_strict(self._topic)
 
     @property
-    def topic(self) -> str:
+    def topic(self) -> Optional[str]:
         """topic"""
         return self._topic
 
-    def publish(self, msg: PubSubMessage) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         raise NotImplementedError()
 
     def _prepare_msg(self, msg: PubSubMessage) -> Dict:
@@ -130,7 +130,7 @@ class BaseSubscriber(BaseEndpoint):
 
     def __init__(
         self,
-        topic: str,
+        topic: Optional[str] = None,
         msg_type: Optional[Type[PubSubMessage]] = None,
         on_message: Optional[Callable] = None,
         workers: int = 2,
@@ -168,13 +168,13 @@ class BaseSubscriber(BaseEndpoint):
             self._executor = ThreadPoolExecutor(max_workers=workers)
             self._owns_executor = True
 
-        self._main_thread = None
-        self._t_stop_event = None
+        self._main_thread: Optional[threading.Thread] = None
+        self._t_stop_event: Optional[threading.Event] = None
 
         validate_pubsub_topic(self._topic)
 
     @property
-    def topic(self) -> str:
+    def topic(self) -> Optional[str]:
         """topic"""
         return self._topic
 

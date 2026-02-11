@@ -206,12 +206,19 @@ def endpoint_factory(etype: EndpointType, etransport: TransportType) -> Any:
     Raises:
         ValueError: If an unsupported transport type or endpoint type is provided.
     """
+    comm: Any
     if etransport == TransportType.AMQP:
-        import commlib.transports.amqp as comm
+        import commlib.transports.amqp as _comm_amqp
+
+        comm = _comm_amqp
     elif etransport == TransportType.REDIS:
-        import commlib.transports.redis as comm
+        import commlib.transports.redis as _comm_redis
+
+        comm = _comm_redis
     elif etransport == TransportType.MQTT:
-        import commlib.transports.mqtt as comm
+        import commlib.transports.mqtt as _comm_mqtt
+
+        comm = _comm_mqtt
     else:
         raise ValueError()
     if etype == EndpointType.RPCService:

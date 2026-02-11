@@ -8,7 +8,7 @@ import functools
 import logging
 import threading
 import time
-from typing import Any, Callable, Dict, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import redis
 from redis.backoff import ExponentialBackoff
@@ -53,10 +53,10 @@ from commlib.serializer import JSONSerializer
 from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
 
-from rich import console, pretty
+from rich import console as _rich_console_mod, pretty
 
 pretty.install()
-console = console.Console()
+console: Any = _rich_console_mod.Console()
 
 redis_logger = None
 
@@ -106,7 +106,7 @@ def get_or_create_redis_pool(
                     ExponentialBackoff(
                         conn_params.reconnect_attempts * conn_params.reconnect_delay
                     ),
-                    conn_params.reconnect_delay,
+                    int(conn_params.reconnect_delay),
                 )
                 if conn_params.reconnect_attempts > 0
                 else None
@@ -232,14 +232,16 @@ class RedisTransport(BaseTransport):
         super().__init__(*args, **kwargs)
         self._serializer = serializer if serializer is not None else JSONSerializer()
         self._compression = compression
-        self._rsub = None
-        self._redis = None
+        self._rsub: Any = None
+        self._redis: Optional[RedisConnection] = None
         self._redis_pubsub_join_timeout = 1  # sec
         self._rsub_thread = None
         self._wait_for_connection_init = 0.1  # sec
         self._wait_for_pubsub_stop = 0.1  # sec
         self._subscription_sleep_interval = 0.001  # sec
-        self._subscriptions = {}  # Track subscriptions for reconnection
+        self._subscriptions: Dict[
+            str, Callable
+        ] = {}  # Track subscriptions for reconnection
         self._retry_count = 0
         self._stopped = False
 
@@ -648,7 +650,10 @@ class RedisTransport(BaseTransport):
                 self._attempt_reconnect()
                 return self.wait_for_msg(queue_name, timeout)
             assert self._redis is not None
-            msgq, payload = self._redis.blpop(queue_name, timeout=timeout)  # type: ignore[reportAttributeAccessIssue]
+            result = self._redis.blpop([queue_name], timeout=timeout)  # type: ignore[union-attr]
+            if result is None:
+                return "", None
+            msgq, payload = result  # type: ignore[misc]
             if isinstance(payload, bytes) and payload == b"QueueInit":
                 return self.wait_for_msg(queue_name, timeout)
             if self._compression != CompressionType.NO_COMPRESSION:
@@ -807,7 +812,7 @@ class RPCClient(BaseRPCClient):
         _, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
         self._transport.delete_queue(_reply_to)
         if _msg is None:
-            return None  # type: ignore[reportReturnType]
+            return None  # type: ignore[return-value]
         data, header, uri = self._unpack_comm_msg(_msg)
         # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
@@ -837,20 +842,23 @@ class Publisher(BasePublisher):
             compression=self._compression,
         )
 
-    def publish(self, msg: PubSubMessage) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """publish.
         Publish message
 
         Args:
             msg (PubSubMessage): msg
+            topic (str): Optional topic override
+            key (str): Optional key
 
         Returns:
             None:
         """
         data = self._prepare_msg(msg)
-        self.log.debug("Publishing Message to topic <%s>", self._topic)
+        _topic = topic if topic else self._topic
+        self.log.debug("Publishing Message to topic <%s>", _topic)
         assert self._transport is not None
-        self._transport.publish(self._topic, data)
+        self._transport.publish(_topic, data)
         self._msg_seq += 1
 
 
@@ -868,12 +876,13 @@ class MPublisher(Publisher):
         """
         super().__init__(topic=None, *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """publish.
 
         Args:
             msg (PubSubMessage): Message to publish
             topic (str): Topic (URI) to send the message
+            key (str): Optional key
 
         Returns:
             None:
@@ -942,7 +951,7 @@ class Subscriber(BaseSubscriber):
         )
         validate_pubsub_topic_strict(self._topic)
 
-    def stop(self):
+    def stop(self, wait: bool = True):
         """
         Stops the subscriber thread if it is running and then calls the
         stop method of the superclass to perform any additional cleanup.
@@ -1025,7 +1034,7 @@ class WSubscriber(BaseSubscriber):
             args: See BaseSubscriber
             kwargs: See BaseSubscriber
         """
-        super().__init__(topic=None, *args, **kwargs)  # type: ignore[reportArgumentType]
+        super().__init__(topic=None, **kwargs)
         self._transport = RedisTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -1049,7 +1058,7 @@ class WSubscriber(BaseSubscriber):
         validate_pubsub_topic_strict(topic)
         self._subs[topic] = callback
 
-    def stop(self):
+    def stop(self, wait: bool = True):
         """
         Stops the transport by stopping all subscriber threads and the main subscriber thread if they exist.
 
@@ -1142,7 +1151,7 @@ class PSubscriber(BaseSubscriber):
         )
         validate_pubsub_topic(self._topic)
 
-    def stop(self):
+    def stop(self, wait: bool = True):
         """
         Stops the Redis transport by stopping the subscriber thread if it exists,
         and then calls the stop method of the superclass.

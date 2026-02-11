@@ -122,7 +122,7 @@ class MQTTTransport(BaseTransport):
         self._compression = compression
         self._mqtt_properties = None
         self._stopped = False
-        self._subscriptions = {}  # Track subscriptions for reconnection
+        self._subscriptions: Dict[str, Any] = {}
 
     @property
     def is_connected(self) -> bool:
@@ -180,7 +180,7 @@ class MQTTTransport(BaseTransport):
 
         self._client = mqtt.Client(**client_kwargs)
         self._configure_client()
-
+        assert self._client is not None
         self._client.connect(
             self._conn_params.host,
             int(self._conn_params.port),
@@ -481,18 +481,21 @@ class Publisher(BasePublisher):
             compression=self._compression,
         )
 
-    def publish(self, msg: PubSubMessage) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """publish.
 
         Args:
             msg (PubSubMessage): Message to Publish
+            topic (str): Optional topic override
+            key (str): Optional key
 
         Returns:
             None:
         """
         assert self._transport is not None
         data = self._prepare_msg(msg)
-        self._transport.publish(self._topic, data, qos=MQTTQoS.L0)
+        _topic = topic if topic else self._topic
+        self._transport.publish(_topic, data, qos=MQTTQoS.L0)
         self._msg_seq += 1
 
 
@@ -504,12 +507,13 @@ class MPublisher(Publisher):
     def __init__(self, *args, **kwargs):
         super().__init__(topic=None, *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """publish.
 
         Args:
             msg (PubSubMessage): msg
             topic (str): topic
+            key (str): Optional key
 
         Returns:
             None:
@@ -639,7 +643,7 @@ class WSubscriber(BaseSubscriber):
             args: See BaseSubscriber
             kwargs: See BaseSubscriber
         """
-        super().__init__(topic=None, *args, **kwargs)  # type: ignore[reportArgumentType]
+        super().__init__(topic=None, **kwargs)
         self._transport = MQTTTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -817,11 +821,11 @@ class RPCService(BaseRPCService):
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         self._executor.submit(self._on_request_internal, client, userdata, msg)
 
-    def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def _on_request_internal(self, client: Any, userdata: Any, msg: Any):
         try:
             req_msg, uri = self._unpack_comm_msg(
-                msg.payload,  # type: ignore[reportAttributeAccessIssue]
-                msg.topic,  # type: ignore[reportAttributeAccessIssue]
+                msg.payload,
+                msg.topic,
             )
         except ValueError as exc:
             self.log.warning(
@@ -908,7 +912,7 @@ class RPCServer(BaseRPCServer):
         ) as exc:
             self.log.error(str(exc), exc_info=False)
 
-    def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def _on_request_internal(self, client: Any, userdata: Any, msg: Any):
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
         except (
@@ -1015,24 +1019,25 @@ class RPCClient(BaseRPCClient):
         """_gen_queue_name."""
         return f"rpc-{self._gen_random_id()}"
 
-    def _prepare_request(self, data: Dict[str, Any]):
-        """_prepare_request.
-
-        Args:
-            data:
-        """
+    def _prepare_request(
+        self, data: Dict[str, Any], reply_to: Optional[str] = None
+    ) -> Dict[str, Any]:
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
-        self._comm_obj.header.reply_to = self._gen_queue_name()
+        self._comm_obj.header.reply_to = (
+            reply_to if reply_to else self._gen_queue_name()
+        )
         self._comm_obj.data = data
         return self._comm_obj.model_dump()
 
-    def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
-        _uri = msg.topic
+    def _unpack_comm_msg(self, payload: Any, uri: Optional[str] = None) -> Any:
+        if uri is None and hasattr(payload, "topic"):
+            uri = payload.topic
+            payload = payload.payload
         assert self._serializer is not None
-        _payload = self._serializer.deserialize(msg.payload)
+        _payload = self._serializer.deserialize(payload)
         _data = _payload["data"]
         _header = _payload["header"]
-        return _data, _header, _uri
+        return _data, _header, uri
 
     def _wait_for_response(self, timeout: float = 10.0):
         """_wait_for_response.
@@ -1074,7 +1079,7 @@ class RPCClient(BaseRPCClient):
         _resp = self._wait_for_response(timeout=timeout)
         self._transport.unsubscribe(_reply_to)
         if _resp is None:
-            return None  # type: ignore[reportReturnType]
+            return None  # type: ignore[return-value]
         # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
             return _resp

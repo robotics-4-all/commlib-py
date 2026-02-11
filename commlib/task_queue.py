@@ -84,7 +84,7 @@ class TaskHandle:
     def __init__(self, task_id: str, msg_type: Optional[Type[TaskMessage]] = None):
         self._task_id = task_id
         self._msg_type = msg_type
-        self._status = TaskStatus.PENDING
+        self._status: int = TaskStatus.PENDING
         self._result: Optional[TaskResult] = None
         self._result_event = threading.Event()
 
@@ -272,6 +272,15 @@ class BaseTaskProducer(BaseEndpoint):
                 self._on_progress(
                     progress.task_id, progress.progress_data, progress.percent
                 )
+
+    def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
+        envelope.status = TaskStatus.DEAD_LETTER
+        self.log.warning(
+            "Task %s sent to DLQ '%s': %s",
+            envelope.task_id,
+            self._config.get_dlq_name(),
+            error,
+        )
 
 
 class BaseTaskWorker(BaseEndpoint):

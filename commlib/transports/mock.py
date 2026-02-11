@@ -116,11 +116,13 @@ class Publisher(BasePublisher):
         super().__init__(*args, **kwargs)
         self._transport = MockTransport(self._conn_params)
 
-    def publish(self, msg: PubSubMessage):
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """Publish message to mock transport.
 
         Args:
             msg: Message to publish
+            topic: Optional topic override
+            key: Optional key
         """
         if self._transport is None:
             return

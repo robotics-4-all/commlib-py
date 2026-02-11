@@ -109,6 +109,7 @@ class TopicAggregator:
 
     def create_subscriptions(self):
         for topic in self.input_topics:
+            _clb: Callable[..., None]
             if topic in self.data_processors:
                 _procs = self.data_processors[topic]
                 _clb = functools.partial(self.on_msg_internal, processors=_procs)

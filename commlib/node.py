@@ -172,7 +172,7 @@ class Node:
         node_name = node_name.replace("-", "_")
         self._node_name = node_name
         self._debug = debug
-        self._hb_thread = None
+        self._hb_thread: Optional[HeartbeatThread] = None
         self._workers_rpc = workers_rpc
         self._namespace = self._node_name
         self._has_ctrl_services = ctrl_services
@@ -269,6 +269,7 @@ class Node:
     def _select_transport(self):
         type_str = str(type(self._conn_params)).split("'")[1]
 
+        transport_module: Any
         if type_str == "commlib.transports.mqtt.ConnectionParameters":
             import commlib.transports.mqtt as transport_module
         elif type_str == "commlib.transports.redis.ConnectionParameters":
@@ -290,10 +291,9 @@ class Node:
         hb_pub.run()
         self._hb_thread = HeartbeatThread(hb_pub, interval=self._heartbeat_interval)
         assert self._executor is not None
-        work = self._executor.submit(self._hb_thread.start).add_done_callback(
-            Node._worker_clb
-        )
-        self._workers.append(work)
+        future = self._executor.submit(self._hb_thread.start)
+        future.add_done_callback(Node._worker_clb)
+        self._workers.append(future)
 
     def _start_rpc_callback(
         self, msg: _NodeStartMessage.Request

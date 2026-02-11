@@ -135,8 +135,8 @@ class GoalHandler:
     def __init__(
         self,
         msg_type: Optional[Type[ActionMessage]],
-        status_publisher: Optional[Callable],
-        feedback_publisher: Optional[Callable],
+        status_publisher: Any,
+        feedback_publisher: Any,
         on_goal: Callable,
         on_cancel: Optional[Callable],
     ):
@@ -154,15 +154,17 @@ class GoalHandler:
         """
 
         self._msg_type = msg_type
-        self.status = None
+        self.status: Optional[GoalStatus] = None
         self.id = gen_random_id()
         self.data: Any = (
             msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
         )
         self._pub_status = status_publisher
         self._pub_feedback = feedback_publisher
-        self.result = msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
-        self._task = None
+        self.result: Any = (
+            msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
+        )
+        self._task: Any = None
         self._on_goal = on_goal
         self._on_cancel = on_cancel
         self._cancel_event = threading.Event()
@@ -361,14 +363,14 @@ class BaseActionService:
         self._result_rpc_uri = f"{self._action_name}.get_result"
 
         # To be instantiated by the child classes
-        self._mpublisher = None
-        self._notify_pub = None
-        self._feedback_pub = None
-        self._status_pub = None
-        self._goal_rpc = None
-        self._cancel_rpc = None
-        self._result_rpc = None
-        self._current_goal = None
+        self._mpublisher: Optional[Any] = None
+        self._notify_pub: Optional[Any] = None
+        self._feedback_pub: Optional[Any] = None
+        self._status_pub: Optional[Any] = None
+        self._goal_rpc: Optional[Any] = None
+        self._cancel_rpc: Optional[Any] = None
+        self._result_rpc: Optional[Any] = None
+        self._current_goal: Optional[GoalHandler] = None
 
         self.log.info(
             "Initiating Action Service:\n"
@@ -491,7 +493,7 @@ class BaseActionService:
                 f"Cannot make the transition - Goal {self._current_goal.id} is running!"
             )
             return resp
-        # Execute user-defined callback
+        assert self._current_goal is not None
         self._current_goal.start()
         resp.status = 1
         resp.goal_id = self._current_goal.id
@@ -626,11 +628,11 @@ class BaseActionClient:
         self._result_rpc_uri = f"{self._action_name}.get_result"
 
         # To be instantiated by the child classes
-        self._goal_client = None
-        self._cancel_client = None
-        self._result_client = None
-        self._status_sub = None
-        self._feedback_sub = None
+        self._goal_client: Optional[Any] = None
+        self._cancel_client: Optional[Any] = None
+        self._result_client: Optional[Any] = None
+        self._status_sub: Optional[Any] = None
+        self._feedback_sub: Optional[Any] = None
         self._goal_id = None
         self._result = None
         self._status = _ActionStatusMessage()
@@ -772,7 +774,7 @@ class BaseActionClient:
             GoalStatus.CANCELED,
             GoalStatus.ABORTED,
         ):
-            resp = self._call_get_result()  # type: ignore[reportAttributeAccessIssue]
+            resp = self._call_get_result()  # type: ignore[attr-defined]
             self._result = resp
 
             # Call the on_goal_reached callback
@@ -800,6 +802,7 @@ class BaseActionClient:
         # Check if the goal_id matches the one of the current goal.
         if msg.goal_id != self._goal_id:
             return
+        fb: Any
         if self._msg_type is not None and msg.feedback_data is not None:
             fb = self._msg_type.Feedback(**msg.feedback_data)
         else:

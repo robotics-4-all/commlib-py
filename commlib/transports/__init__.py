@@ -5,6 +5,7 @@ __email__ = "klpanagi@gmail.com"
 
 
 from enum import Enum
+from typing import Any
 
 
 class TransportType(Enum):
@@ -14,20 +15,16 @@ class TransportType(Enum):
     KAFKA = 4
 
 
-def connection_params_for_transport(transport: TransportType):
+def connection_params_for_transport(transport: TransportType) -> Any:
+    ConnectionParameters: type
     if transport == TransportType.MQTT:
         from commlib.transports.mqtt import ConnectionParameters
-
-        return ConnectionParameters
-    if transport == TransportType.REDIS:
+    elif transport == TransportType.REDIS:
         from commlib.transports.redis import ConnectionParameters
-
-        return ConnectionParameters
-    if transport == TransportType.AMQP:
+    elif transport == TransportType.AMQP:
         from commlib.transports.amqp import ConnectionParameters
-
-        return ConnectionParameters
-    if transport == TransportType.KAFKA:
+    elif transport == TransportType.KAFKA:
         from commlib.transports.kafka import ConnectionParameters
-
-        return ConnectionParameters
+    else:
+        raise ValueError(f"Unsupported transport: {transport}")
+    return ConnectionParameters

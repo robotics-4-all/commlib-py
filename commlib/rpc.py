@@ -9,7 +9,7 @@ import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from functools import partial
 import time
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Callable, Dict, Optional, Type, Union
 
 from pydantic import BaseModel
 
@@ -78,12 +78,10 @@ class BaseRPCServer(BaseEndpoint):
             self._executor: ThreadPoolExecutor = get_io_pool()
             self._owns_executor = False
         else:
-            self._executor: ThreadPoolExecutor = ThreadPoolExecutor(
-                max_workers=self._max_workers
-            )
+            self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
             self._owns_executor = True
 
-        self._main_thread = None
+        self._main_thread: Optional[threading.Thread] = None
         self._t_stop_event: threading.Event = threading.Event()
         self._comm_obj: CommRPCMessage = CommRPCMessage()
 
@@ -212,24 +210,24 @@ class BaseRPCService(BaseEndpoint):
             self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
             self._owns_executor = True
 
-        self._main_thread = None
+        self._main_thread: Optional[threading.Thread] = None
         self._t_stop_event = threading.Event()
         self._comm_obj = CommRPCMessage()
 
-    def _serialize_data(self, payload: Dict[str, Any]) -> str:
+    def _serialize_data(self, payload: Dict[str, Any]) -> Union[str, bytes]:
         """
-        Serializes the given payload dictionary to a string using the configured serializer.
+        Serializes the given payload dictionary using the configured serializer.
 
         Args:
             payload (Dict[str, Any]): The dictionary to serialize.
 
         Returns:
-            str: The serialized payload.
+            Union[str, bytes]: The serialized payload.
         """
         assert self._serializer is not None
         return self._serializer.serialize(payload)
 
-    def _serialize_response(self, message: RPCMessage.Response) -> str:
+    def _serialize_response(self, message: RPCMessage.Response) -> Union[str, bytes]:
         """
         Serializes an RPC response message to a string.
 
@@ -444,21 +442,21 @@ class BaseRPCClient(BaseEndpoint):
                 on_response(result)
                 return result
 
-    def _serialize_data(self, payload: Dict[str, Any]) -> str:
+    def _serialize_data(self, payload: Dict[str, Any]) -> Union[str, bytes]:
         """
-        Serialize the provided payload dictionary into a string representation.
+        Serialize the provided payload dictionary.
 
         Args:
             payload (Dict[str, Any]): The dictionary to be serialized.
 
         Returns:
-            str: The serialized representation of the payload.
+            Union[str, bytes]: The serialized representation of the payload.
         """
 
         assert self._serializer is not None
         return self._serializer.serialize(payload)
 
-    def _serialize_request(self, message: RPCMessage.Request) -> str:
+    def _serialize_request(self, message: RPCMessage.Request) -> Union[str, bytes]:
         """
         Serialize the provided RPC request message into a string representation.
 
