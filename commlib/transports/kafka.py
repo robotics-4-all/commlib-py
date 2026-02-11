@@ -176,8 +176,7 @@ class KafkaTransport(BaseTransport):
                     self.log.error(f"Kafka error: {msg.error()}")
             else:
                 try:
-                    data, topic, key, ts = self._unpack_kafka_msg(msg)
-                    callback(data)
+                    callback(msg)
                 except Exception:
                     self.log.error(
                         "Exception caught in _poll_loop callback", exc_info=True
@@ -424,7 +423,6 @@ class PSubscriber(Subscriber):
 
 class RPCService(BaseRPCService):
     def __init__(self, *args, **kwargs):
-        raise NotImplementedError("RPCService for Kafka transport not supported")
         super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(
             conn_params=self._conn_params,
@@ -439,10 +437,10 @@ class RPCService(BaseRPCService):
         _resp = self._comm_obj.model_dump()
         self._transport.publish(reply_to, _resp)
 
-    def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        self._executor.submit(self._on_request_internal, client, userdata, msg)
+    def _on_request_handle(self, msg: Any) -> None:
+        self._executor.submit(self._on_request_internal, msg)
 
-    def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def _on_request_internal(self, msg: Any) -> None:
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
@@ -457,7 +455,6 @@ class RPCService(BaseRPCService):
                 resp = self.on_request(req_msg.data)
             else:
                 resp = self.on_request(self._msg_type.Request(**req_msg.data))
-                # RPCMessage.Response object here
                 resp = resp.model_dump()
             self._send_response(resp, req_msg.header.reply_to)
         except Exception as exc:
@@ -466,8 +463,8 @@ class RPCService(BaseRPCService):
     def _unpack_comm_msg(self, msg: Any) -> Tuple[CommRPCMessage, str]:
         assert self._serializer is not None, "Serializer is not initialized."
         try:
-            _uri = msg.topic
-            _payload = self._serializer.deserialize(msg.payload)
+            _uri = msg.topic()
+            _payload = self._serializer.deserialize(msg.value())
             _data = _payload["data"]
             _header = _payload["header"]
             _req_msg = CommRPCMessage(header=CommRPCHeader(**_header), data=_data)
@@ -480,7 +477,9 @@ class RPCService(BaseRPCService):
     def run_forever(self):
         """run_forever."""
         assert self._transport is not None, "Transport is not initialized."
-        self._transport.subscribe(self._rpc_name, self._on_request_handle)
+        self._transport.subscribe(
+            self._rpc_name, self._on_request_handle, group_id=self._rpc_name
+        )
         self._transport.start()
         while True:
             if self._t_stop_event is not None:
@@ -526,17 +525,10 @@ class RPCServer(BaseRPCServer):
         _resp = self._comm_obj.model_dump()
         self._transport.publish(reply_to, _resp)
 
-    def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        self._executor.submit(self._on_request_internal, client, userdata, msg)
+    def _on_request_handle(self, msg: Any) -> None:
+        self._executor.submit(self._on_request_internal, msg)
 
-    def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        """_on_request_internal.
-
-        Args:
-            client (Any): client
-            userdata (Any): userdata
-            msg (Dict[str, Any]): msg
-        """
+    def _on_request_internal(self, msg: Any) -> None:
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
@@ -578,8 +570,8 @@ class RPCServer(BaseRPCServer):
             Tuple[Any, Any, Any]:
         """
         try:
-            _uri = msg.topic
-            _payload = self._serializer.deserialize(msg.payload)
+            _uri = msg.topic()
+            _payload = self._serializer.deserialize(msg.value())
             _data = _payload["data"]
             _header = _payload["header"]
             _req_msg = CommRPCMessage(header=CommRPCHeader(**_header), data=_data)
@@ -599,7 +591,7 @@ class RPCServer(BaseRPCServer):
             full_uri = f"{self._base_uri}.{uri}"
         self.log.info("Registering endpoint <%s>", full_uri)
         assert self._transport is not None, "Transport is not initialized."
-        self._transport.subscribe(full_uri, self._on_request_handle)
+        self._transport.subscribe(full_uri, self._on_request_handle, group_id=full_uri)
 
     def run_forever(self):
         """run_forever."""
@@ -651,14 +643,7 @@ class RPCClient(BaseRPCClient):
         self._comm_obj.data = data
         return self._comm_obj.model_dump()
 
-    def _on_response_wrapper(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        """_on_response_wrapper.
-
-        Args:
-            client (Any): client
-            userdata (Any): userdata
-            msg (Dict[str, Any]): msg
-        """
+    def _on_response_wrapper(self, msg: Any) -> None:
         try:
             data, header, uri = self._unpack_comm_msg(msg)
         except Exception as exc:
@@ -668,8 +653,8 @@ class RPCClient(BaseRPCClient):
 
     def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
         assert self._serializer is not None, "Serializer is not initialized."
-        _uri = msg.topic
-        _payload = self._serializer.deserialize(msg.payload)
+        _uri = msg.topic()
+        _payload = self._serializer.deserialize(msg.value())
         _data = _payload["data"]
         _header = _payload["header"]
         return _data, _header, _uri
@@ -708,8 +693,7 @@ class RPCClient(BaseRPCClient):
         _reply_to = _msg["header"]["reply_to"]
 
         assert self._transport is not None, "Transport is not initialized."
-        assert self._transport is not None, "Transport is not initialized."
-        self._transport.subscribe(_reply_to, callback=self._on_response_wrapper)
+        self._transport.subscribe(_reply_to, self._on_response_wrapper)
         start_t = time.time()
         self._transport.publish(self._rpc_name, _msg)
         _resp = self._wait_for_response(timeout=timeout)
@@ -892,118 +876,6 @@ class TaskProducer(BaseTaskProducer):
             value=payload,
         )
         self._transport._producer.flush()  # type: ignore[attr-defined]
-
-    def _on_result_msg(self, msg) -> None:
-        if isinstance(msg, dict):
-            data = msg
-        else:
-            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
-        result = TaskResult(**data)
-        self._handle_result(result)
-
-    def _on_progress_msg(self, msg) -> None:
-        if isinstance(msg, dict):
-            data = msg
-        else:
-            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
-        progress = TaskProgress(**data)
-        self._handle_progress(progress)
-
-
-class TaskWorker(BaseTaskWorker):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._transport = KafkaTransport(conn_params=self._conn_params)
-        self._task_topic = f"{self._queue_name}-tasks"
-        self._result_topic = f"{self._queue_name}-results"
-        self._progress_topic = f"{self._queue_name}-progress"
-        self._task_sub = None
-
-    def run(self, wait: bool = True) -> None:
-        if self._transport is None:
-            raise RuntimeError("Transport not initialized")
-        self._transport.start()
-        self._task_sub = Subscriber(
-            conn_params=self._conn_params,
-            topic=self._task_topic,
-            on_message=self._on_task_msg,
-        )
-        self._task_sub.run()
-        self._state = EndpointState.CONNECTED
-
-    def stop(self, wait: bool = True) -> None:
-        self._stop_event.set()
-        if self._task_sub is not None:
-            self._task_sub.stop()
-        if self._transport is not None:
-            self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
-
-    def _on_task_msg(self, msg) -> None:
-        if isinstance(msg, dict):
-            data = msg
-        else:
-            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
-        envelope = TaskEnvelope(**data)
-        import threading
-
-        threading.Thread(
-            target=self._process_task,
-            args=(envelope,),
-            daemon=True,
-        ).start()
-
-    def _publish_result(self, result: TaskResult) -> None:
-        assert self._transport is not None
-        data = result.model_dump()
-        payload = JSONSerializer.serialize(data)
-        self._transport._producer.produce(
-            topic=self._result_topic,
-            key=result.task_id,
-            value=payload,
-        )
-        self._transport._producer.flush()
-
-    def _publish_progress(self, progress: TaskProgress) -> None:
-        assert self._transport is not None
-        data = progress.model_dump()
-        payload = JSONSerializer.serialize(data)
-        self._transport._producer.produce(
-            topic=self._progress_topic,
-            key=progress.task_id,
-            value=payload,
-        )
-        self._transport._producer.flush()
-
-    def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
-        super()._send_to_dlq(envelope, error)
-        assert self._transport is not None
-        data = envelope.model_dump()
-        data["error"] = error
-        dlq_topic = self._config.get_dlq_name().replace(".", "-")
-        payload = JSONSerializer.serialize(data)
-        self._transport._producer.produce(
-            topic=dlq_topic,
-            key=envelope.task_id,
-            value=payload,
-        )
-        self._transport._producer.flush()
-
-    def _on_result_msg(self, msg) -> None:
-        if isinstance(msg, dict):
-            data = msg
-        else:
-            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
-        result = TaskResult(**data)
-        self._handle_result(result)
-
-    def _on_progress_msg(self, msg) -> None:
-        if isinstance(msg, dict):
-            data = msg
-        else:
-            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
-        progress = TaskProgress(**data)
-        self._handle_progress(progress)
 
 
 class TaskWorker(BaseTaskWorker):

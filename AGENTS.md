@@ -66,7 +66,7 @@ commlib-py/
 - **Never** use `as any` type suppression (Python equivalent: avoid `# type: ignore` without reason)
 - **Never** commit with failing `make ci` — run before every push
 - **Python 3.14**: AMQP (pika) incompatible — tests auto-skipped
-- **Kafka transport**: Partial implementation — no RPCServer, no ActionService/Client
+- **Kafka transport**: Full endpoint parity — all endpoint types now supported
 
 ## COMMANDS
 

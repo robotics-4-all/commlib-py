@@ -45,11 +45,11 @@ transports/
 | Subscriber | Y | Y | Y | Y | Y |
 | MPublisher | Y | Y | Y | Y | Y |
 | PSubscriber | Y | Y | Y | Y | Y |
-| RPCService | Y | Y | Y | N | Y |
+| RPCService | Y | Y | Y | Y | Y |
 | RPCClient | Y | Y | Y | Y | Y |
-| RPCServer | Y | Y | Y | N | Y |
-| ActionService | Y | Y | Y | N | Y |
-| ActionClient | Y | Y | Y | N | Y |
+| RPCServer | Y | Y | Y | Y | Y |
+| ActionService | Y | Y | Y | Y | Y |
+| ActionClient | Y | Y | Y | Y | Y |
 | WPublisher | Y | Y | N | N | N |
 | WSubscriber | Y | Y | N | N | N |
 | Connection Pool | N | Y | N | N | N |
@@ -58,5 +58,5 @@ transports/
 
 - **Never** import broker client libraries at package level — install is optional
 - **Never** skip `wait` parameter in `run()` — was a bug fixed in commit `148b825`
-- **Kafka**: Incomplete — no RPCServer, no Action support. Don't assume feature parity
+- **Kafka**: Full endpoint parity achieved — all endpoint types now supported
 - **Redis pool cleanup**: Must reset class variables — was a bug fixed in commit `5291b9c`
