@@ -89,6 +89,7 @@ Commlib abstracts away the complexity of different message broker protocols (MQT
 - **Pub/Sub** - Publish/Subscribe messaging for event-driven architectures
 - **RPC** - Request/Response pattern for synchronous communication
 - **Actions** - Long-running preemptive services with feedback
+- **Task Queue** - Competing-consumer job distribution with retries, priorities, and progress
 
 Whether you're building IoT applications, distributed systems, or robotic control systems, Commlib lets you focus on your application logic while it handles the messaging complexity.
 
@@ -1010,8 +1011,10 @@ Below is the list of currently supported interface/endpoint types and protocol t
 | **WPublisher**         | A wrapped publisher with additional features.    | `topic`, `connection_params`                                           | MQTT, Redis  |
 | **PSubscriber**        | Subscribes to topics using patterns.             | `topic_pattern`, `on_message`, `connection_params`                                  | MQTT, Redis, AMQP, Kafka  |
 | **WSubscriber**        | A wrapped subscriber with additional features.   | `topic`, `on_message`, `connection_params`                              | MQTT, Redis  |
-| **ActionService**      | Provides preemptive services with feedback.      | `msg_type`, `action_name`, `on_goal`, `connection_params`                           | MQTT, Redis, AMQP  |
-| **ActionClient**       | Sends goals to an action service and receives feedback. | `msg_type`, `action_name`, `on_feedback`, `on_result`, `connection_params`          | MQTT, Redis, AMQP  |
+| **ActionService**      | Provides preemptive services with feedback.      | `msg_type`, `action_name`, `on_goal`, `connection_params`                           | MQTT, Redis, AMQP, Kafka  |
+| **ActionClient**       | Sends goals to an action service and receives feedback. | `msg_type`, `action_name`, `on_feedback`, `on_result`, `connection_params`          | MQTT, Redis, AMQP, Kafka  |
+| **TaskProducer**       | Submits tasks to a job queue.                    | `queue_name`, `on_result`, `connection_params`                                      | MQTT, Redis, AMQP, Kafka  |
+| **TaskWorker**         | Processes tasks from a job queue.                | `queue_name`, `on_task`, `connection_params`                                        | MQTT, Redis, AMQP, Kafka  |
 
 **Node class:**
 
@@ -1062,6 +1065,8 @@ Node:
    	create_psubscriber(self, *args, **kwargs)
 	create_wpublisher(self, *args, **kwargs)
    	create_wsubscriber(self, *args, **kwargs)
+   	create_task_producer(self, *args, **kwargs)
+   	create_task_worker(self, *args, **kwargs)
    	run_forever(self, sleep_rate: float = 0.001)
    	run(self, wait: bool = True) -> None
    	stop(self)
@@ -1494,8 +1499,10 @@ One can create endpoint instances by using the following classes of each support
 | **WPublisher**         | A wrapped publisher with additional features.    | `msg_type`, `topic`, `connection_params`                                           | MQTT, Redis  |
 | **PSubscriber**        | Subscribes to topics using patterns.             | `topic_pattern`, `on_message`, `connection_params`                                  | MQTT, Redis, AMQP, Kafka  |
 | **WSubscriber**        | A wrapped subscriber with additional features.   | `msg_type`, `topic`, `on_message`, `connection_params`                              | MQTT, Redis  |
-| **ActionService**      | Provides preemptive services with feedback.      | `msg_type`, `action_name`, `on_goal`, `connection_params`                           | MQTT, Redis, AMQP  |
-| **ActionClient**       | Sends goals to an action service and receives feedback. | `msg_type`, `action_name`, `on_feedback`, `on_result`, `connection_params`          | MQTT, Redis, AMQP  |
+| **ActionService**      | Provides preemptive services with feedback.      | `msg_type`, `action_name`, `on_goal`, `connection_params`                           | MQTT, Redis, AMQP, Kafka  |
+| **ActionClient**       | Sends goals to an action service and receives feedback. | `msg_type`, `action_name`, `on_feedback`, `on_result`, `connection_params`          | MQTT, Redis, AMQP, Kafka  |
+| **TaskProducer**       | Submits tasks to a job queue.                    | `queue_name`, `on_result`, `connection_params`                                      | MQTT, Redis, AMQP, Kafka  |
+| **TaskWorker**         | Processes tasks from a job queue.                | `queue_name`, `on_task`, `connection_params`                                        | MQTT, Redis, AMQP, Kafka  |
 
 ```python
 from commlib.transports.redis import RPCService
@@ -1819,9 +1826,10 @@ See [benchmark/README.md](benchmark/README.md) for comprehensive benchmark docum
 - [X] **`Task 1`**: <strike>Protocol-agnostic architecture</strike>
 - [x] **`Task 2`**: <strike>Support the AMQP and MQTT protocols</strike>
 - [x] **`Task 3`**: <strike>Support Redis protocol</strike>
-- [ ] **`Task 4`**: Support Kafka protocol (Under development / Partial Support)
-- [ ] **`Task 5`**: RPCServer implementation for AMQP and Kafka transports
-- [ ] **`Task 6`**: Comprehensive testing
+- [x] **`Task 4`**: <strike>Support Kafka protocol (Full endpoint parity)</strike>
+- [x] **`Task 5`**: <strike>RPCServer implementation for AMQP and Kafka transports</strike>
+- [x] **`Task 6`**: <strike>Task Queue (Job Queue) pattern across all transports</strike>
+- [ ] **`Task 7`**: Comprehensive integration testing
 
 ---
 

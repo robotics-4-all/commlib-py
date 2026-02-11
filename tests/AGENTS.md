@@ -19,10 +19,19 @@ tests/
 ├── test_amqp_optimizations.py # AMQP-specific optimization validation
 ├── test_*.py                 # Other unit tests
 ├── mqtt/                     # MQTT integration tests (requires broker)
+│   ├── test_mqtt_pubsub.py   # MQTT pub/sub integration
+│   └── test_mqtt_task_queue.py # MQTT task queue integration
 ├── redis/                    # Redis integration tests (requires broker)
+│   ├── test_redis_pubsub.py  # Redis pub/sub integration
+│   └── test_redis_task_queue.py # Redis task queue integration
+├── kafka/                    # Kafka integration tests (requires broker)
+│   ├── test_kafka_pubsub.py  # Kafka pub/sub integration
+│   ├── test_kafka_rpc.py     # Kafka RPC integration
+│   └── test_kafka_task_queue.py # Kafka task queue integration
 └── benchmarks/               # pytest-benchmark tests
-    ├── conftest.py           # Benchmark fixtures, broker connection helpers
+    ├── conftest.py           # Broker availability fixtures (mqtt, redis, amqp, kafka)
     ├── test_bench_scaling.py # Scaling tests (mock transport, no broker)
+    ├── test_bench_task_queue.py # Task queue benchmarks (mock transport)
     ├── test_bench_mqtt*.py   # MQTT benchmark tests
     ├── test_bench_redis*.py  # Redis benchmark tests
     └── test_bench_amqp*.py   # AMQP benchmark tests
@@ -41,14 +50,14 @@ tests/
 
 - **Test style**: `unittest.TestCase` classes with `test_` methods, `setUp`/`tearDown`
 - **Mock transport**: Always use `commlib.transports.mock.ConnectionParameters()` for unit tests
-- **Markers**: `@pytest.mark.mqtt`, `redis`, `amqp`, `integration`, `unit`, `smoke`, `benchmark`
-- **Integration env vars**: `COMMLIB_MQTT_HOST`, `COMMLIB_MQTT_PORT`
+- **Markers**: `@pytest.mark.mqtt`, `redis`, `amqp`, `kafka`, `integration`, `unit`, `smoke`, `benchmark`
+- **Integration env vars**: `COMMLIB_MQTT_HOST`, `COMMLIB_MQTT_PORT`, `COMMLIB_REDIS_HOST`, `COMMLIB_REDIS_PORT`, `COMMLIB_KAFKA_HOST`, `COMMLIB_KAFKA_PORT`
 
 ## COMMANDS
 
 ```bash
 # Unit tests only (no brokers)
-pytest --ignore=tests/mqtt --ignore=tests/redis --ignore=tests/benchmarks -v
+pytest --ignore=tests/mqtt --ignore=tests/redis --ignore=tests/kafka --ignore=tests/benchmarks -v
 
 # Single test
 pytest tests/test_msgs.py::TestMessages::test_header_message -v
