@@ -23,7 +23,7 @@ message content and metadata.
 import enum
 import logging
 from decimal import Decimal
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 # Initialize logger
 _logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ class Serializer:
     CONTENT_ENCODING: str = "None"
 
     @staticmethod
-    def serialize(data: Any) -> str:
+    def serialize(data: Any) -> Union[str, bytes]:
         """serialize.
 
         Args:
@@ -145,11 +145,11 @@ class Serializer:
         raise NotImplementedError()
 
     @staticmethod
-    def deserialize(data: str) -> Any:
+    def deserialize(data: Union[str, bytes]) -> Any:
         """deserialize.
 
         Args:
-            data (str): -
+            data (Union[str, bytes]): -
         """
         raise NotImplementedError()
 
@@ -176,11 +176,11 @@ class JSONSerializer(Serializer):
         return str(res)
 
     @staticmethod
-    def deserialize(data: str) -> Dict[str, Any]:
+    def deserialize(data: Union[str, bytes]) -> Dict[str, Any]:
         """deserialize.
 
         Args:
-            data (str): json str to dict
+            data (Union[str, bytes]): json str or bytes to dict
         """
         return json.loads(data)
 
@@ -232,9 +232,11 @@ class MessagePackSerializer(Serializer):
         return msgpack.packb(data)
 
     @staticmethod
-    def deserialize(data: bytes) -> Dict[str, Any]:
+    def deserialize(data: Union[str, bytes]) -> Dict[str, Any]:
         import msgpack
 
+        if isinstance(data, str):
+            data = data.encode("utf-8")
         return msgpack.unpackb(data, raw=False)
 
 
@@ -263,17 +265,17 @@ class BinarySerializer(Serializer):
         return json_data.encode("utf-8")
 
     @staticmethod
-    def deserialize(data: bytes) -> Dict[str, Any]:
+    def deserialize(data: Union[str, bytes]) -> Dict[str, Any]:
         """Deserialize a raw byte stream to a dictionary.
 
         Args:
-            data (bytes): The byte stream to deserialize.
+            data (Union[str, bytes]): The byte stream to deserialize.
 
         Returns:
             Dict[str, Any]: The deserialized dictionary.
         """
-        if not isinstance(data, bytes):
-            raise ValueError("Input data must be bytes.")
+        if isinstance(data, str):
+            data = data.encode("utf-8")
         json_data = data.decode("utf-8")
         return JSONSerializer.deserialize(json_data)
 
@@ -306,15 +308,17 @@ class TextSerializer(Serializer):
         return str(data)
 
     @staticmethod
-    def deserialize(data: str) -> Any:
+    def deserialize(data: Union[str, bytes]) -> Any:
         """Deserialize plain text to its original form.
 
         Args:
-            data (str): The plain text to deserialize.
+            data (Union[str, bytes]): The plain text to deserialize.
 
         Returns:
             Any: The deserialized data.
         """
+        if isinstance(data, bytes):
+            data = data.decode("utf-8")
         if "," in data:
             return data.split(",")
         return data

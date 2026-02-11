@@ -3,6 +3,7 @@ ONESHELL:
 .PHONY: coverage
 .PHONY: diff
 .PHONY: lint
+.PHONY: typecheck
 .PHONY: clean clean-test clean-pyc clean-build
 .PHONY: help
 .PHONY: docs
@@ -60,6 +61,9 @@ clean-test: ## remove test and coverage artifacts
 lint: ## check style with flake8
 	flake8 commlib tests
 
+typecheck: ## run mypy type checking on commlib, tests, and examples
+	mypy commlib/ tests/ examples/ --ignore-missing-imports --check-untyped-defs
+
 test: ## run tests in docker
 	./scripts/run_tests.sh unit
 
@@ -73,7 +77,7 @@ cov: ## check code coverage quickly with the default Python (Docker)
 	./scripts/run_tests.sh coverage
 
 coverage: ## run tests and generate coverage report locally
-	coverage run -m pytest --ignore=tests/mqtt --ignore=tests/redis -v
+	coverage run -m pytest --ignore=tests/mqtt --ignore=tests/redis --ignore=tests/kafka --ignore=tests/benchmarks -v
 	coverage report -m
 
 cov_html: test
@@ -187,7 +191,7 @@ ci-unit: ## run unit tests (like GitHub Actions)
 	@echo "============================================================"
 	@echo "Running unit tests..."
 	@echo "============================================================"
-	. venv/bin/activate && pytest --ignore=tests/mqtt --ignore=tests/redis --ignore=tests/benchmarks -v --tb=short
+	. venv/bin/activate && pytest --ignore=tests/mqtt --ignore=tests/redis --ignore=tests/kafka --ignore=tests/benchmarks -v --tb=short
 	@echo ""
 	@echo "✅ Unit tests passed!"
 	@echo ""
@@ -199,6 +203,15 @@ ci-lint: ## run linting (like GitHub Actions)
 	. venv/bin/activate && flake8 commlib tests --count --show-source --statistics
 	@echo ""
 	@echo "✅ Linting passed!"
+	@echo ""
+
+ci-typecheck: ## run mypy type checking (like GitHub Actions)
+	@echo "============================================================"
+	@echo "Running type checker..."
+	@echo "============================================================"
+	. venv/bin/activate && mypy commlib/ tests/ examples/ --ignore-missing-imports --check-untyped-defs
+	@echo ""
+	@echo "✅ Type checking passed!"
 	@echo ""
 
 ci-benchmarks: ## run benchmark smoke tests (like GitHub Actions)

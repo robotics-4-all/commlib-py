@@ -11,10 +11,17 @@ import uuid
 from collections import deque
 from threading import Event as ThreadEvent
 from threading import Lock, Semaphore, Thread
-from typing import Dict, Optional
+from typing import Any, Deque, Dict, Optional
 
 import pika
 
+from commlib.task_queue import (
+    BaseTaskProducer,
+    BaseTaskWorker,
+    TaskEnvelope,
+    TaskProgress,
+    TaskResult,
+)
 from commlib.action import (
     BaseActionClient,
     BaseActionService,
@@ -25,6 +32,7 @@ from commlib.action import (
     _ActionStatusMessage,
 )
 from commlib.compression import CompressionType, deflate, inflate_str
+from commlib.endpoints import EndpointState
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import AMQPError
 from commlib.msg import PubSubMessage, RPCMessage
@@ -274,8 +282,8 @@ class Connection(pika.BlockingConnection):
         self._connection_params = conn_params
         self._pika_connection = None
         self._transport = None
-        self._events_thread = None
-        self._t_stop_event = None
+        self._events_thread: Optional[Thread] = None
+        self._t_stop_event: Optional[ThreadEvent] = None
         super().__init__(parameters=self._connection_params.make_pika())
 
     def stop_amqp_events_thread(self):
@@ -826,9 +834,13 @@ class RPCService(BaseRPCService):
             _payload = self._serializer.serialize(_resp_data)
 
             if self._compression != CompressionType.NO_COMPRESSION:
-                _payload = inflate_str(_payload, self._compression)
+                _payload_bytes = inflate_str(str(_payload), self._compression)
             else:
-                _payload = _payload.encode(_encoding)
+                _payload_bytes = (
+                    _payload.encode(_encoding)
+                    if isinstance(_payload, str)
+                    else _payload
+                )
         except Exception:
             self.log.error("Could not serialize response data", exc_info=True)
             return
@@ -843,7 +855,7 @@ class RPCService(BaseRPCService):
             exchange=self._exchange,
             routing_key=reply_to,
             properties=_msg_props,
-            body=_payload,
+            body=_payload_bytes,
         )
         # Acknowledge receiving the message.
         channel.basic_ack(delivery_tag=delivery_tag)
@@ -867,7 +879,7 @@ class RPCService(BaseRPCService):
         super().stop()
         return True
 
-    def stop(self) -> bool:
+    def stop(self, wait: bool = True) -> bool:  # type: ignore[override]
         """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
@@ -898,13 +910,13 @@ class RPCClient(BaseRPCClient):
         **kwargs,
     ):
         self._use_corr_id = use_corr_id
-        self._corr_id = None
-        self._response = None
+        self._corr_id: Optional[str] = None
+        self._response: Optional[Dict[str, Any]] = None
         self._response_event = (
             ThreadEvent()
         )  # Event-driven response (Phase 3 optimization)
         self._exchange = ExchangeType.Default
-        self._delay = 0
+        self._delay: float = 0.0
 
         super().__init__(*args, **kwargs)
 
@@ -953,7 +965,7 @@ class RPCClient(BaseRPCClient):
                 based on application criteria.
         """
         if self._msg_type is None:
-            data = msg
+            data: Any = msg
         else:
             data = msg.model_dump()
 
@@ -965,7 +977,7 @@ class RPCClient(BaseRPCClient):
         start_t = time.time()
         # Phase 3 optimization: Use lambda instead of functools.partial (5-10% faster)
         assert self._transport is not None
-        self._transport.add_threadsafe_callback(lambda: self._send_msg(data))  # type: ignore[reportArgumentType]
+        self._transport.add_threadsafe_callback(lambda: self._send_msg(data))  # type: ignore[arg-type]
         resp = self._wait_for_response(timeout=timeout)
         if resp is None:
             return resp
@@ -1025,12 +1037,16 @@ class RPCClient(BaseRPCClient):
         # We also include it in the payload header for consistency
         req_data = self._prepare_request(data, reply_to="amq.rabbitmq.reply-to")
 
-        _payload = self._serializer.serialize(req_data)
+        _payload_raw = self._serializer.serialize(req_data)
 
         if self._compression != CompressionType.NO_COMPRESSION:
-            _payload = inflate_str(_payload, self._compression)
+            _payload_bytes = inflate_str(str(_payload_raw), self._compression)
         else:
-            _payload = _payload.encode(_encoding)
+            _payload_bytes = (
+                _payload_raw.encode(_encoding)
+                if isinstance(_payload_raw, str)
+                else _payload_raw
+            )
 
         # Direct reply-to implementation
         _rpc_props = MessageProperties(
@@ -1048,7 +1064,7 @@ class RPCClient(BaseRPCClient):
             routing_key=self._rpc_name,
             mandatory=False,
             properties=_rpc_props,
-            body=_payload,
+            body=_payload_bytes,
         )
 
 
@@ -1101,20 +1117,23 @@ class Publisher(BasePublisher):
             self._transport.create_exchange(self._topic_exchange, ExchangeType.Topic)
         self._transport.detach_amqp_events_thread()
 
-    def publish(self, msg: PubSubMessage) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """Publish message once.
 
         Args:
             msg (PubSubMessage): Message to publish.
+            topic (str): Optional topic override.
+            key (str): Optional key.
         """
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
 
         data = self._prepare_msg(msg)
+        _topic = topic if topic else self._topic
 
         # Thread Safe solution
         assert self._transport is not None
-        self._transport.add_threadsafe_callback(self._send_msg, data, self._topic)
+        self._transport.add_threadsafe_callback(self._send_msg, data, _topic)
 
     def _send_msg(self, msg: Dict, topic: str):
         _payload = None
@@ -1124,11 +1143,15 @@ class Publisher(BasePublisher):
         assert self._serializer is not None
         _encoding = self._serializer.CONTENT_ENCODING
         _type = self._serializer.CONTENT_TYPE
-        _payload = self._serializer.serialize(msg)
+        _payload_raw = self._serializer.serialize(msg)
         if self._compression != CompressionType.NO_COMPRESSION:
-            _payload = inflate_str(_payload)
+            _payload_bytes = inflate_str(str(_payload_raw))
         else:
-            _payload = _payload.encode(_encoding)
+            _payload_bytes = (
+                _payload_raw.encode(_encoding)
+                if isinstance(_payload_raw, str)
+                else _payload_raw
+            )
 
         msg_props = MessageProperties(
             content_type=_type,
@@ -1140,11 +1163,11 @@ class Publisher(BasePublisher):
         topic = topic.replace("*", "#")
 
         assert self._transport is not None
-        self._transport._channel.basic_publish(  # type: ignore[reportAttributeAccessIssue]
+        self._transport._channel.basic_publish(  # type: ignore[attr-defined]
             exchange=self._topic_exchange,
             routing_key=topic,
             properties=msg_props,
-            body=_payload,
+            body=_payload_bytes,
         )
 
 
@@ -1152,11 +1175,13 @@ class MPublisher(Publisher):
     def __init__(self, *args, **kwargs):
         super().__init__(topic="*", *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """Publish message once.
 
         Args:
             msg (PubSubMessage): Message to publish.
+            topic (str): Topic to publish to.
+            key (str): Optional key.
         """
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
@@ -1226,7 +1251,7 @@ class Subscriber(BaseSubscriber):
         )
 
         self._last_msg_ts = None
-        self._msg_freq_fifo = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
+        self._msg_freq_fifo: Deque[float] = deque(maxlen=self.FREQ_CALC_SAMPLES_MAX)
         self._hz = 0
         self._sem = Semaphore()
 
@@ -1273,7 +1298,7 @@ class Subscriber(BaseSubscriber):
     def _consume(self, reliable: bool = False) -> None:
         """Start AMQP consumer."""
         assert self._transport is not None
-        self._transport._channel.basic_consume(  # type: ignore[reportAttributeAccessIssue]
+        self._transport._channel.basic_consume(  # type: ignore[attr-defined]
             self._queue_name,
             self._on_msg_callback_wrapper,
             exclusive=False,
@@ -1362,7 +1387,7 @@ class Subscriber(BaseSubscriber):
         ):
             self.log.error("Error in on_msg_callback", exc_info=True)
 
-    def stop(self) -> None:
+    def stop(self, wait: bool = True) -> None:
         self.close()
 
     def __del__(self):
@@ -1547,4 +1572,166 @@ class ActionClient(BaseActionClient):
             conn_params=self._conn_params,
             topic=self._feedback_topic,
             on_message=self._on_feedback,
+        )
+
+
+class TaskProducer(BaseTaskProducer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = AMQPTransport(conn_params=self._conn_params)
+        self._result_sub = None
+        self._progress_sub = None
+        self._result_topic = f"{self._queue_name}.results"
+        self._progress_topic = f"{self._queue_name}.progress"
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._result_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._result_topic,
+            on_message=self._on_result_msg,
+        )
+        self._result_sub.run()
+        self._progress_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._progress_topic,
+            on_message=self._on_progress_msg,
+        )
+        self._progress_sub.run()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        if self._result_sub is not None:
+            self._result_sub.stop()
+        if self._progress_sub is not None:
+            self._progress_sub.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _send_task(self, envelope: TaskEnvelope) -> None:
+        assert self._transport is not None
+        assert self._transport.channel is not None
+        data = json.dumps(envelope.model_dump())
+        self._transport.channel.queue_declare(queue=self._queue_name, durable=True)
+        self._transport.channel.basic_publish(
+            exchange="",
+            routing_key=self._queue_name,
+            body=data,
+            properties=pika.BasicProperties(
+                delivery_mode=2,
+                priority=envelope.priority,
+            ),
+        )
+
+    def _on_result_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        result = TaskResult(**data)
+        self._handle_result(result)
+
+    def _on_progress_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        progress = TaskProgress(**data)
+        self._handle_progress(progress)
+
+
+class TaskWorker(BaseTaskWorker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = AMQPTransport(conn_params=self._conn_params)
+        self._pub_transport = None
+        self._result_topic = f"{self._queue_name}.results"
+        self._progress_topic = f"{self._queue_name}.progress"
+        self._consumer_thread = None
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._pub_transport = AMQPTransport(conn_params=self._conn_params)
+        self._pub_transport.start()
+        assert self._transport.channel is not None
+        self._transport.channel.queue_declare(queue=self._queue_name, durable=True)
+        self._transport.channel.basic_qos(prefetch_count=self._config.max_concurrent)
+        self._stop_event.clear()
+        self._consumer_thread = Thread(target=self._consume_loop, daemon=True)
+        self._consumer_thread.start()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        self._stop_event.set()
+        if self._consumer_thread is not None:
+            self._consumer_thread.join(timeout=5.0)
+        if self._pub_transport is not None:
+            self._pub_transport.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _consume_loop(self) -> None:
+        assert self._transport is not None
+        assert self._transport.channel is not None
+        for method, properties, body in self._transport.channel.consume(
+            queue=self._queue_name,
+            inactivity_timeout=1.0,
+        ):
+            if self._stop_event.is_set():
+                break
+            if method is None:
+                continue
+            try:
+                data = json.loads(body)
+                envelope = TaskEnvelope(**data)
+                self._process_task(envelope)
+                self._transport.channel.basic_ack(delivery_tag=method.delivery_tag)
+            except Exception as exc:
+                logger.error("Error processing AMQP task: %s", exc)
+                self._transport.channel.basic_nack(
+                    delivery_tag=method.delivery_tag,
+                    requeue=False,
+                )
+
+    def _publish_result(self, result: TaskResult) -> None:
+        if self._pub_transport is None:
+            return
+        pub = Publisher(
+            conn_params=self._conn_params,
+            topic=self._result_topic,
+        )
+        pub.run()
+        pub.publish(PubSubMessage(**result.model_dump()))
+        pub.stop()
+
+    def _publish_progress(self, progress: TaskProgress) -> None:
+        if self._pub_transport is None:
+            return
+        pub = Publisher(
+            conn_params=self._conn_params,
+            topic=self._progress_topic,
+        )
+        pub.run()
+        pub.publish(PubSubMessage(**progress.model_dump()))
+        pub.stop()
+
+    def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
+        super()._send_to_dlq(envelope, error)
+        if self._pub_transport is None or self._pub_transport.channel is None:
+            return
+        dlq_name = self._config.get_dlq_name()
+        self._pub_transport.channel.queue_declare(queue=dlq_name, durable=True)
+        data = envelope.model_dump()
+        data["error"] = error
+        self._pub_transport.channel.basic_publish(
+            exchange="",
+            routing_key=dlq_name,
+            body=json.dumps(data),
+            properties=pika.BasicProperties(delivery_mode=2),
         )

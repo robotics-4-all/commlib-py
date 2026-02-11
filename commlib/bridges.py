@@ -7,7 +7,7 @@ different communication transports (MQTT, AMQP, Redis).
 import logging
 import time
 from enum import IntEnum
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Type, Union
 
 from commlib.connection import BaseConnectionParameters
 from commlib.endpoints import EndpointType, TransportType, endpoint_factory
@@ -190,7 +190,7 @@ class RPCBridge(Bridge):
     to be passed between the two endpoints.
     """
 
-    def __init__(self, msg_type: Optional[RPCMessage] = None, *args, **kwargs):
+    def __init__(self, msg_type: Optional[Type[RPCMessage]] = None, *args, **kwargs):
         """__init__.
         Initializes an RPCBridge instance.
 
@@ -219,7 +219,7 @@ class RPCBridge(Bridge):
             debug=self.debug,
         )
 
-    def on_request(self, msg: RPCMessage.Request):
+    def on_request(self, msg: Any):
         """on_request.
         Handles an incoming RPC request by forwarding it to the client endpoint and returning the response.
 
@@ -280,7 +280,7 @@ class TopicBridge(Bridge):
     format to be used, and optionally a list of topic URI transformations to apply.
     """
 
-    def __init__(self, msg_type: Optional[PubSubMessage] = None, *args, **kwargs):
+    def __init__(self, msg_type: Optional[Type[PubSubMessage]] = None, *args, **kwargs):
         """__init__.
         Initializes a PTopicBridge instance with the specified parameters.
 
@@ -306,7 +306,7 @@ class TopicBridge(Bridge):
             conn_params=self._to_broker_params,
         )
 
-    def on_message(self, msg: PubSubMessage):
+    def on_message(self, msg: Any):
         """on_message.
 
         Args:
@@ -363,7 +363,7 @@ class PTopicBridge(Bridge):
 
     def __init__(
         self,
-        msg_type: Optional[PubSubMessage] = None,
+        msg_type: Optional[Type[PubSubMessage]] = None,
         uri_transform: List = [],
         *args,
         **kwargs,
@@ -417,7 +417,7 @@ class PTopicBridge(Bridge):
             conn_params=self._to_broker_params,
         )
 
-    def on_message(self, msg: PubSubMessage, topic: str):
+    def on_message(self, msg: Any, topic: str):
         """on_message.
         Handles the processing of a received message from the subscriber and publishes
         it to the appropriate topic on the publisher.

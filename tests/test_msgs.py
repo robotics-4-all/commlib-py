@@ -53,7 +53,7 @@ class TestMessages(unittest.TestCase):
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
-        _msg = TestPubSubMessage(**_d)
+        _msg = TestPubSubMessage(**_d)  # type: ignore[arg-type]
         assert _msg == TestPubSubMessage(a=1, b=TestObject(c=2, d=3))
 
     def test_from_dict_0(self):
@@ -77,6 +77,7 @@ class TestMessages(unittest.TestCase):
 
     def test_message_to_json(self):
         """Test Message to JSON serialization"""
+
         class TestObject(Message):
             c: Optional[int] = 1
             d: Optional[int] = 2
@@ -87,6 +88,7 @@ class TestMessages(unittest.TestCase):
 
     def test_message_from_json(self):
         """Test Message from JSON deserialization"""
+
         class TestObject(Message):
             c: Optional[int] = 1
             d: Optional[int] = 2
@@ -97,6 +99,7 @@ class TestMessages(unittest.TestCase):
 
     def test_pubsub_message_to_json(self):
         """Test PubSubMessage to JSON serialization"""
+
         class TestObject(Message):
             c: Optional[int] = 1
             d: Optional[int] = 2
@@ -107,11 +110,13 @@ class TestMessages(unittest.TestCase):
 
         msg = TestPubSubMessage(a=5, b=TestObject(c=10, d=20))
         import json
+
         json_data = msg.to_json()
         self.assertEqual(json.loads(json_data), {"a": 5, "b": {"c": 10, "d": 20}})
 
     def test_pubsub_message_from_json(self):
         """Test PubSubMessage from JSON deserialization"""
+
         class TestObject(Message):
             c: Optional[int] = 1
             d: Optional[int] = 2
@@ -126,6 +131,7 @@ class TestMessages(unittest.TestCase):
 
     def test_rpc_message_to_json(self):
         """Test RPCMessage to JSON serialization"""
+
         class TestRPCMessage(RPCMessage):
             class Request(RPCMessage.Request):
                 a: Optional[int] = 1
@@ -138,11 +144,13 @@ class TestMessages(unittest.TestCase):
         req = TestRPCMessage.Request(a=10, b=20)
         resp = TestRPCMessage.Response(c=30, d=40)
         import json
+
         self.assertEqual(json.loads(req.to_json()), {"a": 10, "b": 20})
         self.assertEqual(json.loads(resp.to_json()), {"c": 30, "d": 40})
 
     def test_rpc_message_from_json(self):
         """Test RPCMessage from JSON deserialization"""
+
         class TestRPCMessage(RPCMessage):
             class Request(RPCMessage.Request):
                 a: Optional[int] = 1

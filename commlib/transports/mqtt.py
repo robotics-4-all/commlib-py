@@ -15,6 +15,13 @@ from paho.mqtt.client import error_string
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 
+from commlib.task_queue import (
+    BaseTaskProducer,
+    BaseTaskWorker,
+    TaskEnvelope,
+    TaskProgress,
+    TaskResult,
+)
 from commlib.action import (
     BaseActionClient,
     BaseActionService,
@@ -25,6 +32,7 @@ from commlib.action import (
     _ActionStatusMessage,
 )
 from commlib.compression import CompressionType, deflate, inflate_str
+from commlib.endpoints import EndpointState
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCClientTimeoutError, RPCRequestError, SubscriberError
 from commlib.msg import PubSubMessage, RPCMessage
@@ -114,7 +122,7 @@ class MQTTTransport(BaseTransport):
         self._compression = compression
         self._mqtt_properties = None
         self._stopped = False
-        self._subscriptions = {}  # Track subscriptions for reconnection
+        self._subscriptions: Dict[str, Any] = {}
 
     @property
     def is_connected(self) -> bool:
@@ -172,7 +180,7 @@ class MQTTTransport(BaseTransport):
 
         self._client = mqtt.Client(**client_kwargs)
         self._configure_client()
-
+        assert self._client is not None
         self._client.connect(
             self._conn_params.host,
             int(self._conn_params.port),
@@ -473,18 +481,21 @@ class Publisher(BasePublisher):
             compression=self._compression,
         )
 
-    def publish(self, msg: PubSubMessage) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """publish.
 
         Args:
             msg (PubSubMessage): Message to Publish
+            topic (str): Optional topic override
+            key (str): Optional key
 
         Returns:
             None:
         """
         assert self._transport is not None
         data = self._prepare_msg(msg)
-        self._transport.publish(self._topic, data, qos=MQTTQoS.L0)
+        _topic = topic if topic else self._topic
+        self._transport.publish(_topic, data, qos=MQTTQoS.L0)
         self._msg_seq += 1
 
 
@@ -496,12 +507,13 @@ class MPublisher(Publisher):
     def __init__(self, *args, **kwargs):
         super().__init__(topic=None, *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """publish.
 
         Args:
             msg (PubSubMessage): msg
             topic (str): topic
+            key (str): Optional key
 
         Returns:
             None:
@@ -631,7 +643,7 @@ class WSubscriber(BaseSubscriber):
             args: See BaseSubscriber
             kwargs: See BaseSubscriber
         """
-        super().__init__(topic=None, *args, **kwargs)  # type: ignore[reportArgumentType]
+        super().__init__(topic=None, **kwargs)
         self._transport = MQTTTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -809,11 +821,11 @@ class RPCService(BaseRPCService):
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         self._executor.submit(self._on_request_internal, client, userdata, msg)
 
-    def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def _on_request_internal(self, client: Any, userdata: Any, msg: Any):
         try:
             req_msg, uri = self._unpack_comm_msg(
-                msg.payload,  # type: ignore[reportAttributeAccessIssue]
-                msg.topic,  # type: ignore[reportAttributeAccessIssue]
+                msg.payload,
+                msg.topic,
             )
         except ValueError as exc:
             self.log.warning(
@@ -900,7 +912,7 @@ class RPCServer(BaseRPCServer):
         ) as exc:
             self.log.error(str(exc), exc_info=False)
 
-    def _on_request_internal(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def _on_request_internal(self, client: Any, userdata: Any, msg: Any):
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
         except (
@@ -1007,24 +1019,25 @@ class RPCClient(BaseRPCClient):
         """_gen_queue_name."""
         return f"rpc-{self._gen_random_id()}"
 
-    def _prepare_request(self, data: Dict[str, Any]):
-        """_prepare_request.
-
-        Args:
-            data:
-        """
+    def _prepare_request(
+        self, data: Dict[str, Any], reply_to: Optional[str] = None
+    ) -> Dict[str, Any]:
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
-        self._comm_obj.header.reply_to = self._gen_queue_name()
+        self._comm_obj.header.reply_to = (
+            reply_to if reply_to else self._gen_queue_name()
+        )
         self._comm_obj.data = data
         return self._comm_obj.model_dump()
 
-    def _unpack_comm_msg(self, msg: Any) -> Tuple[Any, Any, Any]:
-        _uri = msg.topic
+    def _unpack_comm_msg(self, payload: Any, uri: Optional[str] = None) -> Any:
+        if uri is None and hasattr(payload, "topic"):
+            uri = payload.topic
+            payload = payload.payload
         assert self._serializer is not None
-        _payload = self._serializer.deserialize(msg.payload)
+        _payload = self._serializer.deserialize(payload)
         _data = _payload["data"]
         _header = _payload["header"]
-        return _data, _header, _uri
+        return _data, _header, uri
 
     def _wait_for_response(self, timeout: float = 10.0):
         """_wait_for_response.
@@ -1066,7 +1079,7 @@ class RPCClient(BaseRPCClient):
         _resp = self._wait_for_response(timeout=timeout)
         self._transport.unsubscribe(_reply_to)
         if _resp is None:
-            return None  # type: ignore[reportReturnType]
+            return None  # type: ignore[return-value]
         # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
             return _resp
@@ -1168,3 +1181,136 @@ class ActionClient(BaseActionClient):
             on_message=self._on_feedback,
             debug=self.debug,
         )
+
+
+class TaskProducer(BaseTaskProducer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = MQTTTransport(conn_params=self._conn_params)
+        self._task_topic = f"{self._queue_name}/tasks"
+        self._result_topic = f"{self._queue_name}/results"
+        self._progress_topic = f"{self._queue_name}/progress"
+        self._result_sub = None
+        self._progress_sub = None
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._result_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._result_topic,
+            on_message=self._on_result_msg,
+        )
+        self._result_sub.run()
+        self._progress_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._progress_topic,
+            on_message=self._on_progress_msg,
+        )
+        self._progress_sub.run()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        if self._result_sub is not None:
+            self._result_sub.stop()
+        if self._progress_sub is not None:
+            self._progress_sub.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _send_task(self, envelope: TaskEnvelope) -> None:
+        assert self._transport is not None
+        data = envelope.model_dump()
+        payload = JSONSerializer.serialize(data)
+        self._transport.publish(self._task_topic, payload)
+
+    def _on_result_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        result = TaskResult(**data)
+        self._handle_result(result)
+
+    def _on_progress_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        progress = TaskProgress(**data)
+        self._handle_progress(progress)
+
+
+class TaskWorker(BaseTaskWorker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = MQTTTransport(conn_params=self._conn_params)
+        self._task_topic = f"{self._queue_name}/tasks"
+        self._result_topic = f"{self._queue_name}/results"
+        self._progress_topic = f"{self._queue_name}/progress"
+        self._task_sub = None
+        self._pub = None
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._pub = Publisher(
+            conn_params=self._conn_params,
+            topic=self._result_topic,
+        )
+        self._pub.run()
+        self._task_sub = Subscriber(
+            conn_params=self._conn_params,
+            topic=self._task_topic,
+            on_message=self._on_task_msg,
+        )
+        self._task_sub.run()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        self._stop_event.set()
+        if self._task_sub is not None:
+            self._task_sub.stop()
+        if self._pub is not None:
+            self._pub.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _on_task_msg(self, msg) -> None:
+        if isinstance(msg, dict):
+            data = msg
+        else:
+            data = msg.model_dump() if hasattr(msg, "model_dump") else msg
+        envelope = TaskEnvelope(**data)
+        import threading as _threading
+
+        _threading.Thread(
+            target=self._process_task,
+            args=(envelope,),
+            daemon=True,
+        ).start()
+
+    def _publish_result(self, result: TaskResult) -> None:
+        assert self._transport is not None
+        data = result.model_dump()
+        payload = JSONSerializer.serialize(data)
+        self._transport.publish(self._result_topic, payload)
+
+    def _publish_progress(self, progress: TaskProgress) -> None:
+        assert self._transport is not None
+        data = progress.model_dump()
+        payload = JSONSerializer.serialize(data)
+        self._transport.publish(self._progress_topic, payload)
+
+    def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
+        super()._send_to_dlq(envelope, error)
+        assert self._transport is not None
+        data = envelope.model_dump()
+        data["error"] = error
+        dlq_topic = self._config.get_dlq_name().replace(".", "/")
+        payload = JSONSerializer.serialize(data)
+        self._transport.publish(dlq_topic, payload)

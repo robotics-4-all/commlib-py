@@ -80,3 +80,18 @@ class NodeError(Exception):
 class SerializationError(Exception):
     def __init__(self, message, errors=None):
         super().__init__(message, errors)
+
+
+class TaskQueueError(BaseException):
+    def __init__(self, message, errors=None):
+        super().__init__(message, errors)
+
+
+class TaskTimeoutError(TaskQueueError):
+    def __init__(self, message, errors=None):
+        super().__init__(message, errors)
+
+
+class TaskWorkerError(TaskQueueError):
+    def __init__(self, message, errors=None):
+        super().__init__(message, errors)

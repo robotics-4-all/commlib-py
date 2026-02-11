@@ -9,6 +9,7 @@
 - [Publisher/Subscriber API](#publishersubscriber-api)
 - [RPC API](#rpc-api)
 - [Action API](#action-api)
+- [Task Queue API](#task-queue-api)
 - [Transport API](#transport-api)
 - [Utilities API](#utilities-api)
 - [Message Types](#message-types)
@@ -29,7 +30,7 @@ Commlib-py is a protocol-agnostic messaging library for Cyber-Physical Systems. 
 
 ### Key Features
 
-- Protocol-agnostic communication patterns (Pub/Sub, RPC, Actions)
+- Protocol-agnostic communication patterns (Pub/Sub, RPC, Actions, Task Queue)
 - Automatic reconnection and error recovery
 - Message compression and serialization options
 - Comprehensive logging and debugging support
@@ -99,6 +100,12 @@ pip install -e ".[mqtt,redis]"
 - Supports goal, feedback, result, and cancellation
 - Ideal for robot control, streaming operations
 - Comparable to ROS 2 Actions
+
+**4. Task Queue (Job Queue)**
+- Competing-consumer work distribution
+- Priorities, retries, dead-letter queues
+- Progress reporting and configurable acknowledgment
+- Both fire-and-forget and result-return modes
 
 ### Transport Independence
 
@@ -626,6 +633,198 @@ goal_handle.cancel()
 
 ---
 
+## Task Queue API
+
+Task Queues implement the competing-consumer (job queue) pattern for distributing work across workers with support for priorities, retries, dead-letter queues, progress reporting, and configurable acknowledgment.
+
+### Task Message Types
+
+```python
+from commlib.msg import TaskMessage
+
+class ImageProcessingMsg(TaskMessage):
+    class Task(TaskMessage.Task):
+        image_url: str = ""
+        resize_width: int = 0
+        resize_height: int = 0
+
+    class Result(TaskMessage.Result):
+        output_url: str = ""
+        processing_time_ms: float = 0.0
+
+    class Progress(TaskMessage.Progress):
+        stage: str = ""
+        percent: float = 0.0
+```
+
+### Task Worker
+
+```python
+from commlib.transports.redis import ConnectionParameters, TaskWorker
+
+def process_image(ctx):
+    """ctx is a WorkerTaskContext with .data, .task_id, .retry_count, .send_progress(), .ack()"""
+    task = ctx.data  # ImageProcessingMsg.Task if msg_type was set, else dict
+
+    # Report progress
+    ctx.send_progress({"stage": "downloading"}, percent=25.0)
+    # ... download image ...
+
+    ctx.send_progress({"stage": "resizing"}, percent=75.0)
+    # ... resize image ...
+
+    # Return result (dict or TaskMessage.Result instance)
+    return ImageProcessingMsg.Result(
+        output_url="https://cdn.example.com/resized.jpg",
+        processing_time_ms=142.5
+    )
+
+conn_params = ConnectionParameters(host="localhost", port=6379)
+worker = TaskWorker(
+    queue_name="image.processing",
+    msg_type=ImageProcessingMsg,
+    on_task=process_image,
+    conn_params=conn_params,
+)
+worker.run()
+```
+
+### Task Producer
+
+```python
+from commlib.transports.redis import ConnectionParameters, TaskProducer
+
+def on_result(task_id, result):
+    print(f"Task {task_id} completed: {result.output_url}")
+
+def on_progress(task_id, progress, percent):
+    print(f"Task {task_id}: {percent:.0f}% - {progress}")
+
+conn_params = ConnectionParameters(host="localhost", port=6379)
+producer = TaskProducer(
+    queue_name="image.processing",
+    msg_type=ImageProcessingMsg,
+    on_result=on_result,
+    on_progress=on_progress,
+    conn_params=conn_params,
+)
+producer.run()
+
+# Submit a task and wait for the result
+task = ImageProcessingMsg.Task(
+    image_url="https://example.com/photo.jpg",
+    resize_width=800,
+    resize_height=600,
+)
+handle = producer.submit(task, priority=5)
+result = handle.wait_result(timeout=30.0)
+
+# Fire-and-forget (no result tracking)
+handle = producer.submit(task, fire_and_forget=True)
+```
+
+### Task Queue via Node API
+
+```python
+from commlib.node import Node
+from commlib.transports.redis import ConnectionParameters
+
+conn_params = ConnectionParameters()
+node = Node(node_name="worker_node", connection_params=conn_params, heartbeats=False)
+
+# Create worker
+worker = node.create_task_worker(
+    queue_name="jobs",
+    msg_type=ImageProcessingMsg,
+    on_task=process_image,
+)
+
+# Create producer
+producer = node.create_task_producer(
+    queue_name="jobs",
+    msg_type=ImageProcessingMsg,
+    on_result=on_result,
+)
+
+node.run()
+
+handle = producer.submit(ImageProcessingMsg.Task(image_url="..."))
+result = handle.wait_result(timeout=30.0)
+```
+
+### Task Queue Configuration
+
+```python
+from commlib.task_queue import TaskQueueConfig, AckPolicy
+
+config = TaskQueueConfig(
+    queue_name="critical_jobs",
+    max_retries=5,              # Retry failed tasks up to 5 times
+    retry_delay=2.0,            # Initial retry delay in seconds
+    retry_backoff_multiplier=2.0,  # Exponential backoff multiplier
+    task_ttl=300.0,             # Task time-to-live in seconds
+    dlq_name="critical_jobs.dead",  # Dead-letter queue name
+    max_concurrent=4,           # Max concurrent tasks per worker
+    ack_policy=AckPolicy.MANUAL,  # Require explicit ctx.ack()
+    result_ttl=3600.0,          # How long results are kept
+    progress_enabled=True,      # Enable progress reporting
+)
+
+worker = TaskWorker(
+    queue_name="critical_jobs",
+    on_task=handler,
+    config=config,
+    conn_params=conn_params,
+)
+```
+
+### Manual Acknowledgment
+
+```python
+from commlib.task_queue import AckPolicy, TaskQueueConfig
+
+config = TaskQueueConfig(ack_policy=AckPolicy.MANUAL)
+
+def careful_handler(ctx):
+    result = do_work(ctx.data)
+    # Explicitly acknowledge after confirming success
+    ctx.ack()
+    return result
+
+# With AckPolicy.AUTO (default), ack() is called automatically on success
+```
+
+### Task Status Tracking
+
+```python
+from commlib.task_queue import TaskStatus
+
+handle = producer.submit(task)
+
+# Check status
+print(handle.status)    # TaskStatus.PENDING
+print(handle.is_done)   # False
+
+# Wait for result
+result = handle.wait_result(timeout=10.0)
+print(handle.status)    # TaskStatus.COMPLETED or TaskStatus.FAILED
+print(result.error)     # Error message if failed
+```
+
+### Supported Transports
+
+Task Queue endpoints are available on all transports:
+
+| Transport | TaskProducer | TaskWorker |
+|-----------|-------------|------------|
+| Mock      | Y           | Y          |
+| Redis     | Y           | Y          |
+| MQTT      | Y           | Y          |
+| AMQP      | Y           | Y          |
+| Kafka     | Y           | Y          |
+
+---
+
 ## Transport API
 
 ### Direct Transport Usage
@@ -675,6 +874,25 @@ from commlib.transports.kafka import KafkaTransport
 # Mock (for testing)
 from commlib.transports.mock import MockTransport
 ```
+
+### Transport Endpoint Support Matrix
+
+| Endpoint | MQTT | Redis | AMQP | Kafka | Mock |
+|----------|------|-------|------|-------|------|
+| Publisher | Y | Y | Y | Y | Y |
+| Subscriber | Y | Y | Y | Y | Y |
+| MPublisher | Y | Y | Y | Y | Y |
+| PSubscriber | Y | Y | Y | Y | Y |
+| RPCService | Y | Y | Y | Y | Y |
+| RPCClient | Y | Y | Y | Y | Y |
+| RPCServer | Y | Y | Y | Y | Y |
+| ActionService | Y | Y | Y | Y | Y |
+| ActionClient | Y | Y | Y | Y | Y |
+| TaskProducer | Y | Y | Y | Y | Y |
+| TaskWorker | Y | Y | Y | Y | Y |
+| WPublisher | Y | Y | N | N | N |
+| WSubscriber | Y | Y | N | N | N |
+| Connection Pool | N | Y | N | N | N |
 
 ---
 
@@ -826,6 +1044,9 @@ from commlib.exceptions import (
     RPCClientTimeoutError,      # RPC call timed out
     RPCRequestError,            # RPC request validation failed
     SubscriberError,            # Subscriber initialization failed
+    TaskQueueError,             # Base task queue error
+    TaskTimeoutError,           # Task execution timed out
+    TaskWorkerError,            # Worker processing error
 )
 
 try:
@@ -1103,11 +1324,12 @@ if __name__ == "__main__":
 ## API Reference Quick Links
 
 - **Node**: `commlib.node.Node`
-- **Messages**: `commlib.msg` (PubSubMessage, RPCMessage, ActionMessage)
+- **Messages**: `commlib.msg` (PubSubMessage, RPCMessage, ActionMessage, TaskMessage)
+- **Task Queue**: `commlib.task_queue` (TaskQueueConfig, TaskStatus, AckPolicy, TaskHandle)
 - **Transports**: `commlib.transports.*` (mqtt, redis, amqp, kafka, mock)
 - **Serializers**: `commlib.serializer` (JSONSerializer, TextSerializer, BinarySerializer)
 - **Utilities**: `commlib.utils` (topic conversion, timestamp generation)
-- **Exceptions**: `commlib.exceptions` (RPCClientTimeoutError, RPCRequestError, SubscriberError)
+- **Exceptions**: `commlib.exceptions` (RPCClientTimeoutError, RPCRequestError, TaskQueueError, TaskTimeoutError)
 
 ---
 

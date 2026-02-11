@@ -27,4 +27,4 @@ RUN mkdir /tmp/keep && \
     rmdir /tmp/keep
 
 # Default command runs unit tests (excluding integration and benchmark tests)
-CMD ["pytest", "tests", "--ignore=tests/mqtt", "--ignore=tests/redis", "--ignore=tests/benchmarks"]
+CMD ["pytest", "tests", "--ignore=tests/mqtt", "--ignore=tests/redis", "--ignore=tests/kafka", "--ignore=tests/benchmarks"]

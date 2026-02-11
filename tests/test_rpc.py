@@ -32,7 +32,7 @@ class TestPubSub(unittest.TestCase):
         """Set up test fixtures, if any."""
         self.connparams = ConnectionParameters(
             host="test",
-            port="1234",
+            port=1234,
             reconnect_attempts=0,
         )
 

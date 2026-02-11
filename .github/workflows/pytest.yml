@@ -30,7 +30,7 @@ jobs:
           pip install .[dev]
       - name: Run unit tests
         run: |
-          pytest --ignore=tests/mqtt --ignore=tests/redis -v
+          pytest --ignore=tests/mqtt --ignore=tests/redis --ignore=tests/kafka --ignore=tests/amqp -v
 
   package-test:
     runs-on: ubuntu-latest
@@ -55,4 +55,4 @@ jobs:
           pip install .[all] .[dev]
       - name: Run unit tests
         run: |
-          pytest --ignore=tests/mqtt --ignore=tests/redis -v
+          pytest --ignore=tests/mqtt --ignore=tests/redis --ignore=tests/kafka --ignore=tests/amqp -v

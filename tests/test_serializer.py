@@ -53,7 +53,7 @@ class TestJSONSerializer(unittest.TestCase):
         self.assertEqual(original, original_copy)
         self.assertIsInstance(original["a"], Decimal)
         self.assertIsInstance(original["b"], tuple)
-        self.assertIsInstance(original["c"]["nested"], Decimal)
+        self.assertIsInstance(original["c"]["nested"], Decimal)  # type: ignore[index]
 
         # Result should be converted
         self.assertEqual(result["a"], 1.5)
@@ -103,7 +103,7 @@ class TestBinarySerializer(unittest.TestCase):
 
     def test_invalid_input(self):
         with self.assertRaises(ValueError):
-            BinarySerializer.serialize("not a dict")
+            BinarySerializer.serialize("not a dict")  # type: ignore[arg-type]
         with self.assertRaises(ValueError):
             BinarySerializer.deserialize("not bytes")
 

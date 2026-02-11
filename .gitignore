@@ -107,3 +107,5 @@ ENV/
 *.rdb
 
 .vim/
+
+.sisyphus/

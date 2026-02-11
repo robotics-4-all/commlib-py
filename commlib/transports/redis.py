@@ -8,13 +8,20 @@ import functools
 import logging
 import threading
 import time
-from typing import Any, Callable, Dict, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import redis
 from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 from redis.exceptions import BusyLoadingError, ConnectionError, TimeoutError
 
+from commlib.task_queue import (
+    BaseTaskProducer,
+    BaseTaskWorker,
+    TaskEnvelope,
+    TaskProgress,
+    TaskResult,
+)
 from commlib.action import (
     BaseActionClient,
     BaseActionService,
@@ -25,6 +32,7 @@ from commlib.action import (
     _ActionStatusMessage,
 )
 from commlib.compression import CompressionType, deflate, inflate_str
+from commlib.endpoints import EndpointState
 from commlib.connection import BaseConnectionParameters
 from commlib.exceptions import RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
@@ -45,10 +53,10 @@ from commlib.serializer import JSONSerializer
 from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
 
-from rich import console, pretty
+from rich import console as _rich_console_mod, pretty
 
 pretty.install()
-console = console.Console()
+console: Any = _rich_console_mod.Console()
 
 redis_logger = None
 
@@ -98,7 +106,7 @@ def get_or_create_redis_pool(
                     ExponentialBackoff(
                         conn_params.reconnect_attempts * conn_params.reconnect_delay
                     ),
-                    conn_params.reconnect_delay,
+                    int(conn_params.reconnect_delay),
                 )
                 if conn_params.reconnect_attempts > 0
                 else None
@@ -224,14 +232,16 @@ class RedisTransport(BaseTransport):
         super().__init__(*args, **kwargs)
         self._serializer = serializer if serializer is not None else JSONSerializer()
         self._compression = compression
-        self._rsub = None
-        self._redis = None
+        self._rsub: Any = None
+        self._redis: Optional[RedisConnection] = None
         self._redis_pubsub_join_timeout = 1  # sec
         self._rsub_thread = None
         self._wait_for_connection_init = 0.1  # sec
         self._wait_for_pubsub_stop = 0.1  # sec
         self._subscription_sleep_interval = 0.001  # sec
-        self._subscriptions = {}  # Track subscriptions for reconnection
+        self._subscriptions: Dict[
+            str, Callable
+        ] = {}  # Track subscriptions for reconnection
         self._retry_count = 0
         self._stopped = False
 
@@ -640,7 +650,10 @@ class RedisTransport(BaseTransport):
                 self._attempt_reconnect()
                 return self.wait_for_msg(queue_name, timeout)
             assert self._redis is not None
-            msgq, payload = self._redis.blpop(queue_name, timeout=timeout)  # type: ignore[reportAttributeAccessIssue]
+            result = self._redis.blpop([queue_name], timeout=timeout)  # type: ignore[union-attr]
+            if result is None:
+                return "", None
+            msgq, payload = result  # type: ignore[misc]
             if isinstance(payload, bytes) and payload == b"QueueInit":
                 return self.wait_for_msg(queue_name, timeout)
             if self._compression != CompressionType.NO_COMPRESSION:
@@ -799,7 +812,7 @@ class RPCClient(BaseRPCClient):
         _, _msg = self._transport.wait_for_msg(_reply_to, timeout=timeout)
         self._transport.delete_queue(_reply_to)
         if _msg is None:
-            return None  # type: ignore[reportReturnType]
+            return None  # type: ignore[return-value]
         data, header, uri = self._unpack_comm_msg(_msg)
         # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
@@ -829,20 +842,23 @@ class Publisher(BasePublisher):
             compression=self._compression,
         )
 
-    def publish(self, msg: PubSubMessage) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """publish.
         Publish message
 
         Args:
             msg (PubSubMessage): msg
+            topic (str): Optional topic override
+            key (str): Optional key
 
         Returns:
             None:
         """
         data = self._prepare_msg(msg)
-        self.log.debug("Publishing Message to topic <%s>", self._topic)
+        _topic = topic if topic else self._topic
+        self.log.debug("Publishing Message to topic <%s>", _topic)
         assert self._transport is not None
-        self._transport.publish(self._topic, data)
+        self._transport.publish(_topic, data)
         self._msg_seq += 1
 
 
@@ -860,12 +876,13 @@ class MPublisher(Publisher):
         """
         super().__init__(topic=None, *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str) -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """publish.
 
         Args:
             msg (PubSubMessage): Message to publish
             topic (str): Topic (URI) to send the message
+            key (str): Optional key
 
         Returns:
             None:
@@ -934,7 +951,7 @@ class Subscriber(BaseSubscriber):
         )
         validate_pubsub_topic_strict(self._topic)
 
-    def stop(self):
+    def stop(self, wait: bool = True):
         """
         Stops the subscriber thread if it is running and then calls the
         stop method of the superclass to perform any additional cleanup.
@@ -1017,7 +1034,7 @@ class WSubscriber(BaseSubscriber):
             args: See BaseSubscriber
             kwargs: See BaseSubscriber
         """
-        super().__init__(topic=None, *args, **kwargs)  # type: ignore[reportArgumentType]
+        super().__init__(topic=None, **kwargs)
         self._transport = RedisTransport(
             conn_params=self._conn_params,
             serializer=self._serializer,
@@ -1041,7 +1058,7 @@ class WSubscriber(BaseSubscriber):
         validate_pubsub_topic_strict(topic)
         self._subs[topic] = callback
 
-    def stop(self):
+    def stop(self, wait: bool = True):
         """
         Stops the transport by stopping all subscriber threads and the main subscriber thread if they exist.
 
@@ -1134,7 +1151,7 @@ class PSubscriber(BaseSubscriber):
         )
         validate_pubsub_topic(self._topic)
 
-    def stop(self):
+    def stop(self, wait: bool = True):
         """
         Stops the Redis transport by stopping the subscriber thread if it exists,
         and then calls the stop method of the superclass.
@@ -1405,3 +1422,118 @@ class RPCServer(BaseRPCServer):
         _data = _payload["data"]
         _header = _payload["header"]
         return _data, _header
+
+
+class TaskProducer(BaseTaskProducer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = RedisTransport(
+            conn_params=self._conn_params,
+            compression=self._compression,
+        )
+        self._result_transport = None
+        self._result_topic = f"{self._queue_name}.results"
+        self._progress_topic = f"{self._queue_name}.progress"
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._result_transport = RedisTransport(
+            conn_params=self._conn_params,
+            compression=self._compression,
+        )
+        self._result_transport.start()
+        self._result_transport.subscribe(self._result_topic, self._on_result_msg)
+        self._result_transport.subscribe(self._progress_topic, self._on_progress_msg)
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        if self._result_transport is not None:
+            self._result_transport.stop()
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _send_task(self, envelope: TaskEnvelope) -> None:
+        assert self._transport is not None
+        data = envelope.model_dump()
+        self._transport.push_msg_to_queue(self._queue_name, data)
+
+    def _on_result_msg(self, msg: Dict) -> None:
+        data = msg.get("data", msg)
+        if isinstance(data, bytes):
+            data = JSONSerializer.deserialize(data)
+        result = TaskResult(**data)
+        self._handle_result(result)
+
+    def _on_progress_msg(self, msg: Dict) -> None:
+        data = msg.get("data", msg)
+        if isinstance(data, bytes):
+            data = JSONSerializer.deserialize(data)
+        progress = TaskProgress(**data)
+        self._handle_progress(progress)
+
+
+class TaskWorker(BaseTaskWorker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transport = RedisTransport(
+            conn_params=self._conn_params,
+            compression=self._compression,
+        )
+        self._result_topic = f"{self._queue_name}.results"
+        self._progress_topic = f"{self._queue_name}.progress"
+        self._poll_thread = None
+
+    def run(self, wait: bool = True) -> None:
+        if self._transport is None:
+            raise RuntimeError("Transport not initialized")
+        self._transport.start()
+        self._stop_event.clear()
+        self._poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
+        self._poll_thread.start()
+        self._state = EndpointState.CONNECTED
+
+    def stop(self, wait: bool = True) -> None:
+        self._stop_event.set()
+        if self._poll_thread is not None:
+            self._poll_thread.join(timeout=5.0)
+        if self._transport is not None:
+            self._transport.stop()
+        self._state = EndpointState.DISCONNECTED
+
+    def _poll_loop(self) -> None:
+        assert self._transport is not None
+        while not self._stop_event.is_set():
+            try:
+                _, payload = self._transport.wait_for_msg(self._queue_name, timeout=1)
+                if payload is None:
+                    continue
+                if isinstance(payload, bytes):
+                    payload = payload.decode("utf-8")
+                data = JSONSerializer.deserialize(payload)
+                envelope = TaskEnvelope(**data)
+                self._process_task(envelope)
+            except (RuntimeError, ConnectionError, OSError) as exc:
+                self.log.error("Error polling task queue: %s", exc)
+                if self._stop_event.is_set():
+                    break
+                time.sleep(1.0)
+
+    def _publish_result(self, result: TaskResult) -> None:
+        assert self._transport is not None
+        data = result.model_dump()
+        self._transport.publish(self._result_topic, data)
+
+    def _publish_progress(self, progress: TaskProgress) -> None:
+        assert self._transport is not None
+        data = progress.model_dump()
+        self._transport.publish(self._progress_topic, data)
+
+    def _send_to_dlq(self, envelope: TaskEnvelope, error: str) -> None:
+        super()._send_to_dlq(envelope, error)
+        assert self._transport is not None
+        data = envelope.model_dump()
+        data["error"] = error
+        self._transport.push_msg_to_queue(self._config.get_dlq_name(), data)

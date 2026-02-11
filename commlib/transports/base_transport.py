@@ -5,7 +5,7 @@ Provides abstract base classes for implementing different transport backends.
 
 import logging
 import threading
-from typing import Any
+from typing import Any, Optional
 
 transport_logger = None
 
@@ -99,7 +99,7 @@ class BaseTransport:
         """
         return self._disconnected_event.wait(timeout=timeout)
 
-    def connect(self) -> None:
+    def connect(self) -> Optional[bool]:
         raise NotImplementedError()
 
     def disconnect(self) -> None:

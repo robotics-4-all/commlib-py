@@ -99,6 +99,28 @@ class ActionMessage(Message):
         """
 
 
+class TaskMessage(Message):
+    """TaskMessage.
+    Task Queue Message. Defines Task, Result, and Progress data classes for
+        instantiation. Used as a namespace.
+    """
+
+    class Task(Message):
+        """Task.
+        Task Message
+        """
+
+    class Result(Message):
+        """Result.
+        Task Result Message
+        """
+
+    class Progress(Message):
+        """Progress.
+        Task Progress Message
+        """
+
+
 class HeartbeatMessage(PubSubMessage):
     """HeartbeatMessage
     A PubSubMessage that contains a timestamp.
