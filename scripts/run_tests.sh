@@ -32,10 +32,10 @@ if [ "$TEST_TYPE" == "unit" ]; then
     docker run --rm $IMAGE_NAME
 elif [ "$TEST_TYPE" == "package" ]; then
     echo "Running packaging + unit tests in Docker container..."
-    docker run --rm --network host $IMAGE_NAME pytest tests --ignore=tests/mqtt --ignore=tests/redis -v
+    docker run --rm --network host $IMAGE_NAME pytest tests --ignore=tests/mqtt --ignore=tests/redis --ignore=tests/kafka --ignore=tests/benchmarks -v
 elif [ "$TEST_TYPE" == "coverage" ]; then
     echo "Running unit tests with coverage in Docker container..."
-    docker run --rm $IMAGE_NAME bash -c "coverage run -m pytest --ignore=tests/mqtt --ignore=tests/redis && coverage report -m"
+    docker run --rm $IMAGE_NAME bash -c "coverage run -m pytest --ignore=tests/mqtt --ignore=tests/redis --ignore=tests/kafka --ignore=tests/benchmarks && coverage report -m"
 elif [ "$TEST_TYPE" == "integration" ]; then
     python "$(dirname "$0")/run_all_broker_tests.py"
 else
