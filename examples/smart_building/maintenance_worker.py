@@ -72,6 +72,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     conn_params = get_connection_params(args.broker, args.host, args.port)
 
+    TaskWorker: type
     if args.broker == "redis":
         from commlib.transports.redis import TaskWorker
     elif args.broker == "amqp":

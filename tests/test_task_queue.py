@@ -156,6 +156,7 @@ class TestTaskHandle(unittest.TestCase):
         result = handle.wait_result(timeout=2.0)
         t.join()
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertEqual(result.task_id, "test-id")
 
 
@@ -213,6 +214,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         result = handle.wait_result(timeout=5.0)
 
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertEqual(result.status, TaskStatus.COMPLETED)
         self.assertEqual(result.result_data["sum"], 10)
 
@@ -255,6 +257,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         result = handle.wait_result(timeout=5.0)
 
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertEqual(result.status, TaskStatus.COMPLETED)
         self.assertEqual(result.result_data["result"], 20)
 
@@ -378,6 +381,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         result = handle.wait_result(timeout=10.0)
 
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertEqual(result.status, TaskStatus.COMPLETED)
         self.assertEqual(result.result_data["recovered"], True)
         self.assertEqual(len(attempts), 3)
@@ -415,6 +419,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         result = handle.wait_result(timeout=10.0)
 
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertEqual(result.status, TaskStatus.FAILED)
         self.assertIn("Always fails", result.error)
 
@@ -453,6 +458,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         result = handle.wait_result(timeout=5.0)
 
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertEqual(result.status, TaskStatus.COMPLETED)
 
         producer.stop()
@@ -572,6 +578,7 @@ class TestNodeTaskQueueIntegration(unittest.TestCase):
         result = handle.wait_result(timeout=5.0)
 
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertEqual(result.status, TaskStatus.COMPLETED)
         self.assertEqual(result.result_data["doubled"], 42)
 

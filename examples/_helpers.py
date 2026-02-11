@@ -47,6 +47,7 @@ def get_connection_params(
     broker: str, host: str = "localhost", port: Optional[int] = None
 ) -> Any:
     """Import and return ``ConnectionParameters`` for the chosen broker."""
+    ConnectionParameters: type
     if broker == "redis":
         from commlib.transports.redis import ConnectionParameters
     elif broker == "amqp":

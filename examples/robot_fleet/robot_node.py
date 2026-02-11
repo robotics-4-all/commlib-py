@@ -34,13 +34,13 @@ class RobotTelemetry(PubSubMessage):
 
 
 class RobotNode(Node):
-    def __init__(self, robot_id: str, pub_freq: float = 5.0, *args, **kwargs):
+    def __init__(self, robot_id: str, pub_freq: float = 5.0, **kwargs):
         self.robot_id = robot_id
         self.pub_freq = pub_freq
         self._telemetry_topic = f"fleet.{robot_id}.telemetry"
+        kwargs.pop("node_name", None)
         super().__init__(
             node_name=f"fleet.{robot_id}",
-            *args,
             **kwargs,
         )
         self._telem_pub = self.create_publisher(

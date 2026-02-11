@@ -32,7 +32,7 @@ class TestNode(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures, if any."""
-        self.connparams = ConnectionParameters(host="test", port="1234")
+        self.connparams = ConnectionParameters(host="test", port=1234)
 
     def tearDown(self):
         """Tear down test fixtures, if any."""
@@ -60,9 +60,10 @@ class TestNode(unittest.TestCase):
 
         def on_message(msg):
             pass
-        node.create_subscriber(msg_type=SonarMessage,
-                               topic="sensors.sonar.front",
-                               on_message=on_message)
+
+        node.create_subscriber(
+            msg_type=SonarMessage, topic="sensors.sonar.front", on_message=on_message
+        )
         self.assertTrue(len(node._subscribers), 1)
 
     def test_node_on_connected_callback(self):
@@ -71,7 +72,7 @@ class TestNode(unittest.TestCase):
         node = Node(
             node_name="test_node",
             connection_params=self.connparams,
-            on_connected=mock_callback
+            on_connected=mock_callback,
         )
 
         # Create a dummy publisher so the node has an endpoint to connect
@@ -91,7 +92,7 @@ class TestNode(unittest.TestCase):
         node = Node(
             node_name="test_node_async",
             connection_params=self.connparams,
-            on_connected=mock_callback
+            on_connected=mock_callback,
         )
 
         # Create a dummy publisher so the node has an endpoint to connect
