@@ -344,9 +344,9 @@ class AMQPTransport(BaseTransport):
 
     def __init__(
         self,
+        *args,
         connection: Optional[Connection] = None,
         use_shared_connection: bool = True,
-        *args,
         **kwargs,
     ):
         """Initialize AMQP transport.
@@ -465,7 +465,7 @@ class AMQPTransport(BaseTransport):
             raise AMQPError("AMQP connection is not established")
         self._connection.detach_amqp_events_thread()
 
-    def _signal_handler(self, signum, frame):
+    def _signal_handler(self, signum, _frame):
         """TODO"""
         self.log.debug("Signal received: %s", signum)
         self._graceful_shutdown()
@@ -707,10 +707,10 @@ class RPCService(BaseRPCService):
 
     def __init__(
         self,
+        *args,
         exchange: str = "",
         connection: Optional[Connection] = None,
         use_shared_connection: bool = True,
-        *args,
         **kwargs,
     ):
         """__init__.
@@ -734,7 +734,7 @@ class RPCService(BaseRPCService):
             debug=self.debug,
         )
 
-    def run_forever(self, raise_if_exists: bool = False):
+    def run_forever(self, _raise_if_exists: bool = False):
         """Run RPC Service in normal mode. Blocking operation."""
         assert self._transport is not None
         self._transport.start()
@@ -903,10 +903,10 @@ class RPCClient(BaseRPCClient):
 
     def __init__(
         self,
+        *args,
         use_corr_id=False,
         connection: Optional[Connection] = None,
         use_shared_connection: bool = True,
-        *args,
         **kwargs,
     ):
         self._use_corr_id = use_corr_id
@@ -1004,7 +1004,7 @@ class RPCClient(BaseRPCClient):
             return self._response
         return None  # Timeout occurred
 
-    def _on_response_handle(self, ch, method, properties, body):
+    def _on_response_handle(self, _ch, _method, properties, body):
         try:
             if self._use_corr_id:
                 if self._corr_id != properties.correlation_id:
@@ -1014,7 +1014,7 @@ class RPCClient(BaseRPCClient):
                 body = deflate(body, self._compression)
 
             # Unpack the response using base class method
-            data, header, _ = self._unpack_comm_msg(body)
+            data, _header, _ = self._unpack_comm_msg(body)
             self._response = data
             self._response_event.set()  # Signal waiting thread (Phase 3 optimization)
 
@@ -1080,10 +1080,10 @@ class Publisher(BasePublisher):
 
     def __init__(
         self,
+        *args,
         exchange: str = "amq.topic",
         connection: Optional[Connection] = None,
         use_shared_connection: bool = True,
-        *args,
         **kwargs,
     ):
         """Constructor.
@@ -1163,7 +1163,7 @@ class Publisher(BasePublisher):
         topic = topic.replace("*", "#")
 
         assert self._transport is not None
-        self._transport._channel.basic_publish(  # type: ignore[attr-defined]
+        self._transport.channel.basic_publish(  # type: ignore[attr-defined]
             exchange=self._topic_exchange,
             routing_key=topic,
             properties=msg_props,
@@ -1214,13 +1214,13 @@ class Subscriber(BaseSubscriber):
 
     def __init__(
         self,
+        *args,
         exchange: str = "amq.topic",
         queue_size: int = 10,
         message_ttl: int = 60000,
         overflow: str = "drop-head",
         connection: Optional[Connection] = None,
         use_shared_connection: bool = True,
-        *args,
         **kwargs,
     ):
         """Constructor.
@@ -1298,7 +1298,7 @@ class Subscriber(BaseSubscriber):
     def _consume(self, reliable: bool = False) -> None:
         """Start AMQP consumer."""
         assert self._transport is not None
-        self._transport._channel.basic_consume(  # type: ignore[attr-defined]
+        self._transport.channel.basic_consume(  # type: ignore[attr-defined]
             self._queue_name,
             self._on_msg_callback_wrapper,
             exclusive=False,
@@ -1321,7 +1321,7 @@ class Subscriber(BaseSubscriber):
             self.log.error(exc, exc_info=False)
             raise AMQPError("Could not consume from message queue")
 
-    def _on_msg_callback_wrapper(self, ch, method, properties, body):
+    def _on_msg_callback_wrapper(self, _ch, _method, properties, body):
         _data = {}
 
         try:
@@ -1410,7 +1410,7 @@ class PSubscriber(Subscriber):
         kwargs["topic"] = kwargs["topic"].replace("*", "#")
         super().__init__(*args, **kwargs)
 
-    def _on_msg_callback_wrapper(self, ch, method, properties, body):
+    def _on_msg_callback_wrapper(self, _ch, _method, properties, body):
         _data = {}
 
         try:
@@ -1679,7 +1679,7 @@ class TaskWorker(BaseTaskWorker):
     def _consume_loop(self) -> None:
         assert self._transport is not None
         assert self._transport.channel is not None
-        for method, properties, body in self._transport.channel.consume(
+        for method, _properties, body in self._transport.channel.consume(
             queue=self._queue_name,
             inactivity_timeout=1.0,
         ):

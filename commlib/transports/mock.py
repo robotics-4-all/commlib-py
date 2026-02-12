@@ -40,11 +40,11 @@ class MockTransport(BaseTransport):
 
     def __init__(
         self,
+        *_args: Any,
         conn_params: Optional[BaseConnectionParameters] = None,
-        *args: Any,
         **kwargs: Any,
     ):
-        super().__init__(conn_params, *args, **kwargs)
+        super().__init__(conn_params=conn_params, **kwargs)
 
     def start(self):
         """Start the mock transport."""
@@ -114,7 +114,7 @@ class Publisher(BasePublisher):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport(self._conn_params)
+        self._transport = MockTransport(conn_params=self._conn_params)
 
     def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
         """Publish message to mock transport.
@@ -144,7 +144,7 @@ class Subscriber(BaseSubscriber):
 
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport(self._conn_params)
+        self._transport = MockTransport(conn_params=self._conn_params)
         self._callback_registered = False
 
     def run(self, wait: bool = True) -> None:
@@ -201,7 +201,7 @@ class RPCService(BaseRPCService):
 
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport(self._conn_params)
+        self._transport = MockTransport(conn_params=self._conn_params)
 
     def run(self, wait: bool = True) -> None:
         """Start the RPC service.
@@ -238,7 +238,7 @@ class RPCClient(BaseRPCClient):
 
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport(self._conn_params)
+        self._transport = MockTransport(conn_params=self._conn_params)
 
     def call(
         self, msg: RPCMessage.Request, timeout: float = 30.0
@@ -272,7 +272,7 @@ _MOCK_PROGRESS_CALLBACKS: Dict[str, list] = {}
 class TaskProducer(BaseTaskProducer):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport(self._conn_params)
+        self._transport = MockTransport(conn_params=self._conn_params)
 
     def run(self, wait: bool = True) -> None:
         if self._transport is None:
@@ -326,7 +326,7 @@ class TaskProducer(BaseTaskProducer):
 class TaskWorker(BaseTaskWorker):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self._transport = MockTransport(self._conn_params)
+        self._transport = MockTransport(conn_params=self._conn_params)
 
     def run(self, wait: bool = True) -> None:
         if self._transport is None:
@@ -358,9 +358,7 @@ class TaskWorker(BaseTaskWorker):
         self._state = EndpointState.DISCONNECTED
 
     def _on_envelope_received(self, envelope: TaskEnvelope) -> None:
-        import threading as _threading
-
-        _threading.Thread(
+        threading.Thread(
             target=self._process_task,
             args=(envelope,),
             daemon=True,

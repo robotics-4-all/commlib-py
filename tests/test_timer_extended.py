@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Extended tests for Timer class."""
+# pylint: disable=protected-access
 
 import time
 import unittest
@@ -18,7 +19,7 @@ class TestTimerEvent(unittest.TestCase):
             last_real=1.1,
             current_expected=2.0,
             current_real=2.05,
-            last_duration=0.5
+            last_duration=0.5,
         )
         self.assertEqual(event.last_expected, 1.0)
         self.assertEqual(event.last_real, 1.1)
@@ -33,7 +34,7 @@ class TestTimerEvent(unittest.TestCase):
             last_real=None,
             current_expected=1.0,
             current_real=1.0,
-            last_duration=None
+            last_duration=None,
         )
         self.assertIsNone(event.last_expected)
         self.assertIsNone(event.last_real)
@@ -132,11 +133,11 @@ class TestTimerBasic(unittest.TestCase):
     def test_timer_thread_properties(self):
         """Test timer inherits from threading.Thread."""
         timer = Timer(1.0, self.callback)
-        self.assertTrue(hasattr(timer, 'start'))
-        self.assertTrue(hasattr(timer, 'run'))
+        self.assertTrue(hasattr(timer, "start"))
+        self.assertTrue(hasattr(timer, "run"))
         self.assertTrue(callable(timer.start))
         self.assertTrue(callable(timer.run))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

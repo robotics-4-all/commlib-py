@@ -104,9 +104,9 @@ class MQTTTransport(BaseTransport):
 
     def __init__(
         self,
+        *args,
         serializer: Any = JSONSerializer(),
         compression: int = CompressionType.DEFAULT_COMPRESSION,
-        *args,
         **kwargs,
     ):
         """__init__.
@@ -192,11 +192,11 @@ class MQTTTransport(BaseTransport):
 
     def on_connect(
         self,
-        client: Any,
-        userdata: Any,
-        flags: Dict[str, Any],
+        _client: Any,
+        _userdata: Any,
+        _flags: Dict[str, Any],
         rc: int,
-        properties: Any = None,
+        _properties: Any = None,
     ):
         """on_connect.
 
@@ -224,7 +224,7 @@ class MQTTTransport(BaseTransport):
         self.log.debug("- Data Compression: %s", self._compression)
 
     def on_disconnect(
-        self, client: Any, userdata: Any, rc: int, unk: Any = None
+        self, _client: Any, _userdata: Any, rc: int, _unk: Any = None
     ) -> None:
         """on_disconnect.
 
@@ -300,7 +300,7 @@ class MQTTTransport(BaseTransport):
             msg (Dict[str, Any]): Received message
         """
 
-    def on_log(self, client: Any, userdata: Any, level, buf):
+    def on_log(self, _client: Any, _userdata: Any, level, buf):
         self.log.info(level, buf)
 
     def publish(
@@ -601,7 +601,7 @@ class Subscriber(BaseSubscriber):
             time.sleep(self._LOOP_INTERVAL)
         self._transport.stop()
 
-    def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def _on_message(self, _client: Any, _userdata: Any, msg: Dict[str, Any]):
         """_on_message.
 
         Args:
@@ -611,7 +611,7 @@ class Subscriber(BaseSubscriber):
         """
         # Received MqttMessage (paho)
         try:
-            data, uri = self._unpack_comm_msg(msg)
+            data, _uri = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
                     self.onmessage(data)
@@ -696,13 +696,14 @@ class WSubscriber(BaseSubscriber):
             callback (callable): The function to be called when a message is received on the subscribed topic.
 
         Raises:
-            ValueError: If the topic is invalid (i.e., it is '.', '*', '-', '_', None, or does not match the TOPIC_PATTERN_REGEX).
+            ValueError: If the topic is invalid (does not match
+                TOPIC_PATTERN_REGEX).
         """
         validate_pubsub_topic_strict(topic)
         self._subs[topic] = callback
 
     def _on_message(
-        self, callback: Callable, client: Any, userdata: Any, msg: Dict[str, Any]
+        self, callback: Callable, _client: Any, _userdata: Any, msg: Dict[str, Any]
     ) -> None:
         """_on_message.
 
@@ -712,7 +713,7 @@ class WSubscriber(BaseSubscriber):
             msg (Dict[str, Any]): msg
         """
         try:
-            data, uri = self._unpack_comm_msg(msg)
+            data, _uri = self._unpack_comm_msg(msg)
             if callback is not None:
                 if self._msg_type is None:
                     callback(data)
@@ -766,7 +767,7 @@ class PSubscriber(BaseSubscriber):
             time.sleep(self._LOOP_INTERVAL)
         self._transport.stop()
 
-    def _on_message(self, client: Any, userdata: Any, msg: Dict[str, Any]):
+    def _on_message(self, _client: Any, _userdata: Any, msg: Dict[str, Any]):
         try:
             data, topic = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
@@ -821,9 +822,9 @@ class RPCService(BaseRPCService):
     def _on_request_handle(self, client: Any, userdata: Any, msg: Dict[str, Any]):
         self._executor.submit(self._on_request_internal, client, userdata, msg)
 
-    def _on_request_internal(self, client: Any, userdata: Any, msg: Any):
+    def _on_request_internal(self, _client: Any, _userdata: Any, msg: Any):
         try:
-            req_msg, uri = self._unpack_comm_msg(
+            req_msg, _uri = self._unpack_comm_msg(
                 msg.payload,
                 msg.topic,
             )
@@ -912,7 +913,7 @@ class RPCServer(BaseRPCServer):
         ) as exc:
             self.log.error(str(exc), exc_info=False)
 
-    def _on_request_internal(self, client: Any, userdata: Any, msg: Any):
+    def _on_request_internal(self, _client: Any, _userdata: Any, msg: Any):
         try:
             req_msg, uri = self._unpack_comm_msg(msg)
         except (
@@ -1048,7 +1049,7 @@ class RPCClient(BaseRPCClient):
         assert self._transport is not None
         start_t = time.time()
         while self._response is None:
-            if not self._transport.is_connected or self._transport._stopped:
+            if not self._transport.is_connected or self._transport.is_stopped:
                 raise RPCClientTimeoutError("Transport is not connected")
             elapsed_t = time.time() - start_t
             if elapsed_t >= timeout:
@@ -1065,7 +1066,8 @@ class RPCClient(BaseRPCClient):
             timeout (float, optional): The maximum time to wait for a response in seconds. Defaults to 10.
 
         Returns:
-            RPCMessage.Response: The response message received. If no response is received within the timeout period, returns None.
+            RPCMessage.Response: The response message received.
+                Returns None if timeout is reached.
         """
         assert self._transport is not None
         try:
@@ -1086,8 +1088,8 @@ class RPCClient(BaseRPCClient):
         self._response = None
         return self._msg_type.Response(**_resp)
 
-    def _on_response_wrapper(self, client: Any, userdata: Any, msg: Dict[str, Any]):
-        data, header, uri = self._unpack_comm_msg(msg)
+    def _on_response_wrapper(self, _client: Any, _userdata: Any, msg: Dict[str, Any]):
+        data, _header, _uri = self._unpack_comm_msg(msg)
         self._response = data
 
 

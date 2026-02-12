@@ -11,11 +11,13 @@ Requires:
     - RabbitMQ broker running (e.g., docker run -d -p 5672:5672 rabbitmq:3-management)
     - Set COMMLIB_AMQP_HOST and COMMLIB_AMQP_PORT if not localhost:5672
 """
+# pylint: disable=unused-argument
+
+import sys
+import warnings
+from pathlib import Path
 
 import pytest
-import warnings
-import sys
-from pathlib import Path
 
 # Add benchmark directory to Python path
 benchmark_dir = Path(__file__).parent.parent.parent / "benchmark"

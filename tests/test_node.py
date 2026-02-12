@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for `commlib` package."""
+# pylint: disable=protected-access
 
 import time
 import unittest
@@ -39,32 +40,27 @@ class TestNode(unittest.TestCase):
 
     def test_node_create_wrong_transport(self):
         try:
-            node = Node(
+            _node = Node(
                 node_name="sensors.sonar.front", connection_params=self.connparams
             )
-            self.assertTrue(1, 0)
-        except ValueError as e:
-            print(str(e))
-            if str(e) == "ValueError: Transport type is not supported!":
-                self.assertTrue(1, 1)
-            else:
-                self.assertTrue(1, 0)
+        except ValueError:
+            pass
 
     def test_node_create_publisher(self):
         node = Node(node_name="sensors.sonar.front", connection_params=self.connparams)
         node.create_publisher(msg_type=SonarMessage, topic="sensors.sonar.front")
-        self.assertTrue(len(node._publishers), 1)
+        self.assertEqual(len(node._publishers), 1)
 
     def test_node_create_subscriber(self):
         node = Node(node_name="sensors.sonar.front", connection_params=self.connparams)
 
-        def on_message(msg):
+        def on_message(_msg):
             pass
 
         node.create_subscriber(
             msg_type=SonarMessage, topic="sensors.sonar.front", on_message=on_message
         )
-        self.assertTrue(len(node._subscribers), 1)
+        self.assertEqual(len(node._subscribers), 1)
 
     def test_node_on_connected_callback(self):
         """Test that on_connected callback is called when node starts."""

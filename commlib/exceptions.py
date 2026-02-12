@@ -11,13 +11,13 @@ indicate specific error conditions.
 """
 
 
-class BaseException(Exception):
+class BaseException(Exception):  # pylint: disable=redefined-builtin
     def __init__(self, message, errors=None):
         super().__init__(message)
         self.errors = errors
 
 
-class ConnectionError(BaseException):
+class ConnectionError(BaseException):  # pylint: disable=redefined-builtin
     def __init__(self, message, errors=None):
         super().__init__(message, errors)
 

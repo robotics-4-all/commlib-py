@@ -46,7 +46,7 @@ class TestKafkaPubSub(unittest.TestCase):
             heartbeats=False,
         )
 
-        sub = node.create_subscriber(
+        _sub = node.create_subscriber(
             msg_type=SensorMessage,
             topic="kafka.test.sensor",
             on_message=on_message,
@@ -71,7 +71,7 @@ class TestKafkaPubSub(unittest.TestCase):
         received = []
         ready = threading.Event()
 
-        def on_message(msg, topic=None):
+        def on_message(msg, _topic=None):
             received.append(msg)
             if len(received) >= 2:
                 ready.set()
@@ -82,7 +82,7 @@ class TestKafkaPubSub(unittest.TestCase):
             heartbeats=False,
         )
 
-        psub = node.create_psubscriber(
+        _psub = node.create_psubscriber(
             msg_type=SensorMessage,
             topic="kafka.test.multi.*",
             on_message=on_message,

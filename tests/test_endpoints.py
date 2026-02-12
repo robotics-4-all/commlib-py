@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for commlib endpoints module."""
+# pylint: disable=protected-access
 
 import unittest
 from enum import Enum

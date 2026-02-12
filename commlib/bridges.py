@@ -190,7 +190,7 @@ class RPCBridge(Bridge):
     to be passed between the two endpoints.
     """
 
-    def __init__(self, msg_type: Optional[Type[RPCMessage]] = None, *args, **kwargs):
+    def __init__(self, *args, msg_type: Optional[Type[RPCMessage]] = None, **kwargs):
         """__init__.
         Initializes an RPCBridge instance.
 
@@ -199,7 +199,8 @@ class RPCBridge(Bridge):
             *args: Additional positional arguments to pass to the parent class constructor.
             **kwargs: Additional keyword arguments to pass to the parent class constructor.
 
-        The RPCBridge class is responsible for bridging two RPC (Remote Procedure Call) endpoints, allowing RPCMessage objects to be passed between them. The __init__ method sets up the necessary server and client endpoints for the bridge.
+        Sets up the RPC bridge server and client endpoints for
+        cross-broker RPC message forwarding.
         """
 
         super().__init__(*args, **kwargs)
@@ -280,7 +281,7 @@ class TopicBridge(Bridge):
     format to be used, and optionally a list of topic URI transformations to apply.
     """
 
-    def __init__(self, msg_type: Optional[Type[PubSubMessage]] = None, *args, **kwargs):
+    def __init__(self, *args, msg_type: Optional[Type[PubSubMessage]] = None, **kwargs):
         """__init__.
         Initializes a PTopicBridge instance with the specified parameters.
 
@@ -363,9 +364,9 @@ class PTopicBridge(Bridge):
 
     def __init__(
         self,
+        *args,
         msg_type: Optional[Type[PubSubMessage]] = None,
         uri_transform: List = [],
-        *args,
         **kwargs,
     ):
         """
@@ -457,7 +458,8 @@ class PTopicBridge(Bridge):
         """
         Starts the B2B P-Topic Bridge, connecting the subscriber to the publisher.
 
-        The subscriber is configured with the `_from_broker_params` and `_from_uri` parameters, and the publisher is configured with the `_to_broker_params` and `_to_uri` parameters.
+        Connects the subscriber (from-broker) to the publisher
+        (to-broker) for pattern-based topic forwarding.
         """
 
         self._sub.run()

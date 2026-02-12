@@ -28,6 +28,8 @@ class TopicMessageProcessor:
             data_processors  # List of functions to process incoming data
         )
 
+        self.pub: Any = None
+
         self.node = Node(
             node_name="TopicMessageProcessor",
             connection_params=self.broker_params,
@@ -54,7 +56,7 @@ class TopicMessageProcessor:
         self.pub = self.node.create_mpublisher()
 
     def on_msg_internal(
-        self, processors: List[Callable], payload: Dict[str, Any], topic: str
+        self, processors: List[Callable], payload: Dict[str, Any], _topic: str
     ) -> None:
         for proc in processors:
             try:
@@ -89,6 +91,8 @@ class TopicAggregator:
             data_processors  # List of functions to process incoming data
         )
 
+        self.pub: Any = None
+
         self.node = Node(
             node_name="TopicAggregator",
             connection_params=self.broker_params,
@@ -121,7 +125,7 @@ class TopicAggregator:
         self.pub = self.node.create_mpublisher()
 
     def on_msg_internal(
-        self, payload: Dict[str, Any], topic: str, processors: List[Callable] = []
+        self, payload: Dict[str, Any], _topic: str, processors: List[Callable] = []
     ) -> None:
         for proc in processors:
             try:

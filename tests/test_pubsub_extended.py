@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Extended tests for pubsub module."""
+# pylint: disable=protected-access
 
 import unittest
 
@@ -92,7 +93,7 @@ class TestSubscriberExtended(unittest.TestCase):
     def test_subscriber_callback(self):
         """Test subscriber callback."""
 
-        def callback(msg):
+        def callback(_msg):
             pass
 
         node = Node(

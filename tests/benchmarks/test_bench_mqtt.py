@@ -9,11 +9,13 @@ Requires:
     - MQTT broker running (e.g., docker run -d -p 1883:1883 eclipse-mosquitto)
     - Set COMMLIB_MQTT_HOST and COMMLIB_MQTT_PORT if not localhost:1883
 """
+# pylint: disable=unused-argument
+
+import sys
+import warnings
+from pathlib import Path
 
 import pytest
-import warnings
-import sys
-from pathlib import Path
 
 # Add benchmark directory to Python path
 benchmark_dir = Path(__file__).parent.parent.parent / "benchmark"

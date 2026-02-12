@@ -14,6 +14,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# pylint: disable=wrong-import-position
 from _helpers import get_connection_params, make_broker_parser  # noqa: E402
 
 from commlib.msg import ActionMessage  # noqa: E402
@@ -55,7 +56,7 @@ def on_result(result: NavigateAction.Result) -> None:
     )
 
 
-def on_goal_reached(result: NavigateAction.Result) -> None:
+def on_goal_reached(_result: NavigateAction.Result) -> None:
     print("[client] Navigation complete")
 
 

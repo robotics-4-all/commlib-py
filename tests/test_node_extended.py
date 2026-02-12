@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Extended tests for Node class."""
+# pylint: disable=protected-access
 
 import unittest
 
@@ -131,8 +132,8 @@ class TestNodeExtended(unittest.TestCase):
         node = Node(
             node_name="test", connection_params=self.conn_params, heartbeats=False
         )
-        pub1 = node.create_publisher(msg_type=SensorMessage, topic="topic1")
-        pub2 = node.create_publisher(msg_type=SensorMessage, topic="topic2")
+        _pub1 = node.create_publisher(msg_type=SensorMessage, topic="topic1")
+        _pub2 = node.create_publisher(msg_type=SensorMessage, topic="topic2")
         self.assertEqual(len(node._publishers), 2)
 
     def test_node_multiple_subscribers(self):
@@ -140,10 +141,10 @@ class TestNodeExtended(unittest.TestCase):
         node = Node(
             node_name="test", connection_params=self.conn_params, heartbeats=False
         )
-        sub1 = node.create_subscriber(
+        _sub1 = node.create_subscriber(
             msg_type=SensorMessage, topic="topic1", on_message=lambda msg: None
         )
-        sub2 = node.create_subscriber(
+        _sub2 = node.create_subscriber(
             msg_type=SensorMessage, topic="topic2", on_message=lambda msg: None
         )
         self.assertEqual(len(node._subscribers), 2)

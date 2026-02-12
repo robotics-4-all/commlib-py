@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for commlib RPC module."""
+# pylint: disable=protected-access
 
 import unittest
 
@@ -104,7 +105,7 @@ class TestBaseRPCServer(unittest.TestCase):
     def test_rpc_server_with_service_map(self):
         """Test BaseRPCServer with service map."""
 
-        def dummy_service(req):
+        def dummy_service(_req):
             return {"result": "ok"}
 
         svc_map = {"my_service": dummy_service}

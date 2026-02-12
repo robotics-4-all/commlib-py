@@ -84,7 +84,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
             self.assertIsInstance(data, ComputeTaskMessage.Task)
             return ComputeTaskMessage.Result(result=data.x * data.y)
 
-        def on_result(task_id, result_data):
+        def on_result(_task_id, result_data):
             results.append(result_data)
 
         worker = TaskWorker(
@@ -191,7 +191,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
             data = ctx.data
             return {"doubled": data["value"] * 2}
 
-        def on_result(task_id, result_data):
+        def on_result(_task_id, result_data):
             results.append(result_data)
 
         node = Node(
@@ -200,7 +200,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
             heartbeats=False,
         )
 
-        worker = node.create_task_worker(
+        _worker = node.create_task_worker(
             queue_name="kafka.test.node_flow",
             on_task=on_task,
         )

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for commlib aggregation module."""
+# pylint: disable=protected-access
 
 import unittest
 from typing import Dict, Any

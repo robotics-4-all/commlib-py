@@ -1,4 +1,5 @@
 """Tests for shared thread pool manager."""
+# pylint: disable=protected-access
 
 import unittest
 import threading

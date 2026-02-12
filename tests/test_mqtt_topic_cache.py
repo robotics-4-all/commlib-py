@@ -1,4 +1,5 @@
 """Unit tests for MQTT topic transformation caching."""
+# pylint: disable=protected-access
 
 import unittest
 from commlib.transports.mqtt import MQTTTransport

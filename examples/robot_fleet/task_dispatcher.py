@@ -14,6 +14,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# pylint: disable=wrong-import-position
 from _helpers import get_connection_params, make_broker_parser  # noqa: E402
 
 from commlib.msg import TaskMessage  # noqa: E402
@@ -38,12 +39,14 @@ class DeliveryTask(TaskMessage):
         percent: float = 0.0
 
 
-def on_result(task_id: str, result: DeliveryTask.Result) -> None:
-    status = "DELIVERED" if result.delivered else "FAILED"
-    print(f"[dispatch] {result.order_id}: [{status}] {result.time_taken_sec}s")
+def on_result(_task_id: str, task_result: DeliveryTask.Result) -> None:
+    status = "DELIVERED" if task_result.delivered else "FAILED"
+    print(
+        f"[dispatch] {task_result.order_id}: [{status}] {task_result.time_taken_sec}s"
+    )
 
 
-def on_progress(task_id: str, progress: DeliveryTask.Progress, percent: float) -> None:
+def on_progress(_task_id: str, progress: DeliveryTask.Progress, percent: float) -> None:
     print(f"[dispatch] {progress.order_id}: {progress.stage} ({percent}%)")
 
 

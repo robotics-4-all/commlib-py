@@ -134,7 +134,7 @@ class TestTaskHandle(unittest.TestCase):
     def test_set_result(self):
         handle = TaskHandle("test-id")
         result = TaskResult(task_id="test-id", status=TaskStatus.COMPLETED)
-        handle._set_result(result)
+        handle.set_result(result)
         self.assertTrue(handle.is_done)
         self.assertEqual(handle.status, TaskStatus.COMPLETED)
 
@@ -149,7 +149,7 @@ class TestTaskHandle(unittest.TestCase):
 
         def setter():
             time.sleep(0.05)
-            handle._set_result(expected)
+            handle.set_result(expected)
 
         t = threading.Thread(target=setter)
         t.start()
@@ -233,7 +233,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
             self.assertIsInstance(data, ComputeTaskMessage.Task)
             return ComputeTaskMessage.Result(result=data.x * data.y)
 
-        def on_result(task_id, result_data):
+        def on_result(_task_id, result_data):
             results.append(result_data)
 
         worker = TaskWorker(
@@ -427,7 +427,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         worker.stop()
 
     def test_manual_ack(self):
-        acked = []
+        _acked = []
 
         def on_task(ctx):
             result = {"processed": True}
@@ -483,7 +483,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         self.assertFalse(producer.connected)
 
     def test_worker_stop_and_cleanup(self):
-        def on_task(ctx):
+        def on_task(_ctx):
             return None
 
         worker = TaskWorker(
@@ -516,7 +516,7 @@ class TestNodeTaskQueueIntegration(unittest.TestCase):
         self.assertEqual(producer.queue_name, "node_tasks")
 
     def test_node_create_task_worker(self):
-        def handler(ctx):
+        def handler(_ctx):
             return None
 
         node = Node(
@@ -532,7 +532,7 @@ class TestNodeTaskQueueIntegration(unittest.TestCase):
         self.assertEqual(worker.queue_name, "node_tasks")
 
     def test_node_endpoints_include_task_queue(self):
-        def handler(ctx):
+        def handler(_ctx):
             return None
 
         node = Node(
@@ -553,7 +553,7 @@ class TestNodeTaskQueueIntegration(unittest.TestCase):
             data = ctx.data
             return {"doubled": data["value"] * 2}
 
-        def on_result(task_id, result_data):
+        def on_result(_task_id, result_data):
             results.append(result_data)
 
         node = Node(
@@ -562,7 +562,7 @@ class TestNodeTaskQueueIntegration(unittest.TestCase):
             heartbeats=False,
         )
 
-        worker = node.create_task_worker(
+        _worker = node.create_task_worker(
             queue_name="full_flow",
             on_task=on_task,
         )

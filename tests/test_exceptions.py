@@ -4,7 +4,7 @@
 
 import unittest
 
-from commlib.exceptions import (
+from commlib.exceptions import (  # pylint: disable=redefined-builtin
     BaseException as CommLibBaseException,
     ConnectionError,
     AMQPError,
@@ -128,5 +128,5 @@ class TestCustomExceptions(unittest.TestCase):
         self.assertIsInstance(exc, Exception)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

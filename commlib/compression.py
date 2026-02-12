@@ -9,9 +9,11 @@ import zlib
 
 try:
     import lz4.frame as clib
+
     HAS_LZ4 = True
 except ImportError:
-    import zlib as clib
+    clib = zlib
+
     HAS_LZ4 = False
 
 
@@ -44,12 +46,12 @@ def inflate_str(text: str, compression_type: int = CompressionType.DEFAULT_COMPR
     return zlib.compress(text.encode(), compression_type)
 
 
-def deflate(data: bytes, compression_type: int = CompressionType.DEFAULT_COMPRESSION):
+def deflate(data: bytes, _compression_type: int = CompressionType.DEFAULT_COMPRESSION):
     """deflate.
 
     Args:
         data (bytes): data
-        compression_type (int): compression_type
+        _compression_type (int): compression_type
     """
     try:
         return clib.decompress(data)
