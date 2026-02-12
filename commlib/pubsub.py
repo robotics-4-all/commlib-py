@@ -235,7 +235,7 @@ class BaseSubscriber(BaseEndpoint):
                     while not self._transport.is_connected:
                         time.sleep(0.001)
 
-            self._state = EndpointState.CONNECTED
+            self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
         else:
             self.logger().warning("Transport already connected - Skipping")
 

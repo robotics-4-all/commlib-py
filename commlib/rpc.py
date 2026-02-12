@@ -139,7 +139,7 @@ class BaseRPCServer(BaseEndpoint):
             if wait:
                 while not self.connected:
                     time.sleep(self._LOOP_INTERVAL)
-            self._state = EndpointState.CONNECTED
+            self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
         else:
             self.log.warning("Transport already connected - Skipping")
 
@@ -309,7 +309,7 @@ class BaseRPCService(BaseEndpoint):
                 while not self.connected:
                     time.sleep(self._LOOP_INTERVAL)
 
-            self._state = EndpointState.CONNECTED
+            self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
         else:
             self.log.warning("Transport already connected - Skipping")
 

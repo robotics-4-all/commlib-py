@@ -125,7 +125,7 @@ class KafkaTransport(BaseTransport):
                     consumer.close()
                 finally:
                     pass
-            self._connected = False
+            self._set_connected(False)
 
     def create_producer(self, kafka_cfg):
         producer = Producer(kafka_cfg)
@@ -858,7 +858,7 @@ class TaskProducer(BaseTaskProducer):
             on_message=self._on_progress_msg,
         )
         self._progress_sub.run()
-        self._state = EndpointState.CONNECTED
+        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
 
     def stop(self, wait: bool = True) -> None:
         if self._result_sub is not None:
@@ -867,7 +867,7 @@ class TaskProducer(BaseTaskProducer):
             self._progress_sub.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         assert self._transport is not None
@@ -942,7 +942,7 @@ class TaskWorker(BaseTaskWorker):
             on_message=self._on_task_msg,
         )
         self._task_sub.run()
-        self._state = EndpointState.CONNECTED
+        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
 
     def stop(self, wait: bool = True) -> None:
         self._stop_event.set()
@@ -950,7 +950,7 @@ class TaskWorker(BaseTaskWorker):
             self._task_sub.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
 
     def _on_task_msg(self, msg) -> None:
         if isinstance(msg, dict):

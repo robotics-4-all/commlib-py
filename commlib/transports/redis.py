@@ -1447,14 +1447,14 @@ class TaskProducer(BaseTaskProducer):
         self._result_transport.start()
         self._result_transport.subscribe(self._result_topic, self._on_result_msg)
         self._result_transport.subscribe(self._progress_topic, self._on_progress_msg)
-        self._state = EndpointState.CONNECTED
+        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
 
     def stop(self, wait: bool = True) -> None:
         if self._result_transport is not None:
             self._result_transport.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         assert self._transport is not None
@@ -1494,7 +1494,7 @@ class TaskWorker(BaseTaskWorker):
         self._stop_event.clear()
         self._poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
         self._poll_thread.start()
-        self._state = EndpointState.CONNECTED
+        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
 
     def stop(self, wait: bool = True) -> None:
         self._stop_event.set()
@@ -1502,7 +1502,7 @@ class TaskWorker(BaseTaskWorker):
             self._poll_thread.join(timeout=5.0)
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
 
     def _poll_loop(self) -> None:
         assert self._transport is not None
