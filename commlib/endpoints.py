@@ -86,6 +86,22 @@ class BaseEndpoint:
         self._transport: Optional[BaseTransport] = None
 
     @property
+    def state(self) -> EndpointState:
+        """Current endpoint state."""
+        return self._state
+
+    def set_state(self, state: EndpointState) -> None:
+        """Set the endpoint state.
+
+        Provides a public API for subclasses to update state without
+        directly accessing the private ``_state`` attribute.
+
+        Args:
+            state: The new endpoint state.
+        """
+        self._state = state
+
+    @property
     def connected(self):
         return self._transport.is_connected if self._transport else False
 
@@ -122,7 +138,7 @@ class BaseEndpoint:
                     # Fallback for transports without event support
                     while not self.connected:
                         time.sleep(0.001)
-            self._state = EndpointState.CONNECTED
+            self.set_state(EndpointState.CONNECTED)
         else:
             self.log.warning("Transport already connected - Skipping")
 
@@ -149,7 +165,7 @@ class BaseEndpoint:
                     # Fallback for transports without event support
                     while self.connected:
                         time.sleep(0.001)
-            self._state = EndpointState.DISCONNECTED
+            self.set_state(EndpointState.DISCONNECTED)
         else:
             self.log.debug(
                 "Transport is not connected - cannot stop %s",

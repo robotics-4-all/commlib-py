@@ -1211,7 +1211,7 @@ class TaskProducer(BaseTaskProducer):
             on_message=self._on_progress_msg,
         )
         self._progress_sub.run()
-        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:
         if self._result_sub is not None:
@@ -1220,7 +1220,7 @@ class TaskProducer(BaseTaskProducer):
             self._progress_sub.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         assert self._transport is not None
@@ -1270,7 +1270,7 @@ class TaskWorker(BaseTaskWorker):
             on_message=self._on_task_msg,
         )
         self._task_sub.run()
-        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:
         self._stop_event.set()
@@ -1280,7 +1280,7 @@ class TaskWorker(BaseTaskWorker):
             self._pub.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _on_task_msg(self, msg) -> None:
         if isinstance(msg, dict):

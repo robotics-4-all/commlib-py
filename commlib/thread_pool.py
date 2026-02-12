@@ -31,6 +31,19 @@ class ThreadPoolManager:
         self._pool_lock = threading.Lock()
 
     @classmethod
+    def reset(cls) -> None:
+        """Reset the singleton instance.
+
+        Shuts down all pools and clears the singleton so the next
+        ``get_instance()`` call creates a fresh manager. Intended for
+        testing and benchmarks only.
+        """
+        with cls._lock:
+            if cls._instance is not None:
+                cls._instance.shutdown_all(wait=False)
+                cls._instance = None
+
+    @classmethod
     def get_instance(cls) -> "ThreadPoolManager":
         """Get singleton instance of ThreadPoolManager.
 

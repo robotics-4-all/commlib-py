@@ -30,7 +30,7 @@ def benchmark_shared_vs_dedicated_pools():
 
     # Test with dedicated pools (legacy)
     print("Using DEDICATED pools (legacy):")
-    ThreadPoolManager._instance = None  # Reset
+    ThreadPoolManager.reset()
     subs_dedicated = []
     start = time.perf_counter()
     for i in range(num_subscribers):
@@ -57,7 +57,7 @@ def benchmark_shared_vs_dedicated_pools():
     # Test with shared pools (optimized)
     print()
     print("Using SHARED pools (optimized):")
-    ThreadPoolManager._instance = None  # Reset
+    ThreadPoolManager.reset()
     subs_shared = []
     start = time.perf_counter()
     for i in range(num_subscribers):
@@ -104,7 +104,7 @@ def benchmark_subscriber_scaling():
     counts = [1, 5, 10, 20, 50]
 
     for count in counts:
-        ThreadPoolManager._instance = None  # Reset
+        ThreadPoolManager.reset()
 
         subscribers = []
         start = time.perf_counter()
@@ -141,7 +141,7 @@ def benchmark_pool_reuse():
     print("\nBenchmark: Thread Pool Reuse")
     print("-" * 60)
 
-    ThreadPoolManager._instance = None  # Reset
+    ThreadPoolManager.reset()
 
     # Get pool multiple times (should be same instance)
     pool_ids = []

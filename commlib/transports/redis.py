@@ -204,6 +204,21 @@ class RedisTransport(BaseTransport):
         return cls._redis_pool
 
     @classmethod
+    def reset_redis_pool(cls) -> None:
+        """Disconnect and clear the class-level Redis connection pool.
+
+        Intended for testing and benchmarks that need a clean pool state.
+        """
+        if cls._redis_pool is not None:
+            try:
+                cls._redis_pool.disconnect()
+            except Exception:  # pylint: disable=broad-except
+                pass
+        _REDIS_POOL_REGISTRY.clear()
+        _REDIS_POOL_REFCOUNT.clear()
+        cls._redis_pool = None
+
+    @classmethod
     def logger(cls) -> logging.Logger:
         global redis_logger
         if redis_logger is None:
@@ -1447,14 +1462,14 @@ class TaskProducer(BaseTaskProducer):
         self._result_transport.start()
         self._result_transport.subscribe(self._result_topic, self._on_result_msg)
         self._result_transport.subscribe(self._progress_topic, self._on_progress_msg)
-        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:
         if self._result_transport is not None:
             self._result_transport.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         assert self._transport is not None
@@ -1494,7 +1509,7 @@ class TaskWorker(BaseTaskWorker):
         self._stop_event.clear()
         self._poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
         self._poll_thread.start()
-        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:
         self._stop_event.set()
@@ -1502,7 +1517,7 @@ class TaskWorker(BaseTaskWorker):
             self._poll_thread.join(timeout=5.0)
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _poll_loop(self) -> None:
         assert self._transport is not None

@@ -179,7 +179,7 @@ class Subscriber(BaseSubscriber):
             self._transport.subscribe(self._topic, wrapper)
             self._callback_registered = True
 
-        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:
         """Stop the subscriber.
@@ -193,7 +193,7 @@ class Subscriber(BaseSubscriber):
         if self._transport is not None and self._transport.is_connected:
             self._transport.stop()
 
-        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.DISCONNECTED)
 
 
 class RPCService(BaseRPCService):
@@ -216,7 +216,7 @@ class RPCService(BaseRPCService):
 
         if not self._transport.is_connected:
             self._transport.start()
-            self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
+            self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:
         """Stop the RPC service.
@@ -230,7 +230,7 @@ class RPCService(BaseRPCService):
         if self._transport is not None and self._transport.is_connected:
             self._transport.stop()
 
-        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.DISCONNECTED)
 
 
 class RPCClient(BaseRPCClient):
@@ -292,7 +292,7 @@ class TaskProducer(BaseTaskProducer):
                 _MOCK_PROGRESS_CALLBACKS[key] = []
             _MOCK_PROGRESS_CALLBACKS[key].append(self._handle_progress)
 
-        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:
         with _MOCK_BUS_LOCK:
@@ -306,7 +306,7 @@ class TaskProducer(BaseTaskProducer):
 
         if self._transport is not None and self._transport.is_connected:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         with _MOCK_BUS_LOCK:
@@ -342,7 +342,7 @@ class TaskWorker(BaseTaskWorker):
                 _MOCK_TASK_WORKERS[key] = []
             _MOCK_TASK_WORKERS[key].append(self._on_envelope_received)
 
-        self._state = EndpointState.CONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:
         self._stop_event.set()
@@ -355,7 +355,7 @@ class TaskWorker(BaseTaskWorker):
 
         if self._transport is not None and self._transport.is_connected:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED  # pylint: disable=attribute-defined-outside-init
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _on_envelope_received(self, envelope: TaskEnvelope) -> None:
         threading.Thread(

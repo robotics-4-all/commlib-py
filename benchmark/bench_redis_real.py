@@ -200,7 +200,6 @@ def benchmark_redis_connection_pool_sharing(num_publishers=20):
     """
     from commlib.transports.redis import (
         _REDIS_POOL_REGISTRY,
-        _REDIS_POOL_REFCOUNT,
         RedisTransport,
     )
 
@@ -209,26 +208,7 @@ def benchmark_redis_connection_pool_sharing(num_publishers=20):
     print("\nBenchmark: Connection pool sharing")
     print("-" * 60)
 
-    # CRITICAL: Clear pools and reset class variable
-    # Fixed in commit 5291b9c to prevent "Connection pools: 0" error
-    #
-    # Issue: RedisTransport._redis_pool is a class variable that persists
-    # between tests. If we only clear the registries, the transport will
-    # reuse the old pool object instead of creating a new one, resulting
-    # in 0 pools being counted.
-    #
-    # Solution: Proper cleanup sequence:
-    # 1. Disconnect old pool (prevent resource leak)
-    # 2. Clear registry dictionaries
-    # 3. Reset class variable to None
-    if RedisTransport._redis_pool is not None:
-        try:
-            RedisTransport._redis_pool.disconnect()
-        except Exception:
-            pass
-    _REDIS_POOL_REGISTRY.clear()
-    _REDIS_POOL_REFCOUNT.clear()
-    RedisTransport._redis_pool = None
+    RedisTransport.reset_redis_pool()
 
     publishers = []
 
