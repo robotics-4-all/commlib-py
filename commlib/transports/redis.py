@@ -860,7 +860,9 @@ class Publisher(BasePublisher):
             compression=self._compression,
         )
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(  # pylint: disable=unused-argument
+        self, msg: PubSubMessage, topic: str = "", key: str = ""
+    ) -> None:
         """publish.
         Publish message
 
@@ -894,7 +896,7 @@ class MPublisher(Publisher):
         """
         super().__init__(topic=None, *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """publish.
 
         Args:
@@ -969,7 +971,7 @@ class Subscriber(BaseSubscriber):
         )
         validate_pubsub_topic_strict(self._topic)
 
-    def stop(self, wait: bool = True):
+    def stop(self, wait: bool = True):  # pylint: disable=unused-argument
         """
         Stops the subscriber thread if it is running and then calls the
         stop method of the superclass to perform any additional cleanup.
@@ -1044,7 +1046,7 @@ class WSubscriber(BaseSubscriber):
     """WSubscriber class for subscribing to topics and handling messages using a.
     single connection."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # pylint: disable=unused-argument
         """
         Initialize the WSubscriber.
 
@@ -1077,7 +1079,7 @@ class WSubscriber(BaseSubscriber):
         validate_pubsub_topic_strict(topic)
         self._subs[topic] = callback
 
-    def stop(self, wait: bool = True):
+    def stop(self, wait: bool = True):  # pylint: disable=unused-argument
         """
         Stops the transport by stopping all subscriber
         threads and the main subscriber thread if they exist.
@@ -1174,7 +1176,7 @@ class PSubscriber(BaseSubscriber):
         )
         validate_pubsub_topic(self._topic)
 
-    def stop(self, wait: bool = True):
+    def stop(self, wait: bool = True):  # pylint: disable=unused-argument
         """
         Stops the Redis transport by stopping the subscriber thread if it exists,
         and then calls the stop method of the superclass.
@@ -1458,7 +1460,7 @@ class TaskProducer(BaseTaskProducer):
         self._result_topic = f"{self._queue_name}.results"
         self._progress_topic = f"{self._queue_name}.progress"
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1471,7 +1473,7 @@ class TaskProducer(BaseTaskProducer):
         self._result_transport.subscribe(self._progress_topic, self._on_progress_msg)
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._result_transport is not None:
             self._result_transport.stop()
         if self._transport is not None:
@@ -1509,7 +1511,7 @@ class TaskWorker(BaseTaskWorker):
         self._progress_topic = f"{self._queue_name}.progress"
         self._poll_thread = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1518,7 +1520,7 @@ class TaskWorker(BaseTaskWorker):
         self._poll_thread.start()
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         self._stop_event.set()
         if self._poll_thread is not None:
             self._poll_thread.join(timeout=5.0)

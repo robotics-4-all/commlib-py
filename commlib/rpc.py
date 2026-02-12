@@ -144,7 +144,7 @@ class BaseRPCServer(BaseEndpoint):
         else:
             self.log.warning("Transport already connected - Skipping")
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._t_stop_event:
             self._t_stop_event.set()
         if self._transport is not None:

@@ -300,7 +300,7 @@ class Publisher(BasePublisher):
         assert self._transport is not None, "Transport is not initialized."
         self._producer = self._transport.create_producer(self._kafka_cfg)
 
-    def stop(self, wait: bool = True):
+    def stop(self, wait: bool = True):  # pylint: disable=unused-argument
         if self._producer is not None:
             self._producer.flush()
 
@@ -435,7 +435,7 @@ class Subscriber(BaseSubscriber):
         _data = self._serializer.deserialize(msg.value())
         return _data, _topic, _key, _timestamp
 
-    def stop(self, wait: bool = True):
+    def stop(self, wait: bool = True):  # pylint: disable=unused-argument
         self._consumer.close()
 
 
@@ -846,7 +846,7 @@ class TaskProducer(BaseTaskProducer):
         self._result_sub = None
         self._progress_sub = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -864,7 +864,7 @@ class TaskProducer(BaseTaskProducer):
         self._progress_sub.run()
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._result_sub is not None:
             self._result_sub.stop()
         if self._progress_sub is not None:
@@ -936,7 +936,7 @@ class TaskWorker(BaseTaskWorker):
         self._progress_topic = f"{self._queue_name}-progress"
         self._task_sub = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -948,7 +948,7 @@ class TaskWorker(BaseTaskWorker):
         self._task_sub.run()
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         self._stop_event.set()
         if self._task_sub is not None:
             self._task_sub.stop()

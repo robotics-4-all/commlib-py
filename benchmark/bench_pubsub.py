@@ -66,7 +66,7 @@ def benchmark_pubsub_roundtrip():
 
     message_count = [0]
 
-    def on_message(msg):
+    def on_message(_msg):
         message_count[0] += 1
 
     # Create subscriber
@@ -130,7 +130,7 @@ def benchmark_multiple_subscribers():
     subscribers = []
     for i in range(num_subscribers):
 
-        def on_message(msg, idx=i):
+        def on_message(_msg, idx=i):
             message_counts[idx][0] += 1
 
         sub = Subscriber(

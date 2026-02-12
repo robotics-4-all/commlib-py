@@ -887,7 +887,7 @@ class RPCService(BaseRPCService):
         super().stop()
         return True
 
-    def stop(self, wait: bool = True) -> bool:  # type: ignore[override]
+    def stop(self, wait: bool = True) -> bool:  # type: ignore[override]  # pylint: disable=unused-argument
         """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
@@ -1127,7 +1127,7 @@ class Publisher(BasePublisher):
             self._transport.create_exchange(self._topic_exchange, ExchangeType.Topic)
         self._transport.detach_amqp_events_thread()
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """Publish message once.
 
         Args:
@@ -1185,7 +1185,7 @@ class MPublisher(Publisher):
     def __init__(self, *args, **kwargs):
         super().__init__(topic="*", *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """Publish message once.
 
         Args:
@@ -1397,7 +1397,7 @@ class Subscriber(BaseSubscriber):
         ):
             self.log.error("Error in on_msg_callback", exc_info=True)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         self.close()
 
     def __del__(self):
@@ -1596,7 +1596,7 @@ class TaskProducer(BaseTaskProducer):
         self._result_topic = f"{self._queue_name}.results"
         self._progress_topic = f"{self._queue_name}.progress"
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1614,7 +1614,7 @@ class TaskProducer(BaseTaskProducer):
         self._progress_sub.run()
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._result_sub is not None:
             self._result_sub.stop()
         if self._progress_sub is not None:
@@ -1664,7 +1664,7 @@ class TaskWorker(BaseTaskWorker):
         self._progress_topic = f"{self._queue_name}.progress"
         self._consumer_thread = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1678,7 +1678,7 @@ class TaskWorker(BaseTaskWorker):
         self._consumer_thread.start()
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         self._stop_event.set()
         if self._consumer_thread is not None:
             self._consumer_thread.join(timeout=5.0)

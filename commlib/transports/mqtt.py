@@ -481,7 +481,7 @@ class Publisher(BasePublisher):
             compression=self._compression,
         )
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """publish.
 
         Args:
@@ -507,7 +507,7 @@ class MPublisher(Publisher):
     def __init__(self, *args, **kwargs):
         super().__init__(topic=None, *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """publish.
 
         Args:
@@ -636,7 +636,7 @@ class Subscriber(BaseSubscriber):
 
 
 class WSubscriber(BaseSubscriber):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # pylint: disable=unused-argument
         """__init__.
 
         Args:
@@ -1197,7 +1197,7 @@ class TaskProducer(BaseTaskProducer):
         self._result_sub = None
         self._progress_sub = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1215,7 +1215,7 @@ class TaskProducer(BaseTaskProducer):
         self._progress_sub.run()
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._result_sub is not None:
             self._result_sub.stop()
         if self._progress_sub is not None:
@@ -1257,7 +1257,7 @@ class TaskWorker(BaseTaskWorker):
         self._task_sub = None
         self._pub = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1274,7 +1274,7 @@ class TaskWorker(BaseTaskWorker):
         self._task_sub.run()
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         self._stop_event.set()
         if self._task_sub is not None:
             self._task_sub.stop()

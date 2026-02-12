@@ -93,7 +93,7 @@ class RealTimePlotter:
         self.ax = self.fig.add_subplot(111, projection="3d")
         self.sc = None
 
-    def update(self, frame):
+    def update(self, _frame):
         try:
             while not self.data_queue.empty():
                 data = self.data_queue.get_nowait()
@@ -167,7 +167,7 @@ class PubSubPerfTest:
         size_kb: int,
         target_freq: int,
         num_messages: int,
-        node: Node,
+        _node: Node,
         pub: Any,
     ):
         # Reset counters for this data size

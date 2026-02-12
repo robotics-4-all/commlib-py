@@ -116,7 +116,7 @@ class Publisher(BasePublisher):
         super().__init__(*args, **kwargs)
         self._transport = MockTransport(conn_params=self._conn_params)
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """Publish message to mock transport.
 
         Args:
@@ -147,7 +147,7 @@ class Subscriber(BaseSubscriber):
         self._transport = MockTransport(conn_params=self._conn_params)
         self._callback_registered = False
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         """Start the subscriber.
 
         Args:
@@ -181,7 +181,7 @@ class Subscriber(BaseSubscriber):
 
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         """Stop the subscriber.
 
         Args:
@@ -203,7 +203,7 @@ class RPCService(BaseRPCService):
         super().__init__(*args, **kwargs)
         self._transport = MockTransport(conn_params=self._conn_params)
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         """Start the RPC service.
 
         Args:
@@ -218,7 +218,7 @@ class RPCService(BaseRPCService):
             self._transport.start()
             self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         """Stop the RPC service.
 
         Args:
@@ -240,7 +240,7 @@ class RPCClient(BaseRPCClient):
         super().__init__(*args, **kwargs)
         self._transport = MockTransport(conn_params=self._conn_params)
 
-    def call(
+    def call(  # pylint: disable=unused-argument
         self, msg: RPCMessage.Request, timeout: float = 30.0
     ) -> RPCMessage.Response:
         """Make RPC call (mock implementation).
@@ -274,7 +274,7 @@ class TaskProducer(BaseTaskProducer):
         super().__init__(*args, **kwargs)
         self._transport = MockTransport(conn_params=self._conn_params)
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._transport is None:
             raise RuntimeError(
                 f"Transport not initialized - cannot run {self.__class__.__name__}"
@@ -294,7 +294,7 @@ class TaskProducer(BaseTaskProducer):
 
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         with _MOCK_BUS_LOCK:
             key = self._queue_name
             if key in _MOCK_RESULT_CALLBACKS:
@@ -328,7 +328,7 @@ class TaskWorker(BaseTaskWorker):
         super().__init__(*args, **kwargs)
         self._transport = MockTransport(conn_params=self._conn_params)
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         if self._transport is None:
             raise RuntimeError(
                 f"Transport not initialized - cannot run {self.__class__.__name__}"
@@ -344,7 +344,7 @@ class TaskWorker(BaseTaskWorker):
 
         self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
         self._stop_event.set()
 
         with _MOCK_BUS_LOCK:
