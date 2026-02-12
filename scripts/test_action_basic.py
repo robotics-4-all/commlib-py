@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
-import sys
 import time
 import argparse
-import threading
 from commlib.msg import ActionMessage
 from commlib.node import Node
 

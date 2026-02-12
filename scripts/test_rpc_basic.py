@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
-import sys
 import time
 import argparse
-from pydantic import Field
 
 from commlib.msg import RPCMessage
 from commlib.node import Node

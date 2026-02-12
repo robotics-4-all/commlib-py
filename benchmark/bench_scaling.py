@@ -10,7 +10,6 @@ Tests how performance scales with:
 Can be run standalone or via pytest integration tests.
 """
 
-import os
 import time
 import psutil
 from commlib.msg import PubSubMessage

@@ -5,9 +5,8 @@ import time
 import statistics
 import threading
 import os
-import sys
 import multiprocessing
-from typing import List, Dict, Any, Optional
+from typing import List, Any, Optional
 import psutil
 
 from rich.console import Console
@@ -28,9 +27,7 @@ from commlib.utils import get_timestamp_ns
 
 try:
     import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
     import matplotlib.animation as animation
-    import numpy as np
 
     HAS_MATPLOTLIB = True
 except ImportError:

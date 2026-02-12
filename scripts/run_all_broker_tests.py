@@ -14,7 +14,6 @@ from rich.progress import (
     TaskProgressColumn,
 )
 from rich.panel import Panel
-from rich.live import Live
 from rich import box
 
 # Mapping of docker-compose services to broker types used in test scripts
