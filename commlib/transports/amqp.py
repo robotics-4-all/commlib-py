@@ -660,8 +660,8 @@ class AMQPTransport(BaseTransport):
             KeyError,
             AttributeError,
             OSError,
-        ):
-            raise AMQPError("Error while trying to bind queue to exchange")
+        ) as exc:
+            raise AMQPError("Error while trying to bind queue to exchange") from exc
 
     def set_channel_qos(self, prefetch_count=1, global_qos=False):
         if self._channel is None:
@@ -766,7 +766,7 @@ class RPCService(BaseRPCService):
             OSError,
         ) as exc:
             self.log.error(exc, exc_info=True)
-            raise AMQPError("Error while trying to consume from queue")
+            raise AMQPError("Error while trying to consume from queue") from exc
 
     def _rpc_exists(self):
         assert self._transport is not None
@@ -1329,7 +1329,7 @@ class Subscriber(BaseSubscriber):
             OSError,
         ) as exc:
             self.log.error(exc, exc_info=False)
-            raise AMQPError("Could not consume from message queue")
+            raise AMQPError("Could not consume from message queue") from exc
 
     def _on_msg_callback_wrapper(self, _ch, _method, properties, body):
         _data = {}

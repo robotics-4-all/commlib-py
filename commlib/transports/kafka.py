@@ -504,7 +504,7 @@ class RPCService(BaseRPCService):
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
         except Exception as e:
-            raise RPCRequestError(str(e))
+            raise RPCRequestError(str(e)) from e
         return _req_msg, uri
 
     def run_forever(self):
@@ -611,7 +611,7 @@ class RPCServer(BaseRPCServer):
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
         except Exception as e:
-            raise RPCRequestError(str(e))
+            raise RPCRequestError(str(e)) from e
         return _req_msg, _uri
 
     def _register_endpoint(

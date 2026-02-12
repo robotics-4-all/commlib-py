@@ -361,7 +361,7 @@ class RedisTransport(BaseTransport):
             AttributeError,
             OSError,
         ) as e:
-            raise ConnectionError(f"Could not connect to Redis server: {e}")
+            raise ConnectionError(f"Could not connect to Redis server: {e}") from e
         self._retry_count = 0
 
     def start(self) -> None:
@@ -821,7 +821,7 @@ class RPCClient(BaseRPCClient):
         try:
             data = self._prepare_call_data(msg)
         except ValueError as e:
-            raise RPCRequestError(str(e))
+            raise RPCRequestError(str(e)) from e
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
         # while not self._transport.queue_exists(self._rpc_name):

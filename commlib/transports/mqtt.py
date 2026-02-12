@@ -364,8 +364,10 @@ class MQTTTransport(BaseTransport):
             KeyError,
             AttributeError,
             OSError,
-        ):
-            raise SubscriberError(f"Failed to subscribe to topic {transformed_topic}")
+        ) as exc:
+            raise SubscriberError(
+                f"Failed to subscribe to topic {transformed_topic}"
+            ) from exc
         _clb = functools.partial(self._on_msg_internal, callback)
         self._client.message_callback_add(transformed_topic, _clb)
         return transformed_topic
@@ -998,7 +1000,7 @@ class RPCServer(BaseRPCServer):
             AttributeError,
             OSError,
         ) as e:
-            raise RPCRequestError(str(e))
+            raise RPCRequestError(str(e)) from e
         return _req_msg, _uri
 
 
@@ -1075,7 +1077,7 @@ class RPCClient(BaseRPCClient):
         try:
             data = self._prepare_call_data(msg)
         except ValueError as e:
-            raise RPCRequestError(str(e))
+            raise RPCRequestError(str(e)) from e
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
         self._transport.subscribe(_reply_to, self._on_response_wrapper)

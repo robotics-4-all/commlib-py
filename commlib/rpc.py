@@ -282,7 +282,7 @@ class BaseRPCService(BaseEndpoint):
             if not self._validate_rpc_req_msg(_req_msg):
                 raise ValueError("Request Message is invalid!")
         except Exception as e:
-            raise ValueError(str(e))
+            raise ValueError(str(e)) from e
         return _req_msg, uri
 
     def run_forever(self):
