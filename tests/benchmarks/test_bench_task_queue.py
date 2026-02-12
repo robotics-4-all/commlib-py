@@ -2,6 +2,7 @@
 
 No external broker dependencies required.
 """
+# pylint: disable=unused-argument
 
 import time
 import warnings

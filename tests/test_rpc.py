@@ -50,12 +50,12 @@ class TestPubSub(unittest.TestCase):
         rpc = node.create_rpc(
             msg_type=SonarMessage,
             rpc_name="sonar.front",
-            on_request=lambda msg: print(msg),
+            on_request=print,
         )
         rpc.run()
         rpc.run()
 
-        self.assertTrue(1, 1)
+        # Smoke test: no exception raised on double run
 
     def test_rpc_client_double_run(self):
         """Test something."""
@@ -69,4 +69,4 @@ class TestPubSub(unittest.TestCase):
         rpcc.run()
         rpcc.run()
 
-        self.assertTrue(1, 1)
+        # Smoke test: no exception raised on double run

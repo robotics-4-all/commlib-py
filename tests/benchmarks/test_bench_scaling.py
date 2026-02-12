@@ -5,9 +5,10 @@ These tests validate that scaling benchmarks work correctly with mock transport
 (no external dependencies required).
 """
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add benchmark directory to Python path
 benchmark_dir = Path(__file__).parent.parent.parent / "benchmark"

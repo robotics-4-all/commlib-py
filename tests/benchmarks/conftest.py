@@ -4,9 +4,10 @@ Shared pytest fixtures for benchmark integration tests.
 Provides broker availability checking to skip tests when brokers are not running.
 """
 
-import pytest
-import socket
 import os
+import socket
+
+import pytest
 
 
 def is_broker_available(host: str, port: int, timeout: float = 2.0) -> bool:

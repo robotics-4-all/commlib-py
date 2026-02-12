@@ -21,10 +21,12 @@ Usage:
     # Generate histogram
     pytest tests/benchmarks/test_bench_mqtt_benchmark.py --benchmark-histogram
 """
+# pylint: disable=unused-argument
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add benchmark directory to Python path
 benchmark_dir = Path(__file__).parent.parent.parent / "benchmark"

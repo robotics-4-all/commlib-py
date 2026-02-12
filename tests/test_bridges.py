@@ -179,7 +179,7 @@ class TestRPCBridge(unittest.TestCase):
         mock_factory.return_value.return_value = Mock()
         mock_factory.return_value.side_effect = [mock_server, mock_client]
 
-        bridge = RPCBridge(
+        _bridge = RPCBridge(
             from_uri="test.rpc",
             to_uri="test.rpc",
             from_broker_params=self.redis_params,
@@ -197,7 +197,7 @@ class TestRPCBridge(unittest.TestCase):
         mock_client = Mock()
         mock_client.call = Mock(return_value={"result": "success"})
 
-        def factory_side_effect(*args, **kwargs):
+        def factory_side_effect(*args, **_kwargs):
             Mock()
             if "RPCService" in str(args):
                 return lambda **kw: mock_server
@@ -291,7 +291,7 @@ class TestTopicBridge(unittest.TestCase):
         """Test TopicBridge initialization creates subscriber and publisher."""
         mock_factory.return_value = lambda **kw: Mock()
 
-        bridge = TopicBridge(
+        _bridge = TopicBridge(
             from_uri="test/topic",
             to_uri="test.topic",
             from_broker_params=self.redis_params,

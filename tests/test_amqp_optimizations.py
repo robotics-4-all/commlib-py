@@ -229,7 +229,7 @@ class TestAMQPEventDrivenRPC(unittest.TestCase):
     def test_rpc_client_has_response_event(self):
         """Test RPCClient initializes with response event."""
         from commlib.msg import RPCMessage
-        from commlib.transports.amqp import ConnectionParameters, RPCClient
+        from commlib.transports.amqp import RPCClient
 
         class TestRPC(RPCMessage):
             class Request(RPCMessage.Request):
@@ -258,7 +258,7 @@ class TestAMQPConnectionStateEvents(unittest.TestCase):
     @patch("commlib.transports.amqp.Connection")
     def test_amqp_transport_uses_event_driven_state(self, mock_connection_class):
         """Test AMQPTransport uses _set_connected for event-driven state."""
-        from commlib.transports.amqp import AMQPTransport, ConnectionParameters
+        from commlib.transports.amqp import AMQPTransport
 
         mock_conn = Mock()
         mock_conn.is_open = True

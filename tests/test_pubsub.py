@@ -50,12 +50,12 @@ class TestPubSub(unittest.TestCase):
         sub = node.create_subscriber(
             msg_type=SonarMessage,
             topic="sonar.front",
-            on_message=lambda msg: print(msg),
+            on_message=print,
         )
         sub.run()
         sub.run()
 
-        self.assertTrue(1, 1)
+        # Smoke test: no exception raised on double run
 
     def test_publisher_double_run(self):
         """Test something."""
@@ -69,4 +69,4 @@ class TestPubSub(unittest.TestCase):
         pub.run()
         pub.run()
 
-        self.assertTrue(1, 1)
+        # Smoke test: no exception raised on double run
