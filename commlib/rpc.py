@@ -87,7 +87,8 @@ class BaseRPCServer(BaseEndpoint):
 
     def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
         """_validate_rpc_req_msg.
-        Validates the RPC request message by checking if the message header is present and the reply_to field is not empty or None.
+        Validates the RPC request message by checking if the header
+        is present and reply_to is not empty or None.
 
         Args:
             msg (CommRPCMessage): The RPC request message to validate.
@@ -242,7 +243,8 @@ class BaseRPCService(BaseEndpoint):
 
     def _validate_rpc_req_msg(self, msg: CommRPCMessage) -> bool:
         """_validate_rpc_req_msg.
-        Validates the RPC request message by checking if the message header is present and the reply_to field is not empty or None.
+        Validates the RPC request message by checking if the header
+        is present and reply_to is not empty or None.
 
         Args:
             msg (CommRPCMessage): The RPC request message to validate.
@@ -315,7 +317,8 @@ class BaseRPCService(BaseEndpoint):
         """
         Stop the RPC service and the main thread.
 
-        This method sets the `_t_stop_event` flag, which is used to signal the main thread to stop running. It then calls the `stop()` method of the parent class to perform any additional cleanup or shutdown logic.
+        Sets the ``_t_stop_event`` flag to signal the main thread
+        to stop, then calls the parent ``stop()`` for cleanup.
         """
         if self._t_stop_event:
             self._t_stop_event.set()
@@ -422,7 +425,9 @@ class BaseRPCClient(BaseEndpoint):
         """_done_callback.
         Handles the completion of an asynchronous RPC call.
 
-        This function is used as a callback for the Future object returned by `call_async()`. It checks the status of the Future and, if successful, calls the provided `on_response` callback with the result.
+        Callback for the Future returned by ``call_async()``.
+        Checks the Future status and calls ``on_response`` with
+        the result if successful.
 
         Args:
             on_response (callable): A callback function to be called with the RPC response.

@@ -13,15 +13,9 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 import redis
 from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
-from redis.exceptions import BusyLoadingError, ConnectionError, TimeoutError
+from redis.exceptions import BusyLoadingError, ConnectionError, TimeoutError  # pylint: disable=redefined-builtin
+from rich import console as _rich_console_mod, pretty
 
-from commlib.task_queue import (
-    BaseTaskProducer,
-    BaseTaskWorker,
-    TaskEnvelope,
-    TaskProgress,
-    TaskResult,
-)
 from commlib.action import (
     BaseActionClient,
     BaseActionService,
@@ -32,8 +26,8 @@ from commlib.action import (
     _ActionStatusMessage,
 )
 from commlib.compression import CompressionType, deflate, inflate_str
-from commlib.endpoints import EndpointState
 from commlib.connection import BaseConnectionParameters
+from commlib.endpoints import EndpointState
 from commlib.exceptions import RPCRequestError
 from commlib.msg import PubSubMessage, RPCMessage
 from commlib.pubsub import (
@@ -50,10 +44,15 @@ from commlib.rpc import (
     CommRPCMessage,
 )
 from commlib.serializer import JSONSerializer
+from commlib.task_queue import (
+    BaseTaskProducer,
+    BaseTaskWorker,
+    TaskEnvelope,
+    TaskProgress,
+    TaskResult,
+)
 from commlib.transports.base_transport import BaseTransport
 from commlib.utils import gen_timestamp
-
-from rich import console as _rich_console_mod, pretty
 
 pretty.install()
 console: Any = _rich_console_mod.Console()
@@ -101,7 +100,7 @@ def get_or_create_redis_pool(
     with _REDIS_POOL_LOCK:
         if key not in _REDIS_POOL_REGISTRY:
             # Create new pool
-            retry = (
+            _retry = (
                 Retry(
                     ExponentialBackoff(
                         conn_params.reconnect_attempts * conn_params.reconnect_delay
@@ -279,7 +278,7 @@ class RedisTransport(BaseTransport):
         return self.logger()
 
     def _build_conn_pool(self):
-        retry = (
+        _retry = (
             Retry(
                 ExponentialBackoff(
                     self._conn_params.reconnect_attempts
@@ -290,7 +289,7 @@ class RedisTransport(BaseTransport):
             if self._conn_params.reconnect_attempts > 0
             else None
         )
-        retry_on_error = (
+        _retry_on_error = (
             [ConnectionError, TimeoutError, BusyLoadingError, ConnectionRefusedError]
             if self._conn_params.reconnect_attempts > 0
             else None
@@ -702,7 +701,7 @@ class RPCService(BaseRPCService):
 
     def _on_request_handle(self, payload):
         try:
-            req_msg, topic = self._unpack_comm_msg(payload)
+            req_msg, _topic = self._unpack_comm_msg(payload)
             self._executor.submit(self._on_request_internal, req_msg)
         except (
             RuntimeError,
@@ -765,7 +764,7 @@ class RPCService(BaseRPCService):
         #     self._transport.delete_queue(self._rpc_name)
         # self._transport.create_queue(self._rpc_name)
         while not self._t_stop_event.is_set():
-            msgq, payload = self._transport.wait_for_msg(self._rpc_name)
+            _msgq, payload = self._transport.wait_for_msg(self._rpc_name)
             if payload is None:
                 continue
             self._on_request_handle(payload)
@@ -797,7 +796,8 @@ class RPCClient(BaseRPCClient):
             timeout (float, optional): The maximum time to wait for a response in seconds. Defaults to 10.
 
         Returns:
-            RPCMessage.Response: The response message received. If no response is received within the timeout period, returns None.
+            RPCMessage.Response: The response message received.
+                Returns None if timeout is reached.
         """
         assert self._transport is not None
         try:
@@ -813,7 +813,7 @@ class RPCClient(BaseRPCClient):
         self._transport.delete_queue(_reply_to)
         if _msg is None:
             return None  # type: ignore[return-value]
-        data, header, uri = self._unpack_comm_msg(_msg)
+        data, _header, _uri = self._unpack_comm_msg(_msg)
         # TODO: Evaluate response type and raise exception if necessary
         if self._msg_type is None:
             return data
@@ -998,7 +998,7 @@ class Subscriber(BaseSubscriber):
 
     def _on_message(self, payload: Dict[str, Any]):
         try:
-            data, uri = self._unpack_comm_msg(payload)
+            data, _uri = self._unpack_comm_msg(payload)
             if self.onmessage is not None:
                 if self._msg_type is None:
                     self.onmessage(data)
@@ -1104,7 +1104,7 @@ class WSubscriber(BaseSubscriber):
             payload (Dict[str, Any]): The payload of the received message.
         """
         try:
-            data, uri = self._unpack_comm_msg(payload)
+            data, _uri = self._unpack_comm_msg(payload)
             if callback is not None:
                 if self._msg_type is None:
                     callback(data)

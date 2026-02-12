@@ -53,7 +53,7 @@ class MessageHeader(Message):
     msg_id: Union[int, str, UUID] = -1
     node_id: Union[int, str, UUID] = ""
     agent: str = "commlib-py"
-    timestamp: int = Field(default_factory=lambda: get_timestamp_ns())
+    timestamp: int = Field(default_factory=get_timestamp_ns)
     properties: Dict[str, Any] = {}
 
 
@@ -139,7 +139,8 @@ class FileObject(BaseModel):
     The `filename` attribute contains the name of the file.
     The `encoding` attribute specifies the encoding used for the `data` attribute, defaulting to "base64".
 
-    The `load_from_file` method reads the raw bytes from the specified file path and stores them in the `data` attribute, encoding them in the specified encoding.
+    The ``load_from_file`` method reads raw bytes from the file path
+    and stores them in the ``data`` attribute with the given encoding.
     """
 
     data: Union[List[bytes], str] = []

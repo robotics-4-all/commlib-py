@@ -7,6 +7,7 @@ pub/sub, RPC, and action capabilities.
 import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
 from typing import Any, Callable, List, Optional
 
@@ -14,7 +15,6 @@ from commlib.compression import CompressionType
 from commlib.msg import HeartbeatMessage, RPCMessage
 from commlib.pubsub import BasePublisher
 from commlib.utils import gen_random_id, get_timestamp_ns
-from concurrent.futures import ThreadPoolExecutor
 
 n_logger: Optional[logging.Logger] = None
 
@@ -298,7 +298,7 @@ class Node:
         self._workers.append(future)
 
     def _start_rpc_callback(
-        self, msg: _NodeStartMessage.Request
+        self, _msg: _NodeStartMessage.Request
     ) -> _NodeStartMessage.Response:
         resp = _NodeStartMessage.Response()
         if self.state == NodeState.STOPPED:
@@ -309,7 +309,7 @@ class Node:
         return resp
 
     def _stop_rpc_callback(
-        self, msg: _NodeStopMessage.Request
+        self, _msg: _NodeStopMessage.Request
     ) -> _NodeStopMessage.Response:
         resp = _NodeStopMessage.Response()
         if self.state == NodeState.RUNNING:
@@ -690,7 +690,8 @@ class Node:
             msg_type (type): The message type expected for the subscription.
 
         Returns:
-            A decorator function that, when applied to a function, creates a new Subscriber Endpoint using the provided function as the message handler.
+            A decorator that creates a Subscriber Endpoint using
+            the decorated function as the message handler.
         """
 
         def wrapper(func):
@@ -708,7 +709,8 @@ class Node:
             msg_type (type): The message type expected for the RPC service.
 
         Returns:
-            A decorator function that, when applied to a function, creates a new RPC service endpoint using the provided function as the request handler.
+            A decorator that creates an RPC service endpoint using
+            the decorated function as the request handler.
         """
 
         def wrapper(func):

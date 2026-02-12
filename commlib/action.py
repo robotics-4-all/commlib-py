@@ -150,7 +150,10 @@ class GoalHandler:
             on_goal (callable): A callable to be executed when the goal is started.
             on_cancel (callable): A callable to be executed when the goal is canceled.
 
-        The GoalHandler instance is responsible for managing the execution of an action goal. It sets the initial status, generates a unique ID, and stores the provided data, publishers, and callables. It also creates a ThreadPoolExecutor with a maximum of 2 workers to execute the goal and handle cancellation.
+        The GoalHandler manages the execution of an action goal.
+        It sets initial status, generates a unique ID, stores the
+        provided data/publishers/callables, and creates a
+        ThreadPoolExecutor with max 2 workers.
         """
 
         self._msg_type = msg_type
@@ -339,7 +342,8 @@ class BaseActionService:
             action_name (str): The name of the action.
             msg_type (ActionMessage, optional): The type of action message to use.
             debug (bool, optional): Whether to enable debug mode. Defaults to True.
-            compression (CompressionType, optional): The type of compression to use. Defaults to CompressionType.NO_COMPRESSION.
+            compression (CompressionType, optional): Compression type.
+                Defaults to NO_COMPRESSION.
             conn_params (BaseConnectionParameters, optional): The connection parameters to use.
             on_goal (callable, optional): A callback function to be called when a goal is received.
             on_cancel (callable, optional): A callback function to be called when a goal is canceled.
@@ -681,7 +685,7 @@ class BaseActionClient:
         self,
         goal_msg: ActionMessage.Goal,
         timeout: int = 10,
-        wait_for_result: bool = False,
+        _wait_for_result: bool = False,
     ) -> _ActionGoalMessage.Response:
         """send_goal.
         Send a new goal to the Action service.
@@ -708,7 +712,7 @@ class BaseActionClient:
         return resp
 
     def cancel_goal(
-        self, timeout: float = 10.0, wait_for_result: bool = False
+        self, timeout: float = 10.0, _wait_for_result: bool = False
     ) -> _ActionCancelMessage.Response:
         """cancel_goal.
         Cancel the current goal.
@@ -730,7 +734,7 @@ class BaseActionClient:
         return resp
 
     def get_result(
-        self, timeout: float = 10.0, wait: bool = False, wait_max_sec: float = 30.0
+        self, timeout: float = 10.0, _wait: bool = False, _wait_max_sec: float = 30.0
     ) -> ActionMessage.Result:
         """get_result.
         Returns the result of the goal.
@@ -815,7 +819,9 @@ class BaseActionClient:
         """
         Run the action client endpoints.
 
-        This method starts the execution of the action client endpoints, including the status subscriber, feedback subscriber, goal client, cancel client, and result client. These endpoints are responsible for communicating with the action server and handling the various stages of the action execution.
+        Starts the action client endpoints: status subscriber,
+        feedback subscriber, goal client, cancel client, and result
+        client.
         """
         self._goal_id = None
         self._result = None

@@ -414,7 +414,7 @@ class Subscriber(BaseSubscriber):
 
     def _on_message(self, msg: Any):
         try:
-            data, topic, key, ts = self._unpack_comm_msg(msg)
+            data, _topic, _key, _ts = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
                     self.onmessage(data)
@@ -438,7 +438,7 @@ class Subscriber(BaseSubscriber):
 class PSubscriber(Subscriber):
     def _on_message(self, msg: Any):
         try:
-            data, topic, key, ts = self._unpack_comm_msg(msg)
+            data, topic, _key, _ts = self._unpack_comm_msg(msg)
             if self.onmessage is not None:
                 if self._msg_type is None:
                     self.onmessage(data, topic)
@@ -469,7 +469,7 @@ class RPCService(BaseRPCService):
 
     def _on_request_internal(self, msg: Any) -> None:
         try:
-            req_msg, uri = self._unpack_comm_msg(msg)
+            req_msg, _uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.warning(
                 f"Could not unpack request message: {exc}\nDropping client request!",
@@ -559,7 +559,7 @@ class RPCServer(BaseRPCServer):
 
     def _on_request_internal(self, msg: Any) -> None:
         try:
-            req_msg, uri = self._unpack_comm_msg(msg)
+            req_msg, _uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(
                 f"Could not unpack request message: {exc}\nDropping client request!",
@@ -674,7 +674,7 @@ class RPCClient(BaseRPCClient):
 
     def _on_response_wrapper(self, msg: Any) -> None:
         try:
-            data, header, uri = self._unpack_comm_msg(msg)
+            data, _header, _uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(exc, exc_info=True)
             data = {}
@@ -958,7 +958,6 @@ class TaskWorker(BaseTaskWorker):
         else:
             data = msg.model_dump() if hasattr(msg, "model_dump") else msg
         envelope = TaskEnvelope(**data)
-        import threading
 
         threading.Thread(
             target=self._process_task,

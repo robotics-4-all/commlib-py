@@ -56,7 +56,7 @@ class TopicMessageProcessor:
         self.pub = self.node.create_mpublisher()
 
     def on_msg_internal(
-        self, processors: List[Callable], payload: Dict[str, Any], topic: str
+        self, processors: List[Callable], payload: Dict[str, Any], _topic: str
     ) -> None:
         for proc in processors:
             try:
@@ -125,7 +125,7 @@ class TopicAggregator:
         self.pub = self.node.create_mpublisher()
 
     def on_msg_internal(
-        self, payload: Dict[str, Any], topic: str, processors: List[Callable] = []
+        self, payload: Dict[str, Any], _topic: str, processors: List[Callable] = []
     ) -> None:
         for proc in processors:
             try:

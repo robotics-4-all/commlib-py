@@ -70,9 +70,12 @@ class BaseEndpoint:
 
         Args:
             debug (bool, optional): A flag indicating whether debug mode is enabled. Defaults to `False`.
-            serializer (Serializer, optional): The serializer to use for data serialization. Defaults to `JSONSerializer`.
-            conn_params (BaseConnectionParameters, optional): The connection parameters to use for the transport. Defaults to `None`.
-            compression (CompressionType, optional): The compression type to use for the transport. Defaults to `CompressionType.NO_COMPRESSION`.
+            serializer (Serializer, optional): Serializer for data.
+                Defaults to ``JSONSerializer``.
+            conn_params (BaseConnectionParameters, optional):
+                Connection parameters. Defaults to None.
+            compression (CompressionType, optional): Compression type.
+                Defaults to ``NO_COMPRESSION``.
         """
 
         self._debug = debug
@@ -100,7 +103,8 @@ class BaseEndpoint:
 
         If the transport is not initialized, raises a `RuntimeError`.
 
-        If the transport is not connected and the subscriber is not in the `CONNECTED` or `CONNECTING` state, it starts the transport.
+        If the transport is not connected and the subscriber is not
+        in the CONNECTED or CONNECTING state, it starts the transport.
 
         Finally, it sets the subscriber state to `CONNECTED`.
         """
@@ -128,7 +132,8 @@ class BaseEndpoint:
 
         If the transport is not initialized, raises a `RuntimeError`.
 
-        If the transport is connected and the subscriber is not in the `DISCONNECTED` or `DISCONNECTING` state, it stops the transport.
+        If the transport is connected and the subscriber is not in
+        the DISCONNECTED or DISCONNECTING state, it stops the transport.
         """
         if self._transport is None:
             raise RuntimeError(

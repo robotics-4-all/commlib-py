@@ -40,7 +40,7 @@ class MockTransport(BaseTransport):
 
     def __init__(
         self,
-        *args: Any,
+        *_args: Any,
         conn_params: Optional[BaseConnectionParameters] = None,
         **kwargs: Any,
     ):
@@ -358,9 +358,7 @@ class TaskWorker(BaseTaskWorker):
         self._state = EndpointState.DISCONNECTED
 
     def _on_envelope_received(self, envelope: TaskEnvelope) -> None:
-        import threading as _threading
-
-        _threading.Thread(
+        threading.Thread(
             target=self._process_task,
             args=(envelope,),
             daemon=True,

@@ -62,11 +62,14 @@ class Timer(threading.Thread):
         """run.
         Runs the timer loop, calling the provided callback function at the specified period.
 
-        The timer loop sleeps for the specified period using the `Rate` utility, then calls the provided callback function with a `TimerEvent` object containing information about the last and current timer events.
+        The timer loop sleeps for the specified period using the
+        ``Rate`` utility, then calls the provided callback function
+        with a ``TimerEvent`` object.
 
-        If `oneshot` is `True`, the timer will only fire the callback once and then stop. Otherwise, the timer will continue to fire the callback indefinitely until `shutdown()` is called.
+        If ``oneshot`` is True, the timer fires once and stops.
+        Otherwise it continues indefinitely until ``shutdown()``.
 
-        The `TimerEvent` object passed to the callback function contains the following information:
+        The ``TimerEvent`` contains:
         - `last_expected`: The expected time of the last timer event.
         - `last_real`: The actual time of the last timer event.
         - `current_expected`: The expected time of the current timer event.
