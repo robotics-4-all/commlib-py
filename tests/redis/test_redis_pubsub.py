@@ -12,6 +12,7 @@ from commlib.transports.redis import ConnectionParameters
 
 
 class SonarMessage(PubSubMessage):
+    """Sonar Message."""
     header: MessageHeader = MessageHeader()
     range: float = -1
     hfov: float = 30.6
@@ -19,11 +20,14 @@ class SonarMessage(PubSubMessage):
 
 
 class AddTwoIntMessage(RPCMessage):
+    """Add Two Int Message."""
     class Request(RPCMessage.Request):
+        """Request payload."""
         a: int = 0
         b: int = 0
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         c: int = 0
 
 

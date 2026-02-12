@@ -18,17 +18,21 @@ from commlib.transports.kafka import ConnectionParameters
 
 
 class AddTwoIntMessage(RPCMessage):
+    """Add Two Int Message."""
     class Request(RPCMessage.Request):
+        """Request payload."""
         a: int = 0
         b: int = 0
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         c: int = 0
 
 
 @pytest.mark.kafka
 @pytest.mark.integration
 class TestKafkaRPC(unittest.TestCase):
+    """Test Kafka RPC."""
     def setUp(self):
         kafka_host = os.getenv("COMMLIB_KAFKA_HOST", "localhost")
         kafka_port = int(os.getenv("COMMLIB_KAFKA_PORT", "29092"))

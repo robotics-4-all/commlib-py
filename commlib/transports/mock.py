@@ -270,6 +270,7 @@ _MOCK_PROGRESS_CALLBACKS: Dict[str, list] = {}
 
 
 class TaskProducer(BaseTaskProducer):
+    """Task Producer."""
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self._transport = MockTransport(conn_params=self._conn_params)
@@ -324,6 +325,7 @@ class TaskProducer(BaseTaskProducer):
 
 
 class TaskWorker(BaseTaskWorker):
+    """Task Worker."""
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self._transport = MockTransport(conn_params=self._conn_params)

@@ -78,6 +78,7 @@ class TestPubSubMessage(unittest.TestCase):
         """Test custom PubSubMessage subclass."""
 
         class CustomMessage(PubSubMessage):
+            """Custom Message."""
             value: int = 0
             name: str = ""
 
@@ -91,6 +92,7 @@ class TestPubSubMessage(unittest.TestCase):
         """Test custom PubSubMessage serialization."""
 
         class CustomMessage(PubSubMessage):
+            """Custom Message."""
             value: int = 0
             name: str = ""
 
@@ -103,9 +105,11 @@ class TestPubSubMessage(unittest.TestCase):
         """Test nested PubSubMessage."""
 
         class InnerMessage(Message):
+            """Inner Message."""
             inner_value: int = 0
 
         class OuterMessage(PubSubMessage):
+            """Outer Message."""
             outer_value: int = 0
             inner: Optional[InnerMessage] = None
 
@@ -132,11 +136,14 @@ class TestRPCMessage(unittest.TestCase):
         """Test custom RPCMessage subclass."""
 
         class AdditionRPC(RPCMessage):
+            """Addition RPC."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: int = 0
                 b: int = 0
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 result: int = 0
 
         request = AdditionRPC.Request(a=5, b=3)
@@ -150,7 +157,9 @@ class TestRPCMessage(unittest.TestCase):
         """Test RPC Request serialization."""
 
         class AdditionRPC(RPCMessage):
+            """Addition RPC."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: int = 0
                 b: int = 0
 
@@ -163,7 +172,9 @@ class TestRPCMessage(unittest.TestCase):
         """Test RPC Response serialization."""
 
         class AdditionRPC(RPCMessage):
+            """Addition RPC."""
             class Response(RPCMessage.Response):
+                """Response payload."""
                 result: int = 0
 
         response = AdditionRPC.Response(result=30)
@@ -174,11 +185,14 @@ class TestRPCMessage(unittest.TestCase):
         """Test multiple RPC message type definitions."""
 
         class MultiplyRPC(RPCMessage):
+            """Multiply RPC."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 x: int = 0
                 y: int = 0
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 product: int = 0
 
         req = MultiplyRPC.Request(x=4, y=5)

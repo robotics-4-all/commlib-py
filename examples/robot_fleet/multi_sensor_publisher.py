@@ -26,12 +26,14 @@ from commlib.node import Node  # noqa: E402
 
 
 class LidarScan(PubSubMessage):
+    """Lidar Scan."""
     ranges: list = Field(default_factory=list)
     angle_min: float = -3.14
     angle_max: float = 3.14
 
 
 class CameraFrame(PubSubMessage):
+    """Camera Frame."""
     frame_id: int = 0
     width: int = 640
     height: int = 480
@@ -39,6 +41,7 @@ class CameraFrame(PubSubMessage):
 
 
 class ImuReading(PubSubMessage):
+    """Imu Reading."""
     ax: float = 0.0
     ay: float = 0.0
     az: float = 9.81

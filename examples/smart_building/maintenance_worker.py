@@ -24,7 +24,9 @@ from commlib.task_queue import TaskQueueConfig  # noqa: E402
 
 
 class MaintenanceTask(TaskMessage):
+    """Maintenance Task."""
     class Task(TaskMessage.Task):
+        """Task."""
         work_order_id: str = ""
         task_type: str = ""
         floor: int = 0
@@ -32,11 +34,13 @@ class MaintenanceTask(TaskMessage):
         priority_level: str = "normal"
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         work_order_id: str = ""
         completed: bool = False
         notes: str = ""
 
     class Progress(TaskMessage.Progress):
+        """Progress."""
         work_order_id: str = ""
         stage: str = ""
         percent: float = 0.0

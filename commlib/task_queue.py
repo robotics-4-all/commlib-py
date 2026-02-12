@@ -21,6 +21,7 @@ task_queue_logger = None
 
 
 class TaskStatus(IntEnum):
+    """Task Status enumeration."""
     PENDING = 1
     PROCESSING = 2
     COMPLETED = 3
@@ -30,11 +31,13 @@ class TaskStatus(IntEnum):
 
 
 class AckPolicy(IntEnum):
+    """Ack Policy enumeration."""
     AUTO = 1
     MANUAL = 2
 
 
 class TaskQueueConfig(BaseModel):
+    """Task Queue Config."""
     queue_name: str = "default"
     max_retries: int = 3
     retry_delay: float = 1.0
@@ -53,6 +56,7 @@ class TaskQueueConfig(BaseModel):
 
 
 class TaskEnvelope(BaseModel):
+    """Task Envelope."""
     task_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     queue_name: str = ""
     priority: int = 0
@@ -65,6 +69,7 @@ class TaskEnvelope(BaseModel):
 
 
 class TaskResult(BaseModel):
+    """Task Result."""
     task_id: str = ""
     status: int = TaskStatus.COMPLETED
     result_data: Dict[str, Any] = {}
@@ -73,6 +78,7 @@ class TaskResult(BaseModel):
 
 
 class TaskProgress(BaseModel):
+    """Task Progress."""
     task_id: str = ""
     progress_data: Dict[str, Any] = {}
     percent: float = 0.0
@@ -184,6 +190,7 @@ class WorkerTaskContext:
 
 
 class BaseTaskProducer(BaseEndpoint):
+    """Base Task Producer."""
     @classmethod
     def logger(cls) -> logging.Logger:
         global task_queue_logger
@@ -284,6 +291,7 @@ class BaseTaskProducer(BaseEndpoint):
 
 
 class BaseTaskWorker(BaseEndpoint):
+    """Base Task Worker."""
     @classmethod
     def logger(cls) -> logging.Logger:
         global task_queue_logger

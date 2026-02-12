@@ -19,20 +19,25 @@ from commlib.transports.kafka import ConnectionParameters, TaskProducer, TaskWor
 
 
 class ComputeTaskMessage(TaskMessage):
+    """Compute Task Message."""
     class Task(TaskMessage.Task):
+        """Task."""
         x: int = 0
         y: int = 0
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         result: int = 0
 
     class Progress(TaskMessage.Progress):
+        """Progress."""
         percent: float = 0.0
 
 
 @pytest.mark.kafka
 @pytest.mark.integration
 class TestKafkaTaskQueue(unittest.TestCase):
+    """Test Kafka Task Queue."""
     def setUp(self):
         kafka_host = os.getenv("COMMLIB_KAFKA_HOST", "localhost")
         kafka_port = int(os.getenv("COMMLIB_KAFKA_PORT", "29092"))

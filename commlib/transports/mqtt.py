@@ -57,6 +57,8 @@ mqtt_logger: Optional[logging.Logger] = None
 
 
 class MQTTReturnCode(IntEnum):
+    """MQTT Return Code enumeration."""
+
     CONNECTION_SUCCESS = 0
     INCORRECT_PROTOCOL_VERSION = 1
     INVALID_CLIENT_ID = 2
@@ -66,6 +68,8 @@ class MQTTReturnCode(IntEnum):
 
 
 class MQTTProtocolType(IntEnum):
+    """MQTT Protocol Type enumeration."""
+
     MQTTv31 = mqtt.MQTTv31
     MQTTv311 = mqtt.MQTTv311
     MQTTv5 = mqtt.MQTTv5
@@ -83,6 +87,8 @@ class MQTTQoS(IntEnum):
 
 
 class ConnectionParameters(BaseConnectionParameters):
+    """Connection Parameters."""
+
     host: str = "localhost"
     port: int = 1883
     username: str = ""
@@ -638,6 +644,8 @@ class Subscriber(BaseSubscriber):
 
 
 class WSubscriber(BaseSubscriber):
+    """Wrapped Subscriber for MQTT."""
+
     def __init__(self, *args, **kwargs):  # pylint: disable=unused-argument
         """__init__.
 
@@ -875,6 +883,8 @@ class RPCService(BaseRPCService):
 
 
 class RPCServer(BaseRPCServer):
+    """RPC Server."""
+
     def __init__(self, *args, **kwargs):
         """__init__.
 
@@ -1190,6 +1200,8 @@ class ActionClient(BaseActionClient):
 
 
 class TaskProducer(BaseTaskProducer):
+    """Task Producer."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=self._conn_params)
@@ -1250,6 +1262,8 @@ class TaskProducer(BaseTaskProducer):
 
 
 class TaskWorker(BaseTaskWorker):
+    """Task Worker."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=self._conn_params)

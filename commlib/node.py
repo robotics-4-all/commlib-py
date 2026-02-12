@@ -27,6 +27,7 @@ class NodeExecutorType(IntEnum):
 
 
 class NodeState(IntEnum):
+    """Node State enumeration."""
     IDLE = 1
     RUNNING = 2
     STOPPED = 4
@@ -34,6 +35,7 @@ class NodeState(IntEnum):
 
 
 class HeartbeatThread:
+    """Heartbeat Thread."""
     @classmethod
     def logger(cls) -> logging.Logger:
         global n_logger
@@ -110,18 +112,22 @@ class HeartbeatThread:
 
 class _NodeStartMessage(RPCMessage):
     class Request(RPCMessage.Request):
+        """Request payload."""
         pass
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         status: int = 0
         error: str = ""
 
 
 class _NodeStopMessage(RPCMessage):
     class Request(RPCMessage.Request):
+        """Request payload."""
         pass
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         status: int = 0
         error: str = ""
 

@@ -25,6 +25,7 @@ from commlib.msg import PubSubMessage  # noqa: E402
 
 
 class SensorData(PubSubMessage):
+    """Sensor Data."""
     sensor_id: str = ""
     temperature: float = 0.0
     humidity: float = 0.0

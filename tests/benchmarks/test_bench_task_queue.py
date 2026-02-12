@@ -20,16 +20,20 @@ from commlib.transports.mock import (
 
 
 class BenchTaskMessage(TaskMessage):
+    """Bench Task Message."""
     class Task(TaskMessage.Task):
+        """Task."""
         payload: str = ""
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         ack: bool = False
 
 
 @pytest.mark.unit
 @pytest.mark.benchmark
 class TestTaskQueueBenchmarks:
+    """Test Task Queue Benchmarks."""
     def setup_method(self):
         clear_mock_bus()
 

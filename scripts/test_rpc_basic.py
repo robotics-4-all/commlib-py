@@ -8,11 +8,14 @@ from commlib.node import Node
 
 
 class AddTwoInts(RPCMessage):
+    """Add Two Ints."""
     class Request(RPCMessage.Request):
+        """Request payload."""
         a: int = 0
         b: int = 0
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         c: int = 0
 
 

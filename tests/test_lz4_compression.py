@@ -4,6 +4,8 @@ from commlib.compression import CompressionType, inflate_str, deflate, HAS_LZ4
 
 
 class TestLZ4Compression(unittest.TestCase):
+    """Test LZ4 Compression."""
+
     def test_lz4_compression_decompression(self):
         test_str = "Hello World" * 100
         compressed = inflate_str(test_str, CompressionType.DEFAULT_COMPRESSION)

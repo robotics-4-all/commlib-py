@@ -169,6 +169,7 @@ def release_redis_pool(conn_params: "ConnectionParameters") -> None:
 
 
 class ConnectionParameters(BaseConnectionParameters):
+    """Connection Parameters."""
     host: str = "localhost"
     port: int = 6379
     unix_socket: str = ""
@@ -193,6 +194,7 @@ class RedisConnection(redis.Redis):  # type: ignore[reportAttributeAccessIssue]
 
 
 class RedisTransport(BaseTransport):
+    """Redis Transport."""
     _redis_pool = None
 
     @classmethod
@@ -1340,6 +1342,7 @@ class ActionClient(BaseActionClient):
 
 
 class RPCServer(BaseRPCServer):
+    """RPC Server."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
@@ -1450,6 +1453,7 @@ class RPCServer(BaseRPCServer):
 
 
 class TaskProducer(BaseTaskProducer):
+    """Task Producer."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
@@ -1501,6 +1505,7 @@ class TaskProducer(BaseTaskProducer):
 
 
 class TaskWorker(BaseTaskWorker):
+    """Task Worker."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = RedisTransport(

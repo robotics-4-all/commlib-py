@@ -68,6 +68,7 @@ def gen_random_id() -> str:
 
 
 class Rate:
+    """Rate."""
     def __init__(self, hz: float):
         """__init__.
         Initializes a `Rate` object with the specified Hz (Hertz) rate.

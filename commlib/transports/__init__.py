@@ -9,6 +9,7 @@ from typing import Any
 
 
 class TransportType(Enum):
+    """Transport Type enumeration."""
     AMQP = 1
     REDIS = 2
     MQTT = 3

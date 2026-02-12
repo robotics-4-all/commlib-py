@@ -47,10 +47,12 @@ class _ActionGoalMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
+        """Request payload."""
         description: str = ""
         goal_data: Dict[str, Any] = {}
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         status: int = 0
         timestamp: int = -1
         goal_id: str = ""
@@ -66,9 +68,11 @@ class _ActionResultMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
+        """Request payload."""
         goal_id: Optional[str] = ""
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         status: int = 0
         timestamp: int = -1
         result: Dict[str, Any] = {}
@@ -84,10 +88,12 @@ class _ActionCancelMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
+        """Request payload."""
         goal_id: Optional[str] = ""
         timestamp: int = gen_timestamp()
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         status: int = 0
         timestamp: int = gen_timestamp()
         result: Dict[str, Any] = {}
@@ -125,6 +131,7 @@ class _ActionNotifyMessage(PubSubMessage):
 
 
 class GoalHandler:
+    """Goal Handler."""
     @classmethod
     def logger(cls) -> logging.Logger:
         global actions_logger
@@ -775,7 +782,7 @@ class BaseActionClient:
         Returns:
             None:
         """
-        self.log.debug(f"ActionClient <on-status> callback: {msg}")
+        self.log.debug("ActionClient <on-status> callback: %s", msg)
         # Check if the goal_id matches the one of the current goal.
         if msg.goal_id != self._goal_id:
             return

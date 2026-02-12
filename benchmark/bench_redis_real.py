@@ -314,10 +314,12 @@ def benchmark_redis_message_sizes():
 
     # Small message
     class SmallMessage(PubSubMessage):
+        """Small Message."""
         value: float = 0.0
 
     # Large message
     class LargeMessage(PubSubMessage):
+        """Large Message."""
         data: str = "x" * 10000  # 10KB
 
     message_types = [

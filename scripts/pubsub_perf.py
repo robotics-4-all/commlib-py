@@ -37,11 +37,13 @@ console = Console()
 
 
 class PerfMessage(PubSubMessage):
+    """Perf Message."""
     data: str
     ts: int
 
 
 class ResourceMonitor:
+    """Resource Monitor."""
     def __init__(self, interval: float = 0.1):
         self.interval = interval
         self.cpu_usages = []
@@ -80,6 +82,7 @@ class ResourceMonitor:
 
 
 class RealTimePlotter:
+    """Real Time Plotter."""
     def __init__(self, data_queue: multiprocessing.Queue):
         self.data_queue = data_queue
         self.xs = []
@@ -125,6 +128,7 @@ class RealTimePlotter:
 
 
 class PubSubPerfTest:
+    """Pub Sub Perf Test."""
     def __init__(self, broker: str, topic: str = "perf.test"):
         self.broker = broker
         self.topic = topic

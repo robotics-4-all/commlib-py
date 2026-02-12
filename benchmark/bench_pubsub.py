@@ -202,14 +202,17 @@ def benchmark_message_types():
 
     # Small message
     class SmallMessage(PubSubMessage):
+        """Small Message."""
         value: float = 0.0
 
     # Medium message
     class MediumMessage(PubSubMessage):
+        """Medium Message."""
         values: list = [0.0] * 50
 
     # Large message
     class LargeMessage(PubSubMessage):
+        """Large Message."""
         values: list = [0.0] * 500
 
     message_types = [

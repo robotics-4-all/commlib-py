@@ -25,6 +25,7 @@ from commlib.msg import PubSubMessage  # noqa: E402
 
 
 class GenericSensorMsg(PubSubMessage):
+    """Generic Sensor Msg."""
     value: float = 0.0
     unit: str = ""
 

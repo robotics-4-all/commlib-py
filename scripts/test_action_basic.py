@@ -7,13 +7,17 @@ from commlib.node import Node
 
 
 class ExampleAction(ActionMessage):
+    """Example Action."""
     class Goal(ActionMessage.Goal):
+        """Goal payload."""
         target: int = 0
 
     class Result(ActionMessage.Result):
+        """Result payload."""
         final_pos: int = 0
 
     class Feedback(ActionMessage.Feedback):
+        """Feedback payload."""
         current_pos: int = 0
 
 

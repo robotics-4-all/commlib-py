@@ -19,20 +19,25 @@ from commlib.transports.mqtt import ConnectionParameters, TaskProducer, TaskWork
 
 
 class ComputeTaskMessage(TaskMessage):
+    """Compute Task Message."""
     class Task(TaskMessage.Task):
+        """Task."""
         x: int = 0
         y: int = 0
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         result: int = 0
 
     class Progress(TaskMessage.Progress):
+        """Progress."""
         percent: float = 0.0
 
 
 @pytest.mark.mqtt
 @pytest.mark.integration
 class TestMqttTaskQueue(unittest.TestCase):
+    """Test Mqtt Task Queue."""
     def setUp(self):
         mqtt_host = os.getenv("COMMLIB_MQTT_HOST", "localhost")
         mqtt_port = int(os.getenv("COMMLIB_MQTT_PORT", "1883"))

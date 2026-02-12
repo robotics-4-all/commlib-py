@@ -61,6 +61,8 @@ SASL_MECHANISM = "PLAIN"
 
 
 class ConnectionParameters(BaseConnectionParameters):
+    """Connection Parameters."""
+
     # https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     host: str = "localhost"
     port: int = 29092
@@ -73,6 +75,8 @@ class ConnectionParameters(BaseConnectionParameters):
 
 
 class KafkaTransport(BaseTransport):
+    """Kafka Transport."""
+
     def __init__(
         self,
         *args,
@@ -191,7 +195,7 @@ class KafkaTransport(BaseTransport):
                     time.sleep(1.0)
                     continue
                 elif _err is not None:
-                    self.log.error(f"Kafka error: {_err}")
+                    self.log.error("Kafka error: %s", _err)
             else:
                 try:
                     callback(msg)
@@ -230,6 +234,8 @@ class KafkaTransport(BaseTransport):
 
 
 class Publisher(BasePublisher):
+    """Publisher."""
+
     def __init__(self, *args, key: str = "", **kwargs):
         self._key = key
         self._msg_seq = 0
@@ -306,6 +312,8 @@ class Publisher(BasePublisher):
 
 
 class MPublisher(Publisher):
+    """Multi-topic Publisher for Kafka."""
+
     def __init__(self, *args, key: str = "", **kwargs):
         self._key = key
         super().__init__(*args, topic="*", **kwargs)
@@ -330,6 +338,8 @@ class MPublisher(Publisher):
 
 
 class Subscriber(BaseSubscriber):
+    """Subscriber."""
+
     def __init__(self, *args, key: str = "", **kwargs):
         self._key = key
         self._consumer: Consumer = None  # type: ignore[assignment]
@@ -440,6 +450,8 @@ class Subscriber(BaseSubscriber):
 
 
 class PSubscriber(Subscriber):
+    """Pattern Subscriber for Kafka."""
+
     def _on_message(self, msg: Any):
         try:
             data, topic, _key, _ts = self._unpack_comm_msg(msg)
@@ -453,6 +465,8 @@ class PSubscriber(Subscriber):
 
 
 class RPCService(BaseRPCService):
+    """RPC Service."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(
@@ -476,7 +490,8 @@ class RPCService(BaseRPCService):
             req_msg, _uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.warning(
-                f"Could not unpack request message: {exc}\nDropping client request!",
+                "Could not unpack request message: %s\nDropping client request!",
+                exc,
                 exc_info=True,
             )
             return
@@ -524,6 +539,8 @@ class RPCService(BaseRPCService):
 
 
 class RPCServer(BaseRPCServer):
+    """RPC Server."""
+
     def __init__(self, *args, **kwargs):
         """__init__.
 
@@ -566,7 +583,8 @@ class RPCServer(BaseRPCServer):
             req_msg, _uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(
-                f"Could not unpack request message: {exc}\nDropping client request!",
+                "Could not unpack request message: %s\nDropping client request!",
+                exc,
                 exc_info=True,
             )
             return
@@ -835,6 +853,8 @@ class ActionClient(BaseActionClient):
 
 
 class TaskProducer(BaseTaskProducer):
+    """Task Producer."""
+
     _transport: KafkaTransport  # type: ignore[assignment]
 
     def __init__(self, *args, **kwargs):
@@ -926,6 +946,8 @@ class TaskProducer(BaseTaskProducer):
 
 
 class TaskWorker(BaseTaskWorker):
+    """Task Worker."""
+
     _transport: KafkaTransport  # type: ignore[assignment]
 
     def __init__(self, *args, **kwargs):

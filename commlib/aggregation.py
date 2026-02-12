@@ -14,6 +14,7 @@ aggregation_logger = None
 
 
 class TopicMessageProcessor:
+    """Topic Message Processor."""
     def __init__(
         self,
         broker_params: BaseConnectionParameters,
@@ -77,6 +78,7 @@ class TopicMessageProcessor:
 
 
 class TopicAggregator:
+    """Topic Aggregator."""
     def __init__(
         self,
         broker_params: BaseConnectionParameters,

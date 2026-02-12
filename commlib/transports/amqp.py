@@ -111,12 +111,14 @@ def get_or_create_amqp_connection(
             if connection.is_open:
                 _AMQP_CONNECTION_REFCOUNT[key] += 1
                 logger.debug(
-                    f"Reusing AMQP connection {key}, refcount={_AMQP_CONNECTION_REFCOUNT[key]}"
+                    "Reusing AMQP connection %s, refcount=%d",
+                    key,
+                    _AMQP_CONNECTION_REFCOUNT[key],
                 )
                 return connection
             else:
                 # Stale connection, remove it
-                logger.debug(f"Removing stale AMQP connection {key}")
+                logger.debug("Removing stale AMQP connection %s", key)
                 del _AMQP_CONNECTION_REGISTRY[key]
                 del _AMQP_CONNECTION_REFCOUNT[key]
 
@@ -124,7 +126,7 @@ def get_or_create_amqp_connection(
         connection = Connection(conn_params)
         _AMQP_CONNECTION_REGISTRY[key] = connection
         _AMQP_CONNECTION_REFCOUNT[key] = 1
-        logger.debug(f"Created new AMQP connection {key}")
+        logger.debug("Created new AMQP connection %s", key)
         return connection
 
 
@@ -148,12 +150,14 @@ def release_amqp_connection(
 
     with _AMQP_CONNECTION_LOCK:
         if key not in _AMQP_CONNECTION_REFCOUNT:
-            logger.warning(f"Attempted to release non-existent connection {key}")
+            logger.warning("Attempted to release non-existent connection %s", key)
             return
 
         _AMQP_CONNECTION_REFCOUNT[key] -= 1
         logger.debug(
-            f"Released AMQP connection {key}, refcount={_AMQP_CONNECTION_REFCOUNT[key]}"
+            "Released AMQP connection %s, refcount=%d",
+            key,
+            _AMQP_CONNECTION_REFCOUNT[key],
         )
 
         if _AMQP_CONNECTION_REFCOUNT[key] <= 0:
@@ -163,9 +167,9 @@ def release_amqp_connection(
             try:
                 if connection.is_open:
                     connection.close()
-                logger.debug(f"Closed AMQP connection {key}")
+                logger.debug("Closed AMQP connection %s", key)
             except Exception as e:
-                logger.warning(f"Error closing AMQP connection {key}: {e}")
+                logger.warning("Error closing AMQP connection %s: %s", key, e)
 
 
 class MessageProperties(pika.BasicProperties):
@@ -327,7 +331,7 @@ class Connection(pika.BlockingConnection):
             AttributeError,
             OSError,
         ) as exc:
-            logger.debug(f"Exception thrown while processing amqp events - {exc}")
+            logger.debug("Exception thrown while processing amqp events - %s", exc)
 
 
 class ExchangeType:
@@ -340,7 +344,7 @@ class ExchangeType:
 
 
 class AMQPTransport(BaseTransport):
-    """AMQPT Transport implementation."""
+    """AMQP Transport implementation."""
 
     def __init__(
         self,
@@ -499,7 +503,7 @@ class AMQPTransport(BaseTransport):
                         _conn.close()
                     self.log.debug("Closed dedicated connection")
                 except Exception as e:
-                    self.log.warning(f"Error closing connection: {e}")
+                    self.log.warning("Error closing connection: %s", e)
             else:
                 # Shared connection, release from pool
                 release_amqp_connection(self._conn_params)
@@ -1182,6 +1186,8 @@ class Publisher(BasePublisher):
 
 
 class MPublisher(Publisher):
+    """Multi-topic Publisher for AMQP."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(topic="*", *args, **kwargs)
 
@@ -1494,6 +1500,8 @@ class PSubscriber(Subscriber):
 
 
 class ActionService(BaseActionService):
+    """Action Service."""
+
     def __init__(self, *args, **kwargs):
         """__init__.
 
@@ -1539,6 +1547,8 @@ class ActionService(BaseActionService):
 
 
 class ActionClient(BaseActionClient):
+    """Action Client."""
+
     def __init__(self, *args, **kwargs):
         """__init__.
         Action Client constructor.
@@ -1588,6 +1598,8 @@ class ActionClient(BaseActionClient):
 
 
 class TaskProducer(BaseTaskProducer):
+    """Task Producer."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = AMQPTransport(conn_params=self._conn_params)
@@ -1656,6 +1668,8 @@ class TaskProducer(BaseTaskProducer):
 
 
 class TaskWorker(BaseTaskWorker):
+    """Task Worker."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = AMQPTransport(conn_params=self._conn_params)

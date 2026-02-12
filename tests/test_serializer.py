@@ -24,6 +24,7 @@ class TestJSONBackend(unittest.TestCase):
 
 
 class TestJSONSerializer(unittest.TestCase):
+    """Test JSON Serializer."""
     def test_serialize_deserialize_dict(self):
         data = {"a": 1, "b": "test", "c": True}
         serialized = JSONSerializer.serialize(data)
@@ -94,6 +95,7 @@ class TestJSONSerializer(unittest.TestCase):
 
 
 class TestBinarySerializer(unittest.TestCase):
+    """Test Binary Serializer."""
     def test_serialize_deserialize(self):
         data = {"a": 1}
         serialized = BinarySerializer.serialize(data)
@@ -109,6 +111,7 @@ class TestBinarySerializer(unittest.TestCase):
 
 
 class TestTextSerializer(unittest.TestCase):
+    """Test Text Serializer."""
     def test_serialize_deserialize(self):
         data = "hello world"
         serialized = TextSerializer.serialize(data)

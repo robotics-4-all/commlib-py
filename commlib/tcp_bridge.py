@@ -58,6 +58,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 
 class TCPBridge(ThreadedTCPServer):
+    """TCP Bridge."""
     def __init__(self, host_ep1: str, port_ep1: int, host_ep2: str, port_ep2: int):
         """__init__.
         Initializes a TCPBridge instance with the specified host and port for both endpoints.

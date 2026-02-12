@@ -25,18 +25,23 @@ from commlib.transports.mock import (
 
 
 class ComputeTaskMessage(TaskMessage):
+    """Compute Task Message."""
     class Task(TaskMessage.Task):
+        """Task."""
         x: int = 0
         y: int = 0
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         result: int = 0
 
     class Progress(TaskMessage.Progress):
+        """Progress."""
         percent: float = 0.0
 
 
 class TestTaskMessage(unittest.TestCase):
+    """Test Task Message."""
     def test_task_message_inner_classes(self):
         t = TaskMessage.Task()
         r = TaskMessage.Result()
@@ -60,6 +65,7 @@ class TestTaskMessage(unittest.TestCase):
 
 
 class TestTaskStatus(unittest.TestCase):
+    """Test Task Status."""
     def test_status_values(self):
         self.assertEqual(TaskStatus.PENDING, 1)
         self.assertEqual(TaskStatus.PROCESSING, 2)
@@ -70,12 +76,14 @@ class TestTaskStatus(unittest.TestCase):
 
 
 class TestAckPolicy(unittest.TestCase):
+    """Test Ack Policy."""
     def test_ack_policy_values(self):
         self.assertEqual(AckPolicy.AUTO, 1)
         self.assertEqual(AckPolicy.MANUAL, 2)
 
 
 class TestTaskQueueConfig(unittest.TestCase):
+    """Test Task Queue Config."""
     def test_default_config(self):
         config = TaskQueueConfig()
         self.assertEqual(config.queue_name, "default")
@@ -106,6 +114,7 @@ class TestTaskQueueConfig(unittest.TestCase):
 
 
 class TestTaskEnvelope(unittest.TestCase):
+    """Test Task Envelope."""
     def test_default_envelope(self):
         env = TaskEnvelope()
         self.assertIsNotNone(env.task_id)
@@ -124,6 +133,7 @@ class TestTaskEnvelope(unittest.TestCase):
 
 
 class TestTaskHandle(unittest.TestCase):
+    """Test Task Handle."""
     def test_initial_state(self):
         handle = TaskHandle("test-id")
         self.assertEqual(handle.task_id, "test-id")
@@ -161,6 +171,7 @@ class TestTaskHandle(unittest.TestCase):
 
 
 class TestEndpointTypeRegistration(unittest.TestCase):
+    """Test Endpoint Type Registration."""
     def test_task_producer_enum(self):
         self.assertEqual(EndpointType.TaskProducer.value, 9)
 
@@ -169,6 +180,7 @@ class TestEndpointTypeRegistration(unittest.TestCase):
 
 
 class TestExceptions(unittest.TestCase):
+    """Raised for tests errors."""
     def test_task_queue_error_hierarchy(self):
         self.assertTrue(issubclass(TaskTimeoutError, TaskQueueError))
         self.assertTrue(issubclass(TaskWorkerError, TaskQueueError))
@@ -179,6 +191,7 @@ class TestExceptions(unittest.TestCase):
 
 
 class TestMockTaskProducerWorker(unittest.TestCase):
+    """Test Mock Task Producer Worker."""
     def setUp(self):
         clear_mock_bus()
         self.conn_params = ConnectionParameters()
@@ -498,6 +511,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
 
 
 class TestNodeTaskQueueIntegration(unittest.TestCase):
+    """Test Node Task Queue Integration."""
     def setUp(self):
         clear_mock_bus()
         self.conn_params = ConnectionParameters()

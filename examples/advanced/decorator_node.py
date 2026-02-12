@@ -22,16 +22,20 @@ from commlib.node import Node  # noqa: E402
 
 
 class TemperatureReading(PubSubMessage):
+    """Temperature Reading."""
     sensor_id: str = ""
     temperature: float = 0.0
 
 
 class AddTwoIntsMsg(RPCMessage):
+    """Add Two Ints Msg."""
     class Request(RPCMessage.Request):
+        """Request payload."""
         a: int = 0
         b: int = 0
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         result: int = 0
 
 

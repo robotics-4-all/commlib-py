@@ -31,10 +31,12 @@ class TestMessages(unittest.TestCase):
         _d = {"a": 1, "b": {"c": 2, "d": 3}}
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
@@ -46,10 +48,12 @@ class TestMessages(unittest.TestCase):
         _d = {"a": 1, "b": {"c": 2, "d": 3}}
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
@@ -61,11 +65,14 @@ class TestMessages(unittest.TestCase):
         resp_d = {"c": 3, "d": 4}
 
         class TestRPCMessage(RPCMessage):
+            """Test RPC Message."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: Optional[int] = 1
                 b: Optional[int] = 2
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 c: Optional[int] = 3
                 d: Optional[int] = 4
 
@@ -79,6 +86,7 @@ class TestMessages(unittest.TestCase):
         """Test Message to JSON serialization"""
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
@@ -90,6 +98,7 @@ class TestMessages(unittest.TestCase):
         """Test Message from JSON deserialization"""
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
@@ -101,10 +110,12 @@ class TestMessages(unittest.TestCase):
         """Test PubSubMessage to JSON serialization"""
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
@@ -116,10 +127,12 @@ class TestMessages(unittest.TestCase):
         """Test PubSubMessage from JSON deserialization"""
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
@@ -131,11 +144,14 @@ class TestMessages(unittest.TestCase):
         """Test RPCMessage to JSON serialization"""
 
         class TestRPCMessage(RPCMessage):
+            """Test RPC Message."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: Optional[int] = 1
                 b: Optional[int] = 2
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 c: Optional[int] = 3
                 d: Optional[int] = 4
 
@@ -149,11 +165,14 @@ class TestMessages(unittest.TestCase):
         """Test RPCMessage from JSON deserialization"""
 
         class TestRPCMessage(RPCMessage):
+            """Test RPC Message."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: Optional[int] = 1
                 b: Optional[int] = 2
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 c: Optional[int] = 3
                 d: Optional[int] = 4
 

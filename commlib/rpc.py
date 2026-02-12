@@ -22,6 +22,8 @@ rpc_logger = None
 
 
 class CommRPCHeader(BaseModel):
+    """RPC communication header."""
+
     reply_to: str = ""
     timestamp: Optional[int] = gen_timestamp()
     content_type: Optional[str] = "json"
@@ -30,6 +32,8 @@ class CommRPCHeader(BaseModel):
 
 
 class CommRPCMessage(BaseModel):
+    """RPC communication message."""
+
     header: CommRPCHeader = CommRPCHeader()
     data: Dict[str, Any] = {}
 

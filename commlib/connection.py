@@ -8,10 +8,12 @@ from pydantic import BaseModel
 
 
 class AuthBase(BaseModel):
+    """Auth Base."""
     pass
 
 
 class AuthPlain(AuthBase):
+    """Auth Plain."""
     username: str
     password: str
 

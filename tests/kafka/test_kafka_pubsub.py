@@ -19,6 +19,7 @@ from commlib.transports.kafka import ConnectionParameters
 
 
 class SensorMessage(PubSubMessage):
+    """Sensor Message."""
     header: MessageHeader = MessageHeader()
     temperature: float = 0.0
     humidity: float = 0.0
@@ -27,6 +28,7 @@ class SensorMessage(PubSubMessage):
 @pytest.mark.kafka
 @pytest.mark.integration
 class TestKafkaPubSub(unittest.TestCase):
+    """Test Kafka Pub Sub."""
     def setUp(self):
         kafka_host = os.getenv("COMMLIB_KAFKA_HOST", "localhost")
         kafka_port = int(os.getenv("COMMLIB_KAFKA_PORT", "29092"))
