@@ -14,11 +14,11 @@ Usage::
 import os
 import sys
 import time
+import argparse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# pylint: disable=wrong-import-position
 from _helpers import get_connection_params  # noqa: E402
-
-import argparse  # noqa: E402
 
 from commlib.bridges import RPCBridge  # noqa: E402
 from commlib.msg import RPCMessage  # noqa: E402

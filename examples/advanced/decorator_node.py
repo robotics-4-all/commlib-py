@@ -14,6 +14,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# pylint: disable=wrong-import-position
 from _helpers import get_connection_params, make_broker_parser  # noqa: E402
 
 from commlib.msg import PubSubMessage, RPCMessage  # noqa: E402
