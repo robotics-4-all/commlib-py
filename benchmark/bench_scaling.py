@@ -14,7 +14,6 @@ import os
 import time
 import psutil
 from commlib.msg import PubSubMessage
-from commlib.transports.mock import ConnectionParameters
 
 
 class ScalingTestMessage(PubSubMessage):
@@ -23,6 +22,33 @@ class ScalingTestMessage(PubSubMessage):
     seq: int = 0
     data: str = ""
     timestamp: float = 0.0
+
+
+def _get_transport_classes(transport):
+    """Return (ConnectionParameters, Publisher) for transport."""
+    if transport == "mock":
+        from commlib.transports.mock import (
+            ConnectionParameters,
+            Publisher,
+        )
+    elif transport == "mqtt":
+        from commlib.transports.mqtt import (
+            ConnectionParameters,
+            Publisher,
+        )
+    elif transport == "redis":
+        from commlib.transports.redis import (
+            ConnectionParameters,
+            Publisher,
+        )
+    elif transport == "amqp":
+        from commlib.transports.amqp import (
+            ConnectionParameters,
+            Publisher,
+        )
+    else:
+        raise ValueError(f"Unknown transport: {transport}")
+    return ConnectionParameters, Publisher
 
 
 def benchmark_publisher_scaling(transport="mock", num_publishers_list=None):
@@ -41,18 +67,7 @@ def benchmark_publisher_scaling(transport="mock", num_publishers_list=None):
 
     results = {}
 
-    # Get connection parameters based on transport
-    if transport == "mock":
-        from commlib.transports.mock import ConnectionParameters, Publisher
-    elif transport == "mqtt":
-        from commlib.transports.mqtt import ConnectionParameters, Publisher
-    elif transport == "redis":
-        from commlib.transports.redis import ConnectionParameters, Publisher
-    elif transport == "amqp":
-        from commlib.transports.amqp import ConnectionParameters, Publisher
-    else:
-        raise ValueError(f"Unknown transport: {transport}")
-
+    ConnectionParameters, Publisher = _get_transport_classes(transport)
     conn_params = ConnectionParameters()
 
     print(f"\n{'=' * 60}")
@@ -129,16 +144,7 @@ def benchmark_message_size_scaling(transport="mock", message_sizes=None):
 
     results = {}
 
-    # Get connection parameters
-    if transport == "mock":
-        from commlib.transports.mock import ConnectionParameters, Publisher
-    elif transport == "mqtt":
-        from commlib.transports.mqtt import ConnectionParameters, Publisher
-    elif transport == "redis":
-        from commlib.transports.redis import ConnectionParameters, Publisher
-    elif transport == "amqp":
-        from commlib.transports.amqp import ConnectionParameters, Publisher
-
+    ConnectionParameters, Publisher = _get_transport_classes(transport)
     conn_params = ConnectionParameters()
 
     print(f"\n{'=' * 60}")
@@ -204,16 +210,7 @@ def benchmark_memory_usage(transport="mock", num_publishers=20, duration=5.0):
     Returns:
         dict: Memory usage statistics
     """
-    # Get connection parameters
-    if transport == "mock":
-        from commlib.transports.mock import ConnectionParameters, Publisher
-    elif transport == "mqtt":
-        from commlib.transports.mqtt import ConnectionParameters, Publisher
-    elif transport == "redis":
-        from commlib.transports.redis import ConnectionParameters, Publisher
-    elif transport == "amqp":
-        from commlib.transports.amqp import ConnectionParameters, Publisher
-
+    ConnectionParameters, Publisher = _get_transport_classes(transport)
     conn_params = ConnectionParameters()
     process = psutil.Process()
 

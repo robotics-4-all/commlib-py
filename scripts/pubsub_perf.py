@@ -24,7 +24,6 @@ from rich import box
 
 from commlib.node import Node
 from commlib.msg import PubSubMessage
-from commlib.msg import PubSubMessage
 from commlib.utils import get_timestamp_ns
 
 try:
