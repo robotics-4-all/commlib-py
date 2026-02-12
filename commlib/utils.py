@@ -77,7 +77,8 @@ class Rate:
 
         Attributes:
             _hz (int): The rate in Hertz (Hz) for the `Rate` object.
-            _tsleep (float): The time in seconds to sleep between each iteration, calculated as 1.0 / `_hz`.
+            _tsleep (float): The time in seconds to sleep
+                between each iteration (1.0 / ``_hz``).
         """
 
         self._hz = hz

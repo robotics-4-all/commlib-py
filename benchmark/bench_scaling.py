@@ -59,7 +59,8 @@ def benchmark_publisher_scaling(transport="mock", num_publishers_list=None):
     print(f"Publisher Scaling Benchmark ({transport})")
     print(f"{'=' * 60}\n")
     print(
-        f"{'Publishers':>12} | {'Throughput (msg/s)':>18} | {'Latency (ms)':>14} | {'Total Messages':>15}"
+        f"{'Publishers':>12} | {'Throughput (msg/s)':>18}"
+        f" | {'Latency (ms)':>14} | {'Total Messages':>15}"
     )
     print(f"{'-' * 12}-+-{'-' * 18}-+-{'-' * 14}-+-{'-' * 15}")
 
@@ -144,7 +145,8 @@ def benchmark_message_size_scaling(transport="mock", message_sizes=None):
     print(f"Message Size Scaling Benchmark ({transport})")
     print(f"{'=' * 60}\n")
     print(
-        f"{'Size (bytes)':>13} | {'Throughput (msg/s)':>18} | {'Bandwidth (MB/s)':>18} | {'Latency (ms)':>14}"
+        f"{'Size (bytes)':>13} | {'Throughput (msg/s)':>18}"
+        f" | {'Bandwidth (MB/s)':>18} | {'Latency (ms)':>14}"
     )
     print(f"{'-' * 13}-+-{'-' * 18}-+-{'-' * 18}-+-{'-' * 14}")
 

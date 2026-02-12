@@ -601,7 +601,9 @@ class RedisTransport(BaseTransport):
 
                     # Restart the subscription thread
                     self._rsub_thread = self._rsub.run_in_thread(
-                        sleep_time=self._subscription_sleep_interval,  # type: ignore[reportArgumentType]
+                        sleep_time=(  # type: ignore[reportArgumentType]
+                            self._subscription_sleep_interval
+                        ),
                         exception_handler=self.exception_handler,
                         daemon=True,
                     )
@@ -808,10 +810,11 @@ class RPCClient(BaseRPCClient):
 
         Args:
             msg (RPCMessage.Request): The RPC request message to be sent.
-            timeout (float, optional): The maximum time to wait for a response in seconds. Defaults to 10.
+            timeout (float, optional): The max time to wait
+                for a response in seconds. Defaults to 10.
 
         Returns:
-            RPCMessage.Response: The response message received.
+            RPCMessage.Response: The response message.
                 Returns None if timeout is reached.
         """
         assert self._transport is not None
@@ -1065,7 +1068,8 @@ class WSubscriber(BaseSubscriber):
 
         Args:
             topic (str): The topic to subscribe to.
-            callback (callable): The function to be called when a message is received on the subscribed topic.
+            callback (callable): The function to be called
+                when a message is received on the topic.
 
         Returns:
             None
@@ -1075,11 +1079,14 @@ class WSubscriber(BaseSubscriber):
 
     def stop(self, wait: bool = True):
         """
-        Stops the transport by stopping all subscriber threads and the main subscriber thread if they exist.
+        Stops the transport by stopping all subscriber
+        threads and the main subscriber thread if they exist.
 
-        This method iterates through all threads in the `_subscriber_threads` list and calls their `stop` method.
-        If the `_subscriber_thread` is not `None`, it also calls its `stop` method.
-        Finally, it calls the `stop` method of the superclass.
+        Iterates through all threads in
+        ``_subscriber_threads`` and calls their ``stop``
+        method. If ``_subscriber_thread`` is not None,
+        also calls its ``stop`` method. Finally, calls
+        the ``stop`` method of the superclass.
         """
         for sub_thread in self._subscriber_threads:
             sub_thread.stop()

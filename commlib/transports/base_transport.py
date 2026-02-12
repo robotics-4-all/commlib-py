@@ -29,8 +29,10 @@ class BaseTransport:
         Initializes a new instance of the `BaseTransport` class.
 
         Args:
-            conn_params (BaseConnectionParameters): The connection parameters to use for the transport.
-            debug (bool, optional): Whether to enable debug logging for the transport. Defaults to False.
+            conn_params (BaseConnectionParameters): The
+                connection parameters for the transport.
+            debug (bool, optional): Whether to enable debug
+                logging for the transport. Defaults to False.
         """
 
         self._conn_params = conn_params

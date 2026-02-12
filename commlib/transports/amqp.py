@@ -398,7 +398,9 @@ class AMQPTransport(BaseTransport):
                     self.log.debug("Created dedicated AMQP connection")
             self.create_channel()
             return True
-        except pika.exceptions.ProbableAuthenticationError as e:  # type: ignore[reportAttributeAccessIssue]
+        except (  # type: ignore[reportAttributeAccessIssue]
+            pika.exceptions.ProbableAuthenticationError
+        ) as e:
             logger.error("Authentication Error: %s", str(e))
             return False
         except (
@@ -535,7 +537,7 @@ class AMQPTransport(BaseTransport):
             exchange=exchange_name,
             durable=True,  # Survive reboot
             passive=False,  # Perform a declare or just to see if it exists
-            internal=internal,  # type: ignore[reportArgumentType]  # Can only be published to by other exchanges
+            internal=internal,  # type: ignore[reportArgumentType]
             exchange_type=exchange_type,  # type: ignore[reportArgumentType]
         )
 
@@ -622,7 +624,9 @@ class AMQPTransport(BaseTransport):
             if self._channel is None:
                 raise AMQPError("AMQP channel is not available")
             _ = self._channel.queue_declare(queue_name, passive=True)
-        except pika.exceptions.ChannelClosedByBroker as exc:  # type: ignore[reportAttributeAccessIssue]
+        except (  # type: ignore[reportAttributeAccessIssue]
+            pika.exceptions.ChannelClosedByBroker
+        ) as exc:
             self.create_channel()
             if exc.reply_code == 404:  # Not Found
                 return False
@@ -744,9 +748,13 @@ class RPCService(BaseRPCService):
         self._transport.consume_from_queue(self._rpc_queue, self._on_request_handle)
         try:
             self._transport.start_consuming()
-        except pika.exceptions.ConnectionClosedByBroker as exc:  # type: ignore[reportAttributeAccessIssue]
+        except (  # type: ignore[reportAttributeAccessIssue]
+            pika.exceptions.ConnectionClosedByBroker
+        ) as exc:
             self.log.error(exc, exc_info=True)
-        except pika.exceptions.AMQPConnectionError as exc:  # type: ignore[reportAttributeAccessIssue]
+        except (  # type: ignore[reportAttributeAccessIssue]
+            pika.exceptions.AMQPConnectionError
+        ) as exc:
             self.log.error(exc, exc_info=True)
         except (
             RuntimeError,
@@ -977,7 +985,9 @@ class RPCClient(BaseRPCClient):
         start_t = time.time()
         # Phase 3 optimization: Use lambda instead of functools.partial (5-10% faster)
         assert self._transport is not None
-        self._transport.add_threadsafe_callback(lambda: self._send_msg(data))  # type: ignore[arg-type]
+        self._transport.add_threadsafe_callback(  # type: ignore[arg-type]
+            lambda: self._send_msg(data)
+        )
         resp = self._wait_for_response(timeout=timeout)
         if resp is None:
             return resp
@@ -1468,7 +1478,9 @@ class PSubscriber(Subscriber):
                 if self._msg_type is None:
                     self.onmessage(_data, _topic)  # type: ignore[reportOptionalCall]
                 else:
-                    self.onmessage(self._msg_type(**_data), _topic)  # type: ignore[reportOptionalCall]
+                    self.onmessage(  # type: ignore[reportOptionalCall]
+                        self._msg_type(**_data), _topic
+                    )
         except (
             RuntimeError,
             ConnectionError,

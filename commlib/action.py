@@ -297,7 +297,9 @@ class GoalHandler:
         """
 
         _fb = feedback_msg.feedback_data
-        msg = _ActionFeedbackMessage(feedback_data=_fb, goal_id=self.id)  # type: ignore[reportArgumentType]
+        msg = _ActionFeedbackMessage(  # type: ignore[reportArgumentType]
+            feedback_data=_fb, goal_id=self.id
+        )
         assert self._pub_feedback is not None
         if self._pub_feedback is not None:
             self._pub_feedback.publish(msg)
@@ -346,8 +348,10 @@ class BaseActionService:
                 Defaults to NO_COMPRESSION.
             conn_params (BaseConnectionParameters, optional): The connection parameters to use.
             on_goal (callable, optional): A callback function to be called when a goal is received.
-            on_cancel (callable, optional): A callback function to be called when a goal is canceled.
-            on_getresult (callable, optional): A callback function to be called when a result is requested.
+            on_cancel (callable, optional): Callback for
+                when a goal is canceled.
+            on_getresult (callable, optional): Callback for
+                when a result is requested.
         """
         if on_goal is None:
             raise ValueError("No on_goal callback provided")
@@ -550,7 +554,9 @@ class BaseActionService:
         # Set Result data
         if self._msg_type is not None:
             assert self._current_goal.result is not None
-            resp.result = self._current_goal.result.model_dump()  # type: ignore[reportAttributeAccessIssue]
+            resp.result = (  # type: ignore[reportAttributeAccessIssue]
+                self._current_goal.result.model_dump()
+            )
         else:
             resp.result = self._current_goal.result  # type: ignore[reportAttributeAccessIssue]
         return resp
@@ -617,7 +623,8 @@ class BaseActionClient:
             conn_params (BaseConnectionParameters, optional): The connection parameters.
             on_feedback (callable, optional): A callback function for handling feedback.
             on_result (callable, optional): A callback function for handling results.
-            on_goal_reached (callable, optional): A callback function for handling when a goal is reached.
+            on_goal_reached (callable, optional): Callback
+                for handling when a goal is reached.
         """
 
         self._debug = debug

@@ -184,7 +184,9 @@ def benchmark_multiple_subscribers():
     print(f"\nMultiple subscribers ({num_subscribers} subscribers):")
     print(f"  Publish:   {latency:7.3f} ms/msg | {throughput:10.0f} msg/sec")
     print(
-        f"  Delivered: {total_delivered} total ({total_delivered / num_subscribers:.0f} per subscriber)"
+        f"  Delivered: {total_delivered} total"
+        f" ({total_delivered / num_subscribers:.0f}"
+        " per subscriber)"
     )
 
     return throughput

@@ -178,13 +178,15 @@ class KafkaTransport(BaseTransport):
                 continue
             if msg.error():
                 _err = msg.error()
-                if _err is not None and _err.code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]  # pylint: disable=protected-access
+                if (  # type: ignore[attr-defined]  # pylint: disable=protected-access
+                    _err is not None and _err.code() == KafkaError._PARTITION_EOF
+                ):
                     print(
                         "%% %s [%d] reached end at offset %d\n"
                         % (msg.topic(), msg.partition() or 0, msg.offset() or 0)
                     )
-                elif (
-                    _err is not None and _err.code() == KafkaError.UNKNOWN_TOPIC_OR_PART  # type: ignore[attr-defined]
+                elif (  # type: ignore[attr-defined]
+                    _err is not None and _err.code() == KafkaError.UNKNOWN_TOPIC_OR_PART
                 ):
                     time.sleep(1.0)
                     continue
@@ -386,7 +388,9 @@ class Subscriber(BaseSubscriber):
                             "%% %s [%d] reached end at offset %d\n"
                             % (msg.topic(), msg.partition() or 0, msg.offset() or 0)
                         )
-                    elif _err.code() == KafkaError.UNKNOWN_TOPIC_OR_PART:  # type: ignore[attr-defined]
+                    elif (  # type: ignore[attr-defined]
+                        _err.code() == KafkaError.UNKNOWN_TOPIC_OR_PART
+                    ):
                         kafka_logger.warning(
                             "Topic not yet available: %s (waiting for auto-create)",
                             self._topic,

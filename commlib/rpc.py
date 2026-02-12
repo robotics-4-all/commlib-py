@@ -61,7 +61,8 @@ class BaseRPCServer(BaseEndpoint):
 
         Args:
             base_uri (str): The base URI for the RPC service.
-            svc_map (dict): A mapping of service names to their corresponding RPC service implementations.
+            svc_map (dict): A mapping of service names to their
+                corresponding RPC service implementations.
             workers (int): The number of worker threads to use for the RPC service.
 
         """
@@ -156,8 +157,10 @@ class BaseRPCService(BaseEndpoint):
     """ΒaseRPCService.
     Implements a base class for an RPC service that can be run in the background.
 
-    The `BaseRPCService` class provides a foundation for implementing RPC services that can be run in the background.
-    It includes functionality for managing worker threads, serializing and deserializing RPC messages,
+    The `BaseRPCService` class provides a foundation for
+    implementing RPC services that can be run in the background.
+    It includes functionality for managing worker threads,
+    serializing and deserializing RPC messages,
     and handling incoming RPC requests.
 
     Subclasses of `BaseRPCService` must implement the `run_forever()` method,
@@ -361,8 +364,10 @@ class BaseRPCClient(BaseEndpoint):
             _rpc_name (str): The name of the RPC service.
             _msg_type (RPCMessage): The type of RPC message to use.
             _gen_random_id (callable): A function to generate a random ID for RPC messages.
-            _max_workers (int): The maximum number of worker threads to use for asynchronous RPC calls.
-            _executor (ThreadPoolExecutor): The thread pool executor used for asynchronous RPC calls.
+            _max_workers (int): The maximum number of worker
+                threads for asynchronous RPC calls.
+            _executor (ThreadPoolExecutor): The thread pool
+                executor used for asynchronous RPC calls.
             _comm_obj (CommRPCMessage): An instance of the `CommRPCMessage` class.
         """
 
@@ -410,7 +415,8 @@ class BaseRPCClient(BaseEndpoint):
         Args:
             msg (RPCMessage.Request): The RPC request message.
             timeout (float): The timeout for the RPC call in seconds.
-            on_response (callable): An optional callback function to be called when the RPC response is received.
+            on_response (callable): An optional callback to be
+                called when the RPC response is received.
 
         Returns:
             Future: A Future object representing the asynchronous RPC call.

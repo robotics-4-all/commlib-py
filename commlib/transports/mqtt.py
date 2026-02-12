@@ -693,7 +693,8 @@ class WSubscriber(BaseSubscriber):
 
         Args:
             topic (str): The MQTT topic to subscribe to. Must match the TOPIC_PATTERN_REGEX.
-            callback (callable): The function to be called when a message is received on the subscribed topic.
+            callback (callable): The function to be called when
+                a message is received on the subscribed topic.
 
         Raises:
             ValueError: If the topic is invalid (does not match
@@ -1063,10 +1064,11 @@ class RPCClient(BaseRPCClient):
 
         Args:
             msg (RPCMessage.Request): The RPC request message to be sent.
-            timeout (float, optional): The maximum time to wait for a response in seconds. Defaults to 10.
+            timeout (float, optional): The max time to wait
+                for a response in seconds. Defaults to 10.
 
         Returns:
-            RPCMessage.Response: The response message received.
+            RPCMessage.Response: The response message.
                 Returns None if timeout is reached.
         """
         assert self._transport is not None

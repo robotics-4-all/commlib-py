@@ -143,8 +143,10 @@ class BaseSubscriber(BaseEndpoint):
 
         Args:
             topic (str): The topic to subscribe to.
-            msg_type (Optional[Type[PubSubMessage]]): The type of message to expect for this subscription.
-            on_message (Optional[Callable]): A callback function to be called when a message is received.
+            msg_type (Optional[Type[PubSubMessage]]): The type
+                of message to expect for this subscription.
+            on_message (Optional[Callable]): A callback function
+                to be called when a message is received.
             workers (int): Number of worker threads (only used if use_shared_pool=False).
             use_shared_pool (bool): If True, use shared thread pool (recommended). Default: True.
             *args: Additional positional arguments to pass to the base class constructor.
@@ -241,10 +243,14 @@ class BaseSubscriber(BaseEndpoint):
 
     def stop(self, wait: bool = True) -> None:
         """
-        Stops the pub/sub service by setting the stop event and calling the parent class's stop method.
+        Stops the pub/sub service by setting the stop event
+        and calling the parent class's stop method.
 
-        If the stop event (`_t_stop_event`) is not None, it sets the event to signal that the service should stop.
-        Then, it calls the `stop` method of the superclass to perform any additional stopping procedures.
+        If the stop event (``_t_stop_event``) is not None,
+        it sets the event to signal that the service should
+        stop. Then, it calls the ``stop`` method of the
+        superclass to perform any additional stopping
+        procedures.
 
         Args:
             wait: If True, wait for transport to disconnect before returning (default: True)

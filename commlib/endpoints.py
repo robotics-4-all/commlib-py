@@ -69,7 +69,8 @@ class BaseEndpoint:
         Initializes a new instance of the `BaseEndpoint` class.
 
         Args:
-            debug (bool, optional): A flag indicating whether debug mode is enabled. Defaults to `False`.
+            debug (bool, optional): Whether debug mode is
+                enabled. Defaults to ``False``.
             serializer (Serializer, optional): Serializer for data.
                 Defaults to ``JSONSerializer``.
             conn_params (BaseConnectionParameters, optional):
@@ -202,7 +203,8 @@ class EndpointType(Enum):
 
 def endpoint_factory(etype: EndpointType, etransport: TransportType) -> Any:
     """
-    Factory function to create endpoint instances based on the specified endpoint type and transport type.
+    Factory function to create endpoint instances based on
+    the specified endpoint type and transport type.
 
     Args:
         etype (EndpointType): The type of the endpoint to create.

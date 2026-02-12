@@ -120,7 +120,8 @@ class RealTimePlotter:
         self.sc = self.ax.scatter(
             self.xs, self.ys, self.zs, c=self.cs, cmap="viridis", marker="o"
         )
-        # self.fig.colorbar(self.sc, label='Data Size (KB)') # Colorbar might be tricky to update repeatedly
+        # Colorbar might be tricky to update repeatedly
+        # self.fig.colorbar(self.sc, label='Data Size (KB)')
 
     def start(self):
         ani = animation.FuncAnimation(self.fig, self.update, interval=1000)
@@ -312,7 +313,11 @@ class PubSubPerfTest:
                     progress.update(
                         overall_task,
                         advance=1,
-                        description=f"[cyan]Subs={res['num_subs']}, Size={res['data_size_kb']}KB, Freq={res['target_freq']}Hz",
+                        description=(
+                            f"[cyan]Subs={res['num_subs']},"
+                            f" Size={res['data_size_kb']}KB,"
+                            f" Freq={res['target_freq']}Hz"
+                        ),
                     )
 
                 process.join()
@@ -402,8 +407,10 @@ def main():
             f"[bold blue]PubSub Performance Benchmark[/bold blue]\n"
             f"Broker: [green]{args.broker}[/green]\n"
             f"Messages/Size: [green]{args.num_messages}[/green]\n"
-            f"Max Size: [green]{args.max_size_kb} KB[/green] (Strategy: [green]{args.size_strategy}[/green])\n"
-            f"Max Subs: [green]{args.max_subs}[/green] (Strategy: [green]{args.subs_strategy}[/green])\n"
+            f"Max Size: [green]{args.max_size_kb} KB[/green]"
+            f" (Strategy: [green]{args.size_strategy}[/green])\n"
+            f"Max Subs: [green]{args.max_subs}[/green]"
+            f" (Strategy: [green]{args.subs_strategy}[/green])\n"
             f"Freq Range: [green]2^{args.start_freq_exp} - 2^{args.max_freq_exp} Hz[/green]\n"
             f"Logic: [italic]Fixed Subs -> Variable Data Size -> Variable Freq[/italic]",
             box=box.DOUBLE,
