@@ -56,7 +56,7 @@ class BaseRPCServer(BaseEndpoint):
         self,
         *args,
         base_uri: str = "",
-        svc_map: dict = {},
+        svc_map: Optional[dict] = None,
         workers: int = 4,
         **kwargs,
     ):
@@ -73,7 +73,7 @@ class BaseRPCServer(BaseEndpoint):
 
         super().__init__(*args, **kwargs)
         self._base_uri: str = base_uri
-        self._svc_map: Dict[str, Any] = svc_map
+        self._svc_map: Dict[str, Any] = svc_map if svc_map is not None else {}
         self._max_workers: int = workers
         self._gen_random_id = gen_random_id
 

@@ -581,8 +581,10 @@ class BaseActionService:
         description: str = "",
         goal_id: Optional[str] = "",
         status: int = 0,
-        data: Dict[str, Any] = {},
+        data: Optional[Dict[str, Any]] = None,
     ):
+        if data is None:
+            data = {}
         if self._notify_pub is not None:
             _msg = _ActionNotifyMessage(
                 msg=msg,

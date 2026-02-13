@@ -6,7 +6,7 @@ from multiple input topics into a single output topic.
 
 import functools
 import logging
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 from commlib.connection import BaseConnectionParameters
 from commlib.node import Node
 
@@ -21,14 +21,12 @@ class TopicMessageProcessor:
         broker_params: BaseConnectionParameters,
         input_topic: List[str],
         output_topic: str,
-        data_processors: List[Callable] = [],
+        data_processors: Optional[List[Callable]] = None,
     ):
         self.broker_params = broker_params
         self.input_topic = input_topic
         self.output_topic = output_topic
-        self.data_processors = (
-            data_processors  # List of functions to process incoming data
-        )
+        self.data_processors = data_processors if data_processors is not None else []
 
         self.pub: Any = None
 
@@ -86,14 +84,12 @@ class TopicAggregator:
         broker_params: BaseConnectionParameters,
         input_topics: List[str],
         output_topic: str,
-        data_processors: Dict[str, List[Callable]] = {},
+        data_processors: Optional[Dict[str, List[Callable]]] = None,
     ):
         self.broker_params = broker_params
         self.input_topics = input_topics
         self.output_topic = output_topic
-        self.data_processors = (
-            data_processors  # List of functions to process incoming data
-        )
+        self.data_processors = data_processors if data_processors is not None else {}
 
         self.pub: Any = None
 
@@ -129,8 +125,13 @@ class TopicAggregator:
         self.pub = self.node.create_mpublisher()
 
     def on_msg_internal(
-        self, payload: Dict[str, Any], _topic: str, processors: List[Callable] = []
+        self,
+        payload: Dict[str, Any],
+        _topic: str,
+        processors: Optional[List[Callable]] = None,
     ) -> None:
+        if processors is None:
+            processors = []
         for proc in processors:
             try:
                 payload = proc(payload)

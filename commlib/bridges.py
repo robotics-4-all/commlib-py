@@ -379,7 +379,7 @@ class PTopicBridge(Bridge):
         self,
         *args,
         msg_type: Optional[Type[PubSubMessage]] = None,
-        uri_transform: List = [],
+        uri_transform: Optional[List] = None,
         **kwargs,
     ):
         """
@@ -402,7 +402,7 @@ class PTopicBridge(Bridge):
 
         super().__init__(*args, **kwargs)
         self._msg_type = msg_type
-        self._uri_transform = uri_transform
+        self._uri_transform = uri_transform if uri_transform is not None else []
 
         bA_type_str = str(type(self._from_broker_params)).split("'")[1]
         bB_type_str = str(type(self._to_broker_params)).split("'")[1]
