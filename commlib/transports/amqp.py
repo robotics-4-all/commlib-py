@@ -1355,10 +1355,10 @@ class Subscriber(BaseSubscriber):
         _data = {}
 
         try:
-            properties.content_type
-            properties.content_encoding
-            properties.delivery_mode
-            properties.timestamp
+            _ = properties.content_type
+            _ = properties.content_encoding
+            _ = properties.delivery_mode
+            _ = properties.timestamp
         except (
             RuntimeError,
             ConnectionError,
@@ -1445,10 +1445,10 @@ class PSubscriber(Subscriber):
         _data = {}
 
         try:
-            properties.content_type
-            properties.content_encoding
-            properties.delivery_mode
-            properties.timestamp
+            _ = properties.content_type
+            _ = properties.content_encoding
+            _ = properties.delivery_mode
+            _ = properties.timestamp
         except (
             RuntimeError,
             ConnectionError,

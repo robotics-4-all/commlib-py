@@ -419,10 +419,7 @@ class MQTTTransport(BaseTransport):
     def _on_msg_internal(
         self, callback: Callable, client: Any, userdata: Any, msg: Any
     ) -> None:
-        msg.topic
         _payload = msg.payload
-        msg.qos
-        msg.retain
         if self._compression != CompressionType.NO_COMPRESSION:
             _payload = deflate(_payload, self._compression)
         msg.payload = _payload
