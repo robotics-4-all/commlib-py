@@ -51,7 +51,7 @@ def run_command(cmd, timeout=None, env=None):
 def wait_for_healthy(service, progress, task_id, timeout=60):
     start_time = time.time()
     while time.time() - start_time < timeout:
-        rc, stdout, stderr = run_command(
+        rc, stdout, _stderr = run_command(
             f"docker-compose -f {COMPOSE_FILE} ps {service} --format json"
         )
         if rc == 0 and stdout:

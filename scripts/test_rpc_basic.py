@@ -9,13 +9,16 @@ from commlib.node import Node
 
 class AddTwoInts(RPCMessage):
     """Add Two Ints."""
+
     class Request(RPCMessage.Request):
         """Request payload."""
+
         a: int = 0
         b: int = 0
 
     class Response(RPCMessage.Response):
         """Response payload."""
+
         c: int = 0
 
 
@@ -63,7 +66,7 @@ def main():
         print(f"Server received request: a={msg.a}, b={msg.b}")
         return AddTwoInts.Response(c=msg.a + msg.b)
 
-    rpc_service = node.create_rpc(
+    _rpc_service = node.create_rpc(
         msg_type=AddTwoInts, rpc_name=args.rpc_name, on_request=on_request
     )
 

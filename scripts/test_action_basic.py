@@ -8,16 +8,20 @@ from commlib.node import Node
 
 class ExampleAction(ActionMessage):
     """Example Action."""
+
     class Goal(ActionMessage.Goal):
         """Goal payload."""
+
         target: int = 0
 
     class Result(ActionMessage.Result):
         """Result payload."""
+
         final_pos: int = 0
 
     class Feedback(ActionMessage.Feedback):
         """Feedback payload."""
+
         current_pos: int = 0
 
 
@@ -78,7 +82,7 @@ def main():
         print(f"Server sending result: final_pos={c}")
         return ExampleAction.Result(final_pos=c)
 
-    action_server = node.create_action(
+    _action_server = node.create_action(
         msg_type=ExampleAction, action_name=args.action_name, on_goal=on_goal
     )
 

@@ -138,7 +138,7 @@ def benchmark_subscriber_scaling():
 
 def benchmark_pool_reuse():
     """Benchmark thread pool reuse efficiency."""
-    conn_params = ConnectionParameters(host="localhost", port=6379)
+    _conn_params = ConnectionParameters(host="localhost", port=6379)
 
     print("\nBenchmark: Thread Pool Reuse")
     print("-" * 60)

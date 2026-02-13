@@ -38,12 +38,14 @@ console = Console()
 
 class PerfMessage(PubSubMessage):
     """Perf Message."""
+
     data: str
     ts: int
 
 
 class ResourceMonitor:
     """Resource Monitor."""
+
     def __init__(self, interval: float = 0.1):
         self.interval = interval
         self.cpu_usages = []
@@ -83,6 +85,7 @@ class ResourceMonitor:
 
 class RealTimePlotter:
     """Real Time Plotter."""
+
     def __init__(self, data_queue: multiprocessing.Queue):
         self.data_queue = data_queue
         self.xs = []
@@ -123,12 +126,13 @@ class RealTimePlotter:
         # self.fig.colorbar(self.sc, label='Data Size (KB)')
 
     def start(self):
-        ani = animation.FuncAnimation(self.fig, self.update, interval=1000)
+        _ani = animation.FuncAnimation(self.fig, self.update, interval=1000)
         plt.show()
 
 
 class PubSubPerfTest:
     """Pub Sub Perf Test."""
+
     def __init__(self, broker: str, topic: str = "perf.test"):
         self.broker = broker
         self.topic = topic
@@ -245,7 +249,7 @@ class PubSubPerfTest:
                 connection_params=self.conn_params,
                 heartbeats=False,
             )
-            for i in range(num_subs):
+            for _i in range(num_subs):
                 node.create_subscriber(
                     topic=self.topic, msg_type=PerfMessage, on_message=self.on_message
                 )

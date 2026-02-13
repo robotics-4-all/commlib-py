@@ -62,7 +62,7 @@ def main():
         if received_count >= args.count:
             received_event.set()
 
-    sub = node.create_subscriber(
+    _sub = node.create_subscriber(
         msg_type=DemoMessage, topic=args.topic, on_message=on_message
     )
 
