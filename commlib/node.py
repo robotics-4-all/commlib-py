@@ -40,6 +40,7 @@ class HeartbeatThread:
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global n_logger  # pylint: disable=global-statement
         if n_logger is None:
             n_logger = logging.getLogger(f"{__name__}.{cls.__name__}")
@@ -109,6 +110,7 @@ class HeartbeatThread:
         return not self._stop_event.is_set()
 
     def get_current_ts(self):
+        """Get current ts."""
         return get_timestamp_ns()
 
 
@@ -143,6 +145,7 @@ class Node:
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global n_logger  # pylint: disable=global-statement
         if n_logger is None:
             n_logger = logging.getLogger(__name__)
@@ -221,6 +224,7 @@ class Node:
 
     @property
     def input_ports(self) -> dict:
+        """Input ports."""
         return {
             "subscriber": self._subscribers,
             "rpc_service": self._rpc_services,
@@ -229,6 +233,7 @@ class Node:
 
     @property
     def output_ports(self):
+        """Output ports."""
         return {
             "publisher": self._publishers,
             "rpc_client": self._rpc_clients,
@@ -237,10 +242,12 @@ class Node:
 
     @property
     def ports(self):
+        """Ports."""
         return {"input": self.input_ports, "output": self.output_ports}
 
     @property
     def endpoints(self):
+        """Endpoints."""
         return (
             self._subscribers
             + self._publishers
@@ -255,10 +262,12 @@ class Node:
 
     @property
     def health(self):
+        """Health."""
         return set([e.connected for e in self.endpoints]) == {True}
 
     @property
     def log(self) -> logging.Logger:
+        """Log."""
         return self.logger()
 
     @staticmethod
@@ -333,6 +342,7 @@ class Node:
         return resp
 
     def create_stop_service(self, uri: str = "") -> None:
+        """Create stop service."""
         if uri in (None, ""):
             uri = f"{self._namespace}.stop"
         self.create_rpc(
@@ -340,6 +350,7 @@ class Node:
         )
 
     def create_start_service(self, uri: str = "") -> None:
+        """Create start service."""
         if uri in ("", None):
             uri = f"{self._namespace}.start"
         self.create_rpc(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+"""Pub/sub performance benchmarking tool."""
 import argparse
 import time
 import statistics
@@ -67,6 +67,7 @@ class ResourceMonitor:
             time.sleep(self.interval)
 
     def start(self):
+        """Start."""
         self.stop_event.clear()
         self.cpu_usages = []
         self.mem_usages = []
@@ -74,6 +75,7 @@ class ResourceMonitor:
         self.thread.start()
 
     def stop(self):
+        """Stop."""
         self.stop_event.set()
         if self.thread is not None:
             self.thread.join(timeout=1.0)
@@ -97,6 +99,7 @@ class RealTimePlotter:
         self.sc = None
 
     def update(self, _frame):
+        """Update."""
         try:
             while not self.data_queue.empty():
                 data = self.data_queue.get_nowait()
@@ -126,6 +129,7 @@ class RealTimePlotter:
         # self.fig.colorbar(self.sc, label='Data Size (KB)')
 
     def start(self):
+        """Start."""
         _ani = animation.FuncAnimation(self.fig, self.update, interval=1000)
         plt.show()
 
@@ -157,6 +161,7 @@ class PubSubPerfTest:
         return ConnectionParameters(reconnect_attempts=0)
 
     def on_message(self, msg: PerfMessage):
+        """On message."""
         now = get_timestamp_ns()
         if self.msg_count == 0:
             self.first_msg_ts = now
@@ -176,6 +181,7 @@ class PubSubPerfTest:
         pub: Any,
     ):
         # Reset counters for this data size
+        """Run single size."""
         self.latencies = []
         self.msg_count = 0
         self.first_msg_ts = 0
@@ -278,6 +284,7 @@ class PubSubPerfTest:
         num_messages: int,
         plot_queue: multiprocessing.Queue = None,
     ):
+        """Run benchmark."""
         results = []
 
         with Progress(
@@ -331,6 +338,7 @@ class PubSubPerfTest:
 
 
 def main():
+    """Main."""
     parser = argparse.ArgumentParser(description="PubSub Performance Test")
     parser.add_argument(
         "--broker",

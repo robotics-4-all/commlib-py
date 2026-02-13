@@ -71,6 +71,7 @@ class BasePublisher(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global pubsub_logger  # pylint: disable=global-statement
         if pubsub_logger is None:
             pubsub_logger = logging.getLogger(__name__)
@@ -106,6 +107,7 @@ class BasePublisher(BaseEndpoint):
         return self._topic
 
     def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+        """Publish."""
         raise NotImplementedError()
 
     def _prepare_msg(self, msg: PubSubMessage) -> Dict:
@@ -123,6 +125,7 @@ class BaseSubscriber(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global pubsub_logger  # pylint: disable=global-statement
         if pubsub_logger is None:
             pubsub_logger = logging.getLogger(__name__)

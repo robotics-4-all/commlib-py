@@ -30,4 +30,5 @@ class TestTimer(unittest.TestCase):
         self.assertEqual(self.count_0, max_iterations + 1)
 
     def callback_0(self, _event):
+        """Callback 0."""
         self.count_0 += 1

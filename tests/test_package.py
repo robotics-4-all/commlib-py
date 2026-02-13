@@ -1,3 +1,4 @@
+"""Tests for package imports and structure."""
 import unittest
 import importlib
 

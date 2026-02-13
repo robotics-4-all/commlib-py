@@ -52,6 +52,7 @@ class RobotNode(Node):
         )
 
     def start_telemetry(self, timeout: float = 0) -> None:
+        """Start telemetry."""
         self.run()
         rate = Rate(self.pub_freq)
         x, y = 0.0, 0.0

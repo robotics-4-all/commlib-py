@@ -44,14 +44,17 @@ def gen_timestamp() -> int:
 
 
 def get_timestamp_ns() -> int:
+    """Get timestamp ns."""
     return gen_timestamp()
 
 
 def get_timestamp_us() -> int:
+    """Get timestamp us."""
     return int(get_timestamp_ns() / 1e3)
 
 
 def get_timestamp_ms() -> int:
+    """Get timestamp ms."""
     return int(get_timestamp_ns() / 1e6)
 
 

@@ -53,6 +53,7 @@ STAGES = [
 
 
 def on_firmware_goal(goal_h) -> FirmwareUpdateAction.Result:
+    """On firmware goal."""
     goal = goal_h.data
     device = goal.device_id
     version = goal.firmware_version

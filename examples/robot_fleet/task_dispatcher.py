@@ -44,6 +44,7 @@ class DeliveryTask(TaskMessage):
 
 
 def on_result(_task_id: str, task_result: DeliveryTask.Result) -> None:
+    """On result."""
     status = "DELIVERED" if task_result.delivered else "FAILED"
     print(
         f"[dispatch] {task_result.order_id}: [{status}] {task_result.time_taken_sec}s"
@@ -51,6 +52,7 @@ def on_result(_task_id: str, task_result: DeliveryTask.Result) -> None:
 
 
 def on_progress(_task_id: str, progress: DeliveryTask.Progress, percent: float) -> None:
+    """On progress."""
     print(f"[dispatch] {progress.order_id}: {progress.stage} ({percent}%)")
 
 

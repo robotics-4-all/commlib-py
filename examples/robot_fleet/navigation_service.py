@@ -47,6 +47,7 @@ class NavigateAction(ActionMessage):
 
 
 def on_navigate_goal(goal_h) -> NavigateAction.Result:
+    """On navigate goal."""
     goal = goal_h.data
     target_x, target_y = goal.x, goal.y
     speed = goal.max_speed

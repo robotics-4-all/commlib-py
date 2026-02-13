@@ -1,3 +1,4 @@
+"""Tests for LZ4 compression functionality."""
 import unittest
 import zlib
 from commlib.compression import CompressionType, inflate_str, deflate, HAS_LZ4
@@ -7,6 +8,7 @@ class TestLZ4Compression(unittest.TestCase):
     """Test LZ4 Compression."""
 
     def test_lz4_compression_decompression(self):
+        """Test lz4 compression decompression."""
         test_str = "Hello World" * 100
         compressed = inflate_str(test_str, CompressionType.DEFAULT_COMPRESSION)
         self.assertIsInstance(compressed, bytes)
@@ -16,6 +18,7 @@ class TestLZ4Compression(unittest.TestCase):
 
     def test_lz4_fallback_to_zlib(self):
         # Even if HAS_LZ4 is False, it should work (using zlib)
+        """Test lz4 fallback to zlib."""
         test_str = "Fallback Test" * 50
         compressed = inflate_str(test_str, CompressionType.DEFAULT_COMPRESSION)
         decompressed = deflate(compressed, CompressionType.DEFAULT_COMPRESSION)

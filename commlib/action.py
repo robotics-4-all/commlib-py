@@ -141,6 +141,7 @@ class GoalHandler:
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global actions_logger  # pylint: disable=global-statement
         if actions_logger is None:
             actions_logger = logging.getLogger(__name__)
@@ -191,10 +192,12 @@ class GoalHandler:
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     @property
     def cancel_event(self):
+        """Cancel event."""
         return self._cancel_event
 
     def _done_callback(self, future: Future):
@@ -319,6 +322,7 @@ class GoalHandler:
             self._pub_feedback.publish(msg)
 
     def set_result(self, result):
+        """Set result."""
         self.result = result
 
 
@@ -335,6 +339,7 @@ class BaseActionService:
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global actions_logger  # pylint: disable=global-statement
         if actions_logger is None:
             actions_logger = logging.getLogger(__name__)
@@ -415,14 +420,17 @@ class BaseActionService:
 
     @property
     def debug(self):
+        """Debug."""
         return self._debug
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     @property
     def connected(self):
+        """Connected."""
         assert self._goal_rpc is not None
         assert self._cancel_rpc is not None
         assert self._result_rpc is not None
@@ -612,6 +620,7 @@ class BaseActionClient:
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global actions_logger  # pylint: disable=global-statement
         if actions_logger is None:
             actions_logger = logging.getLogger(__name__)
@@ -671,26 +680,32 @@ class BaseActionClient:
 
     @property
     def debug(self) -> bool:
+        """Debug."""
         return self._debug
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     @property
     def result(self):
+        """Result."""
         return self._result
 
     @property
     def status(self):
+        """Status."""
         return self._status
 
     @property
     def goal_id(self):
+        """Goal id."""
         return self._goal_id
 
     @property
     def connected(self):
+        """Connected."""
         assert self._status_sub is not None
         assert self._feedback_sub is not None
         assert self._goal_client is not None

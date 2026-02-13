@@ -45,6 +45,7 @@ class NavigateAction(ActionMessage):
 
 
 def on_feedback(feedback: NavigateAction.Feedback) -> None:
+    """On feedback."""
     print(
         f"  pos=({feedback.current_x}, {feedback.current_y}) "
         f"remaining={feedback.distance_remaining}m "
@@ -53,6 +54,7 @@ def on_feedback(feedback: NavigateAction.Feedback) -> None:
 
 
 def on_result(result: NavigateAction.Result) -> None:
+    """On result."""
     status = "REACHED" if result.reached else "ABORTED"
     print(
         f"  -> [{status}] final=({result.final_x}, {result.final_y}) "
@@ -61,6 +63,7 @@ def on_result(result: NavigateAction.Result) -> None:
 
 
 def on_goal_reached(_result: NavigateAction.Result) -> None:
+    """On goal reached."""
     print("[client] Navigation complete")
 
 

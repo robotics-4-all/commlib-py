@@ -21,6 +21,7 @@ from commlib.node import Node  # noqa: E402
 
 
 def on_robot_telemetry(msg, topic: str) -> None:
+    """On robot telemetry."""
     print(f"[monitor] <{topic}> {msg}")
 
 

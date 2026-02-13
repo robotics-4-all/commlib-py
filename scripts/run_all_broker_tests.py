@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+"""Run all broker integration tests with Docker."""
 import subprocess
 import time
 import sys
@@ -37,6 +37,7 @@ console = Console()
 
 
 def run_command(cmd, timeout=None, env=None):
+    """Run command."""
     try:
         result = subprocess.run(
             cmd, shell=True, capture_output=True, text=True, timeout=timeout, env=env
@@ -49,6 +50,7 @@ def run_command(cmd, timeout=None, env=None):
 
 
 def wait_for_healthy(service, progress, task_id, timeout=60):
+    """Wait for healthy."""
     start_time = time.time()
     while time.time() - start_time < timeout:
         rc, stdout, _stderr = run_command(
@@ -67,6 +69,7 @@ def wait_for_healthy(service, progress, task_id, timeout=60):
 
 
 def main():
+    """Main."""
     results = []
 
     # Setup environment

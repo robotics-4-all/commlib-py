@@ -53,6 +53,7 @@ class BaseEndpoint:
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global e_logger  # pylint: disable=global-statement
         if e_logger is None:
             e_logger = logging.getLogger(__name__)
@@ -104,14 +105,17 @@ class BaseEndpoint:
 
     @property
     def connected(self):
+        """Connected."""
         return self._transport.is_connected if self._transport else False
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     @property
     def debug(self):
+        """Debug."""
         return self._debug
 
     def run(self, wait: bool = True) -> None:

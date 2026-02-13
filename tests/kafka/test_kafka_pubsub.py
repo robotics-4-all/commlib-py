@@ -35,6 +35,7 @@ class TestKafkaPubSub(unittest.TestCase):
         self.conn_params = ConnectionParameters(host=kafka_host, port=kafka_port)
 
     def test_publisher_subscriber_basic(self):
+        """Test publisher subscriber basic."""
         received = []
         ready = threading.Event()
 
@@ -70,6 +71,7 @@ class TestKafkaPubSub(unittest.TestCase):
         node.stop()
 
     def test_mpublisher_psubscriber(self):
+        """Test mpublisher psubscriber."""
         received = []
         ready = threading.Event()
 

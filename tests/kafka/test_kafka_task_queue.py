@@ -44,6 +44,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
         self.conn_params = ConnectionParameters(host=kafka_host, port=kafka_port)
 
     def test_submit_and_process_task(self):
+        """Test submit and process task."""
         results = []
 
         def on_task(ctx):
@@ -82,6 +83,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_typed_task_message(self):
+        """Test typed task message."""
         results = []
 
         def on_task(ctx):
@@ -125,6 +127,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_fire_and_forget(self):
+        """Test fire and forget."""
         processed = []
 
         def on_task(ctx):
@@ -154,6 +157,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_progress_reporting(self):
+        """Test progress reporting."""
         progress_reports = []
 
         def on_task(ctx):
@@ -190,6 +194,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_node_task_queue_flow(self):
+        """Test node task queue flow."""
         results = []
 
         def on_task(ctx):

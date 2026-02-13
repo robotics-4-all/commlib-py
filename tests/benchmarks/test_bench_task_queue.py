@@ -35,13 +35,16 @@ class BenchTaskMessage(TaskMessage):
 class TestTaskQueueBenchmarks:
     """Test Task Queue Benchmarks."""
     def setup_method(self):
+        """Setup method."""
         clear_mock_bus()
 
     def teardown_method(self):
+        """Teardown method."""
         clear_mock_bus()
 
     @pytest.mark.smoke
     def test_task_queue_import(self):
+        """Test task queue import."""
         from commlib.task_queue import BaseTaskProducer, BaseTaskWorker
 
         assert callable(BaseTaskProducer)
@@ -49,6 +52,7 @@ class TestTaskQueueBenchmarks:
 
     @pytest.mark.smoke
     def test_single_task_roundtrip(self):
+        """Test single task roundtrip."""
         conn_params = ConnectionParameters()
 
         def on_task(ctx):
@@ -81,6 +85,7 @@ class TestTaskQueueBenchmarks:
 
     @pytest.mark.smoke
     def test_batch_task_throughput(self):
+        """Test batch task throughput."""
         conn_params = ConnectionParameters()
         num_tasks = 50
         completed = []
@@ -129,6 +134,7 @@ class TestTaskQueueBenchmarks:
         worker.stop()
 
     def test_typed_task_throughput(self):
+        """Test typed task throughput."""
         conn_params = ConnectionParameters()
         num_tasks = 30
         completed = []
@@ -177,6 +183,7 @@ class TestTaskQueueBenchmarks:
         worker.stop()
 
     def test_fire_and_forget_throughput(self):
+        """Test fire and forget throughput."""
         conn_params = ConnectionParameters()
         num_tasks = 100
         processed = []
@@ -220,6 +227,7 @@ class TestTaskQueueBenchmarks:
 
     @pytest.mark.smoke
     def test_progress_reporting_overhead(self):
+        """Test progress reporting overhead."""
         conn_params = ConnectionParameters()
         progress_reports = []
 
@@ -261,6 +269,7 @@ class TestTaskQueueBenchmarks:
         worker.stop()
 
     def test_concurrent_workers(self):
+        """Test concurrent workers."""
         conn_params = ConnectionParameters()
         num_tasks = 20
         completed = []

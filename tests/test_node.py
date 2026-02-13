@@ -43,6 +43,7 @@ class TestNode(unittest.TestCase):
         """Tear down test fixtures, if any."""
 
     def test_node_create_wrong_transport(self):
+        """Test node create wrong transport."""
         try:
             _node = Node(
                 node_name="sensors.sonar.front", connection_params=self.connparams
@@ -51,11 +52,13 @@ class TestNode(unittest.TestCase):
             pass
 
     def test_node_create_publisher(self):
+        """Test node create publisher."""
         node = Node(node_name="sensors.sonar.front", connection_params=self.connparams)
         node.create_publisher(msg_type=SonarMessage, topic="sensors.sonar.front")
         self.assertEqual(len(node._publishers), 1)
 
     def test_node_create_subscriber(self):
+        """Test node create subscriber."""
         node = Node(node_name="sensors.sonar.front", connection_params=self.connparams)
 
         def on_message(_msg):

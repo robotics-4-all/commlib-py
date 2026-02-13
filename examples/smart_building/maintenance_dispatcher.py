@@ -47,6 +47,7 @@ class MaintenanceTask(TaskMessage):
 
 
 def on_result(task_id: str, task_result: MaintenanceTask.Result) -> None:
+    """On result."""
     task_status = "DONE" if task_result.completed else "FAILED"
     print(f"[dispatch] Result {task_id}: [{task_status}] {task_result.notes}")
 
@@ -54,6 +55,7 @@ def on_result(task_id: str, task_result: MaintenanceTask.Result) -> None:
 def on_progress(
     task_id: str, progress: MaintenanceTask.Progress, percent: float
 ) -> None:
+    """On progress."""
     print(f"[dispatch] Progress {task_id}: {progress.stage} ({percent}%)")
 
 

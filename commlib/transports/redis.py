@@ -201,10 +201,12 @@ class RedisTransport(BaseTransport):
 
     @classmethod
     def set_redis_pool(cls, pool):
+        """Set redis pool."""
         cls._redis_pool = pool
 
     @classmethod
     def get_redis_pool(cls):
+        """Get redis pool."""
         return cls._redis_pool
 
     @classmethod
@@ -224,6 +226,7 @@ class RedisTransport(BaseTransport):
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global redis_logger  # pylint: disable=global-statement
         if redis_logger is None:
             redis_logger = logging.getLogger(__name__)
@@ -272,10 +275,12 @@ class RedisTransport(BaseTransport):
 
     @property
     def pubsub_alive(self):
+        """Pubsub alive."""
         return self._rsub_thread.is_alive() if self._rsub_thread else False
 
     @property
     def is_connected(self) -> bool:
+        """Is connected."""
         try:
             if self._redis is None:
                 return False
@@ -294,6 +299,7 @@ class RedisTransport(BaseTransport):
 
     @property
     def log(self) -> logging.Logger:
+        """Log."""
         return self.logger()
 
     def _build_conn_pool(self):
@@ -342,6 +348,7 @@ class RedisTransport(BaseTransport):
         )
 
     def connect(self) -> None:
+        """Connect."""
         self._stopped = False
         if self._conn_params.unix_socket not in ("", None):
             self._redis = RedisConnection(
@@ -465,19 +472,23 @@ class RedisTransport(BaseTransport):
             release_redis_pool(self._conn_params)
 
     def delete_queue(self, queue_name: str) -> bool:
+        """Delete queue."""
         assert self._redis is not None
         return True if self._redis.delete(queue_name) else False
 
     def queue_exists(self, queue_name: str) -> bool:
+        """Queue exists."""
         assert self._redis is not None
         return True if self._redis.exists(queue_name) else False
 
     def create_queue(self, queue_name: str) -> bool:
+        """Create queue."""
         assert self._redis is not None
         self._redis.rpush(queue_name, "QueueInit")
         return True
 
     def push_msg_to_queue(self, queue_name: str, data: Dict[str, Any]):
+        """Push msg to queue."""
         if not self.is_connected:
             self.log.warning("Transport not connected - Cannot push message to queue!")
             self._attempt_reconnect()
@@ -494,6 +505,7 @@ class RedisTransport(BaseTransport):
             return self.push_msg_to_queue(queue_name, data)
 
     def publish(self, queue_name: str, data: Dict[str, Any]):
+        """Publish."""
         if not self.is_connected:
             self.log.warning("Transport not connected - Cannot publish message!")
             self._attempt_reconnect()
@@ -510,6 +522,7 @@ class RedisTransport(BaseTransport):
             return self.publish(queue_name, data)
 
     def subscribe(self, topic: str, callback: Callable):
+        """Subscribe."""
         if topic in (None, ""):
             self.log.warning("Attempt to subscribe to empty topic - %s", topic)
             return
@@ -534,6 +547,7 @@ class RedisTransport(BaseTransport):
         return self._rsub_thread
 
     def exception_handler(self, ex, pubsub, thread):
+        """Exception handler."""
         if not self._stopped:
             self.log.debug(
                 "Redis PubSub error in thread: %s, exception: %s", thread, ex
@@ -630,6 +644,7 @@ class RedisTransport(BaseTransport):
         return False
 
     def msubscribe(self, topics: Dict[str, Callable]):
+        """Msubscribe."""
         _topics = {}
         for topic, callback in topics.items():
             _clb = functools.partial(self._on_msg_internal, callback)
@@ -662,6 +677,7 @@ class RedisTransport(BaseTransport):
         callback(data)
 
     def wait_for_msg(self, queue_name: str, timeout=10):
+        """Wait for msg."""
         try:
             if not self.is_connected:
                 self.log.warning(
@@ -944,9 +960,11 @@ class WPublisher:
 
     @property
     def connected(self):
+        """Connected."""
         return self._mpub.connected
 
     def publish(self, msg: Union[PubSubMessage, None]) -> None:
+        """Publish."""
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError(f'Argument "msg" must be of type {self._msg_type}')
         assert msg is not None
@@ -1418,6 +1436,7 @@ class RPCServer(BaseRPCServer):
         self._transport.push_msg_to_queue(reply_to, _resp)
 
     def start_endpoints(self):
+        """Start endpoints."""
         for uri in self._svc_map:
             if self._base_uri in (None, ""):
                 full_uri = uri
@@ -1469,6 +1488,7 @@ class TaskProducer(BaseTaskProducer):
         self._progress_topic = f"{self._queue_name}.progress"
 
     def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1482,6 +1502,7 @@ class TaskProducer(BaseTaskProducer):
         self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         if self._result_transport is not None:
             self._result_transport.stop()
         if self._transport is not None:
@@ -1522,6 +1543,7 @@ class TaskWorker(BaseTaskWorker):
         self._poll_thread = None
 
     def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1531,6 +1553,7 @@ class TaskWorker(BaseTaskWorker):
         self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         self._stop_event.set()
         if self._poll_thread is not None:
             self._poll_thread.join(timeout=5.0)

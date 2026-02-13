@@ -47,6 +47,7 @@ class BaseRPCServer(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global rpc_logger  # pylint: disable=global-statement
         if rpc_logger is None:
             rpc_logger = logging.getLogger(__name__)
@@ -111,9 +112,11 @@ class BaseRPCServer(BaseEndpoint):
     def register_endpoint(
         self, uri: str, callback: Callable, msg_type: Optional[Type[RPCMessage]] = None
     ) -> None:
+        """Register endpoint."""
         self._svc_map[uri] = (callback, msg_type)
 
     def run_forever(self) -> None:
+        """Run forever."""
         self._t_stop_event.clear()
         assert self._transport is not None
         self._transport.start()
@@ -149,6 +152,7 @@ class BaseRPCServer(BaseEndpoint):
             self.log.warning("Transport already connected - Skipping")
 
     def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         if self._t_stop_event:
             self._t_stop_event.set()
         if self._transport is not None:
@@ -175,6 +179,7 @@ class BaseRPCService(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global rpc_logger  # pylint: disable=global-statement
         if rpc_logger is None:
             rpc_logger = logging.getLogger(__name__)
@@ -341,6 +346,7 @@ class BaseRPCClient(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global rpc_logger  # pylint: disable=global-statement
         if rpc_logger is None:
             rpc_logger = logging.getLogger(__name__)

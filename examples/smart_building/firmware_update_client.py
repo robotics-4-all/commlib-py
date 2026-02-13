@@ -43,15 +43,18 @@ class FirmwareUpdateAction(ActionMessage):
 
 
 def on_feedback(feedback: FirmwareUpdateAction.Feedback) -> None:
+    """On feedback."""
     print(f"  [{feedback.stage}] {feedback.percent}%  (device: {feedback.device_id})")
 
 
 def on_result(result: FirmwareUpdateAction.Result) -> None:
+    """On result."""
     status = "SUCCESS" if result.success else "FAILED"
     print(f"  -> [{status}] v{result.new_version} in {result.duration_sec}s")
 
 
 def on_goal_reached(result: FirmwareUpdateAction.Result) -> None:
+    """On goal reached."""
     print(f"[client] Firmware update finished for {result.device_id}")
 
 

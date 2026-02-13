@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+"""Basic pub/sub transport integration test script."""
 import time
 import argparse
 import threading
@@ -18,6 +18,7 @@ class DemoMessage(PubSubMessage):
 
 
 def main():
+    """Main."""
     parser = argparse.ArgumentParser(description="Test PubSub communication")
     parser.add_argument(
         "--broker",

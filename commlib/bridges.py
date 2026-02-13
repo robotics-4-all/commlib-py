@@ -51,6 +51,7 @@ class Bridge:
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global br_logger  # pylint: disable=global-statement
         if br_logger is None:
             br_logger = logging.getLogger(__name__)
@@ -135,13 +136,16 @@ class Bridge:
 
     @property
     def debug(self) -> bool:
+        """Debug."""
         return self._debug
 
     @property
     def log(self) -> logging.Logger:
+        """Log."""
         return self.logger()
 
     def run(self):
+        """Run."""
         raise NotImplementedError()
 
     def run_forever(self):

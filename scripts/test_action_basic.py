@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+"""Basic action service integration test script."""
 import time
 import argparse
 from commlib.msg import ActionMessage
@@ -26,6 +26,7 @@ class ExampleAction(ActionMessage):
 
 
 def main():
+    """Main."""
     parser = argparse.ArgumentParser(description="Test Action communication")
     parser.add_argument(
         "--broker",

@@ -32,6 +32,7 @@ class SensorData(PubSubMessage):
 
 
 def make_parser() -> argparse.ArgumentParser:
+    """Make parser."""
     parser = argparse.ArgumentParser(description="Edge-to-cloud topic bridge")
     parser.add_argument(
         "--broker-a", default="redis", choices=["redis", "amqp", "mqtt", "kafka"]

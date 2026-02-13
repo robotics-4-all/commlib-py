@@ -31,6 +31,7 @@ class GenericSensorMsg(PubSubMessage):
 
 
 def make_parser() -> argparse.ArgumentParser:
+    """Make parser."""
     parser = argparse.ArgumentParser(
         description="Wildcard topic bridge (edge -> cloud)",
     )

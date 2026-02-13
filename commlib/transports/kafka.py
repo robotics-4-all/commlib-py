@@ -94,10 +94,12 @@ class KafkaTransport(BaseTransport):
         self.connect()
 
     def connect(self) -> None:
+        """Connect."""
         pass
 
     @property
     def producer(self) -> Optional[Producer]:
+        """Producer."""
         return self._producer
 
     @producer.setter
@@ -106,13 +108,16 @@ class KafkaTransport(BaseTransport):
 
     @property
     def is_connected(self) -> bool:
+        """Is connected."""
         return self._connected
 
     def start(self) -> None:
+        """Start."""
         if not self.is_connected:
             self.connect()
 
     def stop(self) -> None:
+        """Stop."""
         if self.is_connected:
             for producer in self._producers:
                 try:
@@ -132,11 +137,13 @@ class KafkaTransport(BaseTransport):
             self._set_connected(False)
 
     def create_producer(self, kafka_cfg):
+        """Create producer."""
         producer = Producer(kafka_cfg)
         self._producers.append(producer)
         return producer
 
     def create_consumer(self, kafka_cfg):
+        """Create consumer."""
         consumer = Consumer(kafka_cfg)
         self._consumers.append(consumer)
         return consumer
@@ -149,6 +156,7 @@ class KafkaTransport(BaseTransport):
         key: str = "",
         on_delivery=None,
     ):
+        """Publish data."""
         producer.poll(0)
         payload = self._serializer.serialize(data)
         if on_delivery is None:
@@ -162,6 +170,7 @@ class KafkaTransport(BaseTransport):
         pass
 
     def publish(self, topic: str, data: Dict[str, Any], key: str = "") -> None:
+        """Publish."""
         if self._producer is None:
             self._producer = self.create_producer(self._conn_params.model_dump())
         self.publish_data(self._producer, data, topic, key)
@@ -207,6 +216,7 @@ class KafkaTransport(BaseTransport):
     def subscribe(
         self, topic: str, callback: Callable, group_id: Optional[str] = None
     ) -> None:
+        """Subscribe."""
         import uuid
 
         kafka_cfg = self._conn_params.model_dump()
@@ -272,6 +282,7 @@ class Publisher(BasePublisher):
         }
 
     def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+        """Publish."""
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
@@ -307,6 +318,7 @@ class Publisher(BasePublisher):
         self._producer = self._transport.create_producer(self._kafka_cfg)
 
     def stop(self, wait: bool = True):  # pylint: disable=unused-argument
+        """Stop."""
         if self._producer is not None:
             self._producer.flush()
 
@@ -381,6 +393,7 @@ class Subscriber(BaseSubscriber):
         }
 
     def run_forever(self):
+        """Run forever."""
         running = True
         assert self._transport is not None, "Transport is not initialized."
         self._consumer = self._transport.create_consumer(self._kafka_cfg)
@@ -446,6 +459,7 @@ class Subscriber(BaseSubscriber):
         return _data, _topic, _key, _timestamp
 
     def stop(self, wait: bool = True):  # pylint: disable=unused-argument
+        """Stop."""
         self._consumer.close()
 
 
@@ -867,6 +881,7 @@ class TaskProducer(BaseTaskProducer):
         self._progress_sub = None
 
     def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -885,6 +900,7 @@ class TaskProducer(BaseTaskProducer):
         self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         if self._result_sub is not None:
             self._result_sub.stop()
         if self._progress_sub is not None:
@@ -959,6 +975,7 @@ class TaskWorker(BaseTaskWorker):
         self._task_sub = None
 
     def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -971,6 +988,7 @@ class TaskWorker(BaseTaskWorker):
         self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         self._stop_event.set()
         if self._task_sub is not None:
             self._task_sub.stop()

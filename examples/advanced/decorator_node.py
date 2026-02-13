@@ -53,10 +53,12 @@ if __name__ == "__main__":
 
     @node.subscribe("sensors.temperature", TemperatureReading)
     def on_temperature(msg: TemperatureReading) -> None:
+        """On temperature."""
         print(f"[sub] {msg.sensor_id}: {msg.temperature}°C")
 
     @node.rpc("math.add_two_ints", AddTwoIntsMsg)
     def handle_add(msg: AddTwoIntsMsg.Request) -> AddTwoIntsMsg.Response:
+        """Handle add."""
         print(f"[rpc] {msg.a} + {msg.b}")
         return AddTwoIntsMsg.Response(result=msg.a + msg.b)
 

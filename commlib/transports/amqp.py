@@ -238,6 +238,7 @@ class ConnectionParameters(BaseConnectionParameters):
     password: str = "guest"
 
     def make_pika(self):
+        """Make pika."""
         return pika.ConnectionParameters(
             host=self.host,
             port=str(self.port),
@@ -372,10 +373,12 @@ class AMQPTransport(BaseTransport):
 
     @property
     def channel(self):
+        """Channel."""
         return self._channel
 
     @property
     def connection(self):
+        """Connection."""
         return self._connection
 
     def connect(self) -> bool:
@@ -467,6 +470,7 @@ class AMQPTransport(BaseTransport):
         # self.add_threadsafe_callback(self.connection.process_data_events)
 
     def detach_amqp_events_thread(self):
+        """Detach amqp events thread."""
         if self._connection is None:
             raise AMQPError("AMQP connection is not established")
         self._connection.detach_amqp_events_thread()
@@ -514,6 +518,7 @@ class AMQPTransport(BaseTransport):
         self._set_connected(False)
 
     def exchange_exists(self, exchange_name):
+        """Exchange exists."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
         resp = self._channel.exchange_declare(
@@ -609,6 +614,7 @@ class AMQPTransport(BaseTransport):
         return queue_name
 
     def delete_queue(self, queue_name):
+        """Delete queue."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
         self._channel.queue_delete(queue=queue_name)
@@ -668,22 +674,26 @@ class AMQPTransport(BaseTransport):
             raise AMQPError("Error while trying to bind queue to exchange") from exc
 
     def set_channel_qos(self, prefetch_count=1, global_qos=False):
+        """Set channel qos."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
         self._channel.basic_qos(prefetch_count=prefetch_count, global_qos=global_qos)
 
     def consume_from_queue(self, queue_name, callback):
+        """Consume from queue."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
         consumer_tag = self._channel.basic_consume(queue_name, callback)
         return consumer_tag
 
     def start_consuming(self):
+        """Start consuming."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
         self._channel.start_consuming()
 
     def stop_consuming(self):
+        """Stop consuming."""
         try:
             if self._channel is None:
                 return
@@ -692,12 +702,15 @@ class AMQPTransport(BaseTransport):
             pass
 
     def disconnect(self):
+        """Disconnect."""
         self._graceful_shutdown()
 
     def start(self):
+        """Start."""
         self.connect()
 
     def stop(self):
+        """Stop."""
         self.stop_consuming()
         self.disconnect()
 
@@ -1297,6 +1310,7 @@ class Subscriber(BaseSubscriber):
         self._consume()
 
     def close(self) -> None:  # type: ignore[reportReturnType]
+        """Close."""
         if self._closing:
             return None
         if not self._transport:
@@ -1404,6 +1418,7 @@ class Subscriber(BaseSubscriber):
             self.log.error("Error in on_msg_callback", exc_info=True)
 
     def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         self.close()
 
     def __del__(self):
@@ -1609,6 +1624,7 @@ class TaskProducer(BaseTaskProducer):
         self._progress_topic = f"{self._queue_name}.progress"
 
     def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1627,6 +1643,7 @@ class TaskProducer(BaseTaskProducer):
         self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         if self._result_sub is not None:
             self._result_sub.stop()
         if self._progress_sub is not None:
@@ -1679,6 +1696,7 @@ class TaskWorker(BaseTaskWorker):
         self._consumer_thread = None
 
     def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1693,6 +1711,7 @@ class TaskWorker(BaseTaskWorker):
         self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         self._stop_event.set()
         if self._consumer_thread is not None:
             self._consumer_thread.join(timeout=5.0)

@@ -47,6 +47,7 @@ class MaintenanceTask(TaskMessage):
 
 
 def on_task(ctx) -> MaintenanceTask.Result:
+    """On task."""
     task_data = ctx.data
     wo_id = task_data.work_order_id
     print(f"[worker] Starting: {wo_id} ({task_data.task_type})")

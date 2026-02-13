@@ -103,6 +103,7 @@ class MQTTTransport(BaseTransport):
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global mqtt_logger  # pylint: disable=global-statement
         if mqtt_logger is None:
             mqtt_logger = logging.getLogger(__name__)
@@ -168,6 +169,7 @@ class MQTTTransport(BaseTransport):
                 self._client.tls_insecure_set(False)
 
     def connect(self) -> None:
+        """Connect."""
         if self._connected:
             raise ConnectionError("Transport already connected to broker")
         self._stopped = False
@@ -307,6 +309,7 @@ class MQTTTransport(BaseTransport):
         """
 
     def on_log(self, _client: Any, _userdata: Any, level, buf):
+        """On log."""
         self.log.info(level, buf)
 
     def publish(
@@ -409,6 +412,7 @@ class MQTTTransport(BaseTransport):
         return self._transform_topic_cached(topic)
 
     def unsubscribe(self, topic: str) -> None:
+        """Unsubscribe."""
         assert self._client is not None
         self._client.unsubscribe(topic)
 
@@ -425,6 +429,7 @@ class MQTTTransport(BaseTransport):
         callback(client, userdata, msg)
 
     def disconnect(self) -> None:
+        """Disconnect."""
         assert self._client is not None
         self._client.loop_stop()
         self._client.disconnect()
@@ -558,6 +563,7 @@ class WPublisher:
 
     @property
     def connected(self):
+        """Connected."""
         return self._mpub.connected
 
     def publish(self, msg: Union[PubSubMessage, None]) -> None:
@@ -598,6 +604,7 @@ class Subscriber(BaseSubscriber):
         validate_pubsub_topic_strict(self._topic)
 
     def run_forever(self):
+        """Run forever."""
         assert self._transport is not None
         self._transport.start()
         self._transport.subscribe(self._topic, self._on_message)
@@ -767,6 +774,7 @@ class PSubscriber(BaseSubscriber):
         validate_pubsub_topic(self._topic)
 
     def run_forever(self):
+        """Run forever."""
         assert self._transport is not None
         self._transport.start()
         self._transport.subscribe(self._topic, self._on_message)
@@ -972,6 +980,7 @@ class RPCServer(BaseRPCServer):
             return
 
     def start_endpoints(self):
+        """Start endpoints."""
         assert self._transport is not None
         for uri in self._svc_map:
             if self._base_uri in (None, ""):
@@ -1212,6 +1221,7 @@ class TaskProducer(BaseTaskProducer):
         self._progress_sub = None
 
     def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1230,6 +1240,7 @@ class TaskProducer(BaseTaskProducer):
         self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         if self._result_sub is not None:
             self._result_sub.stop()
         if self._progress_sub is not None:
@@ -1274,6 +1285,7 @@ class TaskWorker(BaseTaskWorker):
         self._pub = None
 
     def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1291,6 +1303,7 @@ class TaskWorker(BaseTaskWorker):
         self.set_state(EndpointState.CONNECTED)
 
     def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         self._stop_event.set()
         if self._task_sub is not None:
             self._task_sub.stop()

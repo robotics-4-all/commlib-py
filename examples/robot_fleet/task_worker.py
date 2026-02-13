@@ -45,6 +45,7 @@ class DeliveryTask(TaskMessage):
 
 
 def on_delivery_task(ctx) -> DeliveryTask.Result:
+    """On delivery task."""
     task = ctx.data
     oid = task.order_id
     start = time.time()

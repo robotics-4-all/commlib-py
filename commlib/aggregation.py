@@ -39,6 +39,7 @@ class TopicMessageProcessor:
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global aggregation_logger  # pylint: disable=global-statement
         if aggregation_logger is None:
             aggregation_logger = logging.getLogger(__name__)
@@ -46,18 +47,22 @@ class TopicMessageProcessor:
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     def create_subscriptions(self):
+        """Create subscriptions."""
         _clb = functools.partial(self.on_msg_internal, self.data_processors)
         self.node.create_psubscriber(topic=self.input_topic, on_message=_clb)
 
     def create_publisher(self):
+        """Create publisher."""
         self.pub = self.node.create_mpublisher()
 
     def on_msg_internal(
         self, processors: List[Callable], payload: Dict[str, Any], _topic: str
     ) -> None:
+        """On msg internal."""
         for proc in processors:
             try:
                 payload = proc(payload)
@@ -71,6 +76,7 @@ class TopicMessageProcessor:
                 continue
 
     def start(self):
+        """Start."""
         self.create_publisher()
         self.create_subscriptions()
         self.node.run_forever()
@@ -102,6 +108,7 @@ class TopicAggregator:
 
     @classmethod
     def logger(cls) -> logging.Logger:
+        """Logger."""
         global aggregation_logger  # pylint: disable=global-statement
         if aggregation_logger is None:
             aggregation_logger = logging.getLogger(__name__)
@@ -109,9 +116,11 @@ class TopicAggregator:
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     def create_subscriptions(self):
+        """Create subscriptions."""
         for topic in self.input_topics:
             _clb: Callable[..., None]
             if topic in self.data_processors:
@@ -122,6 +131,7 @@ class TopicAggregator:
             self.node.create_psubscriber(topic=topic, on_message=_clb)
 
     def create_publisher(self):
+        """Create publisher."""
         self.pub = self.node.create_mpublisher()
 
     def on_msg_internal(
@@ -130,6 +140,7 @@ class TopicAggregator:
         _topic: str,
         processors: Optional[List[Callable]] = None,
     ) -> None:
+        """On msg internal."""
         if processors is None:
             processors = []
         for proc in processors:
@@ -144,6 +155,7 @@ class TopicAggregator:
                 continue
 
     def start(self):
+        """Start."""
         self.create_publisher()
         self.create_subscriptions()
         self.node.run_forever()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+"""Basic RPC transport integration test script."""
 import time
 import argparse
 
@@ -23,6 +23,7 @@ class AddTwoInts(RPCMessage):
 
 
 def main():
+    """Main."""
     parser = argparse.ArgumentParser(description="Test RPC communication")
     parser.add_argument(
         "--broker",
