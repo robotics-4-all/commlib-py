@@ -71,7 +71,7 @@ class BasePublisher(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global pubsub_logger
+        global pubsub_logger  # pylint: disable=global-statement
         if pubsub_logger is None:
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
@@ -123,7 +123,7 @@ class BaseSubscriber(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global pubsub_logger
+        global pubsub_logger  # pylint: disable=global-statement
         if pubsub_logger is None:
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger

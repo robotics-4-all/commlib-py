@@ -51,7 +51,7 @@ class Bridge:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global br_logger
+        global br_logger  # pylint: disable=global-statement
         if br_logger is None:
             br_logger = logging.getLogger(__name__)
         return br_logger

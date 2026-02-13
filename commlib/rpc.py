@@ -47,7 +47,7 @@ class BaseRPCServer(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global rpc_logger
+        global rpc_logger  # pylint: disable=global-statement
         if rpc_logger is None:
             rpc_logger = logging.getLogger(__name__)
         return rpc_logger
@@ -175,7 +175,7 @@ class BaseRPCService(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global rpc_logger
+        global rpc_logger  # pylint: disable=global-statement
         if rpc_logger is None:
             rpc_logger = logging.getLogger(__name__)
         return rpc_logger
@@ -341,7 +341,7 @@ class BaseRPCClient(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global rpc_logger
+        global rpc_logger  # pylint: disable=global-statement
         if rpc_logger is None:
             rpc_logger = logging.getLogger(__name__)
         return rpc_logger

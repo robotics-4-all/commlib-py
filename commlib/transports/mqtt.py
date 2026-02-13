@@ -103,7 +103,7 @@ class MQTTTransport(BaseTransport):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global mqtt_logger
+        global mqtt_logger  # pylint: disable=global-statement
         if mqtt_logger is None:
             mqtt_logger = logging.getLogger(__name__)
         return mqtt_logger

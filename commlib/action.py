@@ -48,11 +48,13 @@ class _ActionGoalMessage(RPCMessage):
 
     class Request(RPCMessage.Request):
         """Request payload."""
+
         description: str = ""
         goal_data: Dict[str, Any] = {}
 
     class Response(RPCMessage.Response):
         """Response payload."""
+
         status: int = 0
         timestamp: int = -1
         goal_id: str = ""
@@ -69,10 +71,12 @@ class _ActionResultMessage(RPCMessage):
 
     class Request(RPCMessage.Request):
         """Request payload."""
+
         goal_id: Optional[str] = ""
 
     class Response(RPCMessage.Response):
         """Response payload."""
+
         status: int = 0
         timestamp: int = -1
         result: Dict[str, Any] = {}
@@ -89,11 +93,13 @@ class _ActionCancelMessage(RPCMessage):
 
     class Request(RPCMessage.Request):
         """Request payload."""
+
         goal_id: Optional[str] = ""
         timestamp: int = gen_timestamp()
 
     class Response(RPCMessage.Response):
         """Response payload."""
+
         status: int = 0
         timestamp: int = gen_timestamp()
         result: Dict[str, Any] = {}
@@ -132,9 +138,10 @@ class _ActionNotifyMessage(PubSubMessage):
 
 class GoalHandler:
     """Goal Handler."""
+
     @classmethod
     def logger(cls) -> logging.Logger:
-        global actions_logger
+        global actions_logger  # pylint: disable=global-statement
         if actions_logger is None:
             actions_logger = logging.getLogger(__name__)
         return actions_logger
@@ -328,7 +335,7 @@ class BaseActionService:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global actions_logger
+        global actions_logger  # pylint: disable=global-statement
         if actions_logger is None:
             actions_logger = logging.getLogger(__name__)
         return actions_logger
@@ -603,7 +610,7 @@ class BaseActionClient:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global actions_logger
+        global actions_logger  # pylint: disable=global-statement
         if actions_logger is None:
             actions_logger = logging.getLogger(__name__)
         return actions_logger

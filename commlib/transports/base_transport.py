@@ -19,7 +19,7 @@ class BaseTransport:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global transport_logger
+        global transport_logger  # pylint: disable=global-statement
         if transport_logger is None:
             transport_logger = logging.getLogger(__name__)
         return transport_logger

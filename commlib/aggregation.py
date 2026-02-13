@@ -15,6 +15,7 @@ aggregation_logger = None
 
 class TopicMessageProcessor:
     """Topic Message Processor."""
+
     def __init__(
         self,
         broker_params: BaseConnectionParameters,
@@ -40,7 +41,7 @@ class TopicMessageProcessor:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global aggregation_logger
+        global aggregation_logger  # pylint: disable=global-statement
         if aggregation_logger is None:
             aggregation_logger = logging.getLogger(__name__)
         return aggregation_logger
@@ -79,6 +80,7 @@ class TopicMessageProcessor:
 
 class TopicAggregator:
     """Topic Aggregator."""
+
     def __init__(
         self,
         broker_params: BaseConnectionParameters,
@@ -104,7 +106,7 @@ class TopicAggregator:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global aggregation_logger
+        global aggregation_logger  # pylint: disable=global-statement
         if aggregation_logger is None:
             aggregation_logger = logging.getLogger(__name__)
         return aggregation_logger

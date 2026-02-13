@@ -53,7 +53,7 @@ class BaseEndpoint:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global e_logger
+        global e_logger  # pylint: disable=global-statement
         if e_logger is None:
             e_logger = logging.getLogger(__name__)
         return e_logger
