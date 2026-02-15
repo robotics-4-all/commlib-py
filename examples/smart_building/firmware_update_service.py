@@ -23,18 +23,22 @@ from commlib.node import Node  # noqa: E402
 
 
 class FirmwareUpdateAction(ActionMessage):
+    """Firmware Update Action."""
     class Goal(ActionMessage.Goal):
+        """Goal payload."""
         device_id: str = ""
         firmware_version: str = ""
         firmware_size_mb: float = 0.0
 
     class Result(ActionMessage.Result):
+        """Result payload."""
         success: bool = False
         device_id: str = ""
         new_version: str = ""
         duration_sec: float = 0.0
 
     class Feedback(ActionMessage.Feedback):
+        """Feedback payload."""
         device_id: str = ""
         stage: str = ""
         percent: float = 0.0
@@ -49,6 +53,7 @@ STAGES = [
 
 
 def on_firmware_goal(goal_h) -> FirmwareUpdateAction.Result:
+    """On firmware goal."""
     goal = goal_h.data
     device = goal.device_id
     version = goal.firmware_version

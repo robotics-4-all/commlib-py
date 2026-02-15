@@ -11,6 +11,7 @@ from commlib.utils import Rate
 
 
 class TimerEvent:
+    """Timer Event."""
     def __init__(
         self,
         last_expected: Optional[float],
@@ -36,6 +37,7 @@ class TimerEvent:
 
 
 class Timer(threading.Thread):
+    """Timer."""
     def __init__(self, period: float, callback: Callable, oneshot: bool = False):
         """__init__.
 

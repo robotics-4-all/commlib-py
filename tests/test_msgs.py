@@ -28,13 +28,16 @@ class TestMessages(unittest.TestCase):
         header.agent = "test-commlib"
 
     def test_nested_message_to_dict(self):
+        """Test nested message to dict."""
         _d = {"a": 1, "b": {"c": 2, "d": 3}}
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
@@ -43,13 +46,16 @@ class TestMessages(unittest.TestCase):
         self.assertEqual(_msg.model_dump(), _d)
 
     def test_nested_message_from_dict(self):
+        """Test nested message from dict."""
         _d = {"a": 1, "b": {"c": 2, "d": 3}}
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
@@ -57,15 +63,19 @@ class TestMessages(unittest.TestCase):
         assert _msg == TestPubSubMessage(a=1, b=TestObject(c=2, d=3))
 
     def test_from_dict_0(self):
+        """Test from dict 0."""
         req_d = {"a": 1, "b": 2}
         resp_d = {"c": 3, "d": 4}
 
         class TestRPCMessage(RPCMessage):
+            """Test RPC Message."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: Optional[int] = 1
                 b: Optional[int] = 2
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 c: Optional[int] = 3
                 d: Optional[int] = 4
 
@@ -79,6 +89,7 @@ class TestMessages(unittest.TestCase):
         """Test Message to JSON serialization"""
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
@@ -90,6 +101,7 @@ class TestMessages(unittest.TestCase):
         """Test Message from JSON deserialization"""
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
@@ -101,10 +113,12 @@ class TestMessages(unittest.TestCase):
         """Test PubSubMessage to JSON serialization"""
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
@@ -116,10 +130,12 @@ class TestMessages(unittest.TestCase):
         """Test PubSubMessage from JSON deserialization"""
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
@@ -131,11 +147,14 @@ class TestMessages(unittest.TestCase):
         """Test RPCMessage to JSON serialization"""
 
         class TestRPCMessage(RPCMessage):
+            """Test RPC Message."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: Optional[int] = 1
                 b: Optional[int] = 2
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 c: Optional[int] = 3
                 d: Optional[int] = 4
 
@@ -149,11 +168,14 @@ class TestMessages(unittest.TestCase):
         """Test RPCMessage from JSON deserialization"""
 
         class TestRPCMessage(RPCMessage):
+            """Test RPC Message."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: Optional[int] = 1
                 b: Optional[int] = 2
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 c: Optional[int] = 3
                 d: Optional[int] = 4
 

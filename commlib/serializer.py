@@ -48,7 +48,7 @@ except ImportError:
         )
 
 # Log the selected backend
-_logger.info(f"JSON serialization backend: {_JSON_BACKEND}")
+_logger.info("JSON serialization backend: %s", _JSON_BACKEND)
 
 
 def get_json_backend() -> str:
@@ -61,6 +61,7 @@ def get_json_backend() -> str:
 
 
 class SerializationTypes(enum.IntEnum):
+    """Serialization Types enumeration."""
     JSON = 0
 
 

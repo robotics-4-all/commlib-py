@@ -18,23 +18,28 @@ from commlib.transports.kafka import ConnectionParameters
 
 
 class AddTwoIntMessage(RPCMessage):
+    """Add Two Int Message."""
     class Request(RPCMessage.Request):
+        """Request payload."""
         a: int = 0
         b: int = 0
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         c: int = 0
 
 
 @pytest.mark.kafka
 @pytest.mark.integration
 class TestKafkaRPC(unittest.TestCase):
+    """Test Kafka RPC."""
     def setUp(self):
         kafka_host = os.getenv("COMMLIB_KAFKA_HOST", "localhost")
         kafka_port = int(os.getenv("COMMLIB_KAFKA_PORT", "29092"))
         self.conn_params = ConnectionParameters(host=kafka_host, port=kafka_port)
 
     def test_rpc_service_client(self):
+        """Test rpc service client."""
         def add_handler(msg):
             return AddTwoIntMessage.Response(c=msg.a + msg.b)
 
@@ -73,6 +78,7 @@ class TestKafkaRPC(unittest.TestCase):
         client_node.stop()
 
     def test_rpc_server_multi_endpoints(self):
+        """Test rpc server multi endpoints."""
         def add_handler(msg):
             return AddTwoIntMessage.Response(c=msg.a + msg.b)
 

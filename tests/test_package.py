@@ -1,8 +1,10 @@
+"""Tests for package imports and structure."""
 import unittest
 import importlib
 
 
 class TestPackaging(unittest.TestCase):
+    """Test Packaging."""
     def test_imports(self):
         """Test that all core modules and subpackages are importable."""
         modules = [

@@ -232,10 +232,13 @@ class TestAMQPEventDrivenRPC(unittest.TestCase):
         from commlib.transports.amqp import RPCClient
 
         class TestRPC(RPCMessage):
+            """Test RPC."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 value: int = 0
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 result: int = 0
 
         try:

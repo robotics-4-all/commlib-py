@@ -23,24 +23,29 @@ from commlib.task_queue import TaskQueueConfig  # noqa: E402
 
 
 class DeliveryTask(TaskMessage):
+    """Delivery Task."""
     class Task(TaskMessage.Task):
+        """Task."""
         order_id: str = ""
         pickup_location: str = ""
         delivery_location: str = ""
         payload_kg: float = 0.0
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         order_id: str = ""
         delivered: bool = False
         time_taken_sec: float = 0.0
 
     class Progress(TaskMessage.Progress):
+        """Progress."""
         order_id: str = ""
         stage: str = ""
         percent: float = 0.0
 
 
 def on_delivery_task(ctx) -> DeliveryTask.Result:
+    """On delivery task."""
     task = ctx.data
     oid = task.order_id
     start = time.time()

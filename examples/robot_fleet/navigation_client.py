@@ -22,18 +22,22 @@ from commlib.node import Node  # noqa: E402
 
 
 class NavigateAction(ActionMessage):
+    """Navigate Action."""
     class Goal(ActionMessage.Goal):
+        """Goal payload."""
         x: float = 0.0
         y: float = 0.0
         max_speed: float = 1.0
 
     class Result(ActionMessage.Result):
+        """Result payload."""
         reached: bool = False
         final_x: float = 0.0
         final_y: float = 0.0
         distance_traveled: float = 0.0
 
     class Feedback(ActionMessage.Feedback):
+        """Feedback payload."""
         current_x: float = 0.0
         current_y: float = 0.0
         distance_remaining: float = 0.0
@@ -41,6 +45,7 @@ class NavigateAction(ActionMessage):
 
 
 def on_feedback(feedback: NavigateAction.Feedback) -> None:
+    """On feedback."""
     print(
         f"  pos=({feedback.current_x}, {feedback.current_y}) "
         f"remaining={feedback.distance_remaining}m "
@@ -49,6 +54,7 @@ def on_feedback(feedback: NavigateAction.Feedback) -> None:
 
 
 def on_result(result: NavigateAction.Result) -> None:
+    """On result."""
     status = "REACHED" if result.reached else "ABORTED"
     print(
         f"  -> [{status}] final=({result.final_x}, {result.final_y}) "
@@ -57,6 +63,7 @@ def on_result(result: NavigateAction.Result) -> None:
 
 
 def on_goal_reached(_result: NavigateAction.Result) -> None:
+    """On goal reached."""
     print("[client] Navigation complete")
 
 

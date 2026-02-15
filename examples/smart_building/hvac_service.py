@@ -22,11 +22,14 @@ from commlib.node import Node  # noqa: E402
 
 
 class SetTemperatureMsg(RPCMessage):
+    """Set Temperature Msg."""
     class Request(RPCMessage.Request):
+        """Request payload."""
         zone: str = "A"
         target_temp: float = 22.0
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         success: bool = False
         current_temp: float = 0.0
         message: str = ""
@@ -38,6 +41,7 @@ CURRENT_TEMPS = {"A": 21.5, "B": 23.0, "C": 19.8}
 def handle_set_temperature(
     msg: SetTemperatureMsg.Request,
 ) -> SetTemperatureMsg.Response:
+    """Handle set temperature."""
     zone = msg.zone
     target = msg.target_temp
 

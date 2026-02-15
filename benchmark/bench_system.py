@@ -30,7 +30,7 @@ def benchmark_shared_vs_dedicated_pools():
 
     # Test with dedicated pools (legacy)
     print("Using DEDICATED pools (legacy):")
-    ThreadPoolManager._instance = None  # Reset
+    ThreadPoolManager.reset()
     subs_dedicated = []
     start = time.perf_counter()
     for i in range(num_subscribers):
@@ -57,7 +57,7 @@ def benchmark_shared_vs_dedicated_pools():
     # Test with shared pools (optimized)
     print()
     print("Using SHARED pools (optimized):")
-    ThreadPoolManager._instance = None  # Reset
+    ThreadPoolManager.reset()
     subs_shared = []
     start = time.perf_counter()
     for i in range(num_subscribers):
@@ -104,7 +104,7 @@ def benchmark_subscriber_scaling():
     counts = [1, 5, 10, 20, 50]
 
     for count in counts:
-        ThreadPoolManager._instance = None  # Reset
+        ThreadPoolManager.reset()
 
         subscribers = []
         start = time.perf_counter()
@@ -130,18 +130,20 @@ def benchmark_subscriber_scaling():
 
         avg_per_sub = (elapsed / count) * 1000
         print(
-            f"  {count:3d} subscribers: {elapsed * 1000:7.2f} ms total | {avg_per_sub:6.2f} ms/subscriber"
+            f"  {count:3d} subscribers:"
+            f" {elapsed * 1000:7.2f} ms total"
+            f" | {avg_per_sub:6.2f} ms/subscriber"
         )
 
 
 def benchmark_pool_reuse():
     """Benchmark thread pool reuse efficiency."""
-    conn_params = ConnectionParameters(host="localhost", port=6379)
+    _conn_params = ConnectionParameters(host="localhost", port=6379)
 
     print("\nBenchmark: Thread Pool Reuse")
     print("-" * 60)
 
-    ThreadPoolManager._instance = None  # Reset
+    ThreadPoolManager.reset()
 
     # Get pool multiple times (should be same instance)
     pool_ids = []
@@ -184,7 +186,9 @@ def benchmark_memory_footprint():
     print()
     print(f"Dedicated pools:")
     print(
-        f"  Threads:  {dedicated_threads:4d} ({num_subscribers} pools × {threads_per_dedicated_pool} threads)"
+        f"  Threads:  {dedicated_threads:4d}"
+        f" ({num_subscribers} pools"
+        f" × {threads_per_dedicated_pool} threads)"
     )
     print(f"  Memory:   {dedicated_memory:4d} MB")
     print()

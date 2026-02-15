@@ -19,20 +19,25 @@ from commlib.transports.mqtt import ConnectionParameters, TaskProducer, TaskWork
 
 
 class ComputeTaskMessage(TaskMessage):
+    """Compute Task Message."""
     class Task(TaskMessage.Task):
+        """Task."""
         x: int = 0
         y: int = 0
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         result: int = 0
 
     class Progress(TaskMessage.Progress):
+        """Progress."""
         percent: float = 0.0
 
 
 @pytest.mark.mqtt
 @pytest.mark.integration
 class TestMqttTaskQueue(unittest.TestCase):
+    """Test Mqtt Task Queue."""
     def setUp(self):
         mqtt_host = os.getenv("COMMLIB_MQTT_HOST", "localhost")
         mqtt_port = int(os.getenv("COMMLIB_MQTT_PORT", "1883"))
@@ -46,6 +51,7 @@ class TestMqttTaskQueue(unittest.TestCase):
         )
 
     def test_submit_and_process_task(self):
+        """Test submit and process task."""
         results = []
 
         def on_task(ctx):
@@ -84,6 +90,7 @@ class TestMqttTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_typed_task_message(self):
+        """Test typed task message."""
         results = []
 
         def on_task(ctx):
@@ -127,6 +134,7 @@ class TestMqttTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_fire_and_forget(self):
+        """Test fire and forget."""
         processed = []
 
         def on_task(ctx):
@@ -156,6 +164,7 @@ class TestMqttTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_progress_reporting(self):
+        """Test progress reporting."""
         progress_reports = []
 
         def on_task(ctx):
@@ -192,6 +201,7 @@ class TestMqttTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_task_failure_and_retry(self):
+        """Test task failure and retry."""
         attempts = []
 
         def on_task(ctx):
@@ -234,6 +244,7 @@ class TestMqttTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_node_task_queue_flow(self):
+        """Test node task queue flow."""
         results = []
 
         def on_task(ctx):

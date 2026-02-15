@@ -111,12 +111,14 @@ def get_or_create_amqp_connection(
             if connection.is_open:
                 _AMQP_CONNECTION_REFCOUNT[key] += 1
                 logger.debug(
-                    f"Reusing AMQP connection {key}, refcount={_AMQP_CONNECTION_REFCOUNT[key]}"
+                    "Reusing AMQP connection %s, refcount=%d",
+                    key,
+                    _AMQP_CONNECTION_REFCOUNT[key],
                 )
                 return connection
             else:
                 # Stale connection, remove it
-                logger.debug(f"Removing stale AMQP connection {key}")
+                logger.debug("Removing stale AMQP connection %s", key)
                 del _AMQP_CONNECTION_REGISTRY[key]
                 del _AMQP_CONNECTION_REFCOUNT[key]
 
@@ -124,7 +126,7 @@ def get_or_create_amqp_connection(
         connection = Connection(conn_params)
         _AMQP_CONNECTION_REGISTRY[key] = connection
         _AMQP_CONNECTION_REFCOUNT[key] = 1
-        logger.debug(f"Created new AMQP connection {key}")
+        logger.debug("Created new AMQP connection %s", key)
         return connection
 
 
@@ -148,12 +150,14 @@ def release_amqp_connection(
 
     with _AMQP_CONNECTION_LOCK:
         if key not in _AMQP_CONNECTION_REFCOUNT:
-            logger.warning(f"Attempted to release non-existent connection {key}")
+            logger.warning("Attempted to release non-existent connection %s", key)
             return
 
         _AMQP_CONNECTION_REFCOUNT[key] -= 1
         logger.debug(
-            f"Released AMQP connection {key}, refcount={_AMQP_CONNECTION_REFCOUNT[key]}"
+            "Released AMQP connection %s, refcount=%d",
+            key,
+            _AMQP_CONNECTION_REFCOUNT[key],
         )
 
         if _AMQP_CONNECTION_REFCOUNT[key] <= 0:
@@ -163,9 +167,9 @@ def release_amqp_connection(
             try:
                 if connection.is_open:
                     connection.close()
-                logger.debug(f"Closed AMQP connection {key}")
+                logger.debug("Closed AMQP connection %s", key)
             except Exception as e:
-                logger.warning(f"Error closing AMQP connection {key}: {e}")
+                logger.warning("Error closing AMQP connection %s: %s", key, e)
 
 
 class MessageProperties(pika.BasicProperties):
@@ -234,6 +238,7 @@ class ConnectionParameters(BaseConnectionParameters):
     password: str = "guest"
 
     def make_pika(self):
+        """Make pika."""
         return pika.ConnectionParameters(
             host=self.host,
             port=str(self.port),
@@ -327,7 +332,7 @@ class Connection(pika.BlockingConnection):
             AttributeError,
             OSError,
         ) as exc:
-            logger.debug(f"Exception thrown while processing amqp events - {exc}")
+            logger.debug("Exception thrown while processing amqp events - %s", exc)
 
 
 class ExchangeType:
@@ -340,7 +345,7 @@ class ExchangeType:
 
 
 class AMQPTransport(BaseTransport):
-    """AMQPT Transport implementation."""
+    """AMQP Transport implementation."""
 
     def __init__(
         self,
@@ -368,10 +373,12 @@ class AMQPTransport(BaseTransport):
 
     @property
     def channel(self):
+        """Channel."""
         return self._channel
 
     @property
     def connection(self):
+        """Connection."""
         return self._connection
 
     def connect(self) -> bool:
@@ -398,7 +405,9 @@ class AMQPTransport(BaseTransport):
                     self.log.debug("Created dedicated AMQP connection")
             self.create_channel()
             return True
-        except pika.exceptions.ProbableAuthenticationError as e:  # type: ignore[reportAttributeAccessIssue]
+        except (  # type: ignore[reportAttributeAccessIssue]
+            pika.exceptions.ProbableAuthenticationError
+        ) as e:
             logger.error("Authentication Error: %s", str(e))
             return False
         except (
@@ -461,6 +470,7 @@ class AMQPTransport(BaseTransport):
         # self.add_threadsafe_callback(self.connection.process_data_events)
 
     def detach_amqp_events_thread(self):
+        """Detach amqp events thread."""
         if self._connection is None:
             raise AMQPError("AMQP connection is not established")
         self._connection.detach_amqp_events_thread()
@@ -497,7 +507,7 @@ class AMQPTransport(BaseTransport):
                         _conn.close()
                     self.log.debug("Closed dedicated connection")
                 except Exception as e:
-                    self.log.warning(f"Error closing connection: {e}")
+                    self.log.warning("Error closing connection: %s", e)
             else:
                 # Shared connection, release from pool
                 release_amqp_connection(self._conn_params)
@@ -508,6 +518,7 @@ class AMQPTransport(BaseTransport):
         self._set_connected(False)
 
     def exchange_exists(self, exchange_name):
+        """Exchange exists."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
         resp = self._channel.exchange_declare(
@@ -535,7 +546,7 @@ class AMQPTransport(BaseTransport):
             exchange=exchange_name,
             durable=True,  # Survive reboot
             passive=False,  # Perform a declare or just to see if it exists
-            internal=internal,  # type: ignore[reportArgumentType]  # Can only be published to by other exchanges
+            internal=internal,  # type: ignore[reportArgumentType]
             exchange_type=exchange_type,  # type: ignore[reportArgumentType]
         )
 
@@ -603,6 +614,7 @@ class AMQPTransport(BaseTransport):
         return queue_name
 
     def delete_queue(self, queue_name):
+        """Delete queue."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
         self._channel.queue_delete(queue=queue_name)
@@ -622,7 +634,9 @@ class AMQPTransport(BaseTransport):
             if self._channel is None:
                 raise AMQPError("AMQP channel is not available")
             _ = self._channel.queue_declare(queue_name, passive=True)
-        except pika.exceptions.ChannelClosedByBroker as exc:  # type: ignore[reportAttributeAccessIssue]
+        except (  # type: ignore[reportAttributeAccessIssue]
+            pika.exceptions.ChannelClosedByBroker
+        ) as exc:
             self.create_channel()
             if exc.reply_code == 404:  # Not Found
                 return False
@@ -656,26 +670,30 @@ class AMQPTransport(BaseTransport):
             KeyError,
             AttributeError,
             OSError,
-        ):
-            raise AMQPError("Error while trying to bind queue to exchange")
+        ) as exc:
+            raise AMQPError("Error while trying to bind queue to exchange") from exc
 
     def set_channel_qos(self, prefetch_count=1, global_qos=False):
+        """Set channel qos."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
         self._channel.basic_qos(prefetch_count=prefetch_count, global_qos=global_qos)
 
     def consume_from_queue(self, queue_name, callback):
+        """Consume from queue."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
         consumer_tag = self._channel.basic_consume(queue_name, callback)
         return consumer_tag
 
     def start_consuming(self):
+        """Start consuming."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
         self._channel.start_consuming()
 
     def stop_consuming(self):
+        """Stop consuming."""
         try:
             if self._channel is None:
                 return
@@ -684,12 +702,15 @@ class AMQPTransport(BaseTransport):
             pass
 
     def disconnect(self):
+        """Disconnect."""
         self._graceful_shutdown()
 
     def start(self):
+        """Start."""
         self.connect()
 
     def stop(self):
+        """Stop."""
         self.stop_consuming()
         self.disconnect()
 
@@ -744,9 +765,13 @@ class RPCService(BaseRPCService):
         self._transport.consume_from_queue(self._rpc_queue, self._on_request_handle)
         try:
             self._transport.start_consuming()
-        except pika.exceptions.ConnectionClosedByBroker as exc:  # type: ignore[reportAttributeAccessIssue]
+        except (  # type: ignore[reportAttributeAccessIssue]
+            pika.exceptions.ConnectionClosedByBroker
+        ) as exc:
             self.log.error(exc, exc_info=True)
-        except pika.exceptions.AMQPConnectionError as exc:  # type: ignore[reportAttributeAccessIssue]
+        except (  # type: ignore[reportAttributeAccessIssue]
+            pika.exceptions.AMQPConnectionError
+        ) as exc:
             self.log.error(exc, exc_info=True)
         except (
             RuntimeError,
@@ -758,7 +783,7 @@ class RPCService(BaseRPCService):
             OSError,
         ) as exc:
             self.log.error(exc, exc_info=True)
-            raise AMQPError("Error while trying to consume from queue")
+            raise AMQPError("Error while trying to consume from queue") from exc
 
     def _rpc_exists(self):
         assert self._transport is not None
@@ -879,7 +904,7 @@ class RPCService(BaseRPCService):
         super().stop()
         return True
 
-    def stop(self, wait: bool = True) -> bool:  # type: ignore[override]
+    def stop(self, wait: bool = True) -> bool:  # type: ignore[override]  # pylint: disable=unused-argument
         """Stop RPC Service.
         Safely close channel and connection to the broker.
         """
@@ -977,7 +1002,9 @@ class RPCClient(BaseRPCClient):
         start_t = time.time()
         # Phase 3 optimization: Use lambda instead of functools.partial (5-10% faster)
         assert self._transport is not None
-        self._transport.add_threadsafe_callback(lambda: self._send_msg(data))  # type: ignore[arg-type]
+        self._transport.add_threadsafe_callback(  # type: ignore[arg-type]
+            lambda: self._send_msg(data)
+        )
         resp = self._wait_for_response(timeout=timeout)
         if resp is None:
             return resp
@@ -1117,7 +1144,7 @@ class Publisher(BasePublisher):
             self._transport.create_exchange(self._topic_exchange, ExchangeType.Topic)
         self._transport.detach_amqp_events_thread()
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """Publish message once.
 
         Args:
@@ -1172,10 +1199,12 @@ class Publisher(BasePublisher):
 
 
 class MPublisher(Publisher):
+    """Multi-topic Publisher for AMQP."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(topic="*", *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """Publish message once.
 
         Args:
@@ -1281,6 +1310,7 @@ class Subscriber(BaseSubscriber):
         self._consume()
 
     def close(self) -> None:  # type: ignore[reportReturnType]
+        """Close."""
         if self._closing:
             return None
         if not self._transport:
@@ -1319,16 +1349,16 @@ class Subscriber(BaseSubscriber):
             OSError,
         ) as exc:
             self.log.error(exc, exc_info=False)
-            raise AMQPError("Could not consume from message queue")
+            raise AMQPError("Could not consume from message queue") from exc
 
     def _on_msg_callback_wrapper(self, _ch, _method, properties, body):
         _data = {}
 
         try:
-            properties.content_type
-            properties.content_encoding
-            properties.delivery_mode
-            properties.timestamp
+            _ = properties.content_type
+            _ = properties.content_encoding
+            _ = properties.delivery_mode
+            _ = properties.timestamp
         except (
             RuntimeError,
             ConnectionError,
@@ -1387,7 +1417,8 @@ class Subscriber(BaseSubscriber):
         ):
             self.log.error("Error in on_msg_callback", exc_info=True)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         self.close()
 
     def __del__(self):
@@ -1414,10 +1445,10 @@ class PSubscriber(Subscriber):
         _data = {}
 
         try:
-            properties.content_type
-            properties.content_encoding
-            properties.delivery_mode
-            properties.timestamp
+            _ = properties.content_type
+            _ = properties.content_encoding
+            _ = properties.delivery_mode
+            _ = properties.timestamp
         except (
             RuntimeError,
             ConnectionError,
@@ -1468,7 +1499,9 @@ class PSubscriber(Subscriber):
                 if self._msg_type is None:
                     self.onmessage(_data, _topic)  # type: ignore[reportOptionalCall]
                 else:
-                    self.onmessage(self._msg_type(**_data), _topic)  # type: ignore[reportOptionalCall]
+                    self.onmessage(  # type: ignore[reportOptionalCall]
+                        self._msg_type(**_data), _topic
+                    )
         except (
             RuntimeError,
             ConnectionError,
@@ -1482,6 +1515,8 @@ class PSubscriber(Subscriber):
 
 
 class ActionService(BaseActionService):
+    """Action Service."""
+
     def __init__(self, *args, **kwargs):
         """__init__.
 
@@ -1527,6 +1562,8 @@ class ActionService(BaseActionService):
 
 
 class ActionClient(BaseActionClient):
+    """Action Client."""
+
     def __init__(self, *args, **kwargs):
         """__init__.
         Action Client constructor.
@@ -1576,6 +1613,8 @@ class ActionClient(BaseActionClient):
 
 
 class TaskProducer(BaseTaskProducer):
+    """Task Producer."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = AMQPTransport(conn_params=self._conn_params)
@@ -1584,7 +1623,8 @@ class TaskProducer(BaseTaskProducer):
         self._result_topic = f"{self._queue_name}.results"
         self._progress_topic = f"{self._queue_name}.progress"
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1600,16 +1640,17 @@ class TaskProducer(BaseTaskProducer):
             on_message=self._on_progress_msg,
         )
         self._progress_sub.run()
-        self._state = EndpointState.CONNECTED
+        self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         if self._result_sub is not None:
             self._result_sub.stop()
         if self._progress_sub is not None:
             self._progress_sub.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         assert self._transport is not None
@@ -1644,6 +1685,8 @@ class TaskProducer(BaseTaskProducer):
 
 
 class TaskWorker(BaseTaskWorker):
+    """Task Worker."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = AMQPTransport(conn_params=self._conn_params)
@@ -1652,7 +1695,8 @@ class TaskWorker(BaseTaskWorker):
         self._progress_topic = f"{self._queue_name}.progress"
         self._consumer_thread = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1664,9 +1708,10 @@ class TaskWorker(BaseTaskWorker):
         self._stop_event.clear()
         self._consumer_thread = Thread(target=self._consume_loop, daemon=True)
         self._consumer_thread.start()
-        self._state = EndpointState.CONNECTED
+        self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         self._stop_event.set()
         if self._consumer_thread is not None:
             self._consumer_thread.join(timeout=5.0)
@@ -1674,7 +1719,7 @@ class TaskWorker(BaseTaskWorker):
             self._pub_transport.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _consume_loop(self) -> None:
         assert self._transport is not None

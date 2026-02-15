@@ -103,7 +103,8 @@ async def wait_til(condition_func, timeout=10):
             return
         if time.perf_counter() - start_time > timeout:
             raise Exception(
-                f"{inspect.getsource(condition_func).strip()} condition is never met. Time out reached."
+                f"{inspect.getsource(condition_func).strip()}"
+                " condition is never met. Time out reached."
             )
         await asyncio.sleep(0.1)
 

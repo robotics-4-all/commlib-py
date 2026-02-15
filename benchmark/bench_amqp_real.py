@@ -40,10 +40,12 @@ class AddTwoInt(RPCMessage):
     """Test message type for RPC benchmarks."""
 
     class Request(RPCMessage.Request):
+        """Request payload."""
         a: int = 0
         b: int = 0
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         result: int = 0
 
 

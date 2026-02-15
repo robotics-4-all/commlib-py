@@ -21,6 +21,7 @@ from commlib.node import Node  # noqa: E402
 
 
 class SensorReading(PubSubMessage):
+    """Sensor Reading."""
     floor: int = 1
     zone: str = "A"
     temperature: float = 22.0
@@ -29,6 +30,7 @@ class SensorReading(PubSubMessage):
 
 
 def on_sensor_data(msg: SensorReading) -> None:
+    """On sensor data."""
     print(
         f"[floor {msg.floor}, zone {msg.zone}] "
         f"temp={msg.temperature}°C  humidity={msg.humidity}%"

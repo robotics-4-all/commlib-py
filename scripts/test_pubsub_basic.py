@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-
-import sys
+"""Basic pub/sub transport integration test script."""
 import time
 import argparse
 import threading
@@ -19,6 +18,7 @@ class DemoMessage(PubSubMessage):
 
 
 def main():
+    """Main."""
     parser = argparse.ArgumentParser(description="Test PubSub communication")
     parser.add_argument(
         "--broker",
@@ -63,7 +63,7 @@ def main():
         if received_count >= args.count:
             received_event.set()
 
-    sub = node.create_subscriber(
+    _sub = node.create_subscriber(
         msg_type=DemoMessage, topic=args.topic, on_message=on_message
     )
 

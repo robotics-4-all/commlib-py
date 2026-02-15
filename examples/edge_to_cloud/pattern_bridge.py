@@ -25,11 +25,13 @@ from commlib.msg import PubSubMessage  # noqa: E402
 
 
 class GenericSensorMsg(PubSubMessage):
+    """Generic Sensor Msg."""
     value: float = 0.0
     unit: str = ""
 
 
 def make_parser() -> argparse.ArgumentParser:
+    """Make parser."""
     parser = argparse.ArgumentParser(
         description="Wildcard topic bridge (edge -> cloud)",
     )

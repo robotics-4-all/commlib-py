@@ -82,7 +82,7 @@ def benchmark_serialization():
     # Benchmark serialize
     start = time.perf_counter()
     for _ in range(iterations):
-        result = JSONSerializer.serialize(test_data)
+        _result = JSONSerializer.serialize(test_data)
     elapsed = time.perf_counter() - start
 
     ops_per_sec = iterations / elapsed
@@ -130,14 +130,14 @@ def benchmark_round_trip():
     for _ in range(500):
         primitives = JSONSerializer.make_primitives(test_data)
         serialized = JSONSerializer.serialize(primitives)
-        deserialized = JSONSerializer.deserialize(serialized)
+        _deserialized = JSONSerializer.deserialize(serialized)
 
     # Benchmark
     start = time.perf_counter()
     for _ in range(iterations):
         primitives = JSONSerializer.make_primitives(test_data)
         serialized = JSONSerializer.serialize(primitives)
-        deserialized = JSONSerializer.deserialize(serialized)
+        _deserialized = JSONSerializer.deserialize(serialized)
     elapsed = time.perf_counter() - start
 
     ops_per_sec = iterations / elapsed

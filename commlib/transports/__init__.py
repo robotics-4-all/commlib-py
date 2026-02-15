@@ -9,6 +9,7 @@ from typing import Any
 
 
 class TransportType(Enum):
+    """Transport Type enumeration."""
     AMQP = 1
     REDIS = 2
     MQTT = 3
@@ -16,6 +17,7 @@ class TransportType(Enum):
 
 
 def connection_params_for_transport(transport: TransportType) -> Any:
+    """Connection params for transport."""
     ConnectionParameters: type
     if transport == TransportType.MQTT:
         from commlib.transports.mqtt import ConnectionParameters

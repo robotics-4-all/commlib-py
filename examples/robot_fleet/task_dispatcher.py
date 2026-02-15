@@ -22,24 +22,29 @@ from commlib.task_queue import TaskQueueConfig  # noqa: E402
 
 
 class DeliveryTask(TaskMessage):
+    """Delivery Task."""
     class Task(TaskMessage.Task):
+        """Task."""
         order_id: str = ""
         pickup_location: str = ""
         delivery_location: str = ""
         payload_kg: float = 0.0
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         order_id: str = ""
         delivered: bool = False
         time_taken_sec: float = 0.0
 
     class Progress(TaskMessage.Progress):
+        """Progress."""
         order_id: str = ""
         stage: str = ""
         percent: float = 0.0
 
 
 def on_result(_task_id: str, task_result: DeliveryTask.Result) -> None:
+    """On result."""
     status = "DELIVERED" if task_result.delivered else "FAILED"
     print(
         f"[dispatch] {task_result.order_id}: [{status}] {task_result.time_taken_sec}s"
@@ -47,6 +52,7 @@ def on_result(_task_id: str, task_result: DeliveryTask.Result) -> None:
 
 
 def on_progress(_task_id: str, progress: DeliveryTask.Progress, percent: float) -> None:
+    """On progress."""
     print(f"[dispatch] {progress.order_id}: {progress.stage} ({percent}%)")
 
 

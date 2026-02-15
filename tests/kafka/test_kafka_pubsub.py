@@ -19,6 +19,7 @@ from commlib.transports.kafka import ConnectionParameters
 
 
 class SensorMessage(PubSubMessage):
+    """Sensor Message."""
     header: MessageHeader = MessageHeader()
     temperature: float = 0.0
     humidity: float = 0.0
@@ -27,12 +28,14 @@ class SensorMessage(PubSubMessage):
 @pytest.mark.kafka
 @pytest.mark.integration
 class TestKafkaPubSub(unittest.TestCase):
+    """Test Kafka Pub Sub."""
     def setUp(self):
         kafka_host = os.getenv("COMMLIB_KAFKA_HOST", "localhost")
         kafka_port = int(os.getenv("COMMLIB_KAFKA_PORT", "29092"))
         self.conn_params = ConnectionParameters(host=kafka_host, port=kafka_port)
 
     def test_publisher_subscriber_basic(self):
+        """Test publisher subscriber basic."""
         received = []
         ready = threading.Event()
 
@@ -68,6 +71,7 @@ class TestKafkaPubSub(unittest.TestCase):
         node.stop()
 
     def test_mpublisher_psubscriber(self):
+        """Test mpublisher psubscriber."""
         received = []
         ready = threading.Event()
 

@@ -71,7 +71,8 @@ class BasePublisher(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global pubsub_logger
+        """Logger."""
+        global pubsub_logger  # pylint: disable=global-statement
         if pubsub_logger is None:
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
@@ -106,6 +107,7 @@ class BasePublisher(BaseEndpoint):
         return self._topic
 
     def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+        """Publish."""
         raise NotImplementedError()
 
     def _prepare_msg(self, msg: PubSubMessage) -> Dict:
@@ -123,7 +125,8 @@ class BaseSubscriber(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global pubsub_logger
+        """Logger."""
+        global pubsub_logger  # pylint: disable=global-statement
         if pubsub_logger is None:
             pubsub_logger = logging.getLogger(__name__)
         return pubsub_logger
@@ -143,8 +146,10 @@ class BaseSubscriber(BaseEndpoint):
 
         Args:
             topic (str): The topic to subscribe to.
-            msg_type (Optional[Type[PubSubMessage]]): The type of message to expect for this subscription.
-            on_message (Optional[Callable]): A callback function to be called when a message is received.
+            msg_type (Optional[Type[PubSubMessage]]): The type
+                of message to expect for this subscription.
+            on_message (Optional[Callable]): A callback function
+                to be called when a message is received.
             workers (int): Number of worker threads (only used if use_shared_pool=False).
             use_shared_pool (bool): If True, use shared thread pool (recommended). Default: True.
             *args: Additional positional arguments to pass to the base class constructor.
@@ -235,16 +240,20 @@ class BaseSubscriber(BaseEndpoint):
                     while not self._transport.is_connected:
                         time.sleep(0.001)
 
-            self._state = EndpointState.CONNECTED
+            self.set_state(EndpointState.CONNECTED)
         else:
             self.logger().warning("Transport already connected - Skipping")
 
     def stop(self, wait: bool = True) -> None:
         """
-        Stops the pub/sub service by setting the stop event and calling the parent class's stop method.
+        Stops the pub/sub service by setting the stop event
+        and calling the parent class's stop method.
 
-        If the stop event (`_t_stop_event`) is not None, it sets the event to signal that the service should stop.
-        Then, it calls the `stop` method of the superclass to perform any additional stopping procedures.
+        If the stop event (``_t_stop_event``) is not None,
+        it sets the event to signal that the service should
+        stop. Then, it calls the ``stop`` method of the
+        superclass to perform any additional stopping
+        procedures.
 
         Args:
             wait: If True, wait for transport to disconnect before returning (default: True)

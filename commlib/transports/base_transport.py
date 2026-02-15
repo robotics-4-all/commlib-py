@@ -19,7 +19,8 @@ class BaseTransport:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global transport_logger
+        """Logger."""
+        global transport_logger  # pylint: disable=global-statement
         if transport_logger is None:
             transport_logger = logging.getLogger(__name__)
         return transport_logger
@@ -29,8 +30,10 @@ class BaseTransport:
         Initializes a new instance of the `BaseTransport` class.
 
         Args:
-            conn_params (BaseConnectionParameters): The connection parameters to use for the transport.
-            debug (bool, optional): Whether to enable debug logging for the transport. Defaults to False.
+            conn_params (BaseConnectionParameters): The
+                connection parameters for the transport.
+            debug (bool, optional): Whether to enable debug
+                logging for the transport. Defaults to False.
         """
 
         self._conn_params = conn_params
@@ -45,18 +48,22 @@ class BaseTransport:
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     @property
     def debug(self):
+        """Debug."""
         return self._debug
 
     @property
     def is_connected(self) -> bool:
+        """Is connected."""
         return self._connected
 
     @property
     def is_stopped(self) -> bool:
+        """Is stopped."""
         return self._stopped
 
     def _set_connected(self, connected: bool) -> None:
@@ -104,18 +111,23 @@ class BaseTransport:
         return self._disconnected_event.wait(timeout=timeout)
 
     def connect(self) -> Optional[bool]:
+        """Connect."""
         raise NotImplementedError()
 
     def disconnect(self) -> None:
+        """Disconnect."""
         raise NotImplementedError()
 
     def start(self) -> None:
+        """Start."""
         raise NotImplementedError()
 
     def stop(self) -> None:
+        """Stop."""
         raise NotImplementedError()
 
     def loop_forever(self) -> None:
+        """Loop forever."""
         raise NotImplementedError()
 
     # --- Transport method stubs ---
@@ -123,65 +135,86 @@ class BaseTransport:
     # Declared here so pyright can resolve attribute access on BaseTransport.
 
     def publish(self, *args: Any, **kwargs: Any) -> Any:
+        """Publish."""
         raise NotImplementedError()
 
     def subscribe(self, *args: Any, **kwargs: Any) -> Any:
+        """Subscribe."""
         raise NotImplementedError()
 
     def unsubscribe(self, *args: Any, **kwargs: Any) -> Any:
+        """Unsubscribe."""
         raise NotImplementedError()
 
     def msubscribe(self, *args: Any, **kwargs: Any) -> Any:
+        """Msubscribe."""
         raise NotImplementedError()
 
     def push_msg_to_queue(self, *args: Any, **kwargs: Any) -> Any:
+        """Push msg to queue."""
         raise NotImplementedError()
 
     def wait_for_msg(self, *args: Any, **kwargs: Any) -> Any:
+        """Wait for msg."""
         raise NotImplementedError()
 
     def delete_queue(self, *args: Any, **kwargs: Any) -> Any:
+        """Delete queue."""
         raise NotImplementedError()
 
     def create_queue(self, *args: Any, **kwargs: Any) -> Any:
+        """Create queue."""
         raise NotImplementedError()
 
     def create_exchange(self, *args: Any, **kwargs: Any) -> Any:
+        """Create exchange."""
         raise NotImplementedError()
 
     def exchange_exists(self, *args: Any, **kwargs: Any) -> Any:
+        """Exchange exists."""
         raise NotImplementedError()
 
     def queue_exists(self, *args: Any, **kwargs: Any) -> Any:
+        """Queue exists."""
         raise NotImplementedError()
 
     def bind_queue(self, *args: Any, **kwargs: Any) -> Any:
+        """Bind queue."""
         raise NotImplementedError()
 
     def set_channel_qos(self, *args: Any, **kwargs: Any) -> Any:
+        """Set channel qos."""
         raise NotImplementedError()
 
     def consume_from_queue(self, *args: Any, **kwargs: Any) -> Any:
+        """Consume from queue."""
         raise NotImplementedError()
 
     def start_consuming(self, *args: Any, **kwargs: Any) -> Any:
+        """Start consuming."""
         raise NotImplementedError()
 
     def add_threadsafe_callback(self, *args: Any, **kwargs: Any) -> Any:
+        """Add threadsafe callback."""
         raise NotImplementedError()
 
     def detach_amqp_events_thread(self, *args: Any, **kwargs: Any) -> Any:
+        """Detach amqp events thread."""
         raise NotImplementedError()
 
     def create_producer(self, *args: Any, **kwargs: Any) -> Any:
+        """Create producer."""
         raise NotImplementedError()
 
     def create_consumer(self, *args: Any, **kwargs: Any) -> Any:
+        """Create consumer."""
         raise NotImplementedError()
 
     def publish_data(self, *args: Any, **kwargs: Any) -> Any:
+        """Publish data."""
         raise NotImplementedError()
 
     @property
     def channel(self) -> Any:
+        """Channel."""
         raise NotImplementedError()

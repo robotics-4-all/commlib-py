@@ -24,7 +24,9 @@ from commlib.task_queue import TaskQueueConfig  # noqa: E402
 
 
 class MaintenanceTask(TaskMessage):
+    """Maintenance Task."""
     class Task(TaskMessage.Task):
+        """Task."""
         work_order_id: str = ""
         task_type: str = ""
         floor: int = 0
@@ -32,17 +34,20 @@ class MaintenanceTask(TaskMessage):
         priority_level: str = "normal"
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         work_order_id: str = ""
         completed: bool = False
         notes: str = ""
 
     class Progress(TaskMessage.Progress):
+        """Progress."""
         work_order_id: str = ""
         stage: str = ""
         percent: float = 0.0
 
 
 def on_result(task_id: str, task_result: MaintenanceTask.Result) -> None:
+    """On result."""
     task_status = "DONE" if task_result.completed else "FAILED"
     print(f"[dispatch] Result {task_id}: [{task_status}] {task_result.notes}")
 
@@ -50,6 +55,7 @@ def on_result(task_id: str, task_result: MaintenanceTask.Result) -> None:
 def on_progress(
     task_id: str, progress: MaintenanceTask.Progress, percent: float
 ) -> None:
+    """On progress."""
     print(f"[dispatch] Progress {task_id}: {progress.stage} ({percent}%)")
 
 

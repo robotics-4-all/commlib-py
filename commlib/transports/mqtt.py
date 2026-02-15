@@ -57,6 +57,8 @@ mqtt_logger: Optional[logging.Logger] = None
 
 
 class MQTTReturnCode(IntEnum):
+    """MQTT Return Code enumeration."""
+
     CONNECTION_SUCCESS = 0
     INCORRECT_PROTOCOL_VERSION = 1
     INVALID_CLIENT_ID = 2
@@ -66,6 +68,8 @@ class MQTTReturnCode(IntEnum):
 
 
 class MQTTProtocolType(IntEnum):
+    """MQTT Protocol Type enumeration."""
+
     MQTTv31 = mqtt.MQTTv31
     MQTTv311 = mqtt.MQTTv311
     MQTTv5 = mqtt.MQTTv5
@@ -83,6 +87,8 @@ class MQTTQoS(IntEnum):
 
 
 class ConnectionParameters(BaseConnectionParameters):
+    """Connection Parameters."""
+
     host: str = "localhost"
     port: int = 1883
     username: str = ""
@@ -97,7 +103,8 @@ class MQTTTransport(BaseTransport):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global mqtt_logger
+        """Logger."""
+        global mqtt_logger  # pylint: disable=global-statement
         if mqtt_logger is None:
             mqtt_logger = logging.getLogger(__name__)
         return mqtt_logger
@@ -162,6 +169,7 @@ class MQTTTransport(BaseTransport):
                 self._client.tls_insecure_set(False)
 
     def connect(self) -> None:
+        """Connect."""
         if self._connected:
             raise ConnectionError("Transport already connected to broker")
         self._stopped = False
@@ -301,6 +309,7 @@ class MQTTTransport(BaseTransport):
         """
 
     def on_log(self, _client: Any, _userdata: Any, level, buf):
+        """On log."""
         self.log.info(level, buf)
 
     def publish(
@@ -364,8 +373,10 @@ class MQTTTransport(BaseTransport):
             KeyError,
             AttributeError,
             OSError,
-        ):
-            raise SubscriberError(f"Failed to subscribe to topic {transformed_topic}")
+        ) as exc:
+            raise SubscriberError(
+                f"Failed to subscribe to topic {transformed_topic}"
+            ) from exc
         _clb = functools.partial(self._on_msg_internal, callback)
         self._client.message_callback_add(transformed_topic, _clb)
         return transformed_topic
@@ -401,22 +412,21 @@ class MQTTTransport(BaseTransport):
         return self._transform_topic_cached(topic)
 
     def unsubscribe(self, topic: str) -> None:
+        """Unsubscribe."""
         assert self._client is not None
         self._client.unsubscribe(topic)
 
     def _on_msg_internal(
         self, callback: Callable, client: Any, userdata: Any, msg: Any
     ) -> None:
-        msg.topic
         _payload = msg.payload
-        msg.qos
-        msg.retain
         if self._compression != CompressionType.NO_COMPRESSION:
             _payload = deflate(_payload, self._compression)
         msg.payload = _payload
         callback(client, userdata, msg)
 
     def disconnect(self) -> None:
+        """Disconnect."""
         assert self._client is not None
         self._client.loop_stop()
         self._client.disconnect()
@@ -481,7 +491,7 @@ class Publisher(BasePublisher):
             compression=self._compression,
         )
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """publish.
 
         Args:
@@ -507,7 +517,7 @@ class MPublisher(Publisher):
     def __init__(self, *args, **kwargs):
         super().__init__(topic=None, *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """publish.
 
         Args:
@@ -550,6 +560,7 @@ class WPublisher:
 
     @property
     def connected(self):
+        """Connected."""
         return self._mpub.connected
 
     def publish(self, msg: Union[PubSubMessage, None]) -> None:
@@ -590,6 +601,7 @@ class Subscriber(BaseSubscriber):
         validate_pubsub_topic_strict(self._topic)
 
     def run_forever(self):
+        """Run forever."""
         assert self._transport is not None
         self._transport.start()
         self._transport.subscribe(self._topic, self._on_message)
@@ -636,7 +648,9 @@ class Subscriber(BaseSubscriber):
 
 
 class WSubscriber(BaseSubscriber):
-    def __init__(self, *args, **kwargs):
+    """Wrapped Subscriber for MQTT."""
+
+    def __init__(self, *args, **kwargs):  # pylint: disable=unused-argument
         """__init__.
 
         Args:
@@ -693,7 +707,8 @@ class WSubscriber(BaseSubscriber):
 
         Args:
             topic (str): The MQTT topic to subscribe to. Must match the TOPIC_PATTERN_REGEX.
-            callback (callable): The function to be called when a message is received on the subscribed topic.
+            callback (callable): The function to be called when
+                a message is received on the subscribed topic.
 
         Raises:
             ValueError: If the topic is invalid (does not match
@@ -756,6 +771,7 @@ class PSubscriber(BaseSubscriber):
         validate_pubsub_topic(self._topic)
 
     def run_forever(self):
+        """Run forever."""
         assert self._transport is not None
         self._transport.start()
         self._transport.subscribe(self._topic, self._on_message)
@@ -872,6 +888,8 @@ class RPCService(BaseRPCService):
 
 
 class RPCServer(BaseRPCServer):
+    """RPC Server."""
+
     def __init__(self, *args, **kwargs):
         """__init__.
 
@@ -959,6 +977,7 @@ class RPCServer(BaseRPCServer):
             return
 
     def start_endpoints(self):
+        """Start endpoints."""
         assert self._transport is not None
         for uri in self._svc_map:
             if self._base_uri in (None, ""):
@@ -997,7 +1016,7 @@ class RPCServer(BaseRPCServer):
             AttributeError,
             OSError,
         ) as e:
-            raise RPCRequestError(str(e))
+            raise RPCRequestError(str(e)) from e
         return _req_msg, _uri
 
 
@@ -1063,17 +1082,18 @@ class RPCClient(BaseRPCClient):
 
         Args:
             msg (RPCMessage.Request): The RPC request message to be sent.
-            timeout (float, optional): The maximum time to wait for a response in seconds. Defaults to 10.
+            timeout (float, optional): The max time to wait
+                for a response in seconds. Defaults to 10.
 
         Returns:
-            RPCMessage.Response: The response message received.
+            RPCMessage.Response: The response message.
                 Returns None if timeout is reached.
         """
         assert self._transport is not None
         try:
             data = self._prepare_call_data(msg)
         except ValueError as e:
-            raise RPCRequestError(str(e))
+            raise RPCRequestError(str(e)) from e
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
         self._transport.subscribe(_reply_to, self._on_response_wrapper)
@@ -1186,6 +1206,8 @@ class ActionClient(BaseActionClient):
 
 
 class TaskProducer(BaseTaskProducer):
+    """Task Producer."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=self._conn_params)
@@ -1195,7 +1217,8 @@ class TaskProducer(BaseTaskProducer):
         self._result_sub = None
         self._progress_sub = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1211,16 +1234,17 @@ class TaskProducer(BaseTaskProducer):
             on_message=self._on_progress_msg,
         )
         self._progress_sub.run()
-        self._state = EndpointState.CONNECTED
+        self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         if self._result_sub is not None:
             self._result_sub.stop()
         if self._progress_sub is not None:
             self._progress_sub.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         assert self._transport is not None
@@ -1246,6 +1270,8 @@ class TaskProducer(BaseTaskProducer):
 
 
 class TaskWorker(BaseTaskWorker):
+    """Task Worker."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = MQTTTransport(conn_params=self._conn_params)
@@ -1255,7 +1281,8 @@ class TaskWorker(BaseTaskWorker):
         self._task_sub = None
         self._pub = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1270,9 +1297,10 @@ class TaskWorker(BaseTaskWorker):
             on_message=self._on_task_msg,
         )
         self._task_sub.run()
-        self._state = EndpointState.CONNECTED
+        self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         self._stop_event.set()
         if self._task_sub is not None:
             self._task_sub.stop()
@@ -1280,7 +1308,7 @@ class TaskWorker(BaseTaskWorker):
             self._pub.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _on_task_msg(self, msg) -> None:
         if isinstance(msg, dict):

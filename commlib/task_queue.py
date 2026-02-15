@@ -21,6 +21,8 @@ task_queue_logger = None
 
 
 class TaskStatus(IntEnum):
+    """Task Status enumeration."""
+
     PENDING = 1
     PROCESSING = 2
     COMPLETED = 3
@@ -30,11 +32,15 @@ class TaskStatus(IntEnum):
 
 
 class AckPolicy(IntEnum):
+    """Ack Policy enumeration."""
+
     AUTO = 1
     MANUAL = 2
 
 
 class TaskQueueConfig(BaseModel):
+    """Task Queue Config."""
+
     queue_name: str = "default"
     max_retries: int = 3
     retry_delay: float = 1.0
@@ -47,12 +53,15 @@ class TaskQueueConfig(BaseModel):
     progress_enabled: bool = True
 
     def get_dlq_name(self) -> str:
+        """Get dlq name."""
         if self.dlq_name is not None:
             return self.dlq_name
         return f"{self.queue_name}.dlq"
 
 
 class TaskEnvelope(BaseModel):
+    """Task Envelope."""
+
     task_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     queue_name: str = ""
     priority: int = 0
@@ -65,6 +74,8 @@ class TaskEnvelope(BaseModel):
 
 
 class TaskResult(BaseModel):
+    """Task Result."""
+
     task_id: str = ""
     status: int = TaskStatus.COMPLETED
     result_data: Dict[str, Any] = {}
@@ -73,6 +84,8 @@ class TaskResult(BaseModel):
 
 
 class TaskProgress(BaseModel):
+    """Task Progress."""
+
     task_id: str = ""
     progress_data: Dict[str, Any] = {}
     percent: float = 0.0
@@ -90,18 +103,22 @@ class TaskHandle:
 
     @property
     def task_id(self) -> str:
+        """Task id."""
         return self._task_id
 
     @property
     def status(self) -> TaskStatus:
+        """Status."""
         return TaskStatus(self._status)
 
     @property
     def result(self) -> Optional[TaskResult]:
+        """Result."""
         return self._result
 
     @property
     def is_done(self) -> bool:
+        """Is done."""
         return self._status in (
             TaskStatus.COMPLETED,
             TaskStatus.FAILED,
@@ -109,10 +126,12 @@ class TaskHandle:
         )
 
     def wait_result(self, timeout: Optional[float] = None) -> Optional[TaskResult]:
+        """Wait result."""
         self._result_event.wait(timeout=timeout)
         return self._result
 
     def set_result(self, result: TaskResult) -> None:
+        """Set result."""
         self._result = result
         self._status = result.status
         self._result_event.set()
@@ -141,23 +160,28 @@ class WorkerTaskContext:
 
     @property
     def task_id(self) -> str:
+        """Task id."""
         return self._envelope.task_id
 
     @property
     def data(self) -> Any:
+        """Data."""
         if self._msg_type is not None:
             return self._msg_type.Task(**self._envelope.task_data)
         return self._envelope.task_data
 
     @property
     def retry_count(self) -> int:
+        """Retry count."""
         return self._envelope.retry_count
 
     @property
     def priority(self) -> int:
+        """Priority."""
         return self._envelope.priority
 
     def send_progress(self, progress_data: Any, percent: float = 0.0) -> None:
+        """Send progress."""
         if self._progress_callback is None:
             return
         if isinstance(progress_data, TaskMessage.Progress):
@@ -174,19 +198,24 @@ class WorkerTaskContext:
         self._progress_callback(progress)
 
     def ack(self) -> None:
+        """Ack."""
         if self._ack_callback is not None and not self._acked:
             self._ack_callback(self._envelope.task_id)
             self._acked = True
 
     def nack(self) -> None:
+        """Nack."""
         if self._nack_callback is not None:
             self._nack_callback(self._envelope.task_id)
 
 
 class BaseTaskProducer(BaseEndpoint):
+    """Base Task Producer."""
+
     @classmethod
     def logger(cls) -> logging.Logger:
-        global task_queue_logger
+        """Logger."""
+        global task_queue_logger  # pylint: disable=global-statement
         if task_queue_logger is None:
             task_queue_logger = logging.getLogger(__name__)
         return task_queue_logger
@@ -212,6 +241,7 @@ class BaseTaskProducer(BaseEndpoint):
 
     @property
     def queue_name(self) -> str:
+        """Queue name."""
         return self._queue_name
 
     def submit(
@@ -221,6 +251,7 @@ class BaseTaskProducer(BaseEndpoint):
         ttl: Optional[float] = None,
         fire_and_forget: bool = False,
     ) -> TaskHandle:
+        """Submit."""
         if isinstance(task_msg, TaskMessage.Task):
             task_data = task_msg.model_dump()
         elif isinstance(task_msg, dict):
@@ -284,9 +315,12 @@ class BaseTaskProducer(BaseEndpoint):
 
 
 class BaseTaskWorker(BaseEndpoint):
+    """Base Task Worker."""
+
     @classmethod
     def logger(cls) -> logging.Logger:
-        global task_queue_logger
+        """Logger."""
+        global task_queue_logger  # pylint: disable=global-statement
         if task_queue_logger is None:
             task_queue_logger = logging.getLogger(__name__)
         return task_queue_logger
@@ -314,6 +348,7 @@ class BaseTaskWorker(BaseEndpoint):
 
     @property
     def queue_name(self) -> str:
+        """Queue name."""
         return self._queue_name
 
     def _process_task(self, envelope: TaskEnvelope) -> None:

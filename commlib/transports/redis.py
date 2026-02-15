@@ -169,6 +169,8 @@ def release_redis_pool(conn_params: "ConnectionParameters") -> None:
 
 
 class ConnectionParameters(BaseConnectionParameters):
+    """Connection Parameters."""
+
     host: str = "localhost"
     port: int = 6379
     unix_socket: str = ""
@@ -193,19 +195,39 @@ class RedisConnection(redis.Redis):  # type: ignore[reportAttributeAccessIssue]
 
 
 class RedisTransport(BaseTransport):
+    """Redis Transport."""
+
     _redis_pool = None
 
     @classmethod
     def set_redis_pool(cls, pool):
+        """Set redis pool."""
         cls._redis_pool = pool
 
     @classmethod
     def get_redis_pool(cls):
+        """Get redis pool."""
         return cls._redis_pool
 
     @classmethod
+    def reset_redis_pool(cls) -> None:
+        """Disconnect and clear the class-level Redis connection pool.
+
+        Intended for testing and benchmarks that need a clean pool state.
+        """
+        if cls._redis_pool is not None:
+            try:
+                cls._redis_pool.disconnect()
+            except Exception:  # pylint: disable=broad-except
+                pass
+        _REDIS_POOL_REGISTRY.clear()
+        _REDIS_POOL_REFCOUNT.clear()
+        cls._redis_pool = None
+
+    @classmethod
     def logger(cls) -> logging.Logger:
-        global redis_logger
+        """Logger."""
+        global redis_logger  # pylint: disable=global-statement
         if redis_logger is None:
             redis_logger = logging.getLogger(__name__)
         return redis_logger
@@ -253,10 +275,12 @@ class RedisTransport(BaseTransport):
 
     @property
     def pubsub_alive(self):
+        """Pubsub alive."""
         return self._rsub_thread.is_alive() if self._rsub_thread else False
 
     @property
     def is_connected(self) -> bool:
+        """Is connected."""
         try:
             if self._redis is None:
                 return False
@@ -275,6 +299,7 @@ class RedisTransport(BaseTransport):
 
     @property
     def log(self) -> logging.Logger:
+        """Log."""
         return self.logger()
 
     def _build_conn_pool(self):
@@ -323,6 +348,7 @@ class RedisTransport(BaseTransport):
         )
 
     def connect(self) -> None:
+        """Connect."""
         self._stopped = False
         if self._conn_params.unix_socket not in ("", None):
             self._redis = RedisConnection(
@@ -346,7 +372,7 @@ class RedisTransport(BaseTransport):
             AttributeError,
             OSError,
         ) as e:
-            raise ConnectionError(f"Could not connect to Redis server: {e}")
+            raise ConnectionError(f"Could not connect to Redis server: {e}") from e
         self._retry_count = 0
 
     def start(self) -> None:
@@ -446,19 +472,23 @@ class RedisTransport(BaseTransport):
             release_redis_pool(self._conn_params)
 
     def delete_queue(self, queue_name: str) -> bool:
+        """Delete queue."""
         assert self._redis is not None
         return True if self._redis.delete(queue_name) else False
 
     def queue_exists(self, queue_name: str) -> bool:
+        """Queue exists."""
         assert self._redis is not None
         return True if self._redis.exists(queue_name) else False
 
     def create_queue(self, queue_name: str) -> bool:
+        """Create queue."""
         assert self._redis is not None
         self._redis.rpush(queue_name, "QueueInit")
         return True
 
     def push_msg_to_queue(self, queue_name: str, data: Dict[str, Any]):
+        """Push msg to queue."""
         if not self.is_connected:
             self.log.warning("Transport not connected - Cannot push message to queue!")
             self._attempt_reconnect()
@@ -475,6 +505,7 @@ class RedisTransport(BaseTransport):
             return self.push_msg_to_queue(queue_name, data)
 
     def publish(self, queue_name: str, data: Dict[str, Any]):
+        """Publish."""
         if not self.is_connected:
             self.log.warning("Transport not connected - Cannot publish message!")
             self._attempt_reconnect()
@@ -491,6 +522,7 @@ class RedisTransport(BaseTransport):
             return self.publish(queue_name, data)
 
     def subscribe(self, topic: str, callback: Callable):
+        """Subscribe."""
         if topic in (None, ""):
             self.log.warning("Attempt to subscribe to empty topic - %s", topic)
             return
@@ -515,6 +547,7 @@ class RedisTransport(BaseTransport):
         return self._rsub_thread
 
     def exception_handler(self, ex, pubsub, thread):
+        """Exception handler."""
         if not self._stopped:
             self.log.debug(
                 "Redis PubSub error in thread: %s, exception: %s", thread, ex
@@ -586,7 +619,9 @@ class RedisTransport(BaseTransport):
 
                     # Restart the subscription thread
                     self._rsub_thread = self._rsub.run_in_thread(
-                        sleep_time=self._subscription_sleep_interval,  # type: ignore[reportArgumentType]
+                        sleep_time=(  # type: ignore[reportArgumentType]
+                            self._subscription_sleep_interval
+                        ),
                         exception_handler=self.exception_handler,
                         daemon=True,
                     )
@@ -609,6 +644,7 @@ class RedisTransport(BaseTransport):
         return False
 
     def msubscribe(self, topics: Dict[str, Callable]):
+        """Msubscribe."""
         _topics = {}
         for topic, callback in topics.items():
             _clb = functools.partial(self._on_msg_internal, callback)
@@ -641,6 +677,7 @@ class RedisTransport(BaseTransport):
         callback(data)
 
     def wait_for_msg(self, queue_name: str, timeout=10):
+        """Wait for msg."""
         try:
             if not self.is_connected:
                 self.log.warning(
@@ -793,17 +830,18 @@ class RPCClient(BaseRPCClient):
 
         Args:
             msg (RPCMessage.Request): The RPC request message to be sent.
-            timeout (float, optional): The maximum time to wait for a response in seconds. Defaults to 10.
+            timeout (float, optional): The max time to wait
+                for a response in seconds. Defaults to 10.
 
         Returns:
-            RPCMessage.Response: The response message received.
+            RPCMessage.Response: The response message.
                 Returns None if timeout is reached.
         """
         assert self._transport is not None
         try:
             data = self._prepare_call_data(msg)
         except ValueError as e:
-            raise RPCRequestError(str(e))
+            raise RPCRequestError(str(e)) from e
         _msg = self._prepare_request(data)
         _reply_to = _msg["header"]["reply_to"]
         # while not self._transport.queue_exists(self._rpc_name):
@@ -842,7 +880,9 @@ class Publisher(BasePublisher):
             compression=self._compression,
         )
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(  # pylint: disable=unused-argument
+        self, msg: PubSubMessage, topic: str = "", key: str = ""
+    ) -> None:
         """publish.
         Publish message
 
@@ -876,7 +916,7 @@ class MPublisher(Publisher):
         """
         super().__init__(topic=None, *args, **kwargs)
 
-    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+    def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:  # pylint: disable=unused-argument
         """publish.
 
         Args:
@@ -920,9 +960,11 @@ class WPublisher:
 
     @property
     def connected(self):
+        """Connected."""
         return self._mpub.connected
 
     def publish(self, msg: Union[PubSubMessage, None]) -> None:
+        """Publish."""
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError(f'Argument "msg" must be of type {self._msg_type}')
         assert msg is not None
@@ -951,7 +993,7 @@ class Subscriber(BaseSubscriber):
         )
         validate_pubsub_topic_strict(self._topic)
 
-    def stop(self, wait: bool = True):
+    def stop(self, wait: bool = True):  # pylint: disable=unused-argument
         """
         Stops the subscriber thread if it is running and then calls the
         stop method of the superclass to perform any additional cleanup.
@@ -1026,7 +1068,7 @@ class WSubscriber(BaseSubscriber):
     """WSubscriber class for subscribing to topics and handling messages using a.
     single connection."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # pylint: disable=unused-argument
         """
         Initialize the WSubscriber.
 
@@ -1050,7 +1092,8 @@ class WSubscriber(BaseSubscriber):
 
         Args:
             topic (str): The topic to subscribe to.
-            callback (callable): The function to be called when a message is received on the subscribed topic.
+            callback (callable): The function to be called
+                when a message is received on the topic.
 
         Returns:
             None
@@ -1058,13 +1101,16 @@ class WSubscriber(BaseSubscriber):
         validate_pubsub_topic_strict(topic)
         self._subs[topic] = callback
 
-    def stop(self, wait: bool = True):
+    def stop(self, wait: bool = True):  # pylint: disable=unused-argument
         """
-        Stops the transport by stopping all subscriber threads and the main subscriber thread if they exist.
+        Stops the transport by stopping all subscriber
+        threads and the main subscriber thread if they exist.
 
-        This method iterates through all threads in the `_subscriber_threads` list and calls their `stop` method.
-        If the `_subscriber_thread` is not `None`, it also calls its `stop` method.
-        Finally, it calls the `stop` method of the superclass.
+        Iterates through all threads in
+        ``_subscriber_threads`` and calls their ``stop``
+        method. If ``_subscriber_thread`` is not None,
+        also calls its ``stop`` method. Finally, calls
+        the ``stop`` method of the superclass.
         """
         for sub_thread in self._subscriber_threads:
             sub_thread.stop()
@@ -1152,7 +1198,7 @@ class PSubscriber(BaseSubscriber):
         )
         validate_pubsub_topic(self._topic)
 
-    def stop(self, wait: bool = True):
+    def stop(self, wait: bool = True):  # pylint: disable=unused-argument
         """
         Stops the Redis transport by stopping the subscriber thread if it exists,
         and then calls the stop method of the superclass.
@@ -1316,6 +1362,8 @@ class ActionClient(BaseActionClient):
 
 
 class RPCServer(BaseRPCServer):
+    """RPC Server."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
@@ -1388,6 +1436,7 @@ class RPCServer(BaseRPCServer):
         self._transport.push_msg_to_queue(reply_to, _resp)
 
     def start_endpoints(self):
+        """Start endpoints."""
         for uri in self._svc_map:
             if self._base_uri in (None, ""):
                 full_uri = uri
@@ -1426,6 +1475,8 @@ class RPCServer(BaseRPCServer):
 
 
 class TaskProducer(BaseTaskProducer):
+    """Task Producer."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
@@ -1436,7 +1487,8 @@ class TaskProducer(BaseTaskProducer):
         self._result_topic = f"{self._queue_name}.results"
         self._progress_topic = f"{self._queue_name}.progress"
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -1447,14 +1499,15 @@ class TaskProducer(BaseTaskProducer):
         self._result_transport.start()
         self._result_transport.subscribe(self._result_topic, self._on_result_msg)
         self._result_transport.subscribe(self._progress_topic, self._on_progress_msg)
-        self._state = EndpointState.CONNECTED
+        self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         if self._result_transport is not None:
             self._result_transport.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         assert self._transport is not None
@@ -1477,6 +1530,8 @@ class TaskProducer(BaseTaskProducer):
 
 
 class TaskWorker(BaseTaskWorker):
+    """Task Worker."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = RedisTransport(
@@ -1487,22 +1542,24 @@ class TaskWorker(BaseTaskWorker):
         self._progress_topic = f"{self._queue_name}.progress"
         self._poll_thread = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
         self._stop_event.clear()
         self._poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
         self._poll_thread.start()
-        self._state = EndpointState.CONNECTED
+        self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         self._stop_event.set()
         if self._poll_thread is not None:
             self._poll_thread.join(timeout=5.0)
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _poll_loop(self) -> None:
         assert self._transport is not None

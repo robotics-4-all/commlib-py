@@ -61,6 +61,8 @@ SASL_MECHANISM = "PLAIN"
 
 
 class ConnectionParameters(BaseConnectionParameters):
+    """Connection Parameters."""
+
     # https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     host: str = "localhost"
     port: int = 29092
@@ -73,6 +75,8 @@ class ConnectionParameters(BaseConnectionParameters):
 
 
 class KafkaTransport(BaseTransport):
+    """Kafka Transport."""
+
     def __init__(
         self,
         *args,
@@ -90,10 +94,12 @@ class KafkaTransport(BaseTransport):
         self.connect()
 
     def connect(self) -> None:
+        """Connect."""
         pass
 
     @property
     def producer(self) -> Optional[Producer]:
+        """Producer."""
         return self._producer
 
     @producer.setter
@@ -102,13 +108,16 @@ class KafkaTransport(BaseTransport):
 
     @property
     def is_connected(self) -> bool:
+        """Is connected."""
         return self._connected
 
     def start(self) -> None:
+        """Start."""
         if not self.is_connected:
             self.connect()
 
     def stop(self) -> None:
+        """Stop."""
         if self.is_connected:
             for producer in self._producers:
                 try:
@@ -125,14 +134,16 @@ class KafkaTransport(BaseTransport):
                     consumer.close()
                 finally:
                     pass
-            self._connected = False
+            self._set_connected(False)
 
     def create_producer(self, kafka_cfg):
+        """Create producer."""
         producer = Producer(kafka_cfg)
         self._producers.append(producer)
         return producer
 
     def create_consumer(self, kafka_cfg):
+        """Create consumer."""
         consumer = Consumer(kafka_cfg)
         self._consumers.append(consumer)
         return consumer
@@ -145,6 +156,7 @@ class KafkaTransport(BaseTransport):
         key: str = "",
         on_delivery=None,
     ):
+        """Publish data."""
         producer.poll(0)
         payload = self._serializer.serialize(data)
         if on_delivery is None:
@@ -158,6 +170,7 @@ class KafkaTransport(BaseTransport):
         pass
 
     def publish(self, topic: str, data: Dict[str, Any], key: str = "") -> None:
+        """Publish."""
         if self._producer is None:
             self._producer = self.create_producer(self._conn_params.model_dump())
         self.publish_data(self._producer, data, topic, key)
@@ -178,18 +191,20 @@ class KafkaTransport(BaseTransport):
                 continue
             if msg.error():
                 _err = msg.error()
-                if _err is not None and _err.code() == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]  # pylint: disable=protected-access
+                if (  # type: ignore[attr-defined]  # pylint: disable=protected-access
+                    _err is not None and _err.code() == KafkaError._PARTITION_EOF
+                ):
                     print(
                         "%% %s [%d] reached end at offset %d\n"
                         % (msg.topic(), msg.partition() or 0, msg.offset() or 0)
                     )
-                elif (
-                    _err is not None and _err.code() == KafkaError.UNKNOWN_TOPIC_OR_PART  # type: ignore[attr-defined]
+                elif (  # type: ignore[attr-defined]
+                    _err is not None and _err.code() == KafkaError.UNKNOWN_TOPIC_OR_PART
                 ):
                     time.sleep(1.0)
                     continue
                 elif _err is not None:
-                    self.log.error(f"Kafka error: {_err}")
+                    self.log.error("Kafka error: %s", _err)
             else:
                 try:
                     callback(msg)
@@ -201,6 +216,7 @@ class KafkaTransport(BaseTransport):
     def subscribe(
         self, topic: str, callback: Callable, group_id: Optional[str] = None
     ) -> None:
+        """Subscribe."""
         import uuid
 
         kafka_cfg = self._conn_params.model_dump()
@@ -228,6 +244,8 @@ class KafkaTransport(BaseTransport):
 
 
 class Publisher(BasePublisher):
+    """Publisher."""
+
     def __init__(self, *args, key: str = "", **kwargs):
         self._key = key
         self._msg_seq = 0
@@ -264,6 +282,7 @@ class Publisher(BasePublisher):
         }
 
     def publish(self, msg: PubSubMessage, topic: str = "", key: str = "") -> None:
+        """Publish."""
         if self._msg_type is not None and not isinstance(msg, PubSubMessage):
             raise ValueError('Argument "msg" must be of type PubSubMessage')
         elif isinstance(msg, dict):
@@ -298,12 +317,15 @@ class Publisher(BasePublisher):
         assert self._transport is not None, "Transport is not initialized."
         self._producer = self._transport.create_producer(self._kafka_cfg)
 
-    def stop(self, wait: bool = True):
+    def stop(self, wait: bool = True):  # pylint: disable=unused-argument
+        """Stop."""
         if self._producer is not None:
             self._producer.flush()
 
 
 class MPublisher(Publisher):
+    """Multi-topic Publisher for Kafka."""
+
     def __init__(self, *args, key: str = "", **kwargs):
         self._key = key
         super().__init__(*args, topic="*", **kwargs)
@@ -328,6 +350,8 @@ class MPublisher(Publisher):
 
 
 class Subscriber(BaseSubscriber):
+    """Subscriber."""
+
     def __init__(self, *args, key: str = "", **kwargs):
         self._key = key
         self._consumer: Consumer = None  # type: ignore[assignment]
@@ -369,6 +393,7 @@ class Subscriber(BaseSubscriber):
         }
 
     def run_forever(self):
+        """Run forever."""
         running = True
         assert self._transport is not None, "Transport is not initialized."
         self._consumer = self._transport.create_consumer(self._kafka_cfg)
@@ -386,7 +411,9 @@ class Subscriber(BaseSubscriber):
                             "%% %s [%d] reached end at offset %d\n"
                             % (msg.topic(), msg.partition() or 0, msg.offset() or 0)
                         )
-                    elif _err.code() == KafkaError.UNKNOWN_TOPIC_OR_PART:  # type: ignore[attr-defined]
+                    elif (  # type: ignore[attr-defined]
+                        _err.code() == KafkaError.UNKNOWN_TOPIC_OR_PART
+                    ):
                         kafka_logger.warning(
                             "Topic not yet available: %s (waiting for auto-create)",
                             self._topic,
@@ -431,11 +458,14 @@ class Subscriber(BaseSubscriber):
         _data = self._serializer.deserialize(msg.value())
         return _data, _topic, _key, _timestamp
 
-    def stop(self, wait: bool = True):
+    def stop(self, wait: bool = True):  # pylint: disable=unused-argument
+        """Stop."""
         self._consumer.close()
 
 
 class PSubscriber(Subscriber):
+    """Pattern Subscriber for Kafka."""
+
     def _on_message(self, msg: Any):
         try:
             data, topic, _key, _ts = self._unpack_comm_msg(msg)
@@ -449,6 +479,8 @@ class PSubscriber(Subscriber):
 
 
 class RPCService(BaseRPCService):
+    """RPC Service."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._transport = KafkaTransport(
@@ -472,7 +504,8 @@ class RPCService(BaseRPCService):
             req_msg, _uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.warning(
-                f"Could not unpack request message: {exc}\nDropping client request!",
+                "Could not unpack request message: %s\nDropping client request!",
+                exc,
                 exc_info=True,
             )
             return
@@ -500,7 +533,7 @@ class RPCService(BaseRPCService):
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
         except Exception as e:
-            raise RPCRequestError(str(e))
+            raise RPCRequestError(str(e)) from e
         return _req_msg, uri
 
     def run_forever(self):
@@ -520,6 +553,8 @@ class RPCService(BaseRPCService):
 
 
 class RPCServer(BaseRPCServer):
+    """RPC Server."""
+
     def __init__(self, *args, **kwargs):
         """__init__.
 
@@ -562,7 +597,8 @@ class RPCServer(BaseRPCServer):
             req_msg, _uri = self._unpack_comm_msg(msg)
         except Exception as exc:
             self.log.error(
-                f"Could not unpack request message: {exc}\nDropping client request!",
+                "Could not unpack request message: %s\nDropping client request!",
+                exc,
                 exc_info=True,
             )
             return
@@ -607,7 +643,7 @@ class RPCServer(BaseRPCServer):
             if not self._validate_rpc_req_msg(_req_msg):
                 raise RPCRequestError("Request Message is invalid!")
         except Exception as e:
-            raise RPCRequestError(str(e))
+            raise RPCRequestError(str(e)) from e
         return _req_msg, _uri
 
     def _register_endpoint(
@@ -831,6 +867,8 @@ class ActionClient(BaseActionClient):
 
 
 class TaskProducer(BaseTaskProducer):
+    """Task Producer."""
+
     _transport: KafkaTransport  # type: ignore[assignment]
 
     def __init__(self, *args, **kwargs):
@@ -842,7 +880,8 @@ class TaskProducer(BaseTaskProducer):
         self._result_sub = None
         self._progress_sub = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -858,16 +897,17 @@ class TaskProducer(BaseTaskProducer):
             on_message=self._on_progress_msg,
         )
         self._progress_sub.run()
-        self._state = EndpointState.CONNECTED
+        self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         if self._result_sub is not None:
             self._result_sub.stop()
         if self._progress_sub is not None:
             self._progress_sub.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _send_task(self, envelope: TaskEnvelope) -> None:
         assert self._transport is not None
@@ -922,6 +962,8 @@ class TaskProducer(BaseTaskProducer):
 
 
 class TaskWorker(BaseTaskWorker):
+    """Task Worker."""
+
     _transport: KafkaTransport  # type: ignore[assignment]
 
     def __init__(self, *args, **kwargs):
@@ -932,7 +974,8 @@ class TaskWorker(BaseTaskWorker):
         self._progress_topic = f"{self._queue_name}-progress"
         self._task_sub = None
 
-    def run(self, wait: bool = True) -> None:
+    def run(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Run."""
         if self._transport is None:
             raise RuntimeError("Transport not initialized")
         self._transport.start()
@@ -942,15 +985,16 @@ class TaskWorker(BaseTaskWorker):
             on_message=self._on_task_msg,
         )
         self._task_sub.run()
-        self._state = EndpointState.CONNECTED
+        self.set_state(EndpointState.CONNECTED)
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         self._stop_event.set()
         if self._task_sub is not None:
             self._task_sub.stop()
         if self._transport is not None:
             self._transport.stop()
-        self._state = EndpointState.DISCONNECTED
+        self.set_state(EndpointState.DISCONNECTED)
 
     def _on_task_msg(self, msg) -> None:
         if isinstance(msg, dict):

@@ -144,7 +144,9 @@ class TestRedisBenchmarks:
         # Warning-based threshold - should have exactly 1 pool
         if num_pools > 1:
             warnings.warn(
-                f"Redis connection pooling inefficient: {num_pools} pools for 10 publishers (expected 1)"
+                f"Redis connection pooling inefficient:"
+                f" {num_pools} pools for 10 publishers"
+                " (expected 1)"
             )
 
         # Basic sanity check
@@ -159,7 +161,9 @@ class TestRedisBenchmarks:
         # Warning-based threshold - should have exactly 1 pool
         if num_pools > 1:
             warnings.warn(
-                f"Redis connection pooling inefficient: {num_pools} pools for 20 publishers (expected 1)"
+                f"Redis connection pooling inefficient:"
+                f" {num_pools} pools for 20 publishers"
+                " (expected 1)"
             )
 
         # Basic sanity check - Phase 2 optimization should result in 1 pool

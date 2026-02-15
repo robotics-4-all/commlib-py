@@ -19,7 +19,7 @@ class TestThreadPoolManager(unittest.TestCase):
     def tearDown(self):
         """Clean up pools after each test."""
         # Reset singleton for clean state
-        ThreadPoolManager._instance = None
+        ThreadPoolManager.reset()
 
     def test_singleton_pattern(self):
         """Test that ThreadPoolManager is a singleton."""
@@ -166,7 +166,7 @@ class TestThreadPoolIntegration(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after each test."""
-        ThreadPoolManager._instance = None
+        ThreadPoolManager.reset()
 
     def test_shared_pool_reduces_thread_count(self):
         """Test that shared pool reduces overall thread count."""

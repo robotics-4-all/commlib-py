@@ -152,7 +152,7 @@ def benchmark_mqtt_pubsub_roundtrip(iterations=100, warmup=50):
     # Benchmark
     print(f"Running benchmark ({iterations} messages)...")
     start = time.perf_counter()
-    for i in range(iterations):
+    for _i in range(iterations):
         message.timestamp = time.time()
         pub.publish(message)
 

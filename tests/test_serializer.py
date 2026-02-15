@@ -1,3 +1,4 @@
+"""Tests for JSON serializer functionality."""
 import unittest
 import time
 from decimal import Decimal
@@ -24,13 +25,16 @@ class TestJSONBackend(unittest.TestCase):
 
 
 class TestJSONSerializer(unittest.TestCase):
+    """Test JSON Serializer."""
     def test_serialize_deserialize_dict(self):
+        """Test serialize deserialize dict."""
         data = {"a": 1, "b": "test", "c": True}
         serialized = JSONSerializer.serialize(data)
         deserialized = JSONSerializer.deserialize(serialized)
         self.assertEqual(data, deserialized)
 
     def test_make_primitives(self):
+        """Test make primitives."""
         data = {"a": Decimal("1.5"), "b": (1, 2), "c": None}
         # Decimal should become float, tuple should become list
         expected = {"a": 1.5, "b": [1, 2], "c": None}
@@ -94,7 +98,9 @@ class TestJSONSerializer(unittest.TestCase):
 
 
 class TestBinarySerializer(unittest.TestCase):
+    """Test Binary Serializer."""
     def test_serialize_deserialize(self):
+        """Test serialize deserialize."""
         data = {"a": 1}
         serialized = BinarySerializer.serialize(data)
         self.assertIsInstance(serialized, bytes)
@@ -102,6 +108,7 @@ class TestBinarySerializer(unittest.TestCase):
         self.assertEqual(data, deserialized)
 
     def test_invalid_input(self):
+        """Test invalid input."""
         with self.assertRaises(ValueError):
             BinarySerializer.serialize("not a dict")  # type: ignore[arg-type]
         with self.assertRaises(ValueError):
@@ -109,7 +116,9 @@ class TestBinarySerializer(unittest.TestCase):
 
 
 class TestTextSerializer(unittest.TestCase):
+    """Test Text Serializer."""
     def test_serialize_deserialize(self):
+        """Test serialize deserialize."""
         data = "hello world"
         serialized = TextSerializer.serialize(data)
         self.assertEqual(serialized, "hello world")
@@ -117,6 +126,7 @@ class TestTextSerializer(unittest.TestCase):
         self.assertEqual(deserialized, data)
 
     def test_serialize_list(self):
+        """Test serialize list."""
         data = [1, 2, 3]
         serialized = TextSerializer.serialize(data)
         self.assertEqual(serialized, "1,2,3")

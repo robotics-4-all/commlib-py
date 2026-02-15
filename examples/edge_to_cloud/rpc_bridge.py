@@ -25,16 +25,20 @@ from commlib.msg import RPCMessage  # noqa: E402
 
 
 class DeviceStatusMsg(RPCMessage):
+    """Device Status Msg."""
     class Request(RPCMessage.Request):
+        """Request payload."""
         device_id: str = ""
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         device_id: str = ""
         online: bool = False
         uptime_hours: float = 0.0
 
 
 def make_parser() -> argparse.ArgumentParser:
+    """Make parser."""
     parser = argparse.ArgumentParser(description="Edge-to-cloud RPC bridge")
     parser.add_argument(
         "--broker-a", default="redis", choices=["redis", "amqp", "mqtt", "kafka"]

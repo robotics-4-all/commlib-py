@@ -44,14 +44,17 @@ def gen_timestamp() -> int:
 
 
 def get_timestamp_ns() -> int:
+    """Get timestamp ns."""
     return gen_timestamp()
 
 
 def get_timestamp_us() -> int:
+    """Get timestamp us."""
     return int(get_timestamp_ns() / 1e3)
 
 
 def get_timestamp_ms() -> int:
+    """Get timestamp ms."""
     return int(get_timestamp_ns() / 1e6)
 
 
@@ -68,6 +71,7 @@ def gen_random_id() -> str:
 
 
 class Rate:
+    """Rate."""
     def __init__(self, hz: float):
         """__init__.
         Initializes a `Rate` object with the specified Hz (Hertz) rate.
@@ -77,7 +81,8 @@ class Rate:
 
         Attributes:
             _hz (int): The rate in Hertz (Hz) for the `Rate` object.
-            _tsleep (float): The time in seconds to sleep between each iteration, calculated as 1.0 / `_hz`.
+            _tsleep (float): The time in seconds to sleep
+                between each iteration (1.0 / ``_hz``).
         """
 
         self._hz = hz

@@ -31,6 +31,7 @@ TRANSPORT_MAP = {
 
 
 def on_message(msg) -> None:
+    """On message."""
     print(f"[factory-sub] received: {msg}")
 
 

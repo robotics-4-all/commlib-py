@@ -47,10 +47,14 @@ class _ActionGoalMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
+        """Request payload."""
+
         description: str = ""
         goal_data: Dict[str, Any] = {}
 
     class Response(RPCMessage.Response):
+        """Response payload."""
+
         status: int = 0
         timestamp: int = -1
         goal_id: str = ""
@@ -66,9 +70,13 @@ class _ActionResultMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
+        """Request payload."""
+
         goal_id: Optional[str] = ""
 
     class Response(RPCMessage.Response):
+        """Response payload."""
+
         status: int = 0
         timestamp: int = -1
         result: Dict[str, Any] = {}
@@ -84,10 +92,14 @@ class _ActionCancelMessage(RPCMessage):
     """
 
     class Request(RPCMessage.Request):
+        """Request payload."""
+
         goal_id: Optional[str] = ""
         timestamp: int = gen_timestamp()
 
     class Response(RPCMessage.Response):
+        """Response payload."""
+
         status: int = 0
         timestamp: int = gen_timestamp()
         result: Dict[str, Any] = {}
@@ -125,9 +137,12 @@ class _ActionNotifyMessage(PubSubMessage):
 
 
 class GoalHandler:
+    """Goal Handler."""
+
     @classmethod
     def logger(cls) -> logging.Logger:
-        global actions_logger
+        """Logger."""
+        global actions_logger  # pylint: disable=global-statement
         if actions_logger is None:
             actions_logger = logging.getLogger(__name__)
         return actions_logger
@@ -177,10 +192,12 @@ class GoalHandler:
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     @property
     def cancel_event(self):
+        """Cancel event."""
         return self._cancel_event
 
     def _done_callback(self, future: Future):
@@ -297,12 +314,15 @@ class GoalHandler:
         """
 
         _fb = feedback_msg.feedback_data
-        msg = _ActionFeedbackMessage(feedback_data=_fb, goal_id=self.id)  # type: ignore[reportArgumentType]
+        msg = _ActionFeedbackMessage(  # type: ignore[reportArgumentType]
+            feedback_data=_fb, goal_id=self.id
+        )
         assert self._pub_feedback is not None
         if self._pub_feedback is not None:
             self._pub_feedback.publish(msg)
 
     def set_result(self, result):
+        """Set result."""
         self.result = result
 
 
@@ -319,7 +339,8 @@ class BaseActionService:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global actions_logger
+        """Logger."""
+        global actions_logger  # pylint: disable=global-statement
         if actions_logger is None:
             actions_logger = logging.getLogger(__name__)
         return actions_logger
@@ -346,8 +367,10 @@ class BaseActionService:
                 Defaults to NO_COMPRESSION.
             conn_params (BaseConnectionParameters, optional): The connection parameters to use.
             on_goal (callable, optional): A callback function to be called when a goal is received.
-            on_cancel (callable, optional): A callback function to be called when a goal is canceled.
-            on_getresult (callable, optional): A callback function to be called when a result is requested.
+            on_cancel (callable, optional): Callback for
+                when a goal is canceled.
+            on_getresult (callable, optional): Callback for
+                when a result is requested.
         """
         if on_goal is None:
             raise ValueError("No on_goal callback provided")
@@ -397,14 +420,17 @@ class BaseActionService:
 
     @property
     def debug(self):
+        """Debug."""
         return self._debug
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     @property
     def connected(self):
+        """Connected."""
         assert self._goal_rpc is not None
         assert self._cancel_rpc is not None
         assert self._result_rpc is not None
@@ -550,7 +576,9 @@ class BaseActionService:
         # Set Result data
         if self._msg_type is not None:
             assert self._current_goal.result is not None
-            resp.result = self._current_goal.result.model_dump()  # type: ignore[reportAttributeAccessIssue]
+            resp.result = (  # type: ignore[reportAttributeAccessIssue]
+                self._current_goal.result.model_dump()
+            )
         else:
             resp.result = self._current_goal.result  # type: ignore[reportAttributeAccessIssue]
         return resp
@@ -561,8 +589,10 @@ class BaseActionService:
         description: str = "",
         goal_id: Optional[str] = "",
         status: int = 0,
-        data: Dict[str, Any] = {},
+        data: Optional[Dict[str, Any]] = None,
     ):
+        if data is None:
+            data = {}
         if self._notify_pub is not None:
             _msg = _ActionNotifyMessage(
                 msg=msg,
@@ -590,7 +620,8 @@ class BaseActionClient:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global actions_logger
+        """Logger."""
+        global actions_logger  # pylint: disable=global-statement
         if actions_logger is None:
             actions_logger = logging.getLogger(__name__)
         return actions_logger
@@ -617,7 +648,8 @@ class BaseActionClient:
             conn_params (BaseConnectionParameters, optional): The connection parameters.
             on_feedback (callable, optional): A callback function for handling feedback.
             on_result (callable, optional): A callback function for handling results.
-            on_goal_reached (callable, optional): A callback function for handling when a goal is reached.
+            on_goal_reached (callable, optional): Callback
+                for handling when a goal is reached.
         """
 
         self._debug = debug
@@ -648,26 +680,32 @@ class BaseActionClient:
 
     @property
     def debug(self) -> bool:
+        """Debug."""
         return self._debug
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     @property
     def result(self):
+        """Result."""
         return self._result
 
     @property
     def status(self):
+        """Status."""
         return self._status
 
     @property
     def goal_id(self):
+        """Goal id."""
         return self._goal_id
 
     @property
     def connected(self):
+        """Connected."""
         assert self._status_sub is not None
         assert self._feedback_sub is not None
         assert self._goal_client is not None
@@ -768,7 +806,7 @@ class BaseActionClient:
         Returns:
             None:
         """
-        self.log.debug(f"ActionClient <on-status> callback: {msg}")
+        self.log.debug("ActionClient <on-status> callback: %s", msg)
         # Check if the goal_id matches the one of the current goal.
         if msg.goal_id != self._goal_id:
             return

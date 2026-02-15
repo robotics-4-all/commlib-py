@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+"""Tests for task queue functionality."""
 import time
 import threading
 import unittest
@@ -25,19 +25,25 @@ from commlib.transports.mock import (
 
 
 class ComputeTaskMessage(TaskMessage):
+    """Compute Task Message."""
     class Task(TaskMessage.Task):
+        """Task."""
         x: int = 0
         y: int = 0
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         result: int = 0
 
     class Progress(TaskMessage.Progress):
+        """Progress."""
         percent: float = 0.0
 
 
 class TestTaskMessage(unittest.TestCase):
+    """Test Task Message."""
     def test_task_message_inner_classes(self):
+        """Test task message inner classes."""
         t = TaskMessage.Task()
         r = TaskMessage.Result()
         p = TaskMessage.Progress()
@@ -46,21 +52,26 @@ class TestTaskMessage(unittest.TestCase):
         self.assertIsInstance(p, TaskMessage.Progress)
 
     def test_custom_task_message(self):
+        """Test custom task message."""
         t = ComputeTaskMessage.Task(x=3, y=5)
         self.assertEqual(t.x, 3)
         self.assertEqual(t.y, 5)
 
     def test_custom_result_message(self):
+        """Test custom result message."""
         r = ComputeTaskMessage.Result(result=42)
         self.assertEqual(r.result, 42)
 
     def test_custom_progress_message(self):
+        """Test custom progress message."""
         p = ComputeTaskMessage.Progress(percent=0.5)
         self.assertEqual(p.percent, 0.5)
 
 
 class TestTaskStatus(unittest.TestCase):
+    """Test Task Status."""
     def test_status_values(self):
+        """Test status values."""
         self.assertEqual(TaskStatus.PENDING, 1)
         self.assertEqual(TaskStatus.PROCESSING, 2)
         self.assertEqual(TaskStatus.COMPLETED, 3)
@@ -70,13 +81,17 @@ class TestTaskStatus(unittest.TestCase):
 
 
 class TestAckPolicy(unittest.TestCase):
+    """Test Ack Policy."""
     def test_ack_policy_values(self):
+        """Test ack policy values."""
         self.assertEqual(AckPolicy.AUTO, 1)
         self.assertEqual(AckPolicy.MANUAL, 2)
 
 
 class TestTaskQueueConfig(unittest.TestCase):
+    """Test Task Queue Config."""
     def test_default_config(self):
+        """Test default config."""
         config = TaskQueueConfig()
         self.assertEqual(config.queue_name, "default")
         self.assertEqual(config.max_retries, 3)
@@ -84,6 +99,7 @@ class TestTaskQueueConfig(unittest.TestCase):
         self.assertEqual(config.ack_policy, AckPolicy.AUTO)
 
     def test_custom_config(self):
+        """Test custom config."""
         config = TaskQueueConfig(
             queue_name="my_queue",
             max_retries=5,
@@ -97,22 +113,27 @@ class TestTaskQueueConfig(unittest.TestCase):
         self.assertEqual(config.dlq_name, "my_queue.dead")
 
     def test_default_dlq_name(self):
+        """Test default dlq name."""
         config = TaskQueueConfig(queue_name="tasks")
         self.assertEqual(config.get_dlq_name(), "tasks.dlq")
 
     def test_custom_dlq_name(self):
+        """Test custom dlq name."""
         config = TaskQueueConfig(queue_name="tasks", dlq_name="dead_letters")
         self.assertEqual(config.get_dlq_name(), "dead_letters")
 
 
 class TestTaskEnvelope(unittest.TestCase):
+    """Test Task Envelope."""
     def test_default_envelope(self):
+        """Test default envelope."""
         env = TaskEnvelope()
         self.assertIsNotNone(env.task_id)
         self.assertEqual(env.status, TaskStatus.PENDING)
         self.assertEqual(env.retry_count, 0)
 
     def test_envelope_with_data(self):
+        """Test envelope with data."""
         env = TaskEnvelope(
             queue_name="compute",
             priority=5,
@@ -124,7 +145,9 @@ class TestTaskEnvelope(unittest.TestCase):
 
 
 class TestTaskHandle(unittest.TestCase):
+    """Test Task Handle."""
     def test_initial_state(self):
+        """Test initial state."""
         handle = TaskHandle("test-id")
         self.assertEqual(handle.task_id, "test-id")
         self.assertEqual(handle.status, TaskStatus.PENDING)
@@ -132,6 +155,7 @@ class TestTaskHandle(unittest.TestCase):
         self.assertIsNone(handle.result)
 
     def test_set_result(self):
+        """Test set result."""
         handle = TaskHandle("test-id")
         result = TaskResult(task_id="test-id", status=TaskStatus.COMPLETED)
         handle.set_result(result)
@@ -139,11 +163,13 @@ class TestTaskHandle(unittest.TestCase):
         self.assertEqual(handle.status, TaskStatus.COMPLETED)
 
     def test_wait_result_with_timeout(self):
+        """Test wait result with timeout."""
         handle = TaskHandle("test-id")
         result = handle.wait_result(timeout=0.1)
         self.assertIsNone(result)
 
     def test_wait_result_resolves(self):
+        """Test wait result resolves."""
         handle = TaskHandle("test-id")
         expected = TaskResult(task_id="test-id", status=TaskStatus.COMPLETED)
 
@@ -161,24 +187,31 @@ class TestTaskHandle(unittest.TestCase):
 
 
 class TestEndpointTypeRegistration(unittest.TestCase):
+    """Test Endpoint Type Registration."""
     def test_task_producer_enum(self):
+        """Test task producer enum."""
         self.assertEqual(EndpointType.TaskProducer.value, 9)
 
     def test_task_worker_enum(self):
+        """Test task worker enum."""
         self.assertEqual(EndpointType.TaskWorker.value, 10)
 
 
 class TestExceptions(unittest.TestCase):
+    """Raised for tests errors."""
     def test_task_queue_error_hierarchy(self):
+        """Test task queue error hierarchy."""
         self.assertTrue(issubclass(TaskTimeoutError, TaskQueueError))
         self.assertTrue(issubclass(TaskWorkerError, TaskQueueError))
 
     def test_task_queue_error_message(self):
+        """Test task queue error message."""
         err = TaskQueueError("test error")
         self.assertIn("test error", str(err))
 
 
 class TestMockTaskProducerWorker(unittest.TestCase):
+    """Test Mock Task Producer Worker."""
     def setUp(self):
         clear_mock_bus()
         self.conn_params = ConnectionParameters()
@@ -187,6 +220,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         clear_mock_bus()
 
     def test_producer_submit_and_worker_process(self):
+        """Test producer submit and worker process."""
         results = []
 
         def on_task(ctx):
@@ -226,6 +260,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         worker.stop()
 
     def test_typed_task_message(self):
+        """Test typed task message."""
         results = []
 
         def on_task(ctx):
@@ -270,6 +305,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         worker.stop()
 
     def test_fire_and_forget(self):
+        """Test fire and forget."""
         processed = []
 
         def on_task(ctx):
@@ -299,6 +335,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         worker.stop()
 
     def test_task_priority(self):
+        """Test task priority."""
         producer = TaskProducer(
             queue_name="priority_test",
             conn_params=self.conn_params,
@@ -311,6 +348,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         producer.stop()
 
     def test_progress_reporting(self):
+        """Test progress reporting."""
         progress_reports = []
 
         def on_task(ctx):
@@ -347,6 +385,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         worker.stop()
 
     def test_task_failure_and_retry(self):
+        """Test task failure and retry."""
         attempts = []
 
         def on_task(ctx):
@@ -390,6 +429,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         worker.stop()
 
     def test_task_exhausted_retries(self):
+        """Test task exhausted retries."""
         def on_task(ctx):
             raise RuntimeError("Always fails")
 
@@ -427,6 +467,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         worker.stop()
 
     def test_manual_ack(self):
+        """Test manual ack."""
         _acked = []
 
         def on_task(ctx):
@@ -465,6 +506,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         worker.stop()
 
     def test_worker_requires_on_task(self):
+        """Test worker requires on task."""
         with self.assertRaises(ValueError):
             TaskWorker(
                 queue_name="no_callback",
@@ -473,6 +515,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
             )
 
     def test_producer_stop_and_cleanup(self):
+        """Test producer stop and cleanup."""
         producer = TaskProducer(
             queue_name="cleanup_test",
             conn_params=self.conn_params,
@@ -483,6 +526,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
         self.assertFalse(producer.connected)
 
     def test_worker_stop_and_cleanup(self):
+        """Test worker stop and cleanup."""
         def on_task(_ctx):
             return None
 
@@ -498,6 +542,7 @@ class TestMockTaskProducerWorker(unittest.TestCase):
 
 
 class TestNodeTaskQueueIntegration(unittest.TestCase):
+    """Test Node Task Queue Integration."""
     def setUp(self):
         clear_mock_bus()
         self.conn_params = ConnectionParameters()
@@ -506,6 +551,7 @@ class TestNodeTaskQueueIntegration(unittest.TestCase):
         clear_mock_bus()
 
     def test_node_create_task_producer(self):
+        """Test node create task producer."""
         node = Node(
             node_name="task_producer_node",
             connection_params=self.conn_params,
@@ -516,6 +562,7 @@ class TestNodeTaskQueueIntegration(unittest.TestCase):
         self.assertEqual(producer.queue_name, "node_tasks")
 
     def test_node_create_task_worker(self):
+        """Test node create task worker."""
         def handler(_ctx):
             return None
 
@@ -532,6 +579,7 @@ class TestNodeTaskQueueIntegration(unittest.TestCase):
         self.assertEqual(worker.queue_name, "node_tasks")
 
     def test_node_endpoints_include_task_queue(self):
+        """Test node endpoints include task queue."""
         def handler(_ctx):
             return None
 
@@ -547,6 +595,7 @@ class TestNodeTaskQueueIntegration(unittest.TestCase):
         self.assertIn(worker, node.endpoints)
 
     def test_node_full_task_queue_flow(self):
+        """Test node full task queue flow."""
         results = []
 
         def on_task(ctx):

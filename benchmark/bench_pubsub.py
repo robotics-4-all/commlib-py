@@ -66,7 +66,7 @@ def benchmark_pubsub_roundtrip():
 
     message_count = [0]
 
-    def on_message(msg):
+    def on_message(_msg):
         message_count[0] += 1
 
     # Create subscriber
@@ -130,7 +130,7 @@ def benchmark_multiple_subscribers():
     subscribers = []
     for i in range(num_subscribers):
 
-        def on_message(msg, idx=i):
+        def on_message(_msg, idx=i):
             message_counts[idx][0] += 1
 
         sub = Subscriber(
@@ -184,7 +184,9 @@ def benchmark_multiple_subscribers():
     print(f"\nMultiple subscribers ({num_subscribers} subscribers):")
     print(f"  Publish:   {latency:7.3f} ms/msg | {throughput:10.0f} msg/sec")
     print(
-        f"  Delivered: {total_delivered} total ({total_delivered / num_subscribers:.0f} per subscriber)"
+        f"  Delivered: {total_delivered} total"
+        f" ({total_delivered / num_subscribers:.0f}"
+        " per subscriber)"
     )
 
     return throughput
@@ -200,14 +202,17 @@ def benchmark_message_types():
 
     # Small message
     class SmallMessage(PubSubMessage):
+        """Small Message."""
         value: float = 0.0
 
     # Medium message
     class MediumMessage(PubSubMessage):
+        """Medium Message."""
         values: list = [0.0] * 50
 
     # Large message
     class LargeMessage(PubSubMessage):
+        """Large Message."""
         values: list = [0.0] * 500
 
     message_types = [

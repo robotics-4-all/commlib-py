@@ -26,6 +26,7 @@ from commlib.utils import Rate  # noqa: E402
 
 
 class RobotTelemetry(PubSubMessage):
+    """Robot Telemetry."""
     robot_id: str = ""
     battery_pct: float = 100.0
     x: float = 0.0
@@ -35,6 +36,7 @@ class RobotTelemetry(PubSubMessage):
 
 
 class RobotNode(Node):
+    """Robot Node."""
     def __init__(self, robot_id: str, pub_freq: float = 5.0, **kwargs):
         self.robot_id = robot_id
         self.pub_freq = pub_freq
@@ -50,6 +52,7 @@ class RobotNode(Node):
         )
 
     def start_telemetry(self, timeout: float = 0) -> None:
+        """Start telemetry."""
         self.run()
         rate = Rate(self.pub_freq)
         x, y = 0.0, 0.0

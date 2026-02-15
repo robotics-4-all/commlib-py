@@ -25,6 +25,7 @@ from commlib.node import Node  # noqa: E402
 
 
 class SensorReading(PubSubMessage):
+    """Sensor Reading."""
     floor: int = 1
     zone: str = "A"
     temperature: float = 22.0

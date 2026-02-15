@@ -22,16 +22,20 @@ from commlib.node import Node  # noqa: E402
 
 
 class TemperatureReading(PubSubMessage):
+    """Temperature Reading."""
     sensor_id: str = ""
     temperature: float = 0.0
 
 
 class AddTwoIntsMsg(RPCMessage):
+    """Add Two Ints Msg."""
     class Request(RPCMessage.Request):
+        """Request payload."""
         a: int = 0
         b: int = 0
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         result: int = 0
 
 
@@ -49,10 +53,12 @@ if __name__ == "__main__":
 
     @node.subscribe("sensors.temperature", TemperatureReading)
     def on_temperature(msg: TemperatureReading) -> None:
+        """On temperature."""
         print(f"[sub] {msg.sensor_id}: {msg.temperature}°C")
 
     @node.rpc("math.add_two_ints", AddTwoIntsMsg)
     def handle_add(msg: AddTwoIntsMsg.Request) -> AddTwoIntsMsg.Response:
+        """Handle add."""
         print(f"[rpc] {msg.a} + {msg.b}")
         return AddTwoIntsMsg.Response(result=msg.a + msg.b)
 

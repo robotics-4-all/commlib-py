@@ -19,26 +19,32 @@ from commlib.transports.kafka import ConnectionParameters, TaskProducer, TaskWor
 
 
 class ComputeTaskMessage(TaskMessage):
+    """Compute Task Message."""
     class Task(TaskMessage.Task):
+        """Task."""
         x: int = 0
         y: int = 0
 
     class Result(TaskMessage.Result):
+        """Result payload."""
         result: int = 0
 
     class Progress(TaskMessage.Progress):
+        """Progress."""
         percent: float = 0.0
 
 
 @pytest.mark.kafka
 @pytest.mark.integration
 class TestKafkaTaskQueue(unittest.TestCase):
+    """Test Kafka Task Queue."""
     def setUp(self):
         kafka_host = os.getenv("COMMLIB_KAFKA_HOST", "localhost")
         kafka_port = int(os.getenv("COMMLIB_KAFKA_PORT", "29092"))
         self.conn_params = ConnectionParameters(host=kafka_host, port=kafka_port)
 
     def test_submit_and_process_task(self):
+        """Test submit and process task."""
         results = []
 
         def on_task(ctx):
@@ -77,6 +83,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_typed_task_message(self):
+        """Test typed task message."""
         results = []
 
         def on_task(ctx):
@@ -120,6 +127,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_fire_and_forget(self):
+        """Test fire and forget."""
         processed = []
 
         def on_task(ctx):
@@ -149,6 +157,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_progress_reporting(self):
+        """Test progress reporting."""
         progress_reports = []
 
         def on_task(ctx):
@@ -185,6 +194,7 @@ class TestKafkaTaskQueue(unittest.TestCase):
         worker.stop()
 
     def test_node_task_queue_flow(self):
+        """Test node task queue flow."""
         results = []
 
         def on_task(ctx):

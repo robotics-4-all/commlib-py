@@ -25,12 +25,14 @@ from commlib.msg import PubSubMessage  # noqa: E402
 
 
 class SensorData(PubSubMessage):
+    """Sensor Data."""
     sensor_id: str = ""
     temperature: float = 0.0
     humidity: float = 0.0
 
 
 def make_parser() -> argparse.ArgumentParser:
+    """Make parser."""
     parser = argparse.ArgumentParser(description="Edge-to-cloud topic bridge")
     parser.add_argument(
         "--broker-a", default="redis", choices=["redis", "amqp", "mqtt", "kafka"]

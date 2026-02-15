@@ -22,6 +22,8 @@ rpc_logger = None
 
 
 class CommRPCHeader(BaseModel):
+    """RPC communication header."""
+
     reply_to: str = ""
     timestamp: Optional[int] = gen_timestamp()
     content_type: Optional[str] = "json"
@@ -30,6 +32,8 @@ class CommRPCHeader(BaseModel):
 
 
 class CommRPCMessage(BaseModel):
+    """RPC communication message."""
+
     header: CommRPCHeader = CommRPCHeader()
     data: Dict[str, Any] = {}
 
@@ -43,7 +47,8 @@ class BaseRPCServer(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global rpc_logger
+        """Logger."""
+        global rpc_logger  # pylint: disable=global-statement
         if rpc_logger is None:
             rpc_logger = logging.getLogger(__name__)
         return rpc_logger
@@ -52,7 +57,7 @@ class BaseRPCServer(BaseEndpoint):
         self,
         *args,
         base_uri: str = "",
-        svc_map: dict = {},
+        svc_map: Optional[dict] = None,
         workers: int = 4,
         **kwargs,
     ):
@@ -61,14 +66,15 @@ class BaseRPCServer(BaseEndpoint):
 
         Args:
             base_uri (str): The base URI for the RPC service.
-            svc_map (dict): A mapping of service names to their corresponding RPC service implementations.
+            svc_map (dict): A mapping of service names to their
+                corresponding RPC service implementations.
             workers (int): The number of worker threads to use for the RPC service.
 
         """
 
         super().__init__(*args, **kwargs)
         self._base_uri: str = base_uri
-        self._svc_map: Dict[str, Any] = svc_map
+        self._svc_map: Dict[str, Any] = svc_map if svc_map is not None else {}
         self._max_workers: int = workers
         self._gen_random_id = gen_random_id
 
@@ -106,9 +112,11 @@ class BaseRPCServer(BaseEndpoint):
     def register_endpoint(
         self, uri: str, callback: Callable, msg_type: Optional[Type[RPCMessage]] = None
     ) -> None:
+        """Register endpoint."""
         self._svc_map[uri] = (callback, msg_type)
 
     def run_forever(self) -> None:
+        """Run forever."""
         self._t_stop_event.clear()
         assert self._transport is not None
         self._transport.start()
@@ -139,11 +147,12 @@ class BaseRPCServer(BaseEndpoint):
             if wait:
                 while not self.connected:
                     time.sleep(self._LOOP_INTERVAL)
-            self._state = EndpointState.CONNECTED
+            self.set_state(EndpointState.CONNECTED)
         else:
             self.log.warning("Transport already connected - Skipping")
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True) -> None:  # pylint: disable=unused-argument
+        """Stop."""
         if self._t_stop_event:
             self._t_stop_event.set()
         if self._transport is not None:
@@ -156,8 +165,10 @@ class BaseRPCService(BaseEndpoint):
     """ΒaseRPCService.
     Implements a base class for an RPC service that can be run in the background.
 
-    The `BaseRPCService` class provides a foundation for implementing RPC services that can be run in the background.
-    It includes functionality for managing worker threads, serializing and deserializing RPC messages,
+    The `BaseRPCService` class provides a foundation for
+    implementing RPC services that can be run in the background.
+    It includes functionality for managing worker threads,
+    serializing and deserializing RPC messages,
     and handling incoming RPC requests.
 
     Subclasses of `BaseRPCService` must implement the `run_forever()` method,
@@ -168,7 +179,8 @@ class BaseRPCService(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global rpc_logger
+        """Logger."""
+        global rpc_logger  # pylint: disable=global-statement
         if rpc_logger is None:
             rpc_logger = logging.getLogger(__name__)
         return rpc_logger
@@ -279,7 +291,7 @@ class BaseRPCService(BaseEndpoint):
             if not self._validate_rpc_req_msg(_req_msg):
                 raise ValueError("Request Message is invalid!")
         except Exception as e:
-            raise ValueError(str(e))
+            raise ValueError(str(e)) from e
         return _req_msg, uri
 
     def run_forever(self):
@@ -309,7 +321,7 @@ class BaseRPCService(BaseEndpoint):
                 while not self.connected:
                     time.sleep(self._LOOP_INTERVAL)
 
-            self._state = EndpointState.CONNECTED
+            self.set_state(EndpointState.CONNECTED)
         else:
             self.log.warning("Transport already connected - Skipping")
 
@@ -334,7 +346,8 @@ class BaseRPCClient(BaseEndpoint):
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global rpc_logger
+        """Logger."""
+        global rpc_logger  # pylint: disable=global-statement
         if rpc_logger is None:
             rpc_logger = logging.getLogger(__name__)
         return rpc_logger
@@ -361,8 +374,10 @@ class BaseRPCClient(BaseEndpoint):
             _rpc_name (str): The name of the RPC service.
             _msg_type (RPCMessage): The type of RPC message to use.
             _gen_random_id (callable): A function to generate a random ID for RPC messages.
-            _max_workers (int): The maximum number of worker threads to use for asynchronous RPC calls.
-            _executor (ThreadPoolExecutor): The thread pool executor used for asynchronous RPC calls.
+            _max_workers (int): The maximum number of worker
+                threads for asynchronous RPC calls.
+            _executor (ThreadPoolExecutor): The thread pool
+                executor used for asynchronous RPC calls.
             _comm_obj (CommRPCMessage): An instance of the `CommRPCMessage` class.
         """
 
@@ -410,7 +425,8 @@ class BaseRPCClient(BaseEndpoint):
         Args:
             msg (RPCMessage.Request): The RPC request message.
             timeout (float): The timeout for the RPC call in seconds.
-            on_response (callable): An optional callback function to be called when the RPC response is received.
+            on_response (callable): An optional callback to be
+                called when the RPC response is received.
 
         Returns:
             Future: A Future object representing the asynchronous RPC call.

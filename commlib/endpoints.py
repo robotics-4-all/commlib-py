@@ -53,7 +53,8 @@ class BaseEndpoint:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global e_logger
+        """Logger."""
+        global e_logger  # pylint: disable=global-statement
         if e_logger is None:
             e_logger = logging.getLogger(__name__)
         return e_logger
@@ -69,7 +70,8 @@ class BaseEndpoint:
         Initializes a new instance of the `BaseEndpoint` class.
 
         Args:
-            debug (bool, optional): A flag indicating whether debug mode is enabled. Defaults to `False`.
+            debug (bool, optional): Whether debug mode is
+                enabled. Defaults to ``False``.
             serializer (Serializer, optional): Serializer for data.
                 Defaults to ``JSONSerializer``.
             conn_params (BaseConnectionParameters, optional):
@@ -86,15 +88,34 @@ class BaseEndpoint:
         self._transport: Optional[BaseTransport] = None
 
     @property
+    def state(self) -> EndpointState:
+        """Current endpoint state."""
+        return self._state
+
+    def set_state(self, state: EndpointState) -> None:
+        """Set the endpoint state.
+
+        Provides a public API for subclasses to update state without
+        directly accessing the private ``_state`` attribute.
+
+        Args:
+            state: The new endpoint state.
+        """
+        self._state = state
+
+    @property
     def connected(self):
+        """Connected."""
         return self._transport.is_connected if self._transport else False
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     @property
     def debug(self):
+        """Debug."""
         return self._debug
 
     def run(self, wait: bool = True) -> None:
@@ -122,7 +143,7 @@ class BaseEndpoint:
                     # Fallback for transports without event support
                     while not self.connected:
                         time.sleep(0.001)
-            self._state = EndpointState.CONNECTED
+            self.set_state(EndpointState.CONNECTED)
         else:
             self.log.warning("Transport already connected - Skipping")
 
@@ -149,7 +170,7 @@ class BaseEndpoint:
                     # Fallback for transports without event support
                     while self.connected:
                         time.sleep(0.001)
-            self._state = EndpointState.DISCONNECTED
+            self.set_state(EndpointState.DISCONNECTED)
         else:
             self.log.debug(
                 "Transport is not connected - cannot stop %s",
@@ -186,7 +207,8 @@ class EndpointType(Enum):
 
 def endpoint_factory(etype: EndpointType, etransport: TransportType) -> Any:
     """
-    Factory function to create endpoint instances based on the specified endpoint type and transport type.
+    Factory function to create endpoint instances based on
+    the specified endpoint type and transport type.
 
     Args:
         etype (EndpointType): The type of the endpoint to create.
