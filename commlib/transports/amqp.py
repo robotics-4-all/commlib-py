@@ -331,6 +331,8 @@ class Connection(pika.BlockingConnection):
             KeyError,
             AttributeError,
             OSError,
+            pika.exceptions.StreamLostError,  # type: ignore[reportAttributeAccessIssue]
+            pika.exceptions.AMQPConnectionError,  # type: ignore[reportAttributeAccessIssue]
         ) as exc:
             logger.debug("Exception thrown while processing amqp events - %s", exc)
 
@@ -418,6 +420,7 @@ class AMQPTransport(BaseTransport):
             KeyError,
             AttributeError,
             OSError,
+            pika.exceptions.StreamLostError,  # type: ignore[reportAttributeAccessIssue]
         ):
             return False
 
@@ -1085,8 +1088,10 @@ class RPCClient(BaseRPCClient):
         )
 
         assert self._transport is not None
-        self._transport.add_threadsafe_callback(
-            self._transport.channel.basic_publish,
+        # _send_msg is already executing inside an add_callback_threadsafe dispatch
+        # (IO thread context). Call _impl.basic_publish directly — no extra scheduling,
+        # no _flush_output() re-entry. See Publisher._send_msg for the full explanation.
+        self._transport.channel._impl.basic_publish(  # type: ignore[attr-defined]
             exchange=self._exchange,
             routing_key=self._rpc_name,
             mandatory=False,
@@ -1190,11 +1195,18 @@ class Publisher(BasePublisher):
         topic = topic.replace("*", "#")
 
         assert self._transport is not None
-        self._transport.channel.basic_publish(  # type: ignore[attr-defined]
+        # Use the underlying channel implementation to avoid nested ioloop re-entry.
+        # BlockingChannel.basic_publish() calls _flush_output() which drives ioloop.poll(),
+        # but _send_msg is already executing inside an add_callback_threadsafe dispatch
+        # (i.e., inside the events thread's process_data_events). Re-entering the ioloop
+        # from there corrupts pika's _tx_buffers deque → IndexError. Using _impl.basic_publish
+        # queues data in the send buffer without flushing; the outer ioloop drains it naturally.
+        self._transport.channel._impl.basic_publish(  # type: ignore[attr-defined]
             exchange=self._topic_exchange,
             routing_key=topic,
             properties=msg_props,
             body=_payload_bytes,
+            mandatory=False,
         )
 
 
