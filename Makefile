@@ -1,5 +1,5 @@
 ONESHELL:
-.PHONY: test
+.PHONY: test test-all
 .PHONY: coverage
 .PHONY: diff
 .PHONY: lint
@@ -72,6 +72,8 @@ test-package: ## run package build/install tests in docker
 
 test-integration: ## run integration tests (requires brokers)
 	./scripts/run_tests.sh integration
+
+test-all: ci test-integration ## run all tests: unit, benchmarks, and broker integration tests
 
 cov: ## check code coverage quickly with the default Python (Docker)
 	./scripts/run_tests.sh coverage

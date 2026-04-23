@@ -838,7 +838,7 @@ class BaseActionClient:
             GoalStatus.CANCELED,
             GoalStatus.ABORTED,
         ):
-            resp = self._call_get_result()  # type: ignore[attr-defined]
+            resp = self.get_result()
             self._result = resp
 
             # Call the on_goal_reached callback

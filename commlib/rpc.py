@@ -25,6 +25,7 @@ class CommRPCHeader(BaseModel):
     """RPC communication header."""
 
     reply_to: str = ""
+    correlation_id: Optional[str] = None
     timestamp: Optional[int] = gen_timestamp()
     content_type: Optional[str] = "json"
     encoding: Optional[str] = "utf8"

@@ -51,7 +51,7 @@ from commlib.rpc import (
 )
 from commlib.serializer import JSONSerializer
 from commlib.transports.base_transport import BaseTransport
-from commlib.utils import gen_timestamp
+from commlib.utils import gen_random_id, gen_timestamp
 
 kafka_logger: logging.Logger = logging.getLogger("kafka")
 
@@ -65,7 +65,7 @@ class ConnectionParameters(BaseConnectionParameters):
 
     # https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     host: str = "localhost"
-    port: int = 29092
+    port: int = 9092
     username: str = ""
     password: str = ""
     ssl: bool = False
@@ -158,7 +158,6 @@ class KafkaTransport(BaseTransport):
         on_delivery=None,
     ):
         """Publish data."""
-        producer.poll(0)
         payload = self._serializer.serialize(data)
         if on_delivery is None:
             on_delivery = self._on_publish
@@ -166,6 +165,7 @@ class KafkaTransport(BaseTransport):
         producer.produce(
             topic, key=key.encode("utf-8"), value=_value, on_delivery=on_delivery
         )
+        producer.flush(timeout=5)
 
     def _on_publish(self, err, msg):
         pass
@@ -173,7 +173,7 @@ class KafkaTransport(BaseTransport):
     def publish(self, topic: str, data: Dict[str, Any], key: str = "") -> None:
         """Publish."""
         if self._producer is None:
-            self._producer = self.create_producer(self._conn_params.model_dump())
+            self._producer = self.create_producer(self._build_producer_cfg())
         self.publish_data(self._producer, data, topic, key)
 
     def _unpack_kafka_msg(self, msg: Any) -> Tuple:
@@ -214,32 +214,100 @@ class KafkaTransport(BaseTransport):
                         "Exception caught in _poll_loop callback", exc_info=True
                     )
 
-    def subscribe(
-        self, topic: str, callback: Callable, group_id: Optional[str] = None
-    ) -> None:
-        """Subscribe."""
+    def _build_producer_cfg(self) -> Dict[str, Any]:
+        conn: Any = self._conn_params
+        if conn.username not in (None, "") and conn.password not in (None, ""):
+            auth: Dict[str, Any] = {
+                "sasl.mechanisms": SASL_MECHANISM,
+                "security.protocol": SECURITY_PROTOCOL,
+                "sasl.username": conn.username,
+                "sasl.password": conn.password,
+            }
+        else:
+            auth = {}
+        return {
+            "bootstrap.servers": f"{conn.host}:{conn.port}",
+            "allow.auto.create.topics": conn.auto_create_topics,
+            **auth,
+        }
+
+    def _build_consumer_cfg(
+        self,
+        group_id: Optional[str] = None,
+        offset_reset: str = "end",
+    ) -> Dict[str, Any]:
         import uuid
 
-        kafka_cfg = self._conn_params.model_dump()
-
-        if group_id is None:
-            kafka_cfg["group.id"] = f"rpc-reply-{uuid.uuid4()}"
+        conn: Any = self._conn_params
+        if conn.username not in (None, "") and conn.password not in (None, ""):
+            auth: Dict[str, Any] = {
+                "sasl.mechanisms": SASL_MECHANISM,
+                "security.protocol": SECURITY_PROTOCOL,
+                "sasl.username": conn.username,
+                "sasl.password": conn.password,
+            }
         else:
-            kafka_cfg["group.id"] = group_id
+            auth = {}
+        cfg: Dict[str, Any] = {
+            "bootstrap.servers": f"{conn.host}:{conn.port}",
+            "auto.offset.reset": offset_reset,
+            "group.id": group_id
+            if group_id is not None
+            else f"rpc-reply-{uuid.uuid4()}",
+            "enable.auto.offset.store": True,
+            "enable.auto.commit": True,
+            "allow.auto.create.topics": conn.auto_create_topics,
+            "auto.commit.interval.ms": conn.auto_commit_interval,
+            "session.timeout.ms": 10000,
+            "heartbeat.interval.ms": 3000,
+            **auth,
+        }
+        return cfg
 
-        kafka_cfg["auto.offset.reset"] = "end"
-        kafka_cfg["enable.auto.offset.store"] = True
-        kafka_cfg["enable.auto.commit"] = True
+    def _ensure_topic(self, topic: str) -> None:
+        from confluent_kafka.admin import AdminClient, NewTopic
 
+        conn: Any = self._conn_params
+        admin = AdminClient({"bootstrap.servers": f"{conn.host}:{conn.port}"})
+        fs = admin.create_topics(
+            [NewTopic(topic, num_partitions=1, replication_factor=1)]
+        )
+        for _, f in fs.items():
+            try:
+                f.result()
+            except Exception:
+                pass
+
+    def subscribe(
+        self,
+        topic: str,
+        callback: Callable,
+        group_id: Optional[str] = None,
+        wait_for_assignment: bool = False,
+        offset_reset: str = "end",
+    ) -> None:
+        if wait_for_assignment:
+            self._ensure_topic(topic)
+        kafka_cfg = self._build_consumer_cfg(
+            group_id=group_id, offset_reset=offset_reset
+        )
         consumer = self.create_consumer(kafka_cfg)
 
-        consumer.subscribe([topic])
+        ready_event = threading.Event()
+
+        def _on_assign(c: Any, parts: Any) -> None:
+            self.start()
+            ready_event.set()
+
+        consumer.subscribe([topic], on_assign=_on_assign)
 
         stop_event = threading.Event()
         thread = threading.Thread(
             target=self._poll_loop, args=(consumer, stop_event, callback), daemon=True
         )
         thread.start()
+        if wait_for_assignment:
+            ready_event.wait(timeout=15.0)
 
         self._subscribers.append((consumer, thread, stop_event))
 
@@ -302,10 +370,11 @@ class Publisher(BasePublisher):
 
     def _on_delivery(self, err, msg):
         if err is not None:
-            self.logger().error(err)
-        self.logger().info(
-            "Published on %s, partition", msg.topic(), f"{msg.partition()}"
-        )
+            self.logger().error("Delivery error on topic %s: %s", msg.topic(), err)
+        else:
+            self.logger().info(
+                "Published on %s, partition %s", msg.topic(), msg.partition()
+            )
 
     def run(self, wait: bool = True):
         """Start the publisher.
@@ -343,10 +412,10 @@ class MPublisher(Publisher):
         assert self._serializer is not None
         payload = self._serializer.serialize(data)
         _value = payload.encode("utf-8") if isinstance(payload, str) else payload
-        self._producer.poll(0)
         self._producer.produce(
             topic, key=key.encode("utf-8"), value=_value, on_delivery=self._on_delivery
         )
+        self._producer.flush(timeout=5)
         self._msg_seq += 1
 
 
@@ -356,6 +425,7 @@ class Subscriber(BaseSubscriber):
     def __init__(self, *args, key: str = "", **kwargs):
         self._key = key
         self._consumer: Consumer = None  # type: ignore[assignment]
+        self._assignment_event: threading.Event = threading.Event()
         super().__init__(*args, **kwargs)
         self._create_kafka_conf()
         assert self._conn_params is not None, "Connection parameters are not set."
@@ -390,16 +460,18 @@ class Subscriber(BaseSubscriber):
             "enable.auto.commit": True,
             "allow.auto.create.topics": conn.auto_create_topics,
             "auto.commit.interval.ms": conn.auto_commit_interval,
+            "session.timeout.ms": 10000,
+            "heartbeat.interval.ms": 3000,
             **auth,
         }
 
     def run_forever(self):
-        """Run forever."""
         running = True
         assert self._transport is not None, "Transport is not initialized."
+        assert self._topic is not None, "Topic is required for Kafka subscriber"
+        self._transport._ensure_topic(self._topic)
         self._consumer = self._transport.create_consumer(self._kafka_cfg)
         try:
-            assert self._topic is not None, "Topic is required for Kafka subscriber"
             self._consumer.subscribe([self._topic], on_assign=self._on_assign)
             while running:
                 msg = self._consumer.poll(timeout=1.0)
@@ -432,8 +504,10 @@ class Subscriber(BaseSubscriber):
             self._consumer.close()
 
     def _on_assign(self, consumer, partitions):
-        self.logger().info("Assignment:", partitions)
+        self.logger().info("Assignment: %s", partitions)
         self._reset_offset(consumer, partitions)
+        self._transport.start()
+        self._assignment_event.set()
 
     def _reset_offset(self, consumer, partitions):
         for p in partitions:
@@ -490,9 +564,12 @@ class RPCService(BaseRPCService):
             compression=self._compression,
         )
 
-    def _send_response(self, data: Dict[str, Any], reply_to: str):
+    def _send_response(
+        self, data: Dict[str, Any], reply_to: str, correlation_id: Optional[str] = None
+    ):
         assert self._transport is not None, "Transport is not initialized."
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
+        self._comm_obj.header.correlation_id = correlation_id
         self._comm_obj.data = data
         _resp = self._comm_obj.model_dump()
         self._transport.publish(reply_to, _resp)
@@ -517,7 +594,11 @@ class RPCService(BaseRPCService):
             else:
                 resp = self.on_request(self._msg_type.Request(**req_msg.data))
                 resp = resp.model_dump()
-            self._send_response(resp, req_msg.header.reply_to)
+            self._send_response(
+                resp,
+                req_msg.header.reply_to,
+                correlation_id=req_msg.header.correlation_id,
+            )
         except Exception as exc:
             self.log.error(str(exc), exc_info=True)
 
@@ -541,7 +622,10 @@ class RPCService(BaseRPCService):
         """run_forever."""
         assert self._transport is not None, "Transport is not initialized."
         self._transport.subscribe(
-            self._rpc_name, self._on_request_handle, group_id=self._rpc_name
+            self._rpc_name,
+            self._on_request_handle,
+            group_id=self._rpc_name,
+            wait_for_assignment=True,
         )
         self._transport.start()
         while True:
@@ -673,7 +757,13 @@ class RPCServer(BaseRPCServer):
 
 
 class RPCClient(BaseRPCClient):
-    """RPCClient."""
+    """RPCClient.
+
+    Uses a permanent per-instance reply topic and correlation IDs to route
+    responses. The reply consumer is started once in run() to avoid per-call
+    topic-creation latency (Kafka metadata refresh can take several seconds
+    for new topics).
+    """
 
     def __init__(self, *args, **kwargs):
         """__init__.
@@ -682,8 +772,10 @@ class RPCClient(BaseRPCClient):
             args: See BaseRPCClient
             kwargs: See BaseRPCClient
         """
-        self._response = None
         self._delay: float = 0.0
+        self._reply_topic: str = f"rpc-reply-{gen_random_id()}"
+        self._pending: Dict[str, Any] = {}
+        self._pending_lock = threading.Lock()
 
         super().__init__(*args, **kwargs)
         assert self._conn_params is not None, "Connection parameters are not set."
@@ -695,51 +787,51 @@ class RPCClient(BaseRPCClient):
             compression=self._compression,
         )
 
-    def _gen_queue_name(self):
-        """_gen_queue_name."""
-        return f"rpc-{self._gen_random_id()}"
-
     def _prepare_request(
         self, data: Dict[str, Any], reply_to: Optional[str] = None
     ) -> Dict[str, Any]:
+        import uuid as _uuid
+
         self._comm_obj.header.timestamp = gen_timestamp()  # pylint: disable=E0237
-        self._comm_obj.header.reply_to = (
-            reply_to if reply_to else self._gen_queue_name()
-        )
+        self._comm_obj.header.reply_to = reply_to if reply_to else self._reply_topic
+        self._comm_obj.header.correlation_id = str(_uuid.uuid4())
         self._comm_obj.data = data
         return self._comm_obj.model_dump()
 
-    def _on_response_wrapper(self, msg: Any) -> None:
+    def _on_reply(self, msg: Any) -> None:
+        """Callback for all messages arriving on the permanent reply topic."""
         try:
-            data, _header, _uri = self._unpack_comm_msg(msg)
+            assert self._serializer is not None
+            payload = msg.value() if hasattr(msg, "value") else msg
+            _payload = self._serializer.deserialize(payload)
+            _data = _payload.get("data", {})
+            _header = _payload.get("header", {})
+            corr_id = _header.get("correlation_id", "")
         except Exception as exc:
-            self.log.error(exc, exc_info=True)
-            data = {}
-        self._response = data
+            self.log.error("Failed to decode RPC reply: %s", exc, exc_info=True)
+            return
 
-    def _unpack_comm_msg(self, payload: Any, uri: Optional[str] = None) -> Any:
-        assert self._serializer is not None, "Serializer is not initialized."
-        if hasattr(payload, "topic"):
-            uri = payload.topic()
-            payload = payload.value()
-        _payload = self._serializer.deserialize(payload)
-        _data = _payload["data"]
-        _header = _payload["header"]
-        return _data, _header, uri
+        with self._pending_lock:
+            entry = self._pending.get(corr_id)
+        if entry is None:
+            self.log.debug(
+                "Received reply for unknown correlation_id=%s — dropping", corr_id
+            )
+            return
+        entry["data"] = _data
+        entry["event"].set()
 
-    def _wait_for_response(self, timeout: float = 10.0):
-        """_wait_for_response.
-
-        Args:
-            timeout (float): timeout
-        """
-        start_t = time.time()
-        while self._response is None:
-            elapsed_t = time.time() - start_t
-            if elapsed_t >= timeout:
-                raise RPCClientTimeoutError(f"Response timeout after {timeout} seconds")
-            time.sleep(0.001)
-        return self._response
+    def run(self, wait: bool = True) -> None:
+        assert self._transport is not None, "Transport is not initialized."
+        # 'latest' offset: only receive responses published after consumer is assigned
+        self._transport.subscribe(
+            self._reply_topic,
+            self._on_reply,
+            wait_for_assignment=True,
+            offset_reset="latest",
+        )
+        self._transport.start()
+        self.set_state(EndpointState.CONNECTED)
 
     def call(self, msg: RPCMessage.Request, timeout: float = 30) -> RPCMessage.Response:
         """call.
@@ -755,18 +847,28 @@ class RPCClient(BaseRPCClient):
                 raise ValueError("Message type not valid")
             data = msg.model_dump()
 
-        self._response = None
-
         _msg = self._prepare_request(data)
-        _reply_to = _msg["header"]["reply_to"]
+        corr_id = _msg["header"]["correlation_id"]
+
+        ev = threading.Event()
+        entry: Dict[str, Any] = {"event": ev, "data": None}
+        with self._pending_lock:
+            self._pending[corr_id] = entry
 
         assert self._transport is not None, "Transport is not initialized."
-        self._transport.subscribe(_reply_to, self._on_response_wrapper)
         start_t = time.time()
         self._transport.publish(self._rpc_name, _msg)
-        _resp = self._wait_for_response(timeout=timeout)
-        elapsed_t = time.time() - start_t
-        self._delay = elapsed_t
+
+        if not ev.wait(timeout=timeout):
+            with self._pending_lock:
+                self._pending.pop(corr_id, None)
+            raise RPCClientTimeoutError(f"Response timeout after {timeout} seconds")
+
+        with self._pending_lock:
+            self._pending.pop(corr_id, None)
+
+        _resp = entry["data"]
+        self._delay = time.time() - start_t
 
         if self._msg_type is None:
             return _resp  # type: ignore[reportReturnType]
