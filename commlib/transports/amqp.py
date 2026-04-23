@@ -289,6 +289,7 @@ class Connection(pika.BlockingConnection):
         self._transport = None
         self._events_thread: Optional[Thread] = None
         self._t_stop_event: Optional[ThreadEvent] = None
+        self._ioloop_lock = Lock()
         super().__init__(parameters=self._connection_params.make_pika())
 
     def stop_amqp_events_thread(self):
@@ -320,7 +321,8 @@ class Connection(pika.BlockingConnection):
         """_ensure_events_processed."""
         try:
             while True and self.is_open:
-                self.sleep(self._PROCESS_EVENTS_INTERVAL)
+                with self._ioloop_lock:
+                    self.sleep(self._PROCESS_EVENTS_INTERVAL)
                 if self._t_stop_event is not None and self._t_stop_event.is_set():
                     break
         except (
@@ -436,7 +438,7 @@ class AMQPTransport(BaseTransport):
             # Create a new communication channel
             if self._connection is None:
                 raise AMQPError("AMQP connection is not established")
-            self._channel = self._connection.channel()
+            self._channel = self._pika_call(self._connection.channel)
             self.log.debug(
                 "Connected to AMQP broker <amqp://"
                 + f"{self._conn_params.host}:{self._conn_params.port}, "
@@ -464,6 +466,19 @@ class AMQPTransport(BaseTransport):
             self._connection.add_callback_threadsafe(lambda: cb(*args, **kwargs))
         else:
             self._connection.add_callback_threadsafe(cb)
+
+    def _pika_call(self, func, *args, **kwargs):
+        """Call a pika function while holding the ioloop lock.
+
+        When a shared connection has a background events thread, this method
+        serialises the caller with that thread so that the pika BlockingConnection
+        ioloop is never driven from two threads simultaneously.
+        """
+        lock = getattr(self._connection, "_ioloop_lock", None)
+        if lock is not None:
+            with lock:
+                return func(*args, **kwargs)
+        return func(*args, **kwargs)
 
     def process_amqp_events(self, timeout=0):
         """Force process amqp events, such as heartbeat packages."""
@@ -524,9 +539,10 @@ class AMQPTransport(BaseTransport):
         """Exchange exists."""
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
-        resp = self._channel.exchange_declare(
+        resp = self._pika_call(
+            self._channel.exchange_declare,
             exchange=exchange_name,
-            passive=True,  # Perform a declare or just to see if it exists
+            passive=True,
         )
         self.log.debug("Exchange exists result: %s", resp)
         return resp
@@ -545,10 +561,11 @@ class AMQPTransport(BaseTransport):
         """
         if self._channel is None:
             raise AMQPError("AMQP channel is not available")
-        self._channel.exchange_declare(
+        self._pika_call(
+            self._channel.exchange_declare,
             exchange=exchange_name,
-            durable=True,  # Survive reboot
-            passive=False,  # Perform a declare or just to see if it exists
+            durable=True,
+            passive=False,
             internal=internal,  # type: ignore[reportArgumentType]
             exchange_type=exchange_type,  # type: ignore[reportArgumentType]
         )
