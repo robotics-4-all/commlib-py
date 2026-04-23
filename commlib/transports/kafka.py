@@ -115,6 +115,7 @@ class KafkaTransport(BaseTransport):
         """Start."""
         if not self.is_connected:
             self.connect()
+            self._set_connected(True)
 
     def stop(self) -> None:
         """Stop."""

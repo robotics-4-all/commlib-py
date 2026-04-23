@@ -175,12 +175,16 @@ class GoalHandler:
         self.status: Optional[GoalStatus] = None
         self.id = gen_random_id()
         self.data: Any = (
-            msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
+            msg_type.Result()
+            if (msg_type is not None and issubclass(msg_type, ActionMessage))
+            else {}
         )
         self._pub_status = status_publisher
         self._pub_feedback = feedback_publisher
         self.result: Any = (
-            msg_type.Result() if isinstance(msg_type, ActionMessage) else {}
+            msg_type.Result()
+            if (msg_type is not None and issubclass(msg_type, ActionMessage))
+            else {}
         )
         self._task: Any = None
         self._goal_task: Any = None
@@ -313,7 +317,10 @@ class GoalHandler:
             None
         """
 
-        _fb = feedback_msg.feedback_data
+        if isinstance(feedback_msg, _ActionFeedbackMessage):
+            _fb = feedback_msg.feedback_data
+        else:
+            _fb = feedback_msg.model_dump()
         msg = _ActionFeedbackMessage(  # type: ignore[reportArgumentType]
             feedback_data=_fb, goal_id=self.id
         )
@@ -772,29 +779,43 @@ class BaseActionClient:
         return resp
 
     def get_result(
-        self, timeout: float = 10.0, _wait: bool = False, _wait_max_sec: float = 30.0
+        self, timeout: float = 10.0, wait: bool = False, wait_max_sec: float = 30.0
     ) -> ActionMessage.Result:
         """get_result.
         Returns the result of the goal.
 
         Args:
-            timeout (float): timeout
-            wait (bool): Wait for the goal to finish if result does not exist.
-            wait_max_sec (float): Maximum time to wait for result if `wait`
-                is set to True.
+            timeout (float): Per-call RPC timeout.
+            wait (bool): Poll until the goal reaches a terminal state.
+            wait_max_sec (float): Maximum total wait time when wait=True.
 
         Returns:
             ActionMessage.Result:
         """
         assert self._goal_id is not None
-        req = _ActionResultMessage.Request(goal_id=self._goal_id)
         assert self._result_client is not None
-        resp = self._result_client.call(req, timeout=timeout)
+        req = _ActionResultMessage.Request(goal_id=self._goal_id)
+        terminal = {
+            int(GoalStatus.SUCCEDED),
+            int(GoalStatus.CANCELED),
+            int(GoalStatus.ABORTED),
+        }
+        deadline = time.time() + wait_max_sec
+        while True:
+            resp = self._result_client.call(req, timeout=timeout)
+            if resp is not None and resp.status in terminal:
+                break
+            if not wait or time.time() >= deadline:
+                break
+            time.sleep(0.2)
+        if resp is None:
+            return None  # type: ignore[return-value]
         if self._msg_type is None:
-            res = resp.result
-        else:
-            res = self._msg_type.Result(**resp.result)
-        return res
+            return resp.result
+        try:
+            return self._msg_type.Result(**resp.result)
+        except (TypeError, AttributeError):
+            return None  # type: ignore[return-value]
 
     def _on_status(self, msg: _ActionStatusMessage) -> None:
         """_on_status.

@@ -374,6 +374,7 @@ class RedisTransport(BaseTransport):
         ) as e:
             raise ConnectionError(f"Could not connect to Redis server: {e}") from e
         self._retry_count = 0
+        self._set_connected(True)
 
     def start(self) -> None:
         """
@@ -425,6 +426,7 @@ class RedisTransport(BaseTransport):
             if self.is_connected:
                 self.log.info("Successfully reconnected to Redis")
                 self._retry_count = 0  # Reset counter on successful connection
+                self._set_connected(True)
                 return True
         except (
             RuntimeError,
@@ -470,6 +472,7 @@ class RedisTransport(BaseTransport):
         # Release shared pool reference (if using shared pool)
         if not self._owns_pool:
             release_redis_pool(self._conn_params)
+        self._set_connected(False)
 
     def delete_queue(self, queue_name: str) -> bool:
         """Delete queue."""

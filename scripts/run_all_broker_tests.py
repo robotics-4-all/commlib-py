@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run all broker integration tests with Docker."""
+
 import subprocess
 import time
 import sys
@@ -89,6 +90,8 @@ def main():
             box=box.DOUBLE,
         )
     )
+
+    run_command(f"docker-compose -f {COMPOSE_FILE} down --remove-orphans")
 
     for service, broker_type in SERVICES.items():
         console.print(
