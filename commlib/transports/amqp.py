@@ -734,7 +734,7 @@ class RPCService(BaseRPCService):
         *args,
         exchange: str = "",
         connection: Optional[Connection] = None,
-        use_shared_connection: bool = True,
+        use_shared_connection: bool = False,
         **kwargs,
     ):
         """__init__.
@@ -1261,7 +1261,7 @@ class Subscriber(BaseSubscriber):
         message_ttl: int = 60000,
         overflow: str = "drop-head",
         connection: Optional[Connection] = None,
-        use_shared_connection: bool = True,
+        use_shared_connection: bool = False,
         **kwargs,
     ):
         """Constructor.
