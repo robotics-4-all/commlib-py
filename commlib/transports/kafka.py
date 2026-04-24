@@ -127,8 +127,11 @@ class KafkaTransport(BaseTransport):
                     pass
             for consumer, thread, stop_event in self._subscribers:
                 stop_event.set()
-                thread.join()
-                consumer.close()
+                thread.join(timeout=5.0)
+                try:
+                    consumer.close()
+                except Exception:
+                    pass
             self._subscribers = []
             for consumer in self._consumers:
                 try:
@@ -265,13 +268,17 @@ class KafkaTransport(BaseTransport):
         return cfg
 
     def _ensure_topic(self, topic: str) -> None:
+        self._ensure_topics([topic])
+
+    def _ensure_topics(self, topics: List[str]) -> None:
         from confluent_kafka.admin import AdminClient, NewTopic
 
         conn: Any = self._conn_params
         admin = AdminClient({"bootstrap.servers": f"{conn.host}:{conn.port}"})
-        fs = admin.create_topics(
-            [NewTopic(topic, num_partitions=1, replication_factor=1)]
-        )
+        new_topics = [
+            NewTopic(t, num_partitions=1, replication_factor=1) for t in topics
+        ]
+        fs = admin.create_topics(new_topics)
         for _, f in fs.items():
             try:
                 f.result()
@@ -426,6 +433,7 @@ class Subscriber(BaseSubscriber):
         self._key = key
         self._consumer: Consumer = None  # type: ignore[assignment]
         self._assignment_event: threading.Event = threading.Event()
+        self._stop_event: threading.Event = threading.Event()
         super().__init__(*args, **kwargs)
         self._create_kafka_conf()
         assert self._conn_params is not None, "Connection parameters are not set."
@@ -455,7 +463,7 @@ class Subscriber(BaseSubscriber):
         self._kafka_cfg = {
             "bootstrap.servers": host,
             "auto.offset.reset": "end",
-            "group.id": conn.group,
+            "group.id": f"{conn.group}-{gen_random_id()}",
             "enable.auto.offset.store": True,
             "enable.auto.commit": True,
             "allow.auto.create.topics": conn.auto_create_topics,
@@ -466,14 +474,13 @@ class Subscriber(BaseSubscriber):
         }
 
     def run_forever(self):
-        running = True
         assert self._transport is not None, "Transport is not initialized."
         assert self._topic is not None, "Topic is required for Kafka subscriber"
         self._transport._ensure_topic(self._topic)
         self._consumer = self._transport.create_consumer(self._kafka_cfg)
         try:
             self._consumer.subscribe([self._topic], on_assign=self._on_assign)
-            while running:
+            while not self._stop_event.is_set():
                 msg = self._consumer.poll(timeout=1.0)
                 if msg is None:
                     continue
@@ -535,7 +542,9 @@ class Subscriber(BaseSubscriber):
 
     def stop(self, wait: bool = True):  # pylint: disable=unused-argument
         """Stop."""
-        self._consumer.close()
+        self._stop_event.set()
+        if self._main_thread is not None:
+            self._main_thread.join(timeout=5.0)
 
 
 class PSubscriber(Subscriber):
@@ -624,8 +633,9 @@ class RPCService(BaseRPCService):
         self._transport.subscribe(
             self._rpc_name,
             self._on_request_handle,
-            group_id=self._rpc_name,
+            group_id=f"{self._rpc_name}-{gen_random_id()}",
             wait_for_assignment=True,
+            offset_reset="latest",
         )
         self._transport.start()
         while True:
@@ -827,6 +837,7 @@ class RPCClient(BaseRPCClient):
         self._transport.subscribe(
             self._reply_topic,
             self._on_reply,
+            group_id=f"rpc-client-{gen_random_id()}",
             wait_for_assignment=True,
             offset_reset="latest",
         )
@@ -888,6 +899,17 @@ class ActionService(BaseActionService):
         """
         super().__init__(*args, **kwargs)
 
+        _transport = KafkaTransport(conn_params=self._conn_params)
+        _transport._ensure_topics(
+            [
+                self._goal_rpc_uri,
+                self._cancel_rpc_uri,
+                self._result_rpc_uri,
+                self._feedback_topic,
+                self._status_topic,
+            ]
+        )
+
         self._goal_rpc = RPCService(
             msg_type=_ActionGoalMessage,
             rpc_name=self._goal_rpc_uri,
@@ -934,6 +956,17 @@ class ActionClient(BaseActionClient):
             kwargs: See BaseActionClient
         """
         super().__init__(*args, **kwargs)
+
+        _transport = KafkaTransport(conn_params=self._conn_params)
+        _transport._ensure_topics(
+            [
+                self._goal_rpc_uri,
+                self._cancel_rpc_uri,
+                self._result_rpc_uri,
+                self._status_topic,
+                self._feedback_topic,
+            ]
+        )
 
         self._goal_client = RPCClient(
             msg_type=_ActionGoalMessage,

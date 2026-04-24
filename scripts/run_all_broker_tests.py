@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run all broker integration tests with Docker."""
 
+import socket
 import subprocess
 import time
 import sys
@@ -50,17 +51,71 @@ def run_command(cmd, timeout=None, env=None):
         return -1, "", str(e)
 
 
-def wait_for_healthy(service, progress, task_id, timeout=60):
+# Per-service TCP readiness probe: (host, port)
+SERVICE_PROBE = {
+    "kafka": ("127.0.0.1", 9092),
+}
+
+# Extra seconds to wait after TCP probe succeeds (broker initialisation)
+SERVICE_EXTRA_WAIT = {
+    "kafka": 30,
+}
+
+
+def _tcp_probe(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except OSError:
+        return False
+
+
+def _kafka_ready(host: str = "127.0.0.1", port: int = 9092) -> bool:
+    try:
+        from confluent_kafka.admin import AdminClient, NewTopic
+
+        admin = AdminClient(
+            {"bootstrap.servers": f"{host}:{port}", "socket.timeout.ms": 2000}
+        )
+        fs = admin.create_topics(
+            [NewTopic("__readiness_probe__", num_partitions=1, replication_factor=1)]
+        )
+        for _, f in fs.items():
+            try:
+                f.result()
+            except Exception:
+                pass
+        admin.delete_topics(["__readiness_probe__"])
+        return True
+    except Exception:
+        return False
+
+
+def wait_for_healthy(service, progress, task_id, timeout=90):
     """Wait for healthy."""
     start_time = time.time()
+    probe = SERVICE_PROBE.get(service)
     while time.time() - start_time < timeout:
         rc, stdout, _stderr = run_command(
             f"docker-compose -f {COMPOSE_FILE} ps {service} --format json"
         )
         if rc == 0 and stdout:
             if '"Health":"healthy"' in stdout or '"State":"running"' in stdout:
-                # Extra wait for service readiness
-                for _ in range(5):
+                if probe:
+                    probe_start = time.time()
+                    while time.time() - probe_start < 60:
+                        if _tcp_probe(*probe):
+                            break
+                        time.sleep(2)
+                        progress.update(task_id, advance=2)
+                    kafka_probe_start = time.time()
+                    while time.time() - kafka_probe_start < 60:
+                        if _kafka_ready(*probe):
+                            break
+                        time.sleep(3)
+                        progress.update(task_id, advance=3)
+                extra = SERVICE_EXTRA_WAIT.get(service, 5)
+                for _ in range(extra):
                     progress.update(task_id, advance=1)
                     time.sleep(1)
                 return True
@@ -109,8 +164,11 @@ def main():
         ) as progress:
             # Start Service
             start_task = progress.add_task(f"Starting {service}...", total=10)
+            services_to_start = (
+                f"zookeeper {service}" if service == "kafka" else service
+            )
             rc, stdout, stderr = run_command(
-                f"docker-compose -f {COMPOSE_FILE} up -d {service}"
+                f"docker-compose -f {COMPOSE_FILE} up -d {services_to_start}"
             )
             progress.update(start_task, completed=10)
 
@@ -148,8 +206,10 @@ def main():
                 script_name = os.path.basename(script)
                 test_task = progress.add_task(f"Running {script_name}...", total=1)
 
+                # Kafka needs longer startup due to consumer group assignment delays
+                test_timeout = 90 if service == "kafka" else 30
                 cmd = f"{python_exe} {script} --broker {broker_type}"
-                rc, stdout, stderr = run_command(cmd, timeout=30, env=env)
+                rc, stdout, stderr = run_command(cmd, timeout=test_timeout, env=env)
 
                 if rc == 0 and "SUCCESS" in stdout and "FAILURE" not in stdout:
                     service_results.append(
