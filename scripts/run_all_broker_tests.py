@@ -58,6 +58,11 @@ SERVICE_PROBE = {
 
 # Extra seconds to wait after TCP probe succeeds (broker initialisation)
 SERVICE_EXTRA_WAIT = {
+    "emqx": 10,
+    "mosquitto": 10,
+    "redis": 10,
+    "dragonfly": 10,
+    "rabbitmq": 10,
     "kafka": 30,
 }
 
@@ -207,7 +212,7 @@ def main():
                 test_task = progress.add_task(f"Running {script_name}...", total=1)
 
                 # Kafka needs longer startup due to consumer group assignment delays
-                test_timeout = 90 if service == "kafka" else 30
+                test_timeout = 90 if service == "kafka" else 60
                 cmd = f"{python_exe} {script} --broker {broker_type}"
                 rc, stdout, stderr = run_command(cmd, timeout=test_timeout, env=env)
 

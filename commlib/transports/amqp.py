@@ -519,10 +519,18 @@ class AMQPTransport(BaseTransport):
         if self._connection is not None:
             _conn = self._connection
             if self._owns_connection:
-                # We created this connection, close it
+                # We created this connection, close it with a timeout guard so
+                # a FRAME_ERROR or broker disconnect does not hang the process.
                 try:
                     if _conn.is_open:
-                        _conn.close()
+                        close_thread = Thread(target=_conn.close, daemon=True)
+                        close_thread.start()
+                        close_thread.join(timeout=5.0)
+                        if close_thread.is_alive():
+                            self.log.warning(
+                                "AMQP connection.close() did not finish within 5s — "
+                                "abandoning (daemon thread will be reaped on exit)"
+                            )
                     self.log.debug("Closed dedicated connection")
                 except Exception as e:
                     self.log.warning("Error closing connection: %s", e)

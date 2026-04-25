@@ -580,14 +580,15 @@ class BaseActionService:
             if self._current_goal.status is not None
             else 0
         )
-        # Set Result data
-        if self._msg_type is not None:
-            assert self._current_goal.result is not None
-            resp.result = (  # type: ignore[reportAttributeAccessIssue]
-                self._current_goal.result.model_dump()
-            )
-        else:
-            resp.result = self._current_goal.result  # type: ignore[reportAttributeAccessIssue]
+        _terminal = (GoalStatus.SUCCEDED, GoalStatus.CANCELED, GoalStatus.ABORTED)
+        if self._current_goal.status in _terminal:
+            if self._msg_type is not None:
+                if self._current_goal.result is not None:
+                    resp.result = (  # type: ignore[reportAttributeAccessIssue]
+                        self._current_goal.result.model_dump()
+                    )
+            else:
+                resp.result = self._current_goal.result  # type: ignore[reportAttributeAccessIssue]
         return resp
 
     def _notify(

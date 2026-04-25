@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Basic action service integration test script."""
+
 import time
 import argparse
 from commlib.msg import ActionMessage
@@ -107,7 +108,7 @@ def main():
     node.run()
 
     # Wait for connection/initialization
-    time.sleep(2)
+    time.sleep(4)
 
     print(f"Sending goal: target={args.target}...")
     goal = ExampleAction.Goal(target=args.target)

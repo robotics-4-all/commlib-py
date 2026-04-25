@@ -467,7 +467,7 @@ class RedisTransport(BaseTransport):
             self._rsub.close()
         if self._redis is not None:
             self._redis.close()
-            del self._redis
+            self._redis = None
 
         # Release shared pool reference (if using shared pool)
         if not self._owns_pool:
@@ -565,6 +565,9 @@ class RedisTransport(BaseTransport):
 
     def _attempt_pubsub_reconnect(self):
         """Attempt to reconnect the pubsub connection and re-subscribe to topics."""
+        if self._stopped:
+            self.log.debug("Transport stopped, skipping pubsub reconnect")
+            return
         if not self._subscriptions:
             self.log.debug("No subscriptions to restore")
             return
