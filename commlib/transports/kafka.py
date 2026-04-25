@@ -122,23 +122,39 @@ class KafkaTransport(BaseTransport):
         if self.is_connected:
             for producer in self._producers:
                 try:
-                    producer.flush()
-                finally:
+                    producer.flush(timeout=5.0)
+                except Exception:
                     pass
+            self._producers = []
             for consumer, thread, stop_event in self._subscribers:
                 stop_event.set()
                 thread.join(timeout=5.0)
-                try:
-                    consumer.close()
-                except Exception:
-                    pass
+                self._close_consumer_bounded(consumer, timeout=5.0)
             self._subscribers = []
             for consumer in self._consumers:
-                try:
-                    consumer.close()
-                finally:
-                    pass
+                self._close_consumer_bounded(consumer, timeout=5.0)
+            self._consumers = []
             self._set_connected(False)
+
+    @staticmethod
+    def _close_consumer_bounded(consumer, timeout: float = 5.0) -> None:
+        """Close a confluent_kafka Consumer with a bounded wait.
+
+        confluent_kafka.Consumer.close() has no timeout parameter and can
+        block indefinitely on broker sluggishness or in-flight metadata
+        refresh. Run it in a daemon thread and abandon it on timeout so
+        process shutdown is never held hostage by librdkafka.
+        """
+
+        def _do_close():
+            try:
+                consumer.close()
+            except Exception:
+                pass
+
+        t = threading.Thread(target=_do_close, daemon=True)
+        t.start()
+        t.join(timeout=timeout)
 
     def create_producer(self, kafka_cfg):
         """Create producer."""
@@ -397,7 +413,10 @@ class Publisher(BasePublisher):
     def stop(self, wait: bool = True):  # pylint: disable=unused-argument
         """Stop."""
         if self._producer is not None:
-            self._producer.flush()
+            try:
+                self._producer.flush(timeout=5.0)
+            except Exception:
+                pass
 
 
 class MPublisher(Publisher):

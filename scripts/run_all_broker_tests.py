@@ -45,8 +45,18 @@ def run_command(cmd, timeout=None, env=None):
             cmd, shell=True, capture_output=True, text=True, timeout=timeout, env=env
         )
         return result.returncode, result.stdout, result.stderr
-    except subprocess.TimeoutExpired:
-        return -1, "", "Timeout expired"
+    except subprocess.TimeoutExpired as e:
+        partial_stdout = e.stdout or b""
+        partial_stderr = e.stderr or b""
+        if isinstance(partial_stdout, bytes):
+            partial_stdout = partial_stdout.decode(errors="replace")
+        if isinstance(partial_stderr, bytes):
+            partial_stderr = partial_stderr.decode(errors="replace")
+        return (
+            -1,
+            partial_stdout,
+            f"Timeout expired after {timeout}s\n{partial_stderr}",
+        )
     except Exception as e:
         return -1, "", str(e)
 
@@ -206,22 +216,38 @@ def main():
             service_results = []
             all_passed = True
 
-            # Run Tests
+            log_dir = os.path.join(project_root, "logs", "integration")
+            os.makedirs(log_dir, exist_ok=True)
+
             for script in TEST_SCRIPTS:
                 script_name = os.path.basename(script)
                 test_task = progress.add_task(f"Running {script_name}...", total=1)
 
-                # Kafka needs longer startup due to consumer group assignment delays
-                test_timeout = 90 if service == "kafka" else 60
-                cmd = f"{python_exe} {script} --broker {broker_type}"
+                test_timeout = 180 if service == "kafka" else 60
+                cmd = f"{python_exe} -u {script} --broker {broker_type}"
                 rc, stdout, stderr = run_command(cmd, timeout=test_timeout, env=env)
+
+                log_path = os.path.join(
+                    log_dir, f"{service}_{script_name.replace('.py', '')}.log"
+                )
+                with open(log_path, "w") as fh:
+                    fh.write(f"# cmd: {cmd}\n# rc: {rc}\n# timeout: {test_timeout}s\n")
+                    fh.write("\n===== STDOUT =====\n")
+                    fh.write(stdout or "")
+                    fh.write("\n===== STDERR =====\n")
+                    fh.write(stderr or "")
 
                 if rc == 0 and "SUCCESS" in stdout and "FAILURE" not in stdout:
                     service_results.append(
                         (script_name, "[bold green]PASSED[/bold green]")
                     )
                 else:
-                    service_results.append((script_name, "[bold red]FAILED[/bold red]"))
+                    service_results.append(
+                        (
+                            script_name,
+                            f"[bold red]FAILED[/bold red] [dim](rc={rc}, log={log_path})[/dim]",
+                        )
+                    )
                     all_passed = False
 
                 progress.update(test_task, completed=1)

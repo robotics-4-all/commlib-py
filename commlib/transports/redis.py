@@ -454,24 +454,49 @@ class RedisTransport(BaseTransport):
             A small delay is introduced to allow the subscription thread to stop
             gracefully.
 
-        Raises:
-            Any exceptions raised during the cleanup process will propagate to the caller.
+            Cleanup is best-effort: any exception raised by individual teardown
+            steps is logged and swallowed so a single failing step (e.g. a
+            redis-py PubSub whose underlying connection has already been
+            released by an in-flight reconnect) does not abort the rest of the
+            shutdown sequence and propagate to callers of ``Node.stop()``.
         """
         if not self.is_connected:
             self.log.debug("Attempting to stop transport while not connected")
+        # Set _stopped FIRST so any in-flight reconnect attempt sees it and
+        # bails out instead of racing with the teardown below.
         self._stopped = True
+
         if self._rsub_thread is not None:
-            self._rsub_thread.stop()
+            try:
+                self._rsub_thread.stop()
+            except Exception as e:  # noqa: BLE001 - defensive cleanup
+                self.log.debug("Error stopping pubsub thread: %s", e)
             time.sleep(self._wait_for_pubsub_stop)
+            self._rsub_thread = None
+
         if self._rsub is not None:
-            self._rsub.close()
+            try:
+                self._rsub.close()
+            except Exception as e:  # noqa: BLE001 - defensive cleanup
+                # redis-py PubSub.close() can raise AttributeError when its
+                # underlying connection has already been released to the pool
+                # (race with reconnect logic). Swallow and log.
+                self.log.debug("Error closing pubsub: %s", e)
+            self._rsub = None
+
         if self._redis is not None:
-            self._redis.close()
+            try:
+                self._redis.close()
+            except Exception as e:  # noqa: BLE001 - defensive cleanup
+                self.log.debug("Error closing redis client: %s", e)
             self._redis = None
 
         # Release shared pool reference (if using shared pool)
         if not self._owns_pool:
-            release_redis_pool(self._conn_params)
+            try:
+                release_redis_pool(self._conn_params)
+            except Exception as e:  # noqa: BLE001 - defensive cleanup
+                self.log.debug("Error releasing redis pool: %s", e)
         self._set_connected(False)
 
     def delete_queue(self, queue_name: str) -> bool:
@@ -591,6 +616,9 @@ class RedisTransport(BaseTransport):
         delay = self._conn_params.reconnect_delay  # Use configured delay
 
         while self._retry_count < max_retries:
+            if self._stopped:
+                self.log.debug("Transport stopped during pubsub reconnect, aborting")
+                return
             try:
                 self.log.debug(
                     "Attempting pubsub reconnection (attempt %s/%s)...",
@@ -604,15 +632,28 @@ class RedisTransport(BaseTransport):
                 self._rsub = None
                 time.sleep(self._wait_for_connection_init)
 
+                if self._stopped:
+                    self.log.debug(
+                        "Transport stopped during pubsub reconnect, aborting"
+                    )
+                    return
+
                 # Ping to check connection
                 if not self.is_connected:
                     time.sleep(delay)
                     self.connect()
 
+                if self._stopped:
+                    self.log.debug(
+                        "Transport stopped during pubsub reconnect, aborting"
+                    )
+                    return
+
                 if self.is_connected:
-                    # Recreate pubsub
+                    if self._redis is None:
+                        # stop() raced us and tore down the client; bail out.
+                        return
                     self.log.info("Successfully reconnected to Redis")
-                    assert self._redis is not None
                     self._rsub = self._redis.pubsub(
                         ignore_subscribe_messages=True,
                     )
