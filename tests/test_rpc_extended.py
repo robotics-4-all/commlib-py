@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 
 """Tests for commlib RPC module."""
+# pylint: disable=protected-access
 
 import unittest
-import time
-from typing import Optional
 
-from commlib.msg import RPCMessage
 from commlib.rpc import CommRPCHeader, CommRPCMessage, BaseRPCServer
 from commlib.transports.mock import ConnectionParameters
-from commlib.utils import gen_timestamp
 
 
 class TestCommRPCHeader(unittest.TestCase):
@@ -31,7 +28,7 @@ class TestCommRPCHeader(unittest.TestCase):
             timestamp=12345,
             content_type="msgpack",
             encoding="utf16",
-            agent="custom-agent"
+            agent="custom-agent",
         )
         self.assertEqual(header.reply_to, "service.reply")
         self.assertEqual(header.timestamp, 12345)
@@ -88,17 +85,12 @@ class TestBaseRPCServer(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.conn_params = ConnectionParameters(
-            host="test",
-            port="1234",
-            reconnect_attempts=0
+            host="test", port=1234, reconnect_attempts=0
         )
 
     def test_rpc_server_creation(self):
         """Test BaseRPCServer creation."""
-        server = BaseRPCServer(
-            base_uri="my.service",
-            conn_params=self.conn_params
-        )
+        server = BaseRPCServer(base_uri="my.service", conn_params=self.conn_params)
         self.assertEqual(server._base_uri, "my.service")
         self.assertEqual(server._max_workers, 4)
         self.assertIsNotNone(server._executor)
@@ -106,43 +98,32 @@ class TestBaseRPCServer(unittest.TestCase):
     def test_rpc_server_custom_workers(self):
         """Test BaseRPCServer with custom worker count."""
         server = BaseRPCServer(
-            base_uri="service",
-            workers=8,
-            conn_params=self.conn_params
+            base_uri="service", workers=8, conn_params=self.conn_params
         )
         self.assertEqual(server._max_workers, 8)
 
     def test_rpc_server_with_service_map(self):
         """Test BaseRPCServer with service map."""
-        def dummy_service(req):
+
+        def dummy_service(_req):
             return {"result": "ok"}
 
         svc_map = {"my_service": dummy_service}
         server = BaseRPCServer(
-            base_uri="test",
-            svc_map=svc_map,
-            conn_params=self.conn_params
+            base_uri="test", svc_map=svc_map, conn_params=self.conn_params
         )
         self.assertEqual(server._svc_map, svc_map)
-
-    def test_rpc_server_interval(self):
-        """Test BaseRPCServer interval property."""
-        server = BaseRPCServer(
-            interval=0.5,
-            conn_params=self.conn_params
-        )
-        self.assertEqual(server.interval, 0.5)
 
     def test_rpc_server_default_interval(self):
         """Test BaseRPCServer default interval."""
         server = BaseRPCServer(conn_params=self.conn_params)
-        self.assertEqual(server.interval, 0.001)
+        self.assertEqual(server._LOOP_INTERVAL, 0.001)
 
     def test_rpc_server_logger(self):
         """Test BaseRPCServer logger."""
         logger = BaseRPCServer.logger()
         self.assertIsNotNone(logger)
-        self.assertTrue(hasattr(logger, 'info'))
+        self.assertTrue(hasattr(logger, "info"))
 
     def test_rpc_server_logger_singleton(self):
         """Test BaseRPCServer logger is singleton."""
@@ -166,5 +147,5 @@ class TestBaseRPCServer(unittest.TestCase):
         self.assertIsInstance(server._comm_obj, CommRPCMessage)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

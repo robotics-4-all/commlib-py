@@ -12,7 +12,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from commlib.utils import get_timestamp_ns
-import json
+from commlib.serializer import JSONSerializer
+
 
 Primitives = [str, int, float, bool, bytes]
 
@@ -32,7 +33,7 @@ class Message(BaseModel):
         Returns:
             Message: An instance of the Message class.
         """
-        data = json.loads(json_str)
+        data = JSONSerializer.deserialize(json_str)
         return cls(**data)
 
     def to_json(self) -> str:
@@ -41,7 +42,7 @@ class Message(BaseModel):
         Returns:
             str: JSON string representing the message.
         """
-        return json.dumps(self.model_dump())
+        return JSONSerializer.serialize(self.model_dump())
 
 
 class MessageHeader(Message):
@@ -52,7 +53,7 @@ class MessageHeader(Message):
     msg_id: Union[int, str, UUID] = -1
     node_id: Union[int, str, UUID] = ""
     agent: str = "commlib-py"
-    timestamp: int = Field(default_factory=lambda: get_timestamp_ns())
+    timestamp: int = Field(default_factory=get_timestamp_ns)
     properties: Dict[str, Any] = {}
 
 
@@ -67,22 +68,16 @@ class RPCMessage(Message):
         RPC Request Message
         """
 
-        pass
-
     class Response(Message):
         """Response.
         RPC Response Message
         """
-
-        pass
 
 
 class PubSubMessage(Message):
     """PubSubObject Class.
     Implementation of the PubSubObject Base Data class.
     """
-
-    pass
 
 
 class ActionMessage(Message):
@@ -93,21 +88,37 @@ class ActionMessage(Message):
         Action Goal Message
         """
 
-        pass
-
     class Result(Message):
         """Result.
         Action Result Message
         """
-
-        pass
 
     class Feedback(Message):
         """Feedback.
         Action Feedback Message
         """
 
-        pass
+
+class TaskMessage(Message):
+    """TaskMessage.
+    Task Queue Message. Defines Task, Result, and Progress data classes for
+        instantiation. Used as a namespace.
+    """
+
+    class Task(Message):
+        """Task.
+        Task Message
+        """
+
+    class Result(Message):
+        """Result.
+        Task Result Message
+        """
+
+    class Progress(Message):
+        """Progress.
+        Task Progress Message
+        """
 
 
 class HeartbeatMessage(PubSubMessage):
@@ -126,12 +137,14 @@ class FileObject(BaseModel):
 
     The `data` attribute contains the raw bytes of the file, encoded in the specified encoding.
     The `filename` attribute contains the name of the file.
-    The `encoding` attribute specifies the encoding used for the `data` attribute, defaulting to "base64".
+    The `encoding` attribute specifies the encoding used
+    for the `data` attribute, defaulting to "base64".
 
-    The `load_from_file` method reads the raw bytes from the specified file path and stores them in the `data` attribute, encoding them in the specified encoding.
+    The ``load_from_file`` method reads raw bytes from the file path
+    and stores them in the ``data`` attribute with the given encoding.
     """
 
-    data: List[bytes] = []
+    data: Union[List[bytes], str] = []
     filename: str = ""
     encoding: str = "base64"
 

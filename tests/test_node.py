@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
 """Tests for `commlib` package."""
+# pylint: disable=protected-access
 
 import time
 import unittest
-from typing import Optional
+from unittest.mock import MagicMock
 
 from commlib.msg import MessageHeader, PubSubMessage, RPCMessage
 from commlib.node import Node
@@ -12,6 +13,7 @@ from commlib.transports.mock import ConnectionParameters
 
 
 class SonarMessage(PubSubMessage):
+    """Sonar Message."""
     header: MessageHeader = MessageHeader()
     range: float = -1
     hfov: float = 30.6
@@ -19,11 +21,14 @@ class SonarMessage(PubSubMessage):
 
 
 class AddTwoIntMessage(RPCMessage):
+    """Add Two Int Message."""
     class Request(RPCMessage.Request):
+        """Request payload."""
         a: int = 0
         b: int = 0
 
     class Response(RPCMessage.Response):
+        """Response payload."""
         c: int = 0
 
 
@@ -32,34 +37,77 @@ class TestNode(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures, if any."""
-        self.connparams = ConnectionParameters(host="test", port="1234")
+        self.connparams = ConnectionParameters(host="test", port=1234)
 
     def tearDown(self):
         """Tear down test fixtures, if any."""
 
     def test_node_create_wrong_transport(self):
+        """Test node create wrong transport."""
         try:
-            node = Node(
+            _node = Node(
                 node_name="sensors.sonar.front", connection_params=self.connparams
             )
-            self.assertTrue(1, 0)
-        except ValueError as e:
-            print(str(e))
-            if str(e) == "ValueError: Transport type is not supported!":
-                self.assertTrue(1, 1)
-            else:
-                self.assertTrue(1, 0)
+        except ValueError:
+            pass
 
     def test_node_create_publisher(self):
+        """Test node create publisher."""
         node = Node(node_name="sensors.sonar.front", connection_params=self.connparams)
         node.create_publisher(msg_type=SonarMessage, topic="sensors.sonar.front")
-        self.assertTrue(len(node._publishers), 1)
+        self.assertEqual(len(node._publishers), 1)
 
     def test_node_create_subscriber(self):
+        """Test node create subscriber."""
         node = Node(node_name="sensors.sonar.front", connection_params=self.connparams)
-        def on_message(msg):
+
+        def on_message(_msg):
             pass
-        node.create_subscriber(msg_type=SonarMessage,
-                               topic="sensors.sonar.front",
-                               on_message=on_message)
-        self.assertTrue(len(node._subscribers), 1)
+
+        node.create_subscriber(
+            msg_type=SonarMessage, topic="sensors.sonar.front", on_message=on_message
+        )
+        self.assertEqual(len(node._subscribers), 1)
+
+    def test_node_on_connected_callback(self):
+        """Test that on_connected callback is called when node starts."""
+        mock_callback = MagicMock()
+        node = Node(
+            node_name="test_node",
+            connection_params=self.connparams,
+            on_connected=mock_callback,
+        )
+
+        # Create a dummy publisher so the node has an endpoint to connect
+        node.create_publisher(msg_type=SonarMessage, topic="test_topic")
+
+        # Run node synchronously (wait=True)
+        node.run(wait=True)
+
+        # Verify callback was called
+        mock_callback.assert_called_once()
+
+        node.stop()
+
+    def test_node_on_connected_callback_async(self):
+        """Test that on_connected callback is called when node starts asynchronously."""
+        mock_callback = MagicMock()
+        node = Node(
+            node_name="test_node_async",
+            connection_params=self.connparams,
+            on_connected=mock_callback,
+        )
+
+        # Create a dummy publisher so the node has an endpoint to connect
+        node.create_publisher(msg_type=SonarMessage, topic="test_topic_async")
+
+        # Run node asynchronously (wait=False)
+        node.run(wait=False)
+
+        # Wait a bit for the async thread to execute
+        time.sleep(0.1)
+
+        # Verify callback was called
+        mock_callback.assert_called_once()
+
+        node.stop()

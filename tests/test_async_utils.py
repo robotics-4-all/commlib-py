@@ -4,7 +4,6 @@
 
 import unittest
 import asyncio
-import time
 
 from commlib.async_utils import (
     safe_wrapper,

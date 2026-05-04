@@ -2,12 +2,11 @@
 
 """Tests for `commlib` package."""
 
-import time
 import unittest
 from typing import Optional
+import json
 
 from commlib.msg import Message, MessageHeader, PubSubMessage, RPCMessage
-from commlib.timer import Timer
 
 
 class TestMessages(unittest.TestCase):
@@ -29,13 +28,16 @@ class TestMessages(unittest.TestCase):
         header.agent = "test-commlib"
 
     def test_nested_message_to_dict(self):
+        """Test nested message to dict."""
         _d = {"a": 1, "b": {"c": 2, "d": 3}}
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
@@ -44,29 +46,36 @@ class TestMessages(unittest.TestCase):
         self.assertEqual(_msg.model_dump(), _d)
 
     def test_nested_message_from_dict(self):
+        """Test nested message from dict."""
         _d = {"a": 1, "b": {"c": 2, "d": 3}}
 
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
-        _msg = TestPubSubMessage(**_d)
+        _msg = TestPubSubMessage(**_d)  # type: ignore[arg-type]
         assert _msg == TestPubSubMessage(a=1, b=TestObject(c=2, d=3))
 
     def test_from_dict_0(self):
+        """Test from dict 0."""
         req_d = {"a": 1, "b": 2}
         resp_d = {"c": 3, "d": 4}
 
         class TestRPCMessage(RPCMessage):
+            """Test RPC Message."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: Optional[int] = 1
                 b: Optional[int] = 2
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 c: Optional[int] = 3
                 d: Optional[int] = 4
 
@@ -78,17 +87,21 @@ class TestMessages(unittest.TestCase):
 
     def test_message_to_json(self):
         """Test Message to JSON serialization"""
+
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         obj = TestObject(c=10, d=20)
         json_data = obj.to_json()
-        self.assertEqual(json_data, '{"c": 10, "d": 20}')
+        self.assertEqual(json.loads(json_data), {"c": 10, "d": 20})
 
     def test_message_from_json(self):
         """Test Message from JSON deserialization"""
+
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
@@ -98,25 +111,31 @@ class TestMessages(unittest.TestCase):
 
     def test_pubsub_message_to_json(self):
         """Test PubSubMessage to JSON serialization"""
+
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
         msg = TestPubSubMessage(a=5, b=TestObject(c=10, d=20))
         json_data = msg.to_json()
-        self.assertEqual(json_data, '{"a": 5, "b": {"c": 10, "d": 20}}')
+        self.assertEqual(json.loads(json_data), {"a": 5, "b": {"c": 10, "d": 20}})
 
     def test_pubsub_message_from_json(self):
         """Test PubSubMessage from JSON deserialization"""
+
         class TestObject(Message):
+            """Test Object."""
             c: Optional[int] = 1
             d: Optional[int] = 2
 
         class TestPubSubMessage(PubSubMessage):
+            """Test Pub Sub Message."""
             a: Optional[int] = 1
             b: Optional[TestObject] = TestObject()
 
@@ -126,28 +145,37 @@ class TestMessages(unittest.TestCase):
 
     def test_rpc_message_to_json(self):
         """Test RPCMessage to JSON serialization"""
+
         class TestRPCMessage(RPCMessage):
+            """Test RPC Message."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: Optional[int] = 1
                 b: Optional[int] = 2
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 c: Optional[int] = 3
                 d: Optional[int] = 4
 
         req = TestRPCMessage.Request(a=10, b=20)
         resp = TestRPCMessage.Response(c=30, d=40)
-        self.assertEqual(req.to_json(), '{"a": 10, "b": 20}')
-        self.assertEqual(resp.to_json(), '{"c": 30, "d": 40}')
+
+        self.assertEqual(json.loads(req.to_json()), {"a": 10, "b": 20})
+        self.assertEqual(json.loads(resp.to_json()), {"c": 30, "d": 40})
 
     def test_rpc_message_from_json(self):
         """Test RPCMessage from JSON deserialization"""
+
         class TestRPCMessage(RPCMessage):
+            """Test RPC Message."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: Optional[int] = 1
                 b: Optional[int] = 2
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 c: Optional[int] = 3
                 d: Optional[int] = 4
 

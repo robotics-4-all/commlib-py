@@ -1,6 +1,6 @@
 [project]
 name = "commlib-py"
-version = "0.13.1"
+version = "0.13.2"
 description = "Communication Library for Python implementing the most common communication patterns for CyberPhysical Systems."
 readme = "README.md"
 license = {text = "MIT"}
@@ -48,6 +48,12 @@ all = [
     "pika>=1.3.1",
     "confluent-kafka>=2.3.0",
 ]
+performance = [
+    "orjson>=3.9.0",
+    "msgpack>=1.0.5",
+    "lz4>=4.3.2",
+    "fastuuid>=0.4.2",
+]
 dev = [
     "bump2version>=0.5.11",
     "wheel>=0.42.0",
@@ -57,10 +63,13 @@ dev = [
     "build>=1.0.0",
     "twine>=4.0.0",
     "pytest>=7.0.0",
+    "pytest-benchmark>=4.0.0",
+    "psutil>=5.9.0",
     "paho-mqtt>=1.6.1,<2.0.0",
     "redis[hiredis]>=5.0.1",
     "pika>=1.3.1",
     "confluent-kafka>=2.3.0",
+    "mypy>=1.0.0",
 ]
 
 [project.urls]

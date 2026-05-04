@@ -413,6 +413,6 @@ class TestTopicConversionRealWorldScenarios:
         commlib_topic = "building.floor1.rooms.*"
         mqtt_result = convert_topic_notation(commlib_topic, "commlib", "mqtt")
         assert mqtt_result == "building/floor1/rooms/#"
-        
+
         kafka_result = convert_topic_notation(commlib_topic, "commlib", "kafka")
         assert kafka_result == "building-floor1-rooms-*"

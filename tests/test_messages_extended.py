@@ -3,7 +3,7 @@
 """Extended tests for message classes."""
 
 import unittest
-from typing import Optional
+from typing import Any, Optional
 
 from commlib.msg import Message, MessageHeader, PubSubMessage, RPCMessage
 
@@ -61,7 +61,7 @@ class TestBaseMessage(unittest.TestCase):
 
     def test_message_from_dict(self):
         """Test Message creation from dict."""
-        msg_dict = {}
+        msg_dict: dict[str, Any] = {}
         msg = Message.model_validate(msg_dict)
         self.assertIsNotNone(msg)
 
@@ -76,7 +76,9 @@ class TestPubSubMessage(unittest.TestCase):
 
     def test_custom_pubsub_message(self):
         """Test custom PubSubMessage subclass."""
+
         class CustomMessage(PubSubMessage):
+            """Custom Message."""
             value: int = 0
             name: str = ""
 
@@ -88,7 +90,9 @@ class TestPubSubMessage(unittest.TestCase):
 
     def test_custom_pubsub_message_to_dict(self):
         """Test custom PubSubMessage serialization."""
+
         class CustomMessage(PubSubMessage):
+            """Custom Message."""
             value: int = 0
             name: str = ""
 
@@ -99,10 +103,13 @@ class TestPubSubMessage(unittest.TestCase):
 
     def test_nested_pubsub_message(self):
         """Test nested PubSubMessage."""
+
         class InnerMessage(Message):
+            """Inner Message."""
             inner_value: int = 0
 
         class OuterMessage(PubSubMessage):
+            """Outer Message."""
             outer_value: int = 0
             inner: Optional[InnerMessage] = None
 
@@ -120,19 +127,23 @@ class TestRPCMessage(unittest.TestCase):
 
     def test_rpc_message_structure(self):
         """Test RPCMessage structure."""
-        msg = RPCMessage()
+        RPCMessage()
         # RPCMessage should have Request and Response classes
-        self.assertTrue(hasattr(RPCMessage, 'Request'))
-        self.assertTrue(hasattr(RPCMessage, 'Response'))
+        self.assertTrue(hasattr(RPCMessage, "Request"))
+        self.assertTrue(hasattr(RPCMessage, "Response"))
 
     def test_custom_rpc_message(self):
         """Test custom RPCMessage subclass."""
+
         class AdditionRPC(RPCMessage):
+            """Addition RPC."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: int = 0
                 b: int = 0
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 result: int = 0
 
         request = AdditionRPC.Request(a=5, b=3)
@@ -144,8 +155,11 @@ class TestRPCMessage(unittest.TestCase):
 
     def test_rpc_request_to_dict(self):
         """Test RPC Request serialization."""
+
         class AdditionRPC(RPCMessage):
+            """Addition RPC."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 a: int = 0
                 b: int = 0
 
@@ -156,8 +170,11 @@ class TestRPCMessage(unittest.TestCase):
 
     def test_rpc_response_to_dict(self):
         """Test RPC Response serialization."""
+
         class AdditionRPC(RPCMessage):
+            """Addition RPC."""
             class Response(RPCMessage.Response):
+                """Response payload."""
                 result: int = 0
 
         response = AdditionRPC.Response(result=30)
@@ -166,12 +183,16 @@ class TestRPCMessage(unittest.TestCase):
 
     def test_multiple_rpc_message_types(self):
         """Test multiple RPC message type definitions."""
+
         class MultiplyRPC(RPCMessage):
+            """Multiply RPC."""
             class Request(RPCMessage.Request):
+                """Request payload."""
                 x: int = 0
                 y: int = 0
 
             class Response(RPCMessage.Response):
+                """Response payload."""
                 product: int = 0
 
         req = MultiplyRPC.Request(x=4, y=5)
@@ -182,5 +203,5 @@ class TestRPCMessage(unittest.TestCase):
         self.assertEqual(resp.product, 20)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

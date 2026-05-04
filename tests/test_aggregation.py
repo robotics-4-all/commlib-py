@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for commlib aggregation module."""
+# pylint: disable=protected-access
 
 import unittest
 from typing import Dict, Any
@@ -15,9 +16,7 @@ class TestTopicMessageProcessor(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.conn_params = ConnectionParameters(
-            host="test",
-            port="1234",
-            reconnect_attempts=0
+            host="test", port=1234, reconnect_attempts=0
         )
 
     def test_processor_creation(self):
@@ -25,7 +24,7 @@ class TestTopicMessageProcessor(unittest.TestCase):
         processor = TopicMessageProcessor(
             broker_params=self.conn_params,
             input_topic=["input.topic"],
-            output_topic="output.topic"
+            output_topic="output.topic",
         )
         self.assertEqual(processor.input_topic, ["input.topic"])
         self.assertEqual(processor.output_topic, "output.topic")
@@ -37,12 +36,13 @@ class TestTopicMessageProcessor(unittest.TestCase):
         processor = TopicMessageProcessor(
             broker_params=self.conn_params,
             input_topic=input_topics,
-            output_topic="output"
+            output_topic="output",
         )
         self.assertEqual(processor.input_topic, input_topics)
 
     def test_processor_with_data_processors(self):
         """Test TopicMessageProcessor with data processors."""
+
         def processor1(data: Dict[str, Any]) -> Dict[str, Any]:
             data["processed_by"] = "processor1"
             return data
@@ -56,7 +56,7 @@ class TestTopicMessageProcessor(unittest.TestCase):
             broker_params=self.conn_params,
             input_topic=["input"],
             output_topic="output",
-            data_processors=processors
+            data_processors=processors,
         )
         self.assertEqual(processor.data_processors, processors)
         self.assertEqual(len(processor.data_processors), 2)
@@ -64,45 +64,39 @@ class TestTopicMessageProcessor(unittest.TestCase):
     def test_processor_broker_params(self):
         """Test TopicMessageProcessor broker parameters."""
         processor = TopicMessageProcessor(
-            broker_params=self.conn_params,
-            input_topic=["input"],
-            output_topic="output"
+            broker_params=self.conn_params, input_topic=["input"], output_topic="output"
         )
         self.assertEqual(processor.broker_params, self.conn_params)
 
     def test_processor_logger(self):
         """Test TopicMessageProcessor logger."""
         processor = TopicMessageProcessor(
-            broker_params=self.conn_params,
-            input_topic=["input"],
-            output_topic="output"
+            broker_params=self.conn_params, input_topic=["input"], output_topic="output"
         )
         logger = processor.logger()
         self.assertIsNotNone(logger)
-        self.assertTrue(hasattr(logger, 'info'))
+        self.assertTrue(hasattr(logger, "info"))
 
     def test_processor_log_property(self):
         """Test TopicMessageProcessor log property."""
         processor = TopicMessageProcessor(
-            broker_params=self.conn_params,
-            input_topic=["input"],
-            output_topic="output"
+            broker_params=self.conn_params, input_topic=["input"], output_topic="output"
         )
         log = processor.log
         self.assertIsNotNone(log)
-        self.assertTrue(hasattr(log, 'info'))
+        self.assertTrue(hasattr(log, "info"))
 
     def test_processor_create_subscriptions(self):
         """Test TopicMessageProcessor create_subscriptions."""
         processor = TopicMessageProcessor(
             broker_params=self.conn_params,
             input_topic=["input.topic"],
-            output_topic="output.topic"
+            output_topic="output.topic",
         )
         # Should not raise an exception
         try:
             processor.create_subscriptions()
-        except Exception as e:
+        except Exception:
             # This is expected if the node is not properly initialized
             # but we're just testing that the method exists
             pass
@@ -111,9 +105,7 @@ class TestTopicMessageProcessor(unittest.TestCase):
     def test_processor_create_publisher(self):
         """Test TopicMessageProcessor create_publisher."""
         processor = TopicMessageProcessor(
-            broker_params=self.conn_params,
-            input_topic=["input"],
-            output_topic="output"
+            broker_params=self.conn_params, input_topic=["input"], output_topic="output"
         )
         try:
             processor.create_publisher()
@@ -129,19 +121,17 @@ class TestTopicMessageProcessor(unittest.TestCase):
             broker_params=self.conn_params,
             input_topic=["input"],
             output_topic="output",
-            data_processors=[]
+            data_processors=[],
         )
         self.assertEqual(processor.data_processors, [])
 
     def test_processor_node_name(self):
         """Test TopicMessageProcessor node name."""
         processor = TopicMessageProcessor(
-            broker_params=self.conn_params,
-            input_topic=["input"],
-            output_topic="output"
+            broker_params=self.conn_params, input_topic=["input"], output_topic="output"
         )
         self.assertEqual(processor.node._node_name, "TopicMessageProcessor")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

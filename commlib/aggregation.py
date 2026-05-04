@@ -6,7 +6,7 @@ from multiple input topics into a single output topic.
 
 import functools
 import logging
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 from commlib.connection import BaseConnectionParameters
 from commlib.node import Node
 
@@ -14,17 +14,21 @@ aggregation_logger = None
 
 
 class TopicMessageProcessor:
+    """Topic Message Processor."""
+
     def __init__(
         self,
         broker_params: BaseConnectionParameters,
         input_topic: List[str],
         output_topic: str,
-        data_processors: List[callable] = [],
+        data_processors: Optional[List[Callable]] = None,
     ):
         self.broker_params = broker_params
         self.input_topic = input_topic
         self.output_topic = output_topic
-        self.data_processors = data_processors  # List of functions to process incoming data
+        self.data_processors = data_processors if data_processors is not None else []
+
+        self.pub: Any = None
 
         self.node = Node(
             node_name="TopicMessageProcessor",
@@ -35,23 +39,30 @@ class TopicMessageProcessor:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global aggregation_logger
+        """Logger."""
+        global aggregation_logger  # pylint: disable=global-statement
         if aggregation_logger is None:
             aggregation_logger = logging.getLogger(__name__)
         return aggregation_logger
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     def create_subscriptions(self):
+        """Create subscriptions."""
         _clb = functools.partial(self.on_msg_internal, self.data_processors)
         self.node.create_psubscriber(topic=self.input_topic, on_message=_clb)
 
     def create_publisher(self):
+        """Create publisher."""
         self.pub = self.node.create_mpublisher()
 
-    def on_msg_internal(self, processors: Dict[str, callable], payload: Dict[str, Any], topic: str):
+    def on_msg_internal(
+        self, processors: List[Callable], payload: Dict[str, Any], _topic: str
+    ) -> None:
+        """On msg internal."""
         for proc in processors:
             try:
                 payload = proc(payload)
@@ -65,23 +76,28 @@ class TopicMessageProcessor:
                 continue
 
     def start(self):
+        """Start."""
         self.create_publisher()
         self.create_subscriptions()
         self.node.run_forever()
 
 
 class TopicAggregator:
+    """Topic Aggregator."""
+
     def __init__(
         self,
         broker_params: BaseConnectionParameters,
         input_topics: List[str],
         output_topic: str,
-        data_processors: Dict[str, callable] = {},
+        data_processors: Optional[Dict[str, List[Callable]]] = None,
     ):
         self.broker_params = broker_params
         self.input_topics = input_topics
         self.output_topic = output_topic
-        self.data_processors = data_processors  # List of functions to process incoming data
+        self.data_processors = data_processors if data_processors is not None else {}
+
+        self.pub: Any = None
 
         self.node = Node(
             node_name="TopicAggregator",
@@ -92,17 +108,21 @@ class TopicAggregator:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global aggregation_logger
+        """Logger."""
+        global aggregation_logger  # pylint: disable=global-statement
         if aggregation_logger is None:
             aggregation_logger = logging.getLogger(__name__)
         return aggregation_logger
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     def create_subscriptions(self):
+        """Create subscriptions."""
         for topic in self.input_topics:
+            _clb: Callable[..., None]
             if topic in self.data_processors:
                 _procs = self.data_processors[topic]
                 _clb = functools.partial(self.on_msg_internal, processors=_procs)
@@ -111,11 +131,18 @@ class TopicAggregator:
             self.node.create_psubscriber(topic=topic, on_message=_clb)
 
     def create_publisher(self):
+        """Create publisher."""
         self.pub = self.node.create_mpublisher()
 
     def on_msg_internal(
-        self, payload: Dict[str, Any], topic: str, processors: Dict[str, callable] = {}
-    ):
+        self,
+        payload: Dict[str, Any],
+        _topic: str,
+        processors: Optional[List[Callable]] = None,
+    ) -> None:
+        """On msg internal."""
+        if processors is None:
+            processors = []
         for proc in processors:
             try:
                 payload = proc(payload)
@@ -128,6 +155,7 @@ class TopicAggregator:
                 continue
 
     def start(self):
+        """Start."""
         self.create_publisher()
         self.create_subscriptions()
         self.node.run_forever()

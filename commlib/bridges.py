@@ -7,7 +7,7 @@ different communication transports (MQTT, AMQP, Redis).
 import logging
 import time
 from enum import IntEnum
-from typing import List
+from typing import Any, List, Optional, Type, Union
 
 from commlib.connection import BaseConnectionParameters
 from commlib.endpoints import EndpointType, TransportType, endpoint_factory
@@ -51,7 +51,8 @@ class Bridge:
 
     @classmethod
     def logger(cls) -> logging.Logger:
-        global br_logger
+        """Logger."""
+        global br_logger  # pylint: disable=global-statement
         if br_logger is None:
             br_logger = logging.getLogger(__name__)
         return br_logger
@@ -72,19 +73,22 @@ class Bridge:
         Args:
             from_uri (str): The URI of the source broker.
             to_uri (str): The URI of the destination broker.
-            from_broker_params (BaseConnectionParameters): Connection parameters for the source broker.
-            to_broker_params (BaseConnectionParameters): Connection parameters for the destination broker.
-            auto_transform_uris (bool, optional): Whether to automatically transform the destination URI
+            from_broker_params (BaseConnectionParameters):
+                Connection parameters for the source broker.
+            to_broker_params (BaseConnectionParameters):
+                Connection parameters for the destination broker.
+            auto_transform_uris (bool, optional): Whether to
+                automatically transform the destination URI
                 based on the broker type. Defaults to True.
             debug (bool, optional): Enables debug mode for additional logging. Defaults to False.
         """
-        self._from_broker_params: str = from_broker_params
-        self._to_broker_params: str = to_broker_params
+        self._from_broker_params: BaseConnectionParameters = from_broker_params
+        self._to_broker_params: BaseConnectionParameters = to_broker_params
         self._from_uri: str = from_uri
         self._to_uri: str = to_uri
         self._debug: bool = debug
-        self._btype: RPCBridgeType = None
-        self._auto_transform_uris: str = auto_transform_uris
+        self._btype: Union[RPCBridgeType, TopicBridgeType, None] = None
+        self._auto_transform_uris: bool = auto_transform_uris
 
         bA_type_str = str(type(self._from_broker_params)).split("'")[1]
         bB_type_str = str(type(self._to_broker_params)).split("'")[1]
@@ -132,13 +136,16 @@ class Bridge:
 
     @property
     def debug(self) -> bool:
+        """Debug."""
         return self._debug
 
     @property
     def log(self) -> logging.Logger:
+        """Log."""
         return self.logger()
 
     def run(self):
+        """Run."""
         raise NotImplementedError()
 
     def run_forever(self):
@@ -190,7 +197,7 @@ class RPCBridge(Bridge):
     to be passed between the two endpoints.
     """
 
-    def __init__(self, msg_type: RPCMessage = None, *args, **kwargs):
+    def __init__(self, *args, msg_type: Optional[Type[RPCMessage]] = None, **kwargs):
         """__init__.
         Initializes an RPCBridge instance.
 
@@ -199,7 +206,8 @@ class RPCBridge(Bridge):
             *args: Additional positional arguments to pass to the parent class constructor.
             **kwargs: Additional keyword arguments to pass to the parent class constructor.
 
-        The RPCBridge class is responsible for bridging two RPC (Remote Procedure Call) endpoints, allowing RPCMessage objects to be passed between them. The __init__ method sets up the necessary server and client endpoints for the bridge.
+        Sets up the RPC bridge server and client endpoints for
+        cross-broker RPC message forwarding.
         """
 
         super().__init__(*args, **kwargs)
@@ -219,9 +227,10 @@ class RPCBridge(Bridge):
             debug=self.debug,
         )
 
-    def on_request(self, msg: RPCMessage.Request):
+    def on_request(self, msg: Any):
         """on_request.
-        Handles an incoming RPC request by forwarding it to the client endpoint and returning the response.
+        Handles an incoming RPC request by forwarding it to the
+        client endpoint and returning the response.
 
         Args:
             msg (RPCMessage.Request): The incoming RPC request message.
@@ -238,9 +247,11 @@ class RPCBridge(Bridge):
         """stop.
         Stops the RPC bridge by stopping the server and client endpoints.
 
-        This method is responsible for stopping the RPC bridge, which involves stopping the server and client
-        endpoints that were started in the `run()` method. Once the bridge is stopped, it will no longer
-        forward RPC requests between the server and client endpoints.
+        This method is responsible for stopping the RPC bridge,
+        which involves stopping the server and client endpoints
+        that were started in the `run()` method. Once the bridge
+        is stopped, it will no longer forward RPC requests between
+        the server and client endpoints.
         """
 
         self._server.stop()
@@ -250,12 +261,15 @@ class RPCBridge(Bridge):
         """run.
         Starts the RPC bridge by running the server and client endpoints.
 
-        This method is responsible for starting the RPC bridge, which involves running the server and client
-        endpoints that were set up in the __init__ method. Once the bridge is started, it will begin
-        forwarding RPC requests from the server endpoint to the client endpoint, and vice versa.
+        This method is responsible for starting the RPC bridge,
+        which involves running the server and client endpoints
+        that were set up in the __init__ method. Once the bridge
+        is started, it will begin forwarding RPC requests from
+        the server endpoint to the client endpoint, and vice versa.
 
-        The method also logs information about the bridge, including the source and destination broker
-        parameters and URIs.
+        The method also logs information about the bridge,
+        including the source and destination broker parameters
+        and URIs.
         """
 
         self._server.run()
@@ -280,33 +294,42 @@ class TopicBridge(Bridge):
     format to be used, and optionally a list of topic URI transformations to apply.
     """
 
-    def __init__(self, msg_type: PubSubMessage = None, *args, **kwargs):
+    def __init__(self, *args, msg_type: Optional[Type[PubSubMessage]] = None, **kwargs):
         """__init__.
         Initializes a PTopicBridge instance with the specified parameters.
 
         Args:
             msg_type (PubSubMessage): The message type to be used for the subscriber and publisher.
-            uri_transform (List): A list of tuples containing the from and to strings for transforming the topic URIs.
-            *args: Additional positional arguments to be passed to the parent class.
-            **kwargs: Additional keyword arguments to be passed to the parent class.
+            uri_transform (List): A list of tuples with
+                from/to strings for transforming topic URIs.
+            *args: Additional positional arguments to be
+                passed to the parent class.
+            **kwargs: Additional keyword arguments to be
+                passed to the parent class.
         """
 
         super().__init__(*args, **kwargs)
         self._msg_type = msg_type
 
-        self._sub = endpoint_factory(EndpointType.Subscriber, self._from_transport)(
+        self._sub = endpoint_factory(
+            EndpointType.Subscriber,
+            self._from_transport,
+        )(
             topic=self._from_uri,
             msg_type=self._msg_type,
             conn_params=self._from_broker_params,
             on_message=self.on_message,
         )
-        self._pub = endpoint_factory(EndpointType.Publisher, self._to_transport)(
+        self._pub = endpoint_factory(
+            EndpointType.Publisher,
+            self._to_transport,
+        )(
             topic=self._to_uri,
             msg_type=self._msg_type,
             conn_params=self._to_broker_params,
         )
 
-    def on_message(self, msg: PubSubMessage):
+    def on_message(self, msg):
         """on_message.
 
         Args:
@@ -315,26 +338,16 @@ class TopicBridge(Bridge):
         self._pub.publish(msg)
 
     def stop(self):
-        """
-        Stops the subscriber component of the topic bridge.
-
-        This method is used to gracefully stop the subscriber component of the topic bridge,
-        which is responsible for receiving messages from the source broker and forwarding
-        them to the destination broker. Calling this method will cause the subscriber to
-        disconnect from the source broker and stop processing incoming messages.
-        """
-
+        """Stop the subscriber and publisher components."""
         self._sub.stop()
         self._pub.stop()
 
     def run(self):
-        """run.
-        Runs the topic bridge, starting the subscriber and logging the bridge details.
+        """Run the topic bridge.
 
-        The `run()` method starts the subscriber and logs information about the topic bridge,
-        including the host, port, and topic URIs for the from and to brokers.
+        Starts the subscriber and publisher, and logs
+        the bridge connection details.
         """
-
         self._sub.run()
         self._pub.run()
         self.log.info(
@@ -351,25 +364,40 @@ class PTopicBridge(Bridge):
     Initializes a PTopicBridge instance with the specified parameters.
 
     Args:
-        msg_type (PubSubMessage): The message type to be used for the subscriber and publisher.
-        uri_transform (List): A list of tuples containing the from and to strings for transforming the topic URIs.
-        *args: Additional positional arguments to be passed to the parent class.
-        **kwargs: Additional keyword arguments to be passed to the parent class.
+        msg_type (PubSubMessage): The message type for
+            the subscriber and publisher.
+        uri_transform (List): A list of tuples with
+            from/to strings for transforming topic URIs.
+        *args: Additional positional arguments to be
+            passed to the parent class.
+        **kwargs: Additional keyword arguments to be
+            passed to the parent class.
 
-    The constructor determines the type of the topic bridge based on the types of
-    the from and to broker parameters. It then creates the subscriber and publisher
-    endpoints using the appropriate endpoint factory functions.
+    The constructor determines the type of the topic bridge
+    based on the types of the from and to broker parameters.
+    It then creates the subscriber and publisher endpoints
+    using the appropriate endpoint factory functions.
     """
 
-    def __init__(self, msg_type: PubSubMessage = None, uri_transform: List = [], *args, **kwargs):
+    def __init__(
+        self,
+        *args,
+        msg_type: Optional[Type[PubSubMessage]] = None,
+        uri_transform: Optional[List] = None,
+        **kwargs,
+    ):
         """
-        Initializes a PTopicBridge instance with the specified parameters.
+        Initializes a PTopicBridge instance.
 
         Args:
-            msg_type (PubSubMessage): The message type to be used for the subscriber and publisher.
-            uri_transform (List): A list of tuples containing the from and to strings for transforming the topic URIs.
-            *args: Additional positional arguments to be passed to the parent class.
-            **kwargs: Additional keyword arguments to be passed to the parent class.
+            msg_type (PubSubMessage): The message type
+                for the subscriber and publisher.
+            uri_transform (List): A list of tuples with
+                from/to strings for transforming topic URIs.
+            *args: Additional positional arguments to be
+                passed to the parent class.
+            **kwargs: Additional keyword arguments to be
+                passed to the parent class.
 
         The constructor determines the type of the topic bridge based on the types of
         the from and to broker parameters. It then creates the subscriber and publisher
@@ -378,7 +406,7 @@ class PTopicBridge(Bridge):
 
         super().__init__(*args, **kwargs)
         self._msg_type = msg_type
-        self._uri_transform = uri_transform
+        self._uri_transform = uri_transform if uri_transform is not None else []
 
         bA_type_str = str(type(self._from_broker_params)).split("'")[1]
         bB_type_str = str(type(self._to_broker_params)).split("'")[1]
@@ -411,7 +439,7 @@ class PTopicBridge(Bridge):
             conn_params=self._to_broker_params,
         )
 
-    def on_message(self, msg: PubSubMessage, topic: str):
+    def on_message(self, msg: Any, topic: str):
         """on_message.
         Handles the processing of a received message from the subscriber and publishes
         it to the appropriate topic on the publisher.
@@ -451,7 +479,8 @@ class PTopicBridge(Bridge):
         """
         Starts the B2B P-Topic Bridge, connecting the subscriber to the publisher.
 
-        The subscriber is configured with the `_from_broker_params` and `_from_uri` parameters, and the publisher is configured with the `_to_broker_params` and `_to_uri` parameters.
+        Connects the subscriber (from-broker) to the publisher
+        (to-broker) for pattern-based topic forwarding.
         """
 
         self._sub.run()

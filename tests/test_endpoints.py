@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for commlib endpoints module."""
+# pylint: disable=protected-access
 
 import unittest
 from enum import Enum
@@ -40,7 +41,7 @@ class TestBaseEndpoint(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.conn_params = ConnectionParameters(host="test", port="1234")
+        self.conn_params = ConnectionParameters(host="test", port=1234)
 
     def test_base_endpoint_creation(self):
         """Test BaseEndpoint creation."""
@@ -48,7 +49,7 @@ class TestBaseEndpoint(unittest.TestCase):
             debug=False,
             serializer=JSONSerializer,
             conn_params=self.conn_params,
-            compression=CompressionType.NO_COMPRESSION
+            compression=CompressionType.NO_COMPRESSION,
         )
         self.assertIsNotNone(endpoint)
         self.assertFalse(endpoint.debug)
@@ -76,10 +77,10 @@ class TestBaseEndpoint(unittest.TestCase):
         logger = BaseEndpoint.logger()
         self.assertIsNotNone(logger)
         # Logger should be a logging.Logger instance
-        self.assertTrue(hasattr(logger, 'info'))
-        self.assertTrue(hasattr(logger, 'debug'))
-        self.assertTrue(hasattr(logger, 'warning'))
-        self.assertTrue(hasattr(logger, 'error'))
+        self.assertTrue(hasattr(logger, "info"))
+        self.assertTrue(hasattr(logger, "debug"))
+        self.assertTrue(hasattr(logger, "warning"))
+        self.assertTrue(hasattr(logger, "error"))
 
     def test_base_endpoint_logger_singleton(self):
         """Test that logger is singleton."""
@@ -100,5 +101,5 @@ class TestBaseEndpoint(unittest.TestCase):
         self.assertEqual(endpoint._serializer, JSONSerializer)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

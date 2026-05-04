@@ -7,6 +7,7 @@ endpoint instances with various transport backends.
 import logging
 from enum import Enum
 import time
+from typing import Any, Optional, Type
 
 from commlib.compression import CompressionType
 from commlib.connection import BaseConnectionParameters
@@ -48,9 +49,12 @@ class BaseEndpoint:
     endpoint type, such as RPC, publish/subscribe, etc.
     """
 
+    _LOOP_INTERVAL = 0.001
+
     @classmethod
     def logger(cls) -> logging.Logger:
-        global e_logger
+        """Logger."""
+        global e_logger  # pylint: disable=global-statement
         if e_logger is None:
             e_logger = logging.getLogger(__name__)
         return e_logger
@@ -58,18 +62,22 @@ class BaseEndpoint:
     def __init__(
         self,
         debug: bool = False,
-        serializer: Serializer = JSONSerializer,
-        conn_params: BaseConnectionParameters = None,
-        compression: CompressionType = CompressionType.NO_COMPRESSION,
+        serializer: Optional[Type[Serializer]] = JSONSerializer,
+        conn_params: Optional[BaseConnectionParameters] = None,
+        compression: int = CompressionType.NO_COMPRESSION,
     ):
         """__init__.
         Initializes a new instance of the `BaseEndpoint` class.
 
         Args:
-            debug (bool, optional): A flag indicating whether debug mode is enabled. Defaults to `False`.
-            serializer (Serializer, optional): The serializer to use for data serialization. Defaults to `JSONSerializer`.
-            conn_params (BaseConnectionParameters, optional): The connection parameters to use for the transport. Defaults to `None`.
-            compression (CompressionType, optional): The compression type to use for the transport. Defaults to `CompressionType.NO_COMPRESSION`.
+            debug (bool, optional): Whether debug mode is
+                enabled. Defaults to ``False``.
+            serializer (Serializer, optional): Serializer for data.
+                Defaults to ``JSONSerializer``.
+            conn_params (BaseConnectionParameters, optional):
+                Connection parameters. Defaults to None.
+            compression (CompressionType, optional): Compression type.
+                Defaults to ``NO_COMPRESSION``.
         """
 
         self._debug = debug
@@ -77,18 +85,37 @@ class BaseEndpoint:
         self._compression = compression
         self._conn_params = conn_params
         self._state = EndpointState.DISCONNECTED
-        self._transport: BaseTransport = None
+        self._transport: Optional[BaseTransport] = None
+
+    @property
+    def state(self) -> EndpointState:
+        """Current endpoint state."""
+        return self._state
+
+    def set_state(self, state: EndpointState) -> None:
+        """Set the endpoint state.
+
+        Provides a public API for subclasses to update state without
+        directly accessing the private ``_state`` attribute.
+
+        Args:
+            state: The new endpoint state.
+        """
+        self._state = state
 
     @property
     def connected(self):
-        return self._transport.is_connected
+        """Connected."""
+        return self._transport.is_connected if self._transport else False
 
     @property
     def log(self):
+        """Log."""
         return self.logger()
 
     @property
     def debug(self):
+        """Debug."""
         return self._debug
 
     def run(self, wait: bool = True) -> None:
@@ -97,18 +124,26 @@ class BaseEndpoint:
 
         If the transport is not initialized, raises a `RuntimeError`.
 
-        If the transport is not connected and the subscriber is not in the `CONNECTED` or `CONNECTING` state, it starts the transport.
+        If the transport is not connected and the subscriber is not
+        in the CONNECTED or CONNECTING state, it starts the transport.
 
         Finally, it sets the subscriber state to `CONNECTED`.
         """
         if self._transport is None:
-            raise RuntimeError(f"Transport not initialized - cannot run {self.__class__.__name__}")
+            raise RuntimeError(
+                f"Transport not initialized - cannot run {self.__class__.__name__}"
+            )
         if not self.connected:
             self._transport.start()
             if wait:
-                while not self.connected:
-                    time.sleep(0.001)
-            self._state = EndpointState.CONNECTED
+                # Event-driven waiting (eliminates busy-wait polling)
+                if hasattr(self._transport, "wait_connected"):
+                    self._transport.wait_connected(timeout=10.0)
+                else:
+                    # Fallback for transports without event support
+                    while not self.connected:
+                        time.sleep(0.001)
+            self.set_state(EndpointState.CONNECTED)
         else:
             self.log.warning("Transport already connected - Skipping")
 
@@ -118,18 +153,26 @@ class BaseEndpoint:
 
         If the transport is not initialized, raises a `RuntimeError`.
 
-        If the transport is connected and the subscriber is not in the `DISCONNECTED` or `DISCONNECTING` state, it stops the transport.
+        If the transport is connected and the subscriber is not in
+        the DISCONNECTED or DISCONNECTING state, it stops the transport.
         """
         if self._transport is None:
-            raise RuntimeError(f"Transport not initialized - cannot stop {self.__class__.__name__}")
+            raise RuntimeError(
+                f"Transport not initialized - cannot stop {self.__class__.__name__}"
+            )
         if self._transport.is_connected:
             self._transport.stop()
             if wait:
-                while self.connected:
-                    time.sleep(0.001)
-            self._state = EndpointState.DISCONNECTED
+                # Event-driven waiting (eliminates busy-wait polling)
+                if hasattr(self._transport, "wait_disconnected"):
+                    self._transport.wait_disconnected(timeout=10.0)
+                else:
+                    # Fallback for transports without event support
+                    while self.connected:
+                        time.sleep(0.001)
+            self.set_state(EndpointState.DISCONNECTED)
         else:
-            self.log.warning(
+            self.log.debug(
                 "Transport is not connected - cannot stop %s",
                 self.__class__.__name__,
             )
@@ -158,11 +201,14 @@ class EndpointType(Enum):
     ActionClient = 6
     MPublisher = 7
     PSubscriber = 8
+    TaskProducer = 9
+    TaskWorker = 10
 
 
-def endpoint_factory(etype: EndpointType, etransport: TransportType):
+def endpoint_factory(etype: EndpointType, etransport: TransportType) -> Any:
     """
-    Factory function to create endpoint instances based on the specified endpoint type and transport type.
+    Factory function to create endpoint instances based on
+    the specified endpoint type and transport type.
 
     Args:
         etype (EndpointType): The type of the endpoint to create.
@@ -187,12 +233,19 @@ def endpoint_factory(etype: EndpointType, etransport: TransportType):
     Raises:
         ValueError: If an unsupported transport type or endpoint type is provided.
     """
+    comm: Any
     if etransport == TransportType.AMQP:
-        import commlib.transports.amqp as comm
+        import commlib.transports.amqp as _comm_amqp
+
+        comm = _comm_amqp
     elif etransport == TransportType.REDIS:
-        import commlib.transports.redis as comm
+        import commlib.transports.redis as _comm_redis
+
+        comm = _comm_redis
     elif etransport == TransportType.MQTT:
-        import commlib.transports.mqtt as comm
+        import commlib.transports.mqtt as _comm_mqtt
+
+        comm = _comm_mqtt
     else:
         raise ValueError()
     if etype == EndpointType.RPCService:
@@ -211,3 +264,7 @@ def endpoint_factory(etype: EndpointType, etransport: TransportType):
         return comm.MPublisher
     if etype == EndpointType.PSubscriber:
         return comm.PSubscriber
+    if etype == EndpointType.TaskProducer:
+        return comm.TaskProducer
+    if etype == EndpointType.TaskWorker:
+        return comm.TaskWorker

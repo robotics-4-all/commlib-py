@@ -1,0 +1,8 @@
+{
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.9",
+  "include": ["commlib"],
+  "exclude": ["build", "dist", "venv", "tests", "benchmark", "examples", "scripts"],
+  "reportMissingImports": false,
+  "reportMissingModuleSource": false
+}

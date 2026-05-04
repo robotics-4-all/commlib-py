@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install build dependencies
-RUN pip install --no-cache-dir build pytest pytest-cov coverage
+RUN pip install --no-cache-dir build pytest pytest-cov coverage pytest-benchmark psutil
 
 # Copy source
 COPY . .
@@ -15,11 +15,16 @@ RUN python -m build
 RUN pip install dist/*.whl
 
 # Install all optional dependencies (extras)
-RUN pip install "commlib-py[all]"
+RUN pip install ".[all,performance]"
 
-# Remove the source directory to ensure we are testing the installed package
-# We keep the tests directory though
-RUN mv tests /tmp/tests && rm -rf * && mv /tmp/tests .
+# Clean up source files, keeping only tests and benchmarks
+# This ensures we test the installed package, not the source
+RUN mkdir /tmp/keep && \
+    mv tests /tmp/keep/ && \
+    mv benchmark /tmp/keep/ && \
+    rm -rf * && \
+    mv /tmp/keep/* . && \
+    rmdir /tmp/keep
 
-# Default command runs unit tests
-CMD ["pytest", "tests", "--ignore=tests/mqtt", "--ignore=tests/redis"]
+# Default command runs unit tests (excluding integration and benchmark tests)
+CMD ["pytest", "tests", "--ignore=tests/mqtt", "--ignore=tests/redis", "--ignore=tests/kafka", "--ignore=tests/benchmarks"]
